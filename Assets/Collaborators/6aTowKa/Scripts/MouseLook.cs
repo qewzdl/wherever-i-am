@@ -9,14 +9,28 @@ public class MouseLook : MonoBehaviour
     private float rotationX = 0;
     private float rotationY = 0;
 
+    private bool cursorIsLocked;
+
     private void Start()
     {
-        Cursor.lockState = CursorLockMode.Locked;
+        cursorIsLocked = true;
+        SetCursorState(cursorIsLocked);
     }
 
     private void Update()
     {
-        Look();
+        if (cursorIsLocked) Look();
+
+        if (Keyboard.current.leftAltKey.wasPressedThisFrame)
+        {
+            cursorIsLocked = false;
+            SetCursorState(cursorIsLocked);
+        }
+        else if (Keyboard.current.leftAltKey.wasReleasedThisFrame)
+        {
+            cursorIsLocked = true;
+            SetCursorState(cursorIsLocked);
+        }
     }
 
     private void Look()
@@ -30,5 +44,13 @@ public class MouseLook : MonoBehaviour
 
         playerTransform.localRotation = Quaternion.Euler(0, rotationY, 0);
         gameObject.transform.localRotation = Quaternion.Euler(rotationX, rotationY, 0);
+    }
+
+    private void SetCursorState(bool isLocked)
+    {
+        if (isLocked) Cursor.lockState = CursorLockMode.Locked;
+        else Cursor.lockState = CursorLockMode.None;
+
+        Cursor.visible = !isLocked;
     }
 }
