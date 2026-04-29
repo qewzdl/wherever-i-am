@@ -9,6 +9,9 @@ EditorBuildSettings:
     path: Assets/Collaborators/Qewzdl/Scenes/Multiplayer Test.unity
     guid: 0dce89eec711dde448cf00c56079113a
   - enabled: 1
+    path: Assets/Collaborators/6aTowKa/Scenes/ControllerTestScene.unity
+    guid: ba2e713237634af4296c237f747e1d3a
+  - enabled: 1
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
   m_configObjects:
