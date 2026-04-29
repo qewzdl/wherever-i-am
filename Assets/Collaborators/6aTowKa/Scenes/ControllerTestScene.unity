@@ -783,7 +783,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 5
-  speedToCrouch: 0.5
+  speedToCrouch: 5
 --- !u!1 &1141320106
 GameObject:
   m_ObjectHideFlags: 0
