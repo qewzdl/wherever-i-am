@@ -151,7 +151,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 92b41388233701f4fad5a0b025ef6612, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
   target: {fileID: 6240376699478474161}
 --- !u!114 &8111588279690829731
 MonoBehaviour:
@@ -165,7 +164,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7d8dce257d48a0d41a414339295d4f91, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
   playerTransform: {fileID: 4840892936950455630}
   sensitivity: 50
 --- !u!1 &442217069977297664
@@ -618,7 +616,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   playerModelTransform: {fileID: 3689984352628262258}
-  animationSpeed: 0.5
+  animationSpeed: 5
   crouchHeight: 0.5
   standHeight: 1
 --- !u!114 &7969747764204676344

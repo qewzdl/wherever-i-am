@@ -121,16 +121,16 @@ public class NetworkConnectionService : MonoBehaviour
     public void Shutdown()
     {
         if (networkManager == null) return;
-        if (!networkManager.IsListening) return;
 
-        if (activeProvider != null)
+        if (!networkManager.IsListening &&
+            !networkManager.IsClient &&
+            !networkManager.IsServer)
         {
-            activeProvider.Shutdown();
-            activeProvider = null;
-        } else
-        {
-            networkManager.Shutdown();
+            return;
         }
+
+        networkManager.Shutdown();
+        activeProvider = null;
 
         Debug.Log("Network shutdown.");
     }
