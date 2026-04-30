@@ -1,3 +1,5 @@
+using Unity.Netcode;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -10,6 +12,12 @@ public class MouseLook : MonoBehaviour
     private float rotationY = 0;
 
     private bool cursorIsLocked;
+
+    private void OnApplicationFocus(bool focus)
+    {
+        cursorIsLocked = focus;
+        SetCursorState(cursorIsLocked);
+    }
 
     private void Start()
     {
@@ -43,7 +51,7 @@ public class MouseLook : MonoBehaviour
         rotationY += delta.x;
 
         playerTransform.localRotation = Quaternion.Euler(0, rotationY, 0);
-        gameObject.transform.localRotation = Quaternion.Euler(rotationX, rotationY, 0);
+        gameObject.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
     }
 
     private void SetCursorState(bool isLocked)
