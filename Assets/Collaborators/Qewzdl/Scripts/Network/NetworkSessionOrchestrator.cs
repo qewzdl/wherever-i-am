@@ -37,6 +37,12 @@ public class NetworkSessionOrchestrator : MonoBehaviour
     {
         if (!HasRequiredReferences()) return;
 
+        if (connectionService.IsListening)
+        {
+            Debug.LogWarning("Network is already running.");
+            return;
+        }
+
         stateMachine.ChangeState(GameState.Connecting);
 
         ConnectionResult result = await connectionService.StartHostAsync();
