@@ -8,8 +8,8 @@ public class LobbyController : NetworkBehaviour
 
     private void Awake()
     {
-        if (lobbyState == null)
-            lobbyState = GetComponent<LobbyState>();
+        if (lobbyState == null) lobbyState = GetComponent<LobbyState>();
+        if (lobbyConfig == null) Debug.LogError("LobbyConfig is not assigned.");
     }
 
     public override void OnNetworkSpawn()
