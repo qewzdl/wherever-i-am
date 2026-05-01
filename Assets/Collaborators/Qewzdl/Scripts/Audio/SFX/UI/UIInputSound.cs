@@ -37,7 +37,7 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (!playHoverSound) return;
-        if (AudioManager.Instance == null) return;
+        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
 
         AudioManager.Instance.UI.PlayHover();
     }
@@ -45,7 +45,7 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     public void OnPointerClick(PointerEventData eventData)
     {
         if (!playClickSound) return;
-        if (AudioManager.Instance == null) return;
+        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
 
         AudioManager.Instance.UI.PlayClick();
     }

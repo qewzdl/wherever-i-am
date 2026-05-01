@@ -38,6 +38,12 @@ public class MainMenuUI : MonoBehaviour
             return;
         }
 
+        if (ipInputField == null || string.IsNullOrWhiteSpace(ipInputField.text))
+        {
+            ShowError("IP address is empty.");
+            return;
+        }
+
         await NetworkSessionOrchestrator.Instance.JoinLanAsync(ipInputField.text);
     }
 

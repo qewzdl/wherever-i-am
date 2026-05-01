@@ -11,7 +11,7 @@ public class UiButtonSound : MonoBehaviour, IPointerEnterHandler, IPointerClickH
     {
         if (!playHoverSound) return;
 
-        if (AudioManager.Instance == null) return;
+        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
 
         AudioManager.Instance.UI.PlayHover();
     }
@@ -20,7 +20,7 @@ public class UiButtonSound : MonoBehaviour, IPointerEnterHandler, IPointerClickH
     {
         if (!playClickSound) return;
 
-        if (AudioManager.Instance == null) return;
+        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
 
         AudioManager.Instance.UI.PlayClick();
     }
