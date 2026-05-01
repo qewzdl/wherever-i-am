@@ -30,7 +30,6 @@ public class Bootstrapper : MonoBehaviour
             return;
         }
 
-        stateMachine.ChangeState(GameState.MainMenu);
         SceneManager.LoadScene(mainMenuSceneName, LoadSceneMode.Single);
     }
 }

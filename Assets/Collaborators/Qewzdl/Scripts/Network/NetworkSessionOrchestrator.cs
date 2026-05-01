@@ -13,6 +13,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour
     [SerializeField] private NetworkSceneLoader sceneLoader;
 
     private bool networkCallbacksSubscribed;
+    public string LastErrorMessage { get; private set; }
+
+    public bool HasLastError => !string.IsNullOrWhiteSpace(LastErrorMessage);
 
     private void Awake()
     {
@@ -68,6 +71,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour
         {
             connectionService.Shutdown();
             stateMachine.ChangeState(GameState.Error);
+            sceneLoader.LoadMainMenu();
         }
     }
 
@@ -75,14 +79,15 @@ public class NetworkSessionOrchestrator : MonoBehaviour
     {
         if (!HasRequiredReferences()) return;
 
+        ClearLastError();
+
         stateMachine.ChangeState(GameState.Connecting);
 
         ConnectionResult result = await connectionService.StartClientAsync(ip);
 
         if (!result.Success)
         {
-            Debug.LogError(result.Message);
-            stateMachine.ChangeState(GameState.Error);
+            FailAndReturnToMainMenu(result.Message);
             return;
         }
 
@@ -196,10 +201,16 @@ public class NetworkSessionOrchestrator : MonoBehaviour
         if (stateMachine.CurrentState == GameState.Disconnecting)
             return;
 
+        if (sceneLoader == null)
+        {
+            Debug.LogError("NetworkSceneLoader reference is missing.");
+            stateMachine.ChangeState(GameState.Error);
+            return;
+        }
+
         if (stateMachine.CurrentState == GameState.Connecting)
         {
-            Debug.LogWarning("Connection failed or was interrupted while connecting.");
-            stateMachine.ChangeState(GameState.Error);
+            FailAndReturnToMainMenu("Connection failed or was interrupted while connecting.");
             return;
         }
 
@@ -207,8 +218,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour
             stateMachine.CurrentState == GameState.LoadingGame ||
             stateMachine.CurrentState == GameState.InGame)
         {
-            Debug.LogWarning("Disconnected from network session.");
-            stateMachine.ChangeState(GameState.MainMenu);
+            FailAndReturnToMainMenu("Disconnected from network session.");
         }
     }
 
@@ -233,5 +243,26 @@ public class NetworkSessionOrchestrator : MonoBehaviour
         {
             stateMachine.ChangeState(GameState.InGame);
         }
+    }
+
+    public void ClearLastError()
+    {
+        LastErrorMessage = string.Empty;
+    }
+
+    private void FailAndReturnToMainMenu(string message)
+    {
+        LastErrorMessage = message;
+
+        Debug.LogWarning(message);
+
+        if (stateMachine != null)
+            stateMachine.ChangeState(GameState.Error);
+
+        if (connectionService != null)
+            connectionService.Shutdown();
+
+        if (sceneLoader != null)
+            sceneLoader.LoadMainMenu();
     }
 }
