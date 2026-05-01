@@ -1,7 +1,7 @@
 using TMPro;
 using UnityEngine;
 
-public class LanConnectionUi : MonoBehaviour
+public class LanConnectionUI : MonoBehaviour
 {
     [SerializeField] private TMP_InputField ipInputField;
 
