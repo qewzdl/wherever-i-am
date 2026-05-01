@@ -106,10 +106,10 @@ public class LobbyUI : MonoBehaviour
         {
             LobbyPlayerData player = lobbyService.GetPlayer(i);
 
-            string hostText = player.IsHost ? "Host" : "Client";
+            string ownerText = player.IsRoomOwner ? "Owner" : "Player";
             string readyText = player.IsReady ? "Ready" : "Not ready";
 
-            builder.AppendLine($"{player.PlayerName} | {hostText} | {readyText} | Character {player.CharacterId}");
+            builder.AppendLine($"{player.PlayerName} | {ownerText} | {readyText} | Character {player.CharacterId}");
         }
 
         playersText.text = builder.ToString();
@@ -119,7 +119,7 @@ public class LobbyUI : MonoBehaviour
     {
         if (startGameButton != null)
         {
-            startGameButton.gameObject.SetActive(lobbyService.IsHost);
+            startGameButton.gameObject.SetActive(lobbyService.IsLocalPlayerRoomOwner);
             startGameButton.interactable = lobbyService.CanStartGame;
         }
     }

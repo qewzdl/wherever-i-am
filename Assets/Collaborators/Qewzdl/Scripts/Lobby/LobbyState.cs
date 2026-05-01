@@ -4,7 +4,15 @@ using UnityEngine;
 
 public class LobbyState : NetworkBehaviour
 {
+    public const ulong NoRoomOwner = ulong.MaxValue;
+
     public NetworkList<LobbyPlayerData> Players { get; private set; }
+
+    public NetworkVariable<ulong> RoomOwnerClientId { get; } = new NetworkVariable<ulong>(
+        NoRoomOwner,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
     public event Action PlayersChanged;
 
@@ -16,12 +24,17 @@ public class LobbyState : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         Players.OnListChanged += HandlePlayersChanged;
+        RoomOwnerClientId.OnValueChanged += HandleRoomOwnerChanged;
+
         PlayersChanged?.Invoke();
     }
 
     public override void OnNetworkDespawn()
     {
-        if (Players != null) Players.OnListChanged -= HandlePlayersChanged;
+        if (Players != null)
+            Players.OnListChanged -= HandlePlayersChanged;
+
+        RoomOwnerClientId.OnValueChanged -= HandleRoomOwnerChanged;
     }
 
     public override void OnDestroy()
@@ -31,6 +44,11 @@ public class LobbyState : NetworkBehaviour
     }
 
     private void HandlePlayersChanged(NetworkListEvent<LobbyPlayerData> changeEvent)
+    {
+        PlayersChanged?.Invoke();
+    }
+
+    private void HandleRoomOwnerChanged(ulong previousOwnerId, ulong newOwnerId)
     {
         PlayersChanged?.Invoke();
     }

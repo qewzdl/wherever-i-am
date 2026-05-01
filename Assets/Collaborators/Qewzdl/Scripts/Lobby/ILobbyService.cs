@@ -5,7 +5,7 @@ public interface ILobbyService
     event Action LobbyChanged;
 
     int PlayerCount { get; }
-    bool IsHost { get; }
+    bool IsLocalPlayerRoomOwner { get; }
     bool CanStartGame { get; }
 
     LobbyPlayerData GetPlayer(int index);

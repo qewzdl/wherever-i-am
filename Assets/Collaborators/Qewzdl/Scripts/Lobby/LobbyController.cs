@@ -50,13 +50,16 @@ public class LobbyController : NetworkBehaviour
 
         if (lobbyState.TryGetPlayerIndex(clientId, out _)) return;
 
-        bool isHost = clientId == NetworkManager.ServerClientId;
+        bool shouldBecomeRoomOwner = lobbyState.RoomOwnerClientId.Value == LobbyState.NoRoomOwner;
+
+        if (shouldBecomeRoomOwner)
+            lobbyState.RoomOwnerClientId.Value = clientId;
 
         lobbyState.Players.Add(new LobbyPlayerData(
             clientId,
             $"Player {clientId}",
             false,
-            isHost,
+            shouldBecomeRoomOwner,
             0
         ));
     }
@@ -67,7 +70,30 @@ public class LobbyController : NetworkBehaviour
 
         if (!lobbyState.TryGetPlayerIndex(clientId, out int index)) return;
 
+        bool wasRoomOwner = lobbyState.Players[index].IsRoomOwner;
+
         lobbyState.Players.RemoveAt(index);
+
+        if (wasRoomOwner) AssignNextRoomOwner();
+    }
+
+    private void AssignNextRoomOwner()
+    {
+        if (lobbyState.Players.Count == 0)
+        {
+            lobbyState.RoomOwnerClientId.Value = LobbyState.NoRoomOwner;
+            return;
+        }
+
+        ulong nextOwnerClientId = lobbyState.Players[0].ClientId;
+        lobbyState.RoomOwnerClientId.Value = nextOwnerClientId;
+
+        for (int i = 0; i < lobbyState.Players.Count; i++)
+        {
+            LobbyPlayerData player = lobbyState.Players[i];
+            player.IsRoomOwner = player.ClientId == nextOwnerClientId;
+            lobbyState.Players[i] = player;
+        }
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -103,9 +129,9 @@ public class LobbyController : NetworkBehaviour
     {
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (senderClientId != NetworkManager.ServerClientId)
+        if (senderClientId != lobbyState.RoomOwnerClientId.Value)
         {
-            Debug.LogWarning("Only host can request game start.");
+            Debug.LogWarning("Only room owner can request game start.");
             return;
         }
 

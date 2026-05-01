@@ -13,7 +13,15 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyService
         ? lobbyState.Players.Count
         : 0;
 
-    public bool IsHost => NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost;
+    public bool IsLocalPlayerRoomOwner
+    {
+        get
+        {
+            if (NetworkManager.Singleton == null || lobbyState == null) return false;
+
+            return lobbyState.RoomOwnerClientId.Value == NetworkManager.Singleton.LocalClientId;
+        }
+    }
 
     public bool CanStartGame => lobbyController != null && lobbyController.CanStartGame();
 
