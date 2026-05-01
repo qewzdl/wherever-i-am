@@ -20,7 +20,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
 
         ResolveReferences();
     }
@@ -36,6 +35,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour
 
     public async Task HostLanAsync()
     {
+        if (!HasRequiredReferences()) return;
+
         stateMachine.ChangeState(GameState.Connecting);
 
         ConnectionResult result = await connectionService.StartHostAsync();
@@ -53,6 +54,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour
 
     public async Task JoinLanAsync(string ip)
     {
+        if (!HasRequiredReferences()) return;
+
         stateMachine.ChangeState(GameState.Connecting);
 
         ConnectionResult result = await connectionService.StartClientAsync(ip);
@@ -69,6 +72,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour
 
     public void StartGame()
     {
+        if (!HasRequiredReferences()) return;
+
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
 
         stateMachine.ChangeState(GameState.LoadingGame);
@@ -77,11 +82,36 @@ public class NetworkSessionOrchestrator : MonoBehaviour
 
     public void ShutdownToMainMenu()
     {
+        if (!HasRequiredReferences()) return;
+
         stateMachine.ChangeState(GameState.Disconnecting);
 
         connectionService.Shutdown();
 
         sceneLoader.LoadMainMenu();
         stateMachine.ChangeState(GameState.MainMenu);
+    }
+
+    private bool HasRequiredReferences()
+    {
+        if (stateMachine == null)
+        {
+            Debug.LogError("GameStateMachine reference is missing.");
+            return false;
+        }
+
+        if (connectionService == null)
+        {
+            Debug.LogError("NetworkConnectionService reference is missing.");
+            return false;
+        }
+
+        if (sceneLoader == null)
+        {
+            Debug.LogError("NetworkSceneLoader reference is missing.");
+            return false;
+        }
+
+        return true;
     }
 }

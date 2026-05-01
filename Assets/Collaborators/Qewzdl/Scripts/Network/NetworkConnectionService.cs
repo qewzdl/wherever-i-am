@@ -36,7 +36,6 @@ public class NetworkConnectionService : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
 
         ResolveReferences();
         InitializeStrategies();

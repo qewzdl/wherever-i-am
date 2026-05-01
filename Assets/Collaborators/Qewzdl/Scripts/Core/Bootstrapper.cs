@@ -24,6 +24,12 @@ public class Bootstrapper : MonoBehaviour
 
     private void Start()
     {
+        if (stateMachine == null)
+        {
+            Debug.LogError("GameStateMachine was not found on BootstrapManager.");
+            return;
+        }
+
         stateMachine.ChangeState(GameState.MainMenu);
         SceneManager.LoadScene(mainMenuSceneName, LoadSceneMode.Single);
     }
