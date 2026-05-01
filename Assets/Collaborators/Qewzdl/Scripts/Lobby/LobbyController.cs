@@ -50,12 +50,9 @@ public class LobbyController : NetworkBehaviour
 
         if (lobbyState.TryGetPlayerIndex(clientId, out _)) return;
 
-        bool shouldBecomeRoomOwner = lobbyState.RoomOwnerClientId.Value == 
-            LobbyState.NoRoomOwner || 
-            !lobbyState.TryGetPlayerIndex(lobbyState.RoomOwnerClientId.Value, out _);
+        bool shouldBecomeRoomOwner = !HasValidRoomOwner();
 
-        if (shouldBecomeRoomOwner)
-            lobbyState.RoomOwnerClientId.Value = clientId;
+        if (shouldBecomeRoomOwner) lobbyState.RoomOwnerClientId.Value = clientId;
 
         lobbyState.Players.Add(new LobbyPlayerData(
             clientId,
@@ -72,7 +69,7 @@ public class LobbyController : NetworkBehaviour
 
         if (!lobbyState.TryGetPlayerIndex(clientId, out int index)) return;
 
-        bool wasRoomOwner = lobbyState.Players[index].IsRoomOwner;
+        bool wasRoomOwner = IsRoomOwner(clientId);
 
         lobbyState.Players.RemoveAt(index);
 
@@ -101,10 +98,11 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetReadyRpc(bool isReady, RpcParams rpcParams = default)
     {
+        if (!HasLobbyState()) return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!lobbyState.TryGetPlayerIndex(senderClientId, out int index))
-            return;
+        if (!lobbyState.TryGetPlayerIndex(senderClientId, out int index)) return;
 
         LobbyPlayerData player = lobbyState.Players[index];
         player.IsReady = isReady;
@@ -115,10 +113,11 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetCharacterRpc(int characterId, RpcParams rpcParams = default)
     {
+        if (!HasLobbyState()) return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!lobbyState.TryGetPlayerIndex(senderClientId, out int index))
-            return;
+        if (!lobbyState.TryGetPlayerIndex(senderClientId, out int index)) return;
 
         LobbyPlayerData player = lobbyState.Players[index];
         player.CharacterId = characterId;
@@ -129,6 +128,8 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestStartGameRpc(RpcParams rpcParams = default)
     {
+        if (!HasLobbyState()) return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
         if (!IsRoomOwner(senderClientId))
@@ -140,14 +141,36 @@ public class LobbyController : NetworkBehaviour
         TryStartGame();
     }
 
+    private bool HasLobbyState()
+    {
+        if (lobbyState != null)
+            return true;
+
+        Debug.LogError("LobbyState is missing.");
+        return false;
+    }
+
     private bool IsRoomOwner(ulong clientId)
     {
         return lobbyState != null && lobbyState.RoomOwnerClientId.Value == clientId;
     }
 
+    private bool HasValidRoomOwner()
+    {
+        return lobbyState != null &&
+            lobbyState.RoomOwnerClientId.Value != LobbyState.NoRoomOwner &&
+            lobbyState.TryGetPlayerIndex(lobbyState.RoomOwnerClientId.Value, out _);
+    }
+
     public bool CanStartGame()
     {
         if (!IsServer) return false;
+
+        if (lobbyState == null)
+        {
+            Debug.LogError("LobbyState is missing.");
+            return false;
+        }
 
         if (lobbyConfig == null)
         {
@@ -172,6 +195,12 @@ public class LobbyController : NetworkBehaviour
     private void TryStartGame()
     {
         if (!CanStartGame()) return;
+
+        if (NetworkSessionOrchestrator.Instance == null)
+        {
+            Debug.LogError("NetworkSessionOrchestrator.Instance is null.");
+            return;
+        }
 
         NetworkSessionOrchestrator.Instance.StartGame();
     }
