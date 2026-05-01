@@ -50,7 +50,9 @@ public class LobbyController : NetworkBehaviour
 
         if (lobbyState.TryGetPlayerIndex(clientId, out _)) return;
 
-        bool shouldBecomeRoomOwner = lobbyState.RoomOwnerClientId.Value == LobbyState.NoRoomOwner;
+        bool shouldBecomeRoomOwner = lobbyState.RoomOwnerClientId.Value == 
+            LobbyState.NoRoomOwner || 
+            !lobbyState.TryGetPlayerIndex(lobbyState.RoomOwnerClientId.Value, out _);
 
         if (shouldBecomeRoomOwner)
             lobbyState.RoomOwnerClientId.Value = clientId;
@@ -129,13 +131,18 @@ public class LobbyController : NetworkBehaviour
     {
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (senderClientId != lobbyState.RoomOwnerClientId.Value)
+        if (!IsRoomOwner(senderClientId))
         {
             Debug.LogWarning("Only room owner can request game start.");
             return;
         }
 
         TryStartGame();
+    }
+
+    private bool IsRoomOwner(ulong clientId)
+    {
+        return lobbyState != null && lobbyState.RoomOwnerClientId.Value == clientId;
     }
 
     public bool CanStartGame()
