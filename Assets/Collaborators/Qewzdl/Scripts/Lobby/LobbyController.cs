@@ -6,10 +6,15 @@ public class LobbyController : NetworkBehaviour
     [SerializeField] private LobbyState lobbyState;
     [SerializeField] private LobbyConfig lobbyConfig;
 
+    private LobbyStartRules startRules;
+
     private void Awake()
     {
-        if (lobbyState == null) lobbyState = GetComponent<LobbyState>();
+        if (lobbyState == null)lobbyState = GetComponent<LobbyState>();
+
         if (lobbyConfig == null) Debug.LogError("LobbyConfig is not assigned.");
+
+        startRules = new LobbyStartRules(lobbyConfig);
     }
 
     public override void OnNetworkSpawn()
@@ -164,32 +169,13 @@ public class LobbyController : NetworkBehaviour
 
     public bool CanStartGame()
     {
-        if (!IsServer) return false;
-
-        if (lobbyState == null)
-        {
-            Debug.LogError("LobbyState is missing.");
+        if (!IsServer)
             return false;
-        }
 
-        if (lobbyConfig == null)
-        {
-            Debug.LogError("LobbyConfig is missing.");
+        if (!HasLobbyState())
             return false;
-        }
 
-        if (lobbyState.Players.Count < lobbyConfig.MinPlayersToStart) return false;
-
-        if (lobbyState.Players.Count > lobbyConfig.MaxPlayers) return false;
-
-        if (!lobbyConfig.RequireAllPlayersReady) return true;
-
-        for (int i = 0; i < lobbyState.Players.Count; i++)
-        {
-            if (!lobbyState.Players[i].IsReady) return false;
-        }
-
-        return true;
+        return startRules != null && startRules.CanStart(lobbyState);
     }
 
     private void TryStartGame()
