@@ -38,7 +38,7 @@ public class NetworkConnectionService : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        InitializeReferences();
+        ResolveReferences();
         InitializeStrategies();
     }
 
@@ -135,9 +135,12 @@ public class NetworkConnectionService : MonoBehaviour
         Debug.Log("Network shutdown.");
     }
 
-    private void InitializeReferences()
+    private void ResolveReferences()
     {
+        if (networkManager == null) networkManager = GetComponent<NetworkManager>();
+
         if (networkManager == null) networkManager = NetworkManager.Singleton;
+
         if (transport == null && networkManager != null) transport = networkManager.GetComponent<UnityTransport>();
     }
 

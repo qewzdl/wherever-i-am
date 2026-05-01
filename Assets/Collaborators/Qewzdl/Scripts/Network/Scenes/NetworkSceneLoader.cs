@@ -15,15 +15,32 @@ public class NetworkSceneLoader : MonoBehaviour
 
     public void LoadLobby()
     {
-        if (!NetworkManager.Singleton.IsServer) return;
+        if (!CanLoadNetworkScene()) return;
 
         NetworkManager.Singleton.SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
     }
 
-    public void LoadGame()
+    public void LoadGame()                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
     {
-        if (!NetworkManager.Singleton.IsServer) return;
+        if (!CanLoadNetworkScene()) return;
 
         NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+    }
+
+    private bool CanLoadNetworkScene()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogError("NetworkManager.Singleton is null.");
+            return false;
+        }
+
+        if (!NetworkManager.Singleton.IsServer)
+        {
+            Debug.LogWarning("Only server can load network scenes.");
+            return false;
+        }
+
+        return true;
     }
 }

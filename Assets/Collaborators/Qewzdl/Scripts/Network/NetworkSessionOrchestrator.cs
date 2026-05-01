@@ -21,6 +21,17 @@ public class NetworkSessionOrchestrator : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        ResolveReferences();
+    }
+
+    private void ResolveReferences()
+    {
+        if (stateMachine == null) stateMachine = GetComponent<GameStateMachine>();
+
+        if (connectionService == null) connectionService = GetComponent<NetworkConnectionService>();
+
+        if (sceneLoader == null) sceneLoader = GetComponent<NetworkSceneLoader>();
     }
 
     public async Task HostLanAsync()
@@ -52,11 +63,13 @@ public class NetworkSessionOrchestrator : MonoBehaviour
             stateMachine.ChangeState(GameState.Error);
             return;
         }
+
+        Debug.Log(result.Message);
     }
 
     public void StartGame()
     {
-        if (!NetworkManager.Singleton.IsServer) return;
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
 
         stateMachine.ChangeState(GameState.LoadingGame);
         sceneLoader.LoadGame();
