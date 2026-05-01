@@ -60,8 +60,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour
 
         if (!result.Success)
         {
-            Debug.LogError(result.Message);
-            stateMachine.ChangeState(GameState.Error);
+            FailAndReturnToMainMenu(result.Message);
             return;
         }
 
@@ -69,9 +68,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour
 
         if (!sceneLoader.LoadLobby())
         {
-            connectionService.Shutdown();
-            stateMachine.ChangeState(GameState.Error);
-            sceneLoader.LoadMainMenu();
+            FailAndReturnToMainMenu("Failed to load lobby scene.");
         }
     }
 
