@@ -88,6 +88,12 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyService
 
     public void LeaveLobby()
     {
+        if (NetworkSessionOrchestrator.Instance == null)
+        {
+            Debug.LogError("NetworkSessionOrchestrator.Instance is null.");
+            return;
+        }
+
         NetworkSessionOrchestrator.Instance.ShutdownToMainMenu();
     }
 
