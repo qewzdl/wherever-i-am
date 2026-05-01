@@ -10,7 +10,7 @@ public class LobbyController : NetworkBehaviour
 
     private void Awake()
     {
-        if (lobbyState == null)lobbyState = GetComponent<LobbyState>();
+        if (lobbyState == null) lobbyState = GetComponent<LobbyState>();
 
         if (lobbyConfig == null) Debug.LogError("LobbyConfig is not assigned.");
 
@@ -25,6 +25,7 @@ public class LobbyController : NetworkBehaviour
         NetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
 
         AddPlayerIfNotExists(NetworkManager.LocalClientId);
+        RefreshCanStartGame();
     }
 
     public override void OnNetworkDespawn()
@@ -66,6 +67,8 @@ public class LobbyController : NetworkBehaviour
             shouldBecomeRoomOwner,
             0
         ));
+
+        RefreshCanStartGame();
     }
 
     private void RemovePlayer(ulong clientId)
@@ -79,6 +82,8 @@ public class LobbyController : NetworkBehaviour
         lobbyState.Players.RemoveAt(index);
 
         if (wasRoomOwner) AssignNextRoomOwner();
+
+        RefreshCanStartGame();
     }
 
     private void AssignNextRoomOwner()
@@ -113,6 +118,8 @@ public class LobbyController : NetworkBehaviour
         player.IsReady = isReady;
 
         lobbyState.Players[index] = player;
+
+        RefreshCanStartGame();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -128,6 +135,8 @@ public class LobbyController : NetworkBehaviour
         player.CharacterId = characterId;
 
         lobbyState.Players[index] = player;
+
+        RefreshCanStartGame();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -175,11 +184,24 @@ public class LobbyController : NetworkBehaviour
         if (!HasLobbyState())
             return false;
 
-        return startRules != null && startRules.CanStart(lobbyState);
+        return lobbyState.CanStartGame.Value;
+    }
+
+    private void RefreshCanStartGame()
+    {
+        if (!IsServer)
+            return;
+
+        if (!HasLobbyState())
+            return;
+
+        lobbyState.CanStartGame.Value = startRules != null && startRules.CanStart(lobbyState);
     }
 
     private void TryStartGame()
     {
+        RefreshCanStartGame();
+
         if (!CanStartGame()) return;
 
         if (NetworkSessionOrchestrator.Instance == null)

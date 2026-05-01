@@ -23,7 +23,7 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyService
         }
     }
 
-    public bool CanStartGame => lobbyController != null && lobbyController.CanStartGame();
+    public bool CanStartGame => lobbyState != null && lobbyState.CanStartGame.Value;
 
     private void Awake()
     {
