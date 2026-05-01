@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using UnityEngine.SceneManagement;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -54,8 +55,10 @@ public class NetworkSessionOrchestrator : MonoBehaviour
             return;
         }
 
-        stateMachine.ChangeState(GameState.Lobby);
-        sceneLoader.LoadLobby();
+        if (!sceneLoader.LoadLobby())
+        {
+            stateMachine.ChangeState(GameState.Error);
+        }
     }
 
     public async Task JoinLanAsync(string ip)
@@ -92,8 +95,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour
             return;
         }
 
-        stateMachine.ChangeState(GameState.LoadingGame);
-        sceneLoader.LoadGame();
+        if (sceneLoader.LoadGame()) stateMachine.ChangeState(GameState.LoadingGame);
     }
 
     public void ShutdownToMainMenu()
@@ -105,7 +107,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour
         connectionService.Shutdown();
 
         sceneLoader.LoadMainMenu();
-        stateMachine.ChangeState(GameState.MainMenu);
     }
 
     private bool HasRequiredReferences()
@@ -129,5 +130,39 @@ public class NetworkSessionOrchestrator : MonoBehaviour
         }
 
         return true;
+    }
+
+    private void OnEnable()
+    {
+        ResolveReferences();
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (stateMachine == null || sceneLoader == null)
+            return;
+
+        if (scene.name == sceneLoader.MainMenuSceneName)
+        {
+            stateMachine.ChangeState(GameState.MainMenu);
+            return;
+        }
+
+        if (scene.name == sceneLoader.LobbySceneName)
+        {
+            stateMachine.ChangeState(GameState.Lobby);
+            return;
+        }
+
+        if (scene.name == sceneLoader.GameSceneName)
+        {
+            stateMachine.ChangeState(GameState.InGame);
+        }
     }
 }

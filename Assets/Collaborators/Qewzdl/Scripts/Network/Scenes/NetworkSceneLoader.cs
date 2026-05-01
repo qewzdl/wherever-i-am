@@ -8,23 +8,29 @@ public class NetworkSceneLoader : MonoBehaviour
     [SerializeField] private string lobbySceneName = "Lobby";
     [SerializeField] private string gameSceneName = "Game";
 
+    public string MainMenuSceneName => mainMenuSceneName;
+    public string LobbySceneName => lobbySceneName;
+    public string GameSceneName => gameSceneName;
+
     public void LoadMainMenu()
     {
         SceneManager.LoadScene(mainMenuSceneName, LoadSceneMode.Single);
     }
 
-    public void LoadLobby()
+    public bool LoadLobby()
     {
-        if (!CanLoadNetworkScene()) return;
+        if (!CanLoadNetworkScene()) return false;
 
         NetworkManager.Singleton.SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
+        return true;
     }
 
-    public void LoadGame()                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+    public bool LoadGame()
     {
-        if (!CanLoadNetworkScene()) return;
+        if (!CanLoadNetworkScene()) return false;
 
         NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+        return true;
     }
 
     private bool CanLoadNetworkScene()
