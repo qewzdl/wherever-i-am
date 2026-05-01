@@ -19,7 +19,7 @@ public class LobbyState : NetworkBehaviour
         PlayersChanged?.Invoke();
     }
 
-public override void OnNetworkDespawn()
+    public override void OnNetworkDespawn()
     {
         if (Players != null) Players.OnListChanged -= HandlePlayersChanged;
     }
