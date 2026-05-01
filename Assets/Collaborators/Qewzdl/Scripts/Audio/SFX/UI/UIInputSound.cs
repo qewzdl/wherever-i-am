@@ -58,7 +58,7 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
             return;
         }
 
-        if (AudioManager.Instance == null)
+        if (AudioManager.Instance == null || AudioManager.Instance.UI == null)
         {
             previousText = newText;
             return;
@@ -77,6 +77,8 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
 
     private void TryPlayInputSound()
     {
+        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
+
         if (Time.unscaledTime - lastInputSoundTime < inputSoundCooldown) return;
 
         lastInputSoundTime = Time.unscaledTime;
