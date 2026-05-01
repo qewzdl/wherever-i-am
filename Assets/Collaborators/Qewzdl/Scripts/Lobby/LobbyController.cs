@@ -118,7 +118,8 @@ public class LobbyController : NetworkBehaviour
 
         if (lobbyConfig == null)
         {
-            Debug.LogError("LobbyConfig is missing."); return false;
+            Debug.LogError("LobbyConfig is missing.");
+            return false;
         }
 
         if (lobbyState.Players.Count < lobbyConfig.MinPlayersToStart) return false;
