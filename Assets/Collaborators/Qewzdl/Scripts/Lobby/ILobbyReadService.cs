@@ -1,6 +1,6 @@
 using System;
 
-public interface ILobbyService
+public interface ILobbyReadService
 {
     event Action LobbyChanged;
 
@@ -9,9 +9,4 @@ public interface ILobbyService
     bool CanStartGame { get; }
 
     LobbyPlayerData GetPlayer(int index);
-
-    void SetReady(bool isReady);
-    void SetCharacter(int characterId);
-    void StartGame();
-    void LeaveLobby();
 }

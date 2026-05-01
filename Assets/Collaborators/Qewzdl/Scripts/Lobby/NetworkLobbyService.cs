@@ -2,7 +2,7 @@ using System;
 using Unity.Netcode;
 using UnityEngine;
 
-public class NetworkLobbyService : MonoBehaviour, ILobbyService
+public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyCommandService
 {
     [SerializeField] private LobbyState lobbyState;
     [SerializeField] private LobbyController lobbyController;

@@ -37,6 +37,6 @@ public class LobbyCompositionRoot : MonoBehaviour
             return;
         }
 
-        lobbyUI.Construct(lobbyService);
+        lobbyUI.Construct(lobbyService, lobbyService);
     }
 }

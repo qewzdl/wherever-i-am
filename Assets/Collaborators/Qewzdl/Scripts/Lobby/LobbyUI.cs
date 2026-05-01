@@ -11,29 +11,35 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private Button startGameButton;
     [SerializeField] private Button leaveButton;
 
-    private ILobbyService lobbyService;
+    private ILobbyReadService readService;
+    private ILobbyCommandService commandService;
+
     private bool isReady;
 
-    public void Construct(ILobbyService service)
+    public void Construct(ILobbyReadService readService, ILobbyCommandService commandService)
     {
-        if (lobbyService != null)
-            lobbyService.LobbyChanged -= Refresh;
+        if (this.readService != null)
+            this.readService.LobbyChanged -= Refresh;
 
-        lobbyService = service;
+        this.readService = readService;
+        this.commandService = commandService;
 
-        if (lobbyService != null)
-            lobbyService.LobbyChanged += Refresh;
+        if (this.readService != null)
+            this.readService.LobbyChanged += Refresh;
 
         Refresh();
     }
 
     private void Awake()
     {
-        if (readyButton != null) readyButton.onClick.AddListener(ToggleReady);
+        if (readyButton != null)
+            readyButton.onClick.AddListener(ToggleReady);
 
-        if (startGameButton != null) startGameButton.onClick.AddListener(StartGame);
+        if (startGameButton != null)
+            startGameButton.onClick.AddListener(StartGame);
 
-        if (leaveButton != null) leaveButton.onClick.AddListener(LeaveLobby);
+        if (leaveButton != null)
+            leaveButton.onClick.AddListener(LeaveLobby);
     }
 
     private void Start()
@@ -43,52 +49,56 @@ public class LobbyUI : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (readyButton != null) readyButton.onClick.RemoveListener(ToggleReady);
+        if (readyButton != null)
+            readyButton.onClick.RemoveListener(ToggleReady);
 
-        if (startGameButton != null) startGameButton.onClick.RemoveListener(StartGame);
+        if (startGameButton != null)
+            startGameButton.onClick.RemoveListener(StartGame);
 
-        if (leaveButton != null) leaveButton.onClick.RemoveListener(LeaveLobby);
+        if (leaveButton != null)
+            leaveButton.onClick.RemoveListener(LeaveLobby);
 
-        if (lobbyService != null) lobbyService.LobbyChanged -= Refresh;
+        if (readService != null)
+            readService.LobbyChanged -= Refresh;
     }
 
     private void ToggleReady()
     {
-        if (lobbyService == null)
+        if (commandService == null)
         {
-            Debug.LogError("Lobby service is not assigned.");
+            Debug.LogError("Lobby command service is not assigned.");
             return;
         }
 
         isReady = !isReady;
-        lobbyService.SetReady(isReady);
+        commandService.SetReady(isReady);
     }
 
     private void StartGame()
     {
-        if (lobbyService == null)
+        if (commandService == null)
         {
-            Debug.LogError("Lobby service is not assigned.");
+            Debug.LogError("Lobby command service is not assigned.");
             return;
         }
 
-        lobbyService.StartGame();
+        commandService.StartGame();
     }
 
     private void LeaveLobby()
     {
-        if (lobbyService == null)
+        if (commandService == null)
         {
-            Debug.LogError("Lobby service is not assigned.");
+            Debug.LogError("Lobby command service is not assigned.");
             return;
         }
 
-        lobbyService.LeaveLobby();
+        commandService.LeaveLobby();
     }
 
     private void Refresh()
     {
-        if (lobbyService == null)
+        if (readService == null)
             return;
 
         RefreshPlayers();
@@ -102,9 +112,9 @@ public class LobbyUI : MonoBehaviour
 
         StringBuilder builder = new StringBuilder();
 
-        for (int i = 0; i < lobbyService.PlayerCount; i++)
+        for (int i = 0; i < readService.PlayerCount; i++)
         {
-            LobbyPlayerData player = lobbyService.GetPlayer(i);
+            LobbyPlayerData player = readService.GetPlayer(i);
 
             string ownerText = player.IsRoomOwner ? "Owner" : "Player";
             string readyText = player.IsReady ? "Ready" : "Not ready";
@@ -119,8 +129,8 @@ public class LobbyUI : MonoBehaviour
     {
         if (startGameButton != null)
         {
-            startGameButton.gameObject.SetActive(lobbyService.IsLocalPlayerRoomOwner);
-            startGameButton.interactable = lobbyService.CanStartGame;
+            startGameButton.gameObject.SetActive(readService.IsLocalPlayerRoomOwner);
+            startGameButton.interactable = readService.CanStartGame;
         }
     }
 }
