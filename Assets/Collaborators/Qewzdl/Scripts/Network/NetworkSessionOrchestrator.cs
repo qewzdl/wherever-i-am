@@ -74,7 +74,17 @@ public class NetworkSessionOrchestrator : MonoBehaviour
     {
         if (!HasRequiredReferences()) return;
 
-        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogError("NetworkManager.Singleton is null.");
+            return;
+        }
+
+        if (!NetworkManager.Singleton.IsServer)
+        {
+            Debug.LogWarning("Only server can start the game.");
+            return;
+        }
 
         stateMachine.ChangeState(GameState.LoadingGame);
         sceneLoader.LoadGame();
