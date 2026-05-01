@@ -1,4 +1,4 @@
-public class ConnectionRequest
+public class ConnectionConfig
 {
     public ConnectionMode Mode { get; }
     public ConnectionRole Role { get; }
@@ -7,7 +7,7 @@ public class ConnectionRequest
     public ushort Port { get; }
     public string ListenAddress { get; }
 
-    public ConnectionRequest(
+    public ConnectionConfig(
         ConnectionMode mode,
         ConnectionRole role,
         string address,

@@ -1,4 +1,6 @@
 public enum ConnectionMode
 {
-    LAN
+    LAN,
+    Relay,
+    DedicatedServer
 }

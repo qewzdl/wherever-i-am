@@ -17,9 +17,9 @@ public class NetworkConnectionService : MonoBehaviour
     [SerializeField] private string hostAddress = "127.0.0.1";
     [SerializeField] private string listenAddress = "0.0.0.0";
 
-    private readonly Dictionary<ConnectionMode, IConnectionProvider> providers = new Dictionary<ConnectionMode, IConnectionProvider>();
+    private readonly Dictionary<ConnectionMode, IConnectionStrategy> strategies = new Dictionary<ConnectionMode, IConnectionStrategy>();
 
-    private IConnectionProvider activeProvider;
+    private IConnectionStrategy activeStrategy;
 
     public bool IsHost => networkManager != null && networkManager.IsHost;
     public bool IsClient => networkManager != null && networkManager.IsClient;
@@ -39,12 +39,12 @@ public class NetworkConnectionService : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         InitializeReferences();
-        InitializeProviders();
+        InitializeStrategies();
     }
 
     public Task<ConnectionResult> StartHostAsync()
     {
-        ConnectionRequest request = new ConnectionRequest(
+        ConnectionConfig config = new ConnectionConfig(
             ConnectionMode.LAN,
             ConnectionRole.Host,
             hostAddress,
@@ -52,22 +52,22 @@ public class NetworkConnectionService : MonoBehaviour
             listenAddress
         );
 
-        return StartConnectionAsync(request);
+        return StartConnectionAsync(config);
     }
 
     public Task<ConnectionResult> StartClientAsync(string ip)
     {
-        ConnectionRequest request = new ConnectionRequest(
+        ConnectionConfig config = new ConnectionConfig(
             ConnectionMode.LAN,
             ConnectionRole.Client,
             ip,
             port
         );
 
-        return StartConnectionAsync(request);
+        return StartConnectionAsync(config);
     }
 
-    public async Task<ConnectionResult> StartConnectionAsync(ConnectionRequest request)
+    public async Task<ConnectionResult> StartConnectionAsync(ConnectionConfig config)
     {
         ConnectionResult validationResult = CanStartConnection();
 
@@ -77,27 +77,27 @@ public class NetworkConnectionService : MonoBehaviour
             return validationResult;
         }
 
-        if (!providers.TryGetValue(request.Mode, out IConnectionProvider provider))
+        if (!strategies.TryGetValue(config.Mode, out IConnectionStrategy strategy))
         {
-            ConnectionResult result = ConnectionResult.Fail($"Connection provider not found for mode: {request.Mode}");
+            ConnectionResult result = ConnectionResult.Fail($"Connection strategy not found for mode: {config.Mode}");
             Debug.LogError(result.Message);
             return result;
         }
 
         ConnectionResult connectionResult;
 
-        switch (request.Role)
+        switch (config.Role)
         {
             case ConnectionRole.Host:
-                connectionResult = await provider.StartHostAsync(request);
+                connectionResult = await strategy.StartHostAsync(config);
                 break;
 
             case ConnectionRole.Client:
-                connectionResult = await provider.StartClientAsync(request);
+                connectionResult = await strategy.StartClientAsync(config);
                 break;
 
             case ConnectionRole.Server:
-                connectionResult = await provider.StartServerAsync(request);
+                connectionResult = await strategy.StartServerAsync(config);
                 break;
 
             default:
@@ -107,7 +107,7 @@ public class NetworkConnectionService : MonoBehaviour
 
         if (connectionResult.Success)
         {
-            activeProvider = provider;
+            activeStrategy = strategy;
             Debug.Log(connectionResult.Message);
         }
         else
@@ -130,7 +130,7 @@ public class NetworkConnectionService : MonoBehaviour
         }
 
         networkManager.Shutdown();
-        activeProvider = null;
+        activeStrategy = null;
 
         Debug.Log("Network shutdown.");
     }
@@ -141,13 +141,13 @@ public class NetworkConnectionService : MonoBehaviour
         if (transport == null && networkManager != null) transport = networkManager.GetComponent<UnityTransport>();
     }
 
-    private void InitializeProviders()
+    private void InitializeStrategies()
     {
-        providers.Clear();
+        strategies.Clear();
 
-        IConnectionProvider lanProvider = new LANConnectionProvider(networkManager, transport);
+        IConnectionStrategy lanStrategy = new LANConnectionStrategy(networkManager, transport);
 
-        providers.Add(lanProvider.Mode, lanProvider);
+        strategies.Add(lanStrategy.Mode, lanStrategy);
     }
 
     private ConnectionResult CanStartConnection()
