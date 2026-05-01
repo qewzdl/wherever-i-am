@@ -29,9 +29,11 @@ public class LobbyUI : MonoBehaviour
 
     private void Awake()
     {
-        readyButton.onClick.AddListener(ToggleReady);
-        startGameButton.onClick.AddListener(StartGame);
-        leaveButton.onClick.AddListener(LeaveLobby);
+        if (readyButton != null) readyButton.onClick.AddListener(ToggleReady);
+
+        if (startGameButton != null) startGameButton.onClick.AddListener(StartGame);
+
+        if (leaveButton != null) leaveButton.onClick.AddListener(LeaveLobby);
     }
 
     private void Start()
@@ -41,12 +43,13 @@ public class LobbyUI : MonoBehaviour
 
     private void OnDestroy()
     {
-        readyButton.onClick.RemoveListener(ToggleReady);
-        startGameButton.onClick.RemoveListener(StartGame);
-        leaveButton.onClick.RemoveListener(LeaveLobby);
+        if (readyButton != null) readyButton.onClick.RemoveListener(ToggleReady);
 
-        if (lobbyService != null)
-            lobbyService.LobbyChanged -= Refresh;
+        if (startGameButton != null) startGameButton.onClick.RemoveListener(StartGame);
+
+        if (leaveButton != null) leaveButton.onClick.RemoveListener(LeaveLobby);
+
+        if (lobbyService != null) lobbyService.LobbyChanged -= Refresh;
     }
 
     private void ToggleReady()
