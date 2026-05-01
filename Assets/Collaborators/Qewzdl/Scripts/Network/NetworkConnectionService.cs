@@ -45,7 +45,7 @@ public class NetworkConnectionService : MonoBehaviour
     public Task<ConnectionResult> StartHostAsync()
     {
         ConnectionConfig config = new ConnectionConfig(
-            ConnectionMode.LAN,
+            ConnectionMode.Lan,
             ConnectionRole.Host,
             hostAddress,
             port,
@@ -58,7 +58,7 @@ public class NetworkConnectionService : MonoBehaviour
     public Task<ConnectionResult> StartClientAsync(string ip)
     {
         ConnectionConfig config = new ConnectionConfig(
-            ConnectionMode.LAN,
+            ConnectionMode.Lan,
             ConnectionRole.Client,
             ip,
             port
@@ -145,7 +145,7 @@ public class NetworkConnectionService : MonoBehaviour
     {
         strategies.Clear();
 
-        IConnectionStrategy lanStrategy = new LANConnectionStrategy(networkManager, transport);
+        IConnectionStrategy lanStrategy = new LanConnectionStrategy(networkManager, transport);
 
         strategies.Add(lanStrategy.Mode, lanStrategy);
     }

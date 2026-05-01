@@ -2,11 +2,11 @@ using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 
-public class LANConnectionStrategy : BaseConnectionStrategy
+public class LanConnectionStrategy : BaseConnectionStrategy
 {
-    public override ConnectionMode Mode => ConnectionMode.LAN;
+    public override ConnectionMode Mode => ConnectionMode.Lan;
 
-    public LANConnectionStrategy(NetworkManager networkManager, UnityTransport transport) : base(networkManager, transport) {}
+    public LanConnectionStrategy(NetworkManager networkManager, UnityTransport transport) : base(networkManager, transport) {}
 
     protected override Task<ConnectionResult> StartHostInternalAsync(ConnectionConfig config)
     {

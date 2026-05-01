@@ -1,26 +1,22 @@
-using UnityEngine;
 using TMPro;
+using UnityEngine;
 
-public class LANConnectionUI : MonoBehaviour
+public class LanConnectionUi : MonoBehaviour
 {
     [SerializeField] private TMP_InputField ipInputField;
 
     public async void OnHostButtonClicked()
     {
-        ConnectionResult result = await NetworkConnectionService.Instance.StartHostAsync();
-
-        if (!result.Success) AudioManager.Instance.UI.PlayError();
+        await NetworkSessionOrchestrator.Instance.HostLanAsync();
     }
 
     public async void OnClientButtonClicked()
     {
-        ConnectionResult result = await NetworkConnectionService.Instance.StartClientAsync(ipInputField.text);
-
-        if (!result.Success) AudioManager.Instance.UI.PlayError();
+        await NetworkSessionOrchestrator.Instance.JoinLanAsync(ipInputField.text);
     }
 
     public void OnDisconnectButtonClicked()
     {
-        NetworkConnectionService.Instance.Shutdown();
+        NetworkSessionOrchestrator.Instance.ShutdownToMainMenu();
     }
 }

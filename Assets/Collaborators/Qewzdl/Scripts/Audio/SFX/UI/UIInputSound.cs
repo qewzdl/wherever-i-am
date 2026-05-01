@@ -3,7 +3,7 @@ using UnityEngine.EventSystems;
 using TMPro;
 
 [RequireComponent(typeof(TMP_InputField))]
-public class UIInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler
+public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler
 {
     [Header("Settings")]
     [SerializeField] private bool playHoverSound = true;

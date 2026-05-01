@@ -6,11 +6,11 @@ public class AudioManager : MonoBehaviour
 
     [Header("Audio Managers")]
     [SerializeField] private MusicManager music;
-    [SerializeField] private UISoundManager ui;
+    [SerializeField] private UiSoundManager ui;
     [SerializeField] private GameplaySoundManager gameplay;
 
     public MusicManager Music => music;
-    public UISoundManager UI => ui;
+    public UiSoundManager UI => ui;
     public GameplaySoundManager Gameplay => gameplay;
 
     private void Awake()
@@ -37,7 +37,7 @@ public class AudioManager : MonoBehaviour
 
         if (ui == null)
         {
-            ui = GetComponentInChildren<UISoundManager>();
+            ui = GetComponentInChildren<UiSoundManager>();
         }
 
         if (gameplay == null)

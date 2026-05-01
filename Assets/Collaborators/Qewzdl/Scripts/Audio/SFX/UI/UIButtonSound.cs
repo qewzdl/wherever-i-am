@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class UIButtonSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler
+public class UiButtonSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler
 {
     [Header("Settings")]
     [SerializeField] private bool playHoverSound = true;
