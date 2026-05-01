@@ -7,6 +7,7 @@ public interface ILobbyReadService
     int PlayerCount { get; }
     bool IsLocalPlayerRoomOwner { get; }
     bool CanStartGame { get; }
+    LobbySettingsData Settings { get; }
 
     LobbyPlayerData GetPlayer(int index);
 }

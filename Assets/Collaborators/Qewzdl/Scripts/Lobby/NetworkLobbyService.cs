@@ -25,6 +25,10 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
 
     public bool CanStartGame => lobbyState != null && lobbyState.CanStartGame.Value;
 
+    public LobbySettingsData Settings => lobbyState != null
+        ? lobbyState.Settings.Value
+        : LobbySettingsData.CreateDefault();
+
     private void Awake()
     {
         ResolveReferences();
@@ -81,6 +85,28 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         }
 
         lobbyController.RequestSetCharacterRpc(characterId);
+    }
+
+    public void SetGameMode(int gameModeId)
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogError("LobbyController is missing.");
+            return;
+        }
+
+        lobbyController.RequestSetGameModeRpc(gameModeId);
+    }
+
+    public void SetMap(int mapId)
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogError("LobbyController is missing.");
+            return;
+        }
+
+        lobbyController.RequestSetMapRpc(mapId);
     }
 
     public void StartGame()

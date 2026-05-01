@@ -20,6 +20,12 @@ public class LobbyState : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    public NetworkVariable<LobbySettingsData> Settings { get; } = new NetworkVariable<LobbySettingsData>(
+        LobbySettingsData.CreateDefault(),
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     public event Action PlayersChanged;
 
     private void Awake()
@@ -32,6 +38,7 @@ public class LobbyState : NetworkBehaviour
         Players.OnListChanged += HandlePlayersChanged;
         RoomOwnerClientId.OnValueChanged += HandleRoomOwnerChanged;
         CanStartGame.OnValueChanged += HandleCanStartGameChanged;
+        Settings.OnValueChanged += HandleSettingsChanged;
 
         PlayersChanged?.Invoke();
     }
@@ -43,6 +50,7 @@ public class LobbyState : NetworkBehaviour
 
         RoomOwnerClientId.OnValueChanged -= HandleRoomOwnerChanged;
         CanStartGame.OnValueChanged -= HandleCanStartGameChanged;
+        Settings.OnValueChanged -= HandleSettingsChanged;
     }
 
     public override void OnDestroy()
@@ -62,6 +70,11 @@ public class LobbyState : NetworkBehaviour
     }
 
     private void HandleCanStartGameChanged(bool previousValue, bool newValue)
+    {
+        PlayersChanged?.Invoke();
+    }
+
+    private void HandleSettingsChanged(LobbySettingsData previousValue, LobbySettingsData newValue)
     {
         PlayersChanged?.Invoke();
     }
