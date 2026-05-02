@@ -210,9 +210,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6b2dd1954f7f45543a02993e35f8711b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
   stateMachine: {fileID: 481142978}
   connectionService: {fileID: 481142981}
   sceneLoader: {fileID: 481142979}
+  playerPrefab: {fileID: 5710508612914273328, guid: a6b1763c8abbebe4989088f71540c4bc, type: 3}
 --- !u!114 &481142981
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -230,6 +232,7 @@ MonoBehaviour:
   port: 7777
   hostAddress: 127.0.0.1
   listenAddress: 0.0.0.0
+  clientConnectionTimeoutSeconds: 5
 --- !u!114 &481142982
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -424,6 +427,51 @@ MonoBehaviour:
   m_LightCookieSize: {x: 1, y: 1}
   m_LightCookieOffset: {x: 0, y: 0}
   m_SoftShadowQuality: 0
+--- !u!1 &1020719285
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1020719286}
+  - component: {fileID: 1020719287}
+  m_Layer: 0
+  m_Name: UiErrorManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1020719286
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1020719285}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1020719287
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1020719285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71d6adbfac174b75a1b0b4a29a191b9d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  errorViewPrefab: {fileID: 100005, guid: ce9ca91825874e9a94cc21e0cc80427e, type: 3}
 --- !u!1 &1763046793
 GameObject:
   m_ObjectHideFlags: 0
@@ -523,3 +571,4 @@ SceneRoots:
   - {fileID: 1763046796}
   - {fileID: 543679110}
   - {fileID: 481142976}
+  - {fileID: 1020719286}

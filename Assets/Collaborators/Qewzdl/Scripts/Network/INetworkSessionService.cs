@@ -7,9 +7,4 @@ public interface INetworkSessionService
 
     void StartGame();
     void ShutdownToMainMenu();
-
-    bool HasLastError { get; }
-    string LastErrorMessage { get; }
-
-    void ClearLastError();
 }

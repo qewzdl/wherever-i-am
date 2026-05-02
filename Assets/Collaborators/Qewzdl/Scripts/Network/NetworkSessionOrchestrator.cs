@@ -19,9 +19,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     private bool networkCallbacksSubscribed;
     private bool networkSceneCallbacksSubscribed;
-    public string LastErrorMessage { get; private set; }
-
-    public bool HasLastError => !string.IsNullOrWhiteSpace(LastErrorMessage);
+    private IUiErrorService errorService;
 
     private void Awake()
     {
@@ -58,6 +56,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     {
         if (!HasRequiredReferences()) return;
 
+        if (TryGetErrorService(out IUiErrorService service))
+            service.HideError();
+
         if (connectionService.IsListening)
         {
             Debug.LogWarning("Network is already running.");
@@ -87,7 +88,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     {
         if (!HasRequiredReferences()) return;
 
-        ClearLastError();
+        if (TryGetErrorService(out IUiErrorService service))
+            service.HideError();
 
         stateMachine.ChangeState(GameState.Connecting);
 
@@ -157,6 +159,12 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (playerPrefab == null && networkManager != null)
             playerPrefab = networkManager.NetworkConfig.PlayerPrefab;
+
+        if (errorService == null)
+        {
+            if (UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
+                errorService = uiErrorManager;
+        }
     }
 
     private bool HasRequiredReferences()
@@ -378,15 +386,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         }
     }
 
-    public void ClearLastError()
-    {
-        LastErrorMessage = string.Empty;
-    }
-
     private void FailAndReturnToMainMenu(string message)
     {
-        LastErrorMessage = message;
-
         Debug.LogWarning(message);
 
         if (stateMachine != null)
@@ -397,5 +398,24 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (sceneLoader != null)
             sceneLoader.LoadMainMenu();
+
+        if (TryGetErrorService(out IUiErrorService service))
+            service.ShowError(message);
+    }
+
+    private bool TryGetErrorService(out IUiErrorService service)
+    {
+        service = errorService;
+
+        if (service != null)
+            return true;
+
+        if (!UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
+            return false;
+
+        errorService = uiErrorManager;
+        service = errorService;
+
+        return true;
     }
 }

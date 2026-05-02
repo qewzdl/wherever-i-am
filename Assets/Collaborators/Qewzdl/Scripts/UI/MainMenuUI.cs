@@ -6,16 +6,13 @@ public class MainMenuUI : MonoBehaviour
     [Header("Join")]
     [SerializeField] private TMP_InputField ipInputField;
 
-    [Header("Error UI")]
-    [SerializeField] private GameObject errorPanel;
-    [SerializeField] private TMP_Text errorText;
-
     private INetworkSessionService sessionService;
+    private IUiErrorService errorService;
 
-    public void Construct(INetworkSessionService sessionService)
+    public void Construct(INetworkSessionService sessionService, IUiErrorService errorService)
     {
         this.sessionService = sessionService;
-        ShowLastConnectionErrorIfNeeded();
+        this.errorService = errorService;
     }
 
     public async void OnCreateLobbyButtonClicked()
@@ -51,8 +48,8 @@ public class MainMenuUI : MonoBehaviour
 
     public void HideError()
     {
-        if (errorPanel != null)
-            errorPanel.SetActive(false);
+        if (TryGetErrorService(out IUiErrorService service))
+            service.HideError();
     }
 
     private bool HasSessionService()
@@ -64,30 +61,25 @@ public class MainMenuUI : MonoBehaviour
         return false;
     }
 
-    private void ShowLastConnectionErrorIfNeeded()
-    {
-        if (!HasSessionService())
-        {
-            HideError();
-            return;
-        }
-
-        if (!sessionService.HasLastError)
-        {
-            HideError();
-            return;
-        }
-
-        ShowError(sessionService.LastErrorMessage);
-        sessionService.ClearLastError();
-    }
-
     private void ShowError(string message)
     {
-        if (errorPanel != null)
-            errorPanel.SetActive(true);
+        if (TryGetErrorService(out IUiErrorService service))
+            service.ShowError(message);
+    }
 
-        if (errorText != null)
-            errorText.text = message;
+    private bool TryGetErrorService(out IUiErrorService service)
+    {
+        service = errorService;
+
+        if (service != null)
+            return true;
+
+        if (!UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
+            return false;
+
+        errorService = uiErrorManager;
+        service = errorService;
+
+        return true;
     }
 }

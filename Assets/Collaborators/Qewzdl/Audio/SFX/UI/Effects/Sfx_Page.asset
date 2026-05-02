@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Sfx_Page
   m_EditorClassIdentifier: 
   clips:
-  - {fileID: 8300000, guid: c3fad79a88ceca14f95a6f1572134c9c, type: 3}
-  volume: 0.5
+  - {fileID: 8300000, guid: 664cae9f494d4cb4b9a47fc9ac604a58, type: 3}
+  volume: 0.2
   randomizeVolume: 0
   minVolume: 0.9
   maxVolume: 1

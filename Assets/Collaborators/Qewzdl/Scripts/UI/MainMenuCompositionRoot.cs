@@ -8,6 +8,8 @@ public class MainMenuCompositionRoot : CompositionRoot
     [Header("UI")]
     [SerializeField] private MainMenuUI mainMenuUI;
 
+    private IUiErrorService errorService;
+
     protected override void ResolveReferences()
     {
         if (sessionService == null)
@@ -17,6 +19,12 @@ public class MainMenuCompositionRoot : CompositionRoot
 
         if (mainMenuUI == null)
             mainMenuUI = FindFirstObjectByType<MainMenuUI>();
+
+        if (errorService == null)
+        {
+            if (UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
+                errorService = uiErrorManager;
+        }
     }
 
     protected override void Compose()
@@ -33,6 +41,6 @@ public class MainMenuCompositionRoot : CompositionRoot
             return;
         }
 
-        mainMenuUI.Construct(sessionService);
+        mainMenuUI.Construct(sessionService, errorService);
     }
 }
