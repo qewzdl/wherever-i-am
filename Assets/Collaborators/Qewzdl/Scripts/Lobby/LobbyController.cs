@@ -6,7 +6,11 @@ public class LobbyController : NetworkBehaviour
     [SerializeField] private LobbyState lobbyState;
     [SerializeField] private LobbyConfig lobbyConfig;
 
-    private LobbyStartRules startRules;
+    private LobbyOwnershipService ownershipService;
+    private LobbyPlayerRegistry playerRegistry;
+    private LobbyPlayerCustomizationService playerCustomizationService;
+    private LobbySettingsService settingsService;
+    private LobbyStartService startService;
 
     private void Awake()
     {
@@ -16,218 +20,106 @@ public class LobbyController : NetworkBehaviour
         if (lobbyConfig == null)
             Debug.LogError("LobbyConfig is not assigned.");
 
-        startRules = new LobbyStartRules();
+        CreateServices();
     }
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer) return;
+        if (!IsServer)
+            return;
 
-        InitializeLobbySettings();
+        settingsService.InitializeFromConfig(lobbyConfig);
 
         NetworkManager.OnClientConnectedCallback += HandleClientConnected;
         NetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
 
-        AddPlayerIfNotExists(NetworkManager.LocalClientId);
-        RefreshCanStartGame();
+        playerRegistry.AddPlayerIfNotExists(NetworkManager.LocalClientId);
+        startService.RefreshCanStartGame();
     }
 
     public override void OnNetworkDespawn()
     {
-        if (NetworkManager == null || !IsServer) return;
+        if (NetworkManager == null || !IsServer)
+            return;
 
         NetworkManager.OnClientConnectedCallback -= HandleClientConnected;
         NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
     }
 
-    private void InitializeLobbySettings()
+    private void CreateServices()
     {
-        if (!HasLobbyState())
-            return;
+        LobbyStartRules startRules = new LobbyStartRules();
 
-        lobbyState.Settings.Value = LobbySettingsData.FromConfig(lobbyConfig);
+        ownershipService = new LobbyOwnershipService(lobbyState);
+        playerRegistry = new LobbyPlayerRegistry(lobbyState, ownershipService);
+        playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState);
+        settingsService = new LobbySettingsService(lobbyState);
+        startService = new LobbyStartService(lobbyState, startRules);
     }
 
     private void HandleClientConnected(ulong clientId)
     {
-        AddPlayerIfNotExists(clientId);
+        playerRegistry.AddPlayerIfNotExists(clientId);
+        startService.RefreshCanStartGame();
     }
 
     private void HandleClientDisconnected(ulong clientId)
     {
-        RemovePlayer(clientId);
-    }
-
-    private void AddPlayerIfNotExists(ulong clientId)
-    {
-        if (!HasLobbyState()) return;
-
-        if (lobbyState.TryGetPlayerIndex(clientId, out _)) return;
-
-        bool shouldBecomeRoomOwner = !HasValidRoomOwner();
-
-        if (shouldBecomeRoomOwner)
-            lobbyState.RoomOwnerClientId.Value = clientId;
-
-        lobbyState.Players.Add(new LobbyPlayerData(
-            clientId,
-            $"Player {clientId}",
-            false,
-            shouldBecomeRoomOwner,
-            0
-        ));
-
-        RefreshCanStartGame();
-    }
-
-    private void RemovePlayer(ulong clientId)
-    {
-        if (!HasLobbyState()) return;
-
-        if (!lobbyState.TryGetPlayerIndex(clientId, out int index)) return;
-
-        bool wasRoomOwner = IsRoomOwner(clientId);
-
-        lobbyState.Players.RemoveAt(index);
-
-        if (wasRoomOwner)
-            AssignNextRoomOwner();
-
-        RefreshCanStartGame();
-    }
-
-    private void AssignNextRoomOwner()
-    {
-        if (!HasLobbyState()) return;
-
-        if (lobbyState.Players.Count == 0)
-        {
-            lobbyState.RoomOwnerClientId.Value = LobbyState.NoRoomOwner;
-            return;
-        }
-
-        ulong nextOwnerClientId = lobbyState.Players[0].ClientId;
-        lobbyState.RoomOwnerClientId.Value = nextOwnerClientId;
-
-        for (int i = 0; i < lobbyState.Players.Count; i++)
-        {
-            LobbyPlayerData player = lobbyState.Players[i];
-            player.IsRoomOwner = player.ClientId == nextOwnerClientId;
-            lobbyState.Players[i] = player;
-        }
+        playerRegistry.RemovePlayer(clientId);
+        startService.RefreshCanStartGame();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetReadyRpc(bool isReady, RpcParams rpcParams = default)
     {
-        if (!HasLobbyState()) return;
-
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!lobbyState.TryGetPlayerIndex(senderClientId, out int index)) return;
-
-        LobbyPlayerData player = lobbyState.Players[index];
-        player.IsReady = isReady;
-
-        lobbyState.Players[index] = player;
-
-        RefreshCanStartGame();
+        playerCustomizationService.SetReady(senderClientId, isReady);
+        startService.RefreshCanStartGame();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetCharacterRpc(int characterId, RpcParams rpcParams = default)
     {
-        if (!HasLobbyState()) return;
-
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!lobbyState.TryGetPlayerIndex(senderClientId, out int index)) return;
-
-        LobbyPlayerData player = lobbyState.Players[index];
-        player.CharacterId = characterId;
-
-        lobbyState.Players[index] = player;
-
-        RefreshCanStartGame();
+        playerCustomizationService.SetCharacter(senderClientId, characterId);
+        startService.RefreshCanStartGame();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetGameModeRpc(int gameModeId, RpcParams rpcParams = default)
     {
-        if (!CanSenderChangeSettings(rpcParams, out _))
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (!ownershipService.CanChangeSettings(senderClientId))
             return;
 
-        LobbySettingsData settings = lobbyState.Settings.Value;
-        settings.GameModeId = gameModeId;
-        lobbyState.Settings.Value = settings;
-
-        RefreshCanStartGame();
+        settingsService.SetGameMode(gameModeId);
+        startService.RefreshCanStartGame();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetMapRpc(int mapId, RpcParams rpcParams = default)
     {
-        if (!CanSenderChangeSettings(rpcParams, out _))
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (!ownershipService.CanChangeSettings(senderClientId))
             return;
 
-        LobbySettingsData settings = lobbyState.Settings.Value;
-        settings.MapId = mapId;
-        lobbyState.Settings.Value = settings;
-
-        RefreshCanStartGame();
+        settingsService.SetMap(mapId);
+        startService.RefreshCanStartGame();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestStartGameRpc(RpcParams rpcParams = default)
     {
-        if (!HasLobbyState()) return;
-
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!IsRoomOwner(senderClientId))
-        {
-            Debug.LogWarning("Only room owner can request game start.");
+        if (!ownershipService.CanStartGame(senderClientId))
             return;
-        }
 
-        TryStartGame();
-    }
-
-    private bool CanSenderChangeSettings(RpcParams rpcParams, out ulong senderClientId)
-    {
-        senderClientId = rpcParams.Receive.SenderClientId;
-
-        if (!HasLobbyState())
-            return false;
-
-        if (!IsRoomOwner(senderClientId))
-        {
-            Debug.LogWarning("Only room owner can change lobby settings.");
-            return false;
-        }
-
-        return true;
-    }
-
-    private bool HasLobbyState()
-    {
-        if (lobbyState != null)
-            return true;
-
-        Debug.LogError("LobbyState is missing.");
-        return false;
-    }
-
-    private bool IsRoomOwner(ulong clientId)
-    {
-        return lobbyState != null && lobbyState.RoomOwnerClientId.Value == clientId;
-    }
-
-    private bool HasValidRoomOwner()
-    {
-        return lobbyState != null &&
-               lobbyState.RoomOwnerClientId.Value != LobbyState.NoRoomOwner &&
-               lobbyState.TryGetPlayerIndex(lobbyState.RoomOwnerClientId.Value, out _);
+        startService.TryStartGame();
     }
 
     public bool CanStartGame()
@@ -235,35 +127,6 @@ public class LobbyController : NetworkBehaviour
         if (!IsServer)
             return false;
 
-        if (!HasLobbyState())
-            return false;
-
-        return lobbyState.CanStartGame.Value;
-    }
-
-    private void RefreshCanStartGame()
-    {
-        if (!IsServer)
-            return;
-
-        if (!HasLobbyState())
-            return;
-
-        lobbyState.CanStartGame.Value = startRules != null && startRules.CanStart(lobbyState);
-    }
-
-    private void TryStartGame()
-    {
-        RefreshCanStartGame();
-
-        if (!CanStartGame()) return;
-
-        if (NetworkSessionOrchestrator.Instance == null)
-        {
-            Debug.LogError("NetworkSessionOrchestrator.Instance is null.");
-            return;
-        }
-
-        NetworkSessionOrchestrator.Instance.StartGame();
+        return startService.CanStartGame();
     }
 }
