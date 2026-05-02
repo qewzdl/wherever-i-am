@@ -17,19 +17,25 @@ public class LobbyController : NetworkBehaviour
     private void Awake()
     {
         ResolveReferences();
-        CreateServices();
     }
 
     public void Construct(INetworkSessionService sessionService)
     {
+        if (sessionService == null)
+        {
+            Debug.LogError("Network session service is missing.");
+            return;
+        }
+
         this.sessionService = sessionService;
         CreateServices();
     }
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer)
-            return;
+        if (!IsServer) return;
+
+        if (!IsConstructed()) return;
 
         settingsService.InitializeFromConfig(lobbyConfig);
 
@@ -42,8 +48,7 @@ public class LobbyController : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        if (NetworkManager == null || !IsServer)
-            return;
+        if (NetworkManager == null || !IsServer) return;
 
         NetworkManager.OnClientConnectedCallback -= HandleClientConnected;
         NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
@@ -69,14 +74,33 @@ public class LobbyController : NetworkBehaviour
         startService = new LobbyStartService(lobbyState, startRules, sessionService);
     }
 
+    private bool IsConstructed()
+    {
+        if (ownershipService != null &&
+            playerRegistry != null &&
+            playerCustomizationService != null &&
+            settingsService != null &&
+            startService != null)
+        {
+            return true;
+        }
+
+        Debug.LogError("LobbyController was not constructed.");
+        return false;
+    }
+
     private void HandleClientConnected(ulong clientId)
     {
+        if (!IsConstructed()) return;
+
         playerRegistry.AddPlayerIfNotExists(clientId);
         startService.RefreshCanStartGame();
     }
 
     private void HandleClientDisconnected(ulong clientId)
     {
+        if (!IsConstructed()) return;
+
         playerRegistry.RemovePlayer(clientId);
         startService.RefreshCanStartGame();
     }
@@ -84,8 +108,8 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetReadyRpc(bool isReady, RpcParams rpcParams = default)
     {
-        if (lobbyState.Phase.Value != LobbyPhase.Open)
-            return;
+        if (!IsConstructed()) return;
+        if (lobbyState.Phase.Value != LobbyPhase.Open) return;
 
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
@@ -96,8 +120,8 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetCharacterRpc(int characterId, RpcParams rpcParams = default)
     {
-        if (lobbyState.Phase.Value != LobbyPhase.Open)
-            return;
+        if (!IsConstructed()) return;
+        if (lobbyState.Phase.Value != LobbyPhase.Open) return;
 
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
@@ -108,10 +132,11 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetGameModeRpc(int gameModeId, RpcParams rpcParams = default)
     {
+        if (!IsConstructed()) return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!ownershipService.CanChangeSettings(senderClientId))
-            return;
+        if (!ownershipService.CanChangeSettings(senderClientId)) return;
 
         settingsService.SetGameMode(gameModeId);
         startService.RefreshCanStartGame();
@@ -120,10 +145,11 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetMapRpc(int mapId, RpcParams rpcParams = default)
     {
+        if (!IsConstructed()) return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!ownershipService.CanChangeSettings(senderClientId))
-            return;
+        if (!ownershipService.CanChangeSettings(senderClientId)) return;
 
         settingsService.SetMap(mapId);
         startService.RefreshCanStartGame();
@@ -132,18 +158,19 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestStartGameRpc(RpcParams rpcParams = default)
     {
+        if (!IsConstructed()) return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        if (!ownershipService.CanStartGame(senderClientId))
-            return;
+        if (!ownershipService.CanStartGame(senderClientId)) return;
 
         startService.TryStartGame();
     }
 
     public bool CanStartGame()
     {
-        if (!IsServer)
-            return false;
+        if (!IsServer) return false;
+        if (!IsConstructed()) return false;
 
         return startService.CanStartGame();
     }
