@@ -31,6 +31,26 @@ public struct LobbyPlayerData : INetworkSerializable, IEquatable<LobbyPlayerData
 
     public bool Equals(LobbyPlayerData other)
     {
-        return ClientId == other.ClientId;
+        return ClientId == other.ClientId &&
+               PlayerName.Equals(other.PlayerName) &&
+               IsReady == other.IsReady &&
+               CharacterId == other.CharacterId;
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is LobbyPlayerData other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            int hashCode = ClientId.GetHashCode();
+            hashCode = (hashCode * 397) ^ PlayerName.GetHashCode();
+            hashCode = (hashCode * 397) ^ IsReady.GetHashCode();
+            hashCode = (hashCode * 397) ^ CharacterId;
+            return hashCode;
+        }
     }
 }
