@@ -3,9 +3,6 @@ using UnityEngine;
 
 public class MainMenuUI : MonoBehaviour
 {
-    [Header("Session")]
-    [SerializeField] private NetworkSessionOrchestrator networkSessionOrchestrator;
-
     [Header("Join")]
     [SerializeField] private TMP_InputField ipInputField;
 
@@ -15,19 +12,10 @@ public class MainMenuUI : MonoBehaviour
 
     private INetworkSessionService sessionService;
 
-    private void Awake()
-    {
-        ResolveSessionService();
-    }
-
-    private void Start()
-    {
-        ShowLastConnectionErrorIfNeeded();
-    }
-
     public void Construct(INetworkSessionService sessionService)
     {
         this.sessionService = sessionService;
+        ShowLastConnectionErrorIfNeeded();
     }
 
     public async void OnCreateLobbyButtonClicked()
@@ -67,21 +55,8 @@ public class MainMenuUI : MonoBehaviour
             errorPanel.SetActive(false);
     }
 
-    private void ResolveSessionService()
-    {
-        if (sessionService != null)
-            return;
-
-        if (networkSessionOrchestrator == null)
-            networkSessionOrchestrator = FindFirstObjectByType<NetworkSessionOrchestrator>();
-
-        sessionService = networkSessionOrchestrator;
-    }
-
     private bool HasSessionService()
     {
-        ResolveSessionService();
-
         if (sessionService != null)
             return true;
 

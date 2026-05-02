@@ -285,6 +285,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ee975a55ef6984143a6f9d2909950543, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  sessionService: {fileID: 0}
+  lobbyState: {fileID: 707815387}
+  lobbyController: {fileID: 707815386}
   lobbyService: {fileID: 707815385}
   lobbyUI: {fileID: 896598416}
 --- !u!4 &96767718
@@ -1600,5 +1603,5 @@ SceneRoots:
   - {fileID: 1905948906}
   - {fileID: 707815383}
   - {fileID: 896598420}
-  - {fileID: 96767718}
   - {fileID: 1629856385}
+  - {fileID: 96767718}

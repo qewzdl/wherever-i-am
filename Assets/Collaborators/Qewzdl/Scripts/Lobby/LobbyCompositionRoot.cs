@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class LobbyCompositionRoot : MonoBehaviour
+public class LobbyCompositionRoot : CompositionRoot
 {
     [Header("Session")]
     [SerializeField] private NetworkSessionOrchestrator sessionService;
@@ -13,16 +13,12 @@ public class LobbyCompositionRoot : MonoBehaviour
     [Header("UI")]
     [SerializeField] private LobbyUI lobbyUI;
 
-    private void Awake()
-    {
-        ResolveReferences();
-        Compose();
-    }
-
-    private void ResolveReferences()
+    protected override void ResolveReferences()
     {
         if (sessionService == null)
-            sessionService = FindFirstObjectByType<NetworkSessionOrchestrator>();
+            sessionService = NetworkSessionOrchestrator.Instance != null
+                ? NetworkSessionOrchestrator.Instance
+                : FindFirstObjectByType<NetworkSessionOrchestrator>();
 
         if (lobbyState == null)
             lobbyState = FindFirstObjectByType<LobbyState>();
@@ -37,7 +33,7 @@ public class LobbyCompositionRoot : MonoBehaviour
             lobbyUI = FindFirstObjectByType<LobbyUI>();
     }
 
-    private void Compose()
+    protected override void Compose()
     {
         if (sessionService == null)
         {
