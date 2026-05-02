@@ -3,7 +3,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class NetworkSessionOrchestrator : MonoBehaviour
+public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 {
     public static NetworkSessionOrchestrator Instance { get; private set; }
 

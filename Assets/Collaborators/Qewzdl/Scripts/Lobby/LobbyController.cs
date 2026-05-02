@@ -6,6 +6,11 @@ public class LobbyController : NetworkBehaviour
     [SerializeField] private LobbyState lobbyState;
     [SerializeField] private LobbyConfig lobbyConfig;
 
+    [Header("Session")]
+    [SerializeField] private NetworkSessionOrchestrator networkSessionOrchestrator;
+
+    private INetworkSessionService sessionService;
+
     private LobbyOwnershipService ownershipService;
     private LobbyPlayerRegistry playerRegistry;
     private LobbyPlayerCustomizationService playerCustomizationService;
@@ -14,12 +19,13 @@ public class LobbyController : NetworkBehaviour
 
     private void Awake()
     {
-        if (lobbyState == null)
-            lobbyState = GetComponent<LobbyState>();
+        ResolveReferences();
+        CreateServices();
+    }
 
-        if (lobbyConfig == null)
-            Debug.LogError("LobbyConfig is not assigned.");
-
+    public void Construct(INetworkSessionService sessionService)
+    {
+        this.sessionService = sessionService;
         CreateServices();
     }
 
@@ -46,6 +52,21 @@ public class LobbyController : NetworkBehaviour
         NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
     }
 
+    private void ResolveReferences()
+    {
+        if (lobbyState == null)
+            lobbyState = GetComponent<LobbyState>();
+
+        if (lobbyConfig == null)
+            Debug.LogError("LobbyConfig is not assigned.");
+
+        if (networkSessionOrchestrator == null)
+            networkSessionOrchestrator = FindFirstObjectByType<NetworkSessionOrchestrator>();
+
+        if (sessionService == null)
+            sessionService = networkSessionOrchestrator;
+    }
+
     private void CreateServices()
     {
         LobbyStartRules startRules = new LobbyStartRules();
@@ -54,7 +75,7 @@ public class LobbyController : NetworkBehaviour
         playerRegistry = new LobbyPlayerRegistry(lobbyState, ownershipService);
         playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState);
         settingsService = new LobbySettingsService(lobbyState);
-        startService = new LobbyStartService(lobbyState, startRules);
+        startService = new LobbyStartService(lobbyState, startRules, sessionService);
     }
 
     private void HandleClientConnected(ulong clientId)

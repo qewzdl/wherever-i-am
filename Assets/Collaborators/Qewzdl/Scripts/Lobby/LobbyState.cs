@@ -26,7 +26,11 @@ public class LobbyState : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    public event Action LobbyChanged;
     public event Action PlayersChanged;
+    public event Action OwnerChanged;
+    public event Action StartAvailabilityChanged;
+    public event Action SettingsChanged;
 
     private void Awake()
     {
@@ -40,7 +44,7 @@ public class LobbyState : NetworkBehaviour
         CanStartGame.OnValueChanged += HandleCanStartGameChanged;
         Settings.OnValueChanged += HandleSettingsChanged;
 
-        PlayersChanged?.Invoke();
+        RaiseLobbyChanged();
     }
 
     public override void OnNetworkDespawn()
@@ -62,21 +66,30 @@ public class LobbyState : NetworkBehaviour
     private void HandlePlayersChanged(NetworkListEvent<LobbyPlayerData> changeEvent)
     {
         PlayersChanged?.Invoke();
+        RaiseLobbyChanged();
     }
 
     private void HandleRoomOwnerChanged(ulong previousOwnerId, ulong newOwnerId)
     {
-        PlayersChanged?.Invoke();
+        OwnerChanged?.Invoke();
+        RaiseLobbyChanged();
     }
 
     private void HandleCanStartGameChanged(bool previousValue, bool newValue)
     {
-        PlayersChanged?.Invoke();
+        StartAvailabilityChanged?.Invoke();
+        RaiseLobbyChanged();
     }
 
     private void HandleSettingsChanged(LobbySettingsData previousValue, LobbySettingsData newValue)
     {
-        PlayersChanged?.Invoke();
+        SettingsChanged?.Invoke();
+        RaiseLobbyChanged();
+    }
+
+    private void RaiseLobbyChanged()
+    {
+        LobbyChanged?.Invoke();
     }
 
     public bool TryGetPlayerIndex(ulong clientId, out int index)

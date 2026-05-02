@@ -2,7 +2,12 @@ using UnityEngine;
 
 public class LobbyCompositionRoot : MonoBehaviour
 {
-    [Header("Services")]
+    [Header("Session")]
+    [SerializeField] private NetworkSessionOrchestrator sessionService;
+
+    [Header("Lobby")]
+    [SerializeField] private LobbyState lobbyState;
+    [SerializeField] private LobbyController lobbyController;
     [SerializeField] private NetworkLobbyService lobbyService;
 
     [Header("UI")]
@@ -16,6 +21,15 @@ public class LobbyCompositionRoot : MonoBehaviour
 
     private void ResolveReferences()
     {
+        if (sessionService == null)
+            sessionService = FindFirstObjectByType<NetworkSessionOrchestrator>();
+
+        if (lobbyState == null)
+            lobbyState = FindFirstObjectByType<LobbyState>();
+
+        if (lobbyController == null)
+            lobbyController = FindFirstObjectByType<LobbyController>();
+
         if (lobbyService == null)
             lobbyService = FindFirstObjectByType<NetworkLobbyService>();
 
@@ -25,6 +39,24 @@ public class LobbyCompositionRoot : MonoBehaviour
 
     private void Compose()
     {
+        if (sessionService == null)
+        {
+            Debug.LogError("NetworkSessionOrchestrator was not found.");
+            return;
+        }
+
+        if (lobbyState == null)
+        {
+            Debug.LogError("LobbyState was not found.");
+            return;
+        }
+
+        if (lobbyController == null)
+        {
+            Debug.LogError("LobbyController was not found.");
+            return;
+        }
+
         if (lobbyService == null)
         {
             Debug.LogError("NetworkLobbyService was not found.");
@@ -37,6 +69,8 @@ public class LobbyCompositionRoot : MonoBehaviour
             return;
         }
 
+        lobbyController.Construct(sessionService);
+        lobbyService.Construct(lobbyState, lobbyController, sessionService);
         lobbyUI.Construct(lobbyService, lobbyService);
     }
 }

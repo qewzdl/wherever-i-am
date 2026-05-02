@@ -7,7 +7,14 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     [SerializeField] private LobbyState lobbyState;
     [SerializeField] private LobbyController lobbyController;
 
+    private INetworkSessionService sessionService;
+    private bool isSubscribedToLobbyState;
+
     public event Action LobbyChanged;
+    public event Action PlayersChanged;
+    public event Action SettingsChanged;
+    public event Action OwnerChanged;
+    public event Action StartAvailabilityChanged;
 
     public int PlayerCount => lobbyState != null && lobbyState.Players != null
         ? lobbyState.Players.Count
@@ -17,7 +24,8 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     {
         get
         {
-            if (NetworkManager.Singleton == null || lobbyState == null) return false;
+            if (NetworkManager.Singleton == null || lobbyState == null)
+                return false;
 
             return lobbyState.RoomOwnerClientId.Value == NetworkManager.Singleton.LocalClientId;
         }
@@ -37,15 +45,29 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     private void OnEnable()
     {
         ResolveReferences();
-
-        if (lobbyState != null)
-            lobbyState.PlayersChanged += HandleLobbyChanged;
+        SubscribeToLobbyState();
     }
 
     private void OnDisable()
     {
-        if (lobbyState != null)
-            lobbyState.PlayersChanged -= HandleLobbyChanged;
+        UnsubscribeFromLobbyState();
+    }
+
+    public void Construct(
+        LobbyState lobbyState,
+        LobbyController lobbyController,
+        INetworkSessionService sessionService)
+    {
+        UnsubscribeFromLobbyState();
+
+        this.lobbyState = lobbyState;
+        this.lobbyController = lobbyController;
+        this.sessionService = sessionService;
+
+        if (isActiveAndEnabled)
+            SubscribeToLobbyState();
+
+        RaiseLobbyChanged();
     }
 
     public LobbyPlayerData GetPlayer(int index)
@@ -63,6 +85,22 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         }
 
         return lobbyState.Players[index];
+    }
+
+    public bool TryGetLocalPlayer(out LobbyPlayerData player)
+    {
+        player = default;
+
+        if (NetworkManager.Singleton == null || lobbyState == null || lobbyState.Players == null)
+            return false;
+
+        ulong localClientId = NetworkManager.Singleton.LocalClientId;
+
+        if (!lobbyState.TryGetPlayerIndex(localClientId, out int index))
+            return false;
+
+        player = lobbyState.Players[index];
+        return true;
     }
 
     public void SetReady(bool isReady)
@@ -122,13 +160,13 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
 
     public void LeaveLobby()
     {
-        if (NetworkSessionOrchestrator.Instance == null)
+        if (sessionService == null)
         {
-            Debug.LogError("NetworkSessionOrchestrator.Instance is null.");
+            Debug.LogError("Network session service is missing.");
             return;
         }
 
-        NetworkSessionOrchestrator.Instance.ShutdownToMainMenu();
+        sessionService.ShutdownToMainMenu();
     }
 
     private void ResolveReferences()
@@ -140,7 +178,60 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
             lobbyController = GetComponent<LobbyController>();
     }
 
+    private void SubscribeToLobbyState()
+    {
+        if (isSubscribedToLobbyState || lobbyState == null)
+            return;
+
+        lobbyState.LobbyChanged += HandleLobbyChanged;
+        lobbyState.PlayersChanged += HandlePlayersChanged;
+        lobbyState.SettingsChanged += HandleSettingsChanged;
+        lobbyState.OwnerChanged += HandleOwnerChanged;
+        lobbyState.StartAvailabilityChanged += HandleStartAvailabilityChanged;
+
+        isSubscribedToLobbyState = true;
+    }
+
+    private void UnsubscribeFromLobbyState()
+    {
+        if (!isSubscribedToLobbyState || lobbyState == null)
+            return;
+
+        lobbyState.LobbyChanged -= HandleLobbyChanged;
+        lobbyState.PlayersChanged -= HandlePlayersChanged;
+        lobbyState.SettingsChanged -= HandleSettingsChanged;
+        lobbyState.OwnerChanged -= HandleOwnerChanged;
+        lobbyState.StartAvailabilityChanged -= HandleStartAvailabilityChanged;
+
+        isSubscribedToLobbyState = false;
+    }
+
     private void HandleLobbyChanged()
+    {
+        RaiseLobbyChanged();
+    }
+
+    private void HandlePlayersChanged()
+    {
+        PlayersChanged?.Invoke();
+    }
+
+    private void HandleSettingsChanged()
+    {
+        SettingsChanged?.Invoke();
+    }
+
+    private void HandleOwnerChanged()
+    {
+        OwnerChanged?.Invoke();
+    }
+
+    private void HandleStartAvailabilityChanged()
+    {
+        StartAvailabilityChanged?.Invoke();
+    }
+
+    private void RaiseLobbyChanged()
     {
         LobbyChanged?.Invoke();
     }

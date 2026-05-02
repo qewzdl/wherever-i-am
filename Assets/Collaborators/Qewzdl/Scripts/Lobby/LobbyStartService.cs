@@ -4,11 +4,16 @@ public class LobbyStartService
 {
     private readonly LobbyState lobbyState;
     private readonly LobbyStartRules startRules;
+    private readonly INetworkSessionService sessionService;
 
-    public LobbyStartService(LobbyState lobbyState, LobbyStartRules startRules)
+    public LobbyStartService(
+        LobbyState lobbyState,
+        LobbyStartRules startRules,
+        INetworkSessionService sessionService)
     {
         this.lobbyState = lobbyState;
         this.startRules = startRules;
+        this.sessionService = sessionService;
     }
 
     public bool CanStartGame()
@@ -34,13 +39,13 @@ public class LobbyStartService
         if (!CanStartGame())
             return;
 
-        if (NetworkSessionOrchestrator.Instance == null)
+        if (sessionService == null)
         {
-            Debug.LogError("NetworkSessionOrchestrator.Instance is null.");
+            Debug.LogError("Network session service is missing.");
             return;
         }
 
-        NetworkSessionOrchestrator.Instance.StartGame();
+        sessionService.StartGame();
     }
 
     private bool HasLobbyState()

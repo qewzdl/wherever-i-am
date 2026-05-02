@@ -14,8 +14,6 @@ public class LobbyUI : MonoBehaviour
     private ILobbyReadService readService;
     private ILobbyCommandService commandService;
 
-    private bool isReady;
-
     public void Construct(ILobbyReadService readService, ILobbyCommandService commandService)
     {
         if (this.readService != null)
@@ -70,8 +68,19 @@ public class LobbyUI : MonoBehaviour
             return;
         }
 
-        isReady = !isReady;
-        commandService.SetReady(isReady);
+        if (readService == null)
+        {
+            Debug.LogError("Lobby read service is not assigned.");
+            return;
+        }
+
+        if (!readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer))
+        {
+            Debug.LogWarning("Local lobby player was not found.");
+            return;
+        }
+
+        commandService.SetReady(!localPlayer.IsReady);
     }
 
     private void StartGame()
@@ -131,6 +140,11 @@ public class LobbyUI : MonoBehaviour
         {
             startGameButton.gameObject.SetActive(readService.IsLocalPlayerRoomOwner);
             startGameButton.interactable = readService.CanStartGame;
+        }
+
+        if (readyButton != null)
+        {
+            readyButton.interactable = readService.TryGetLocalPlayer(out _);
         }
     }
 }
