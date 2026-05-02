@@ -11,7 +11,6 @@ public class LobbyConfig : ScriptableObject
     [Header("Allowed Selections")]
     [SerializeField] private int[] gameModeIds = { 0 };
     [SerializeField] private int[] mapIds = { 0 };
-    [SerializeField] private int[] characterIds = { 0 };
 
     public int MinPlayersToStart => minPlayersToStart;
     public int MaxPlayers => maxPlayers;
@@ -19,7 +18,6 @@ public class LobbyConfig : ScriptableObject
 
     public int DefaultGameModeId => GetFirstOrDefault(gameModeIds);
     public int DefaultMapId => GetFirstOrDefault(mapIds);
-    public int DefaultCharacterId => GetFirstOrDefault(characterIds);
 
     public bool IsValidGameModeId(int gameModeId)
     {
@@ -29,11 +27,6 @@ public class LobbyConfig : ScriptableObject
     public bool IsValidMapId(int mapId)
     {
         return ContainsId(mapIds, mapId);
-    }
-
-    public bool IsValidCharacterId(int characterId)
-    {
-        return ContainsId(characterIds, characterId);
     }
 
     private static int GetFirstOrDefault(int[] ids)

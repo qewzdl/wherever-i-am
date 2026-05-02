@@ -123,17 +123,6 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         lobbyController.RequestSetReadyRpc(isReady);
     }
 
-    public void SetCharacter(int characterId)
-    {
-        if (lobbyController == null)
-        {
-            Debug.LogError("LobbyController is missing.");
-            return;
-        }
-
-        lobbyController.RequestSetCharacterRpc(characterId);
-    }
-
     public void SetGameMode(int gameModeId)
     {
         if (lobbyController == null)

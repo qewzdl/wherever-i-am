@@ -4,16 +4,13 @@ public class LobbyPlayerRegistry
 {
     private readonly LobbyState lobbyState;
     private readonly LobbyOwnershipService ownershipService;
-    private readonly LobbyConfig lobbyConfig;
 
     public LobbyPlayerRegistry(
         LobbyState lobbyState,
-        LobbyOwnershipService ownershipService,
-        LobbyConfig lobbyConfig)
+        LobbyOwnershipService ownershipService)
     {
         this.lobbyState = lobbyState;
         this.ownershipService = ownershipService;
-        this.lobbyConfig = lobbyConfig;
     }
 
     public bool TryAddPlayer(ulong clientId)
@@ -32,8 +29,7 @@ public class LobbyPlayerRegistry
         lobbyState.Players.Add(new LobbyPlayerData(
             clientId,
             $"Player {clientId}",
-            false,
-            GetDefaultCharacterId()
+            false
         ));
 
         if (shouldBecomeRoomOwner)
@@ -82,12 +78,5 @@ public class LobbyPlayerRegistry
 
         Debug.LogWarning($"Rejected lobby player because lobby is full: {lobbyState.Players.Count}/{maxPlayers}.");
         return false;
-    }
-
-    private int GetDefaultCharacterId()
-    {
-        return lobbyConfig != null
-            ? lobbyConfig.DefaultCharacterId
-            : 0;
     }
 }

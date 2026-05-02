@@ -7,18 +7,15 @@ public struct LobbyPlayerData : INetworkSerializable, IEquatable<LobbyPlayerData
     public ulong ClientId;
     public FixedString32Bytes PlayerName;
     public bool IsReady;
-    public int CharacterId;
 
     public LobbyPlayerData(
         ulong clientId,
         string playerName,
-        bool isReady,
-        int characterId)
+        bool isReady)
     {
         ClientId = clientId;
         PlayerName = playerName;
         IsReady = isReady;
-        CharacterId = characterId;
     }
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
@@ -26,15 +23,13 @@ public struct LobbyPlayerData : INetworkSerializable, IEquatable<LobbyPlayerData
         serializer.SerializeValue(ref ClientId);
         serializer.SerializeValue(ref PlayerName);
         serializer.SerializeValue(ref IsReady);
-        serializer.SerializeValue(ref CharacterId);
     }
 
     public bool Equals(LobbyPlayerData other)
     {
         return ClientId == other.ClientId &&
                PlayerName.Equals(other.PlayerName) &&
-               IsReady == other.IsReady &&
-               CharacterId == other.CharacterId;
+               IsReady == other.IsReady;
     }
 
     public override bool Equals(object obj)
@@ -49,7 +44,6 @@ public struct LobbyPlayerData : INetworkSerializable, IEquatable<LobbyPlayerData
             int hashCode = ClientId.GetHashCode();
             hashCode = (hashCode * 397) ^ PlayerName.GetHashCode();
             hashCode = (hashCode * 397) ^ IsReady.GetHashCode();
-            hashCode = (hashCode * 397) ^ CharacterId;
             return hashCode;
         }
     }

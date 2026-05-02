@@ -68,8 +68,8 @@ public class LobbyController : NetworkBehaviour
         LobbyStartRules startRules = new LobbyStartRules();
 
         ownershipService = new LobbyOwnershipService(lobbyState);
-        playerRegistry = new LobbyPlayerRegistry(lobbyState, ownershipService, lobbyConfig);
-        playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState, lobbyConfig);
+        playerRegistry = new LobbyPlayerRegistry(lobbyState, ownershipService);
+        playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState);
         settingsService = new LobbySettingsService(lobbyState, lobbyConfig);
         startService = new LobbyStartService(lobbyState, startRules, sessionService);
     }
@@ -119,18 +119,6 @@ public class LobbyController : NetworkBehaviour
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
         playerCustomizationService.SetReady(senderClientId, isReady);
-        startService.RefreshCanStartGame();
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void RequestSetCharacterRpc(int characterId, RpcParams rpcParams = default)
-    {
-        if (!IsConstructed()) return;
-        if (lobbyState.Phase.Value != LobbyPhase.Open) return;
-
-        ulong senderClientId = rpcParams.Receive.SenderClientId;
-
-        playerCustomizationService.SetCharacter(senderClientId, characterId);
         startService.RefreshCanStartGame();
     }
 
