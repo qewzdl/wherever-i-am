@@ -71,7 +71,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (!result.Success)
         {
-            FailAndReturnToMainMenu(result.Message);
+            FailAndReturnToMainMenu(result);
             return;
         }
 
@@ -80,7 +80,12 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (!sceneLoader.LoadLobby())
         {
-            FailAndReturnToMainMenu("Failed to load lobby scene.");
+            FailAndReturnToMainMenu(ConnectionResult.Fail(
+                ConnectionErrorCode.LobbySceneLoadFailed,
+                "Failed to load the lobby.",
+                "Failed to load lobby scene.",
+                true
+            ));
         }
     }
 
@@ -97,14 +102,14 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (!result.Success)
         {
-            FailAndReturnToMainMenu(result.Message);
+            FailAndReturnToMainMenu(result);
             return;
         }
 
         SubscribeToNetworkCallbacks();
         SubscribeToNetworkSceneCallbacks();
 
-        Debug.Log(result.Message);
+        Debug.Log(result.DebugMessage);
     }
 
     public void StartGame()
@@ -386,9 +391,21 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         }
     }
 
-    private void FailAndReturnToMainMenu(string message)
+    private void FailAndReturnToMainMenu(string userMessage, string debugMessage = "")
     {
-        Debug.LogWarning(message);
+        ConnectionResult result = ConnectionResult.Fail(
+            ConnectionErrorCode.Unknown,
+            userMessage,
+            string.IsNullOrWhiteSpace(debugMessage) ? userMessage : debugMessage,
+            true
+        );
+
+        FailAndReturnToMainMenu(result);
+    }
+
+    private void FailAndReturnToMainMenu(ConnectionResult result)
+    {
+        Debug.LogWarning(result.DebugMessage);
 
         if (stateMachine != null)
             stateMachine.ChangeState(GameState.Error);
@@ -400,7 +417,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             sceneLoader.LoadMainMenu();
 
         if (TryGetErrorService(out IUiErrorService service))
-            service.ShowError(message);
+            service.ShowError(result.UserMessage);
     }
 
     private bool TryGetErrorService(out IUiErrorService service)

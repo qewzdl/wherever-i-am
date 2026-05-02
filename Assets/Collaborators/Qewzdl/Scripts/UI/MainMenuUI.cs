@@ -32,13 +32,11 @@ public class MainMenuUI : MonoBehaviour
         if (!HasSessionService())
             return;
 
-        if (ipInputField == null || string.IsNullOrWhiteSpace(ipInputField.text))
-        {
-            ShowError("IP address is empty.");
-            return;
-        }
+        string ip = ipInputField != null
+            ? ipInputField.text
+            : string.Empty;
 
-        await sessionService.JoinLanAsync(ipInputField.text);
+        await sessionService.JoinLanAsync(ip);
     }
 
     public void OnQuitButtonClicked()

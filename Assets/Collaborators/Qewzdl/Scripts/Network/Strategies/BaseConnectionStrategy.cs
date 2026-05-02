@@ -52,9 +52,25 @@ public abstract class BaseConnectionStrategy : IConnectionStrategy
 
     protected virtual ConnectionResult Validate()
     {
-        if (networkManager == null) return ConnectionResult.Fail("NetworkManager is null.");
+        if (networkManager == null)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.NetworkManagerMissing,
+                "Failed to start the network connection.",
+                "NetworkManager is null in connection strategy.",
+                false
+            );
+        }
 
-        if (transport == null) return ConnectionResult.Fail("UnityComponent is null.");
+        if (transport == null)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.TransportMissing,
+                "Failed to start the network connection.",
+                "UnityTransport is null in connection strategy.",
+                false
+            );
+        }
 
         return ConnectionResult.Ok("Network setup is valid.");
     }
@@ -67,6 +83,20 @@ public abstract class BaseConnectionStrategy : IConnectionStrategy
     protected Task<ConnectionResult> Fail(string message)
     {
         return Task.FromResult(ConnectionResult.Fail(message));
+    }
+
+    protected Task<ConnectionResult> Fail(
+        ConnectionErrorCode errorCode,
+        string userMessage,
+        string debugMessage = "",
+        bool canRetry = true)
+    {
+        return Task.FromResult(ConnectionResult.Fail(
+            errorCode,
+            userMessage,
+            debugMessage,
+            canRetry
+        ));
     }
 
     protected abstract Task<ConnectionResult> StartHostInternalAsync(ConnectionConfig config);

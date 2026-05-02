@@ -64,14 +64,20 @@ public class NetworkConnectionService : MonoBehaviour
 
         if (!validationResult.Success)
         {
-            Debug.LogError(validationResult.Message);
+            Debug.LogError(validationResult.DebugMessage);
             return validationResult;
         }
 
         if (!strategies.TryGetValue(config.Mode, out IConnectionStrategy strategy))
         {
-            ConnectionResult result = ConnectionResult.Fail($"Connection strategy not found for mode: {config.Mode}");
-            Debug.LogError(result.Message);
+            ConnectionResult result = ConnectionResult.Fail(
+                ConnectionErrorCode.StrategyNotFound,
+                "Failed to start the connection.",
+                $"Connection strategy not found for mode: {config.Mode}.",
+                false
+            );
+
+            Debug.LogError(result.DebugMessage);
             return result;
         }
 
@@ -92,18 +98,23 @@ public class NetworkConnectionService : MonoBehaviour
                 break;
 
             default:
-                connectionResult = ConnectionResult.Fail("Unsupported connection role.");
+                connectionResult = ConnectionResult.Fail(
+                    ConnectionErrorCode.UnsupportedConnectionRole,
+                    "Failed to start the connection.",
+                    $"Unsupported connection role: {config.Role}.",
+                    false
+                );
                 break;
         }
 
         if (connectionResult.Success)
         {
             activeStrategy = strategy;
-            Debug.Log(connectionResult.Message);
+            Debug.Log(connectionResult.DebugMessage);
         }
         else
         {
-            Debug.LogError(connectionResult.Message);
+            Debug.LogError(connectionResult.DebugMessage);
         }
 
         return connectionResult;
@@ -164,13 +175,34 @@ public class NetworkConnectionService : MonoBehaviour
     private ConnectionResult CanStartConnection()
     {
         if (networkManager == null)
-            return ConnectionResult.Fail("NetworkManager not found in the scene.");
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.NetworkManagerMissing,
+                "Failed to start the network connection.",
+                "NetworkManager not found in the scene.",
+                false
+            );
+        }
 
         if (transport == null)
-            return ConnectionResult.Fail("UnityTransport not found on NetworkManager.");
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.TransportMissing,
+                "Failed to start the network connection.",
+                "UnityTransport not found on NetworkManager.",
+                false
+            );
+        }
 
         if (networkManager.IsListening)
-            return ConnectionResult.Fail("Network is already running.");
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.NetworkAlreadyRunning,
+                "The network session is already running.",
+                "Network is already running.",
+                false
+            );
+        }
 
         return ConnectionResult.Ok("Connection can be started.");
     }

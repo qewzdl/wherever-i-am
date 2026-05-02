@@ -21,18 +21,39 @@ public class LanConnectionStrategy : BaseConnectionStrategy
 
         bool started = networkManager.StartHost();
 
-        return started ? Success("LAN host started.") : Fail("Failed to start LAN host.");
+        return started
+            ? Success("LAN host started.")
+            : Fail(
+                ConnectionErrorCode.ConnectionFailed,
+                "Failed to create LAN lobby.",
+                "NetworkManager.StartHost returned false.",
+                true
+            );
     }
 
     protected override async Task<ConnectionResult> StartClientInternalAsync(ConnectionConfig config)
     {
         if (string.IsNullOrWhiteSpace(config.Address))
-            return ConnectionResult.Fail("IP address is empty.");
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.EmptyIpAddress,
+                "Enter the host IP address.",
+                "LAN connection failed: IP address is empty.",
+                true
+            );
+        }
 
         string ip = config.Address.Trim();
 
         if (!IsValidTargetIpAddress(ip))
-            return ConnectionResult.Fail($"Invalid IP address: {ip}.");
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.InvalidIpAddress,
+                "The IP address is invalid.",
+                $"Invalid LAN target IP address: {ip}.",
+                true
+            );
+        }
 
         transport.SetConnectionData(
             ip,
@@ -56,7 +77,14 @@ public class LanConnectionStrategy : BaseConnectionStrategy
         
         bool started = networkManager.StartServer();
 
-        return started ? Success("LAN server started.") : Fail("Failed to start LAN server.");
+        return started
+            ? Success("LAN server started.")
+            : Fail(
+                ConnectionErrorCode.ConnectionFailed,
+                "Failed to start LAN server.",
+                "NetworkManager.StartServer returned false.",
+                true
+            );
     }
 
     private async Task<ConnectionResult> StartClientAndWaitForConnectionAsync(
@@ -68,12 +96,25 @@ public class LanConnectionStrategy : BaseConnectionStrategy
 
         void HandleClientConnected(ulong clientId)
         {
-            completion.TrySetResult(ConnectionResult.Ok($"LAN client connected to {ip}:{port}."));
+            if (clientId != networkManager.LocalClientId)
+                return;
+
+            completion.TrySetResult(ConnectionResult.Ok(
+                $"LAN client connected to {ip}:{port}."
+            ));
         }
 
         void HandleClientDisconnected(ulong clientId)
         {
-            completion.TrySetResult(ConnectionResult.Fail($"Failed to connect to {ip}:{port}."));
+            if (clientId != networkManager.LocalClientId)
+                return;
+
+            completion.TrySetResult(ConnectionResult.Fail(
+                ConnectionErrorCode.ConnectionFailed,
+                "Failed to connect to the host. Check the IP address and make sure the lobby is already running.",
+                $"LAN client disconnected while trying to connect to {ip}:{port}.",
+                true
+            ));
         }
 
         networkManager.OnClientConnectedCallback += HandleClientConnected;
@@ -84,7 +125,14 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             bool started = networkManager.StartClient();
 
             if (!started)
-                return ConnectionResult.Fail("Failed to start LAN client.");
+            {
+                return ConnectionResult.Fail(
+                    ConnectionErrorCode.ConnectionFailed,
+                    "Failed to start the connection.",
+                    $"NetworkManager.StartClient returned false for LAN target {ip}:{port}.",
+                    true
+                );
+            }
 
             double timeout = Math.Max(1f, timeoutSeconds);
             Task timeoutTask = Task.Delay(TimeSpan.FromSeconds(timeout));
@@ -96,7 +144,12 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             if (networkManager.IsListening)
                 networkManager.Shutdown();
 
-            return ConnectionResult.Fail($"Connection to {ip}:{port} timed out.");
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.ConnectionTimeout,
+                "Connection timed out. Check the IP address and make sure the host has already created a lobby.",
+                $"Connection to {ip}:{port} timed out after {timeout} seconds.",
+                true
+            );
         }
         finally
         {
