@@ -1,27 +1,30 @@
 public class LobbyStartRules
 {
+    private readonly ILobbyStartRule[] rules;
+
+    public LobbyStartRules() : this(
+        new LobbyPhaseOpenStartRule(),
+        new LobbyMinPlayersStartRule(),
+        new LobbyMaxPlayersStartRule(),
+        new LobbyAllPlayersReadyStartRule())
+    {
+    }
+
+    public LobbyStartRules(params ILobbyStartRule[] rules)
+    {
+        this.rules = rules ?? new ILobbyStartRule[0];
+    }
+
     public bool CanStart(LobbyState lobbyState)
     {
         if (lobbyState == null || lobbyState.Players == null)
             return false;
 
-        if (lobbyState.Phase.Value != LobbyPhase.Open)
-            return false;
-
-        LobbySettingsData settings = lobbyState.Settings.Value;
-
-        if (lobbyState.Players.Count < settings.MinPlayersToStart)
-            return false;
-
-        if (lobbyState.Players.Count > settings.MaxPlayers)
-            return false;
-
-        if (!settings.RequireAllPlayersReady)
-            return true;
-
-        for (int i = 0; i < lobbyState.Players.Count; i++)
+        for (int i = 0; i < rules.Length; i++)
         {
-            if (!lobbyState.Players[i].IsReady)
+            ILobbyStartRule rule = rules[i];
+
+            if (rule != null && !rule.CanStart(lobbyState))
                 return false;
         }
 
