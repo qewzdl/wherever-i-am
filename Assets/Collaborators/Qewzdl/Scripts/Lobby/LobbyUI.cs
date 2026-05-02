@@ -8,8 +8,11 @@ public class LobbyUI : MonoBehaviour
     [Header("UI")]
     [SerializeField] private TMP_Text playersText;
     [SerializeField] private Button readyButton;
+    [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
     [SerializeField] private Button leaveButton;
+    [SerializeField] private string readyActionText = "Ready";
+    [SerializeField] private string notReadyActionText = "Not ready";
 
     private ILobbyReadService readService;
     private ILobbyCommandService commandService;
@@ -30,6 +33,8 @@ public class LobbyUI : MonoBehaviour
 
     private void Awake()
     {
+        CacheReadyButtonLabel();
+
         if (readyButton != null)
             readyButton.onClick.AddListener(ToggleReady);
 
@@ -83,7 +88,9 @@ public class LobbyUI : MonoBehaviour
             return;
         }
 
-        commandService.SetReady(!localPlayer.IsReady);
+        bool newReadyState = !localPlayer.IsReady;
+        SetReadyButtonLabel(newReadyState);
+        commandService.SetReady(newReadyState);
     }
 
     private void StartGame()
@@ -155,7 +162,28 @@ public class LobbyUI : MonoBehaviour
 
         if (readyButton != null)
         {
-            readyButton.interactable = isLobbyOpen && readService.TryGetLocalPlayer(out _);
+            bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
+
+            readyButton.interactable = isLobbyOpen && hasLocalPlayer;
+            SetReadyButtonLabel(hasLocalPlayer && localPlayer.IsReady);
         }
+    }
+
+    private void CacheReadyButtonLabel()
+    {
+        if (readyButtonLabel != null || readyButton == null)
+            return;
+
+        readyButtonLabel = readyButton.GetComponentInChildren<TMP_Text>(true);
+    }
+
+    private void SetReadyButtonLabel(bool isReady)
+    {
+        CacheReadyButtonLabel();
+
+        if (readyButtonLabel == null)
+            return;
+
+        readyButtonLabel.text = isReady ? notReadyActionText : readyActionText;
     }
 }
