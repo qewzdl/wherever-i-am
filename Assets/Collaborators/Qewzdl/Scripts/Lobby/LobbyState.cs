@@ -8,6 +8,12 @@ public class LobbyState : NetworkBehaviour
 
     public NetworkList<LobbyPlayerData> Players { get; private set; }
 
+    public NetworkVariable<LobbyPhase> Phase { get; } = new NetworkVariable<LobbyPhase>(
+        LobbyPhase.Open,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     public NetworkVariable<ulong> RoomOwnerClientId { get; } = new NetworkVariable<ulong>(
         NoRoomOwner,
         NetworkVariableReadPermission.Everyone,
@@ -31,6 +37,7 @@ public class LobbyState : NetworkBehaviour
     public event Action OwnerChanged;
     public event Action StartAvailabilityChanged;
     public event Action SettingsChanged;
+    public event Action PhaseChanged;
 
     private void Awake()
     {
@@ -43,6 +50,7 @@ public class LobbyState : NetworkBehaviour
         RoomOwnerClientId.OnValueChanged += HandleRoomOwnerChanged;
         CanStartGame.OnValueChanged += HandleCanStartGameChanged;
         Settings.OnValueChanged += HandleSettingsChanged;
+        Phase.OnValueChanged += HandlePhaseChanged;
 
         RaiseLobbyChanged();
     }
@@ -55,6 +63,7 @@ public class LobbyState : NetworkBehaviour
         RoomOwnerClientId.OnValueChanged -= HandleRoomOwnerChanged;
         CanStartGame.OnValueChanged -= HandleCanStartGameChanged;
         Settings.OnValueChanged -= HandleSettingsChanged;
+        Phase.OnValueChanged -= HandlePhaseChanged;
     }
 
     public override void OnDestroy()
@@ -84,6 +93,12 @@ public class LobbyState : NetworkBehaviour
     private void HandleSettingsChanged(LobbySettingsData previousValue, LobbySettingsData newValue)
     {
         SettingsChanged?.Invoke();
+        RaiseLobbyChanged();
+    }
+
+    private void HandlePhaseChanged(LobbyPhase previousPhase, LobbyPhase newPhase)
+    {
+        PhaseChanged?.Invoke();
         RaiseLobbyChanged();
     }
 

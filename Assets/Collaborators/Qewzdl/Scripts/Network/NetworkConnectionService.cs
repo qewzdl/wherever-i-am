@@ -6,8 +6,6 @@ using UnityEngine;
 
 public class NetworkConnectionService : MonoBehaviour
 {
-    public static NetworkConnectionService Instance { get; private set; }
-
     [Header("Network References")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private UnityTransport transport;
@@ -27,16 +25,8 @@ public class NetworkConnectionService : MonoBehaviour
     public bool IsConnected => networkManager != null && networkManager.IsConnectedClient;
     public bool IsListening => networkManager != null && networkManager.IsListening;
 
-    private void Awake() 
+    private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
-
         ResolveReferences();
         InitializeStrategies();
     }
@@ -119,7 +109,17 @@ public class NetworkConnectionService : MonoBehaviour
 
     public void Shutdown()
     {
-        if (networkManager == null) return;
+        if (activeStrategy != null)
+        {
+            activeStrategy.Shutdown();
+            activeStrategy = null;
+
+            Debug.Log("Network shutdown by active strategy.");
+            return;
+        }
+
+        if (networkManager == null)
+            return;
 
         if (!networkManager.IsListening &&
             !networkManager.IsClient &&
@@ -129,18 +129,20 @@ public class NetworkConnectionService : MonoBehaviour
         }
 
         networkManager.Shutdown();
-        activeStrategy = null;
 
         Debug.Log("Network shutdown.");
     }
 
     private void ResolveReferences()
     {
-        if (networkManager == null) networkManager = GetComponent<NetworkManager>();
+        if (networkManager == null)
+            networkManager = GetComponent<NetworkManager>();
 
-        if (networkManager == null) networkManager = NetworkManager.Singleton;
+        if (networkManager == null)
+            networkManager = NetworkManager.Singleton;
 
-        if (transport == null && networkManager != null) transport = networkManager.GetComponent<UnityTransport>();
+        if (transport == null && networkManager != null)
+            transport = networkManager.GetComponent<UnityTransport>();
     }
 
     private void InitializeStrategies()
@@ -154,11 +156,14 @@ public class NetworkConnectionService : MonoBehaviour
 
     private ConnectionResult CanStartConnection()
     {
-        if (networkManager == null) return ConnectionResult.Fail("NetworkManager not found in the scene.");
+        if (networkManager == null)
+            return ConnectionResult.Fail("NetworkManager not found in the scene.");
 
-        if (transport == null) return ConnectionResult.Fail("UnityTransport not found on NetworkManager.");
+        if (transport == null)
+            return ConnectionResult.Fail("UnityTransport not found on NetworkManager.");
 
-        if (networkManager.IsListening) return ConnectionResult.Fail("Network is already running.");
+        if (networkManager.IsListening)
+            return ConnectionResult.Fail("Network is already running.");
 
         return ConnectionResult.Ok("Connection can be started.");
     }

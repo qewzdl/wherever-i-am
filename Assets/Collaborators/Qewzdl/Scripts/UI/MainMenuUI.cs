@@ -3,6 +3,9 @@ using UnityEngine;
 
 public class MainMenuUI : MonoBehaviour
 {
+    [Header("Session")]
+    [SerializeField] private NetworkSessionOrchestrator networkSessionOrchestrator;
+
     [Header("Join")]
     [SerializeField] private TMP_InputField ipInputField;
 
@@ -10,33 +13,39 @@ public class MainMenuUI : MonoBehaviour
     [SerializeField] private GameObject errorPanel;
     [SerializeField] private TMP_Text errorText;
 
+    private INetworkSessionService sessionService;
+
+    private void Awake()
+    {
+        ResolveSessionService();
+    }
+
     private void Start()
     {
         ShowLastConnectionErrorIfNeeded();
+    }
+
+    public void Construct(INetworkSessionService sessionService)
+    {
+        this.sessionService = sessionService;
     }
 
     public async void OnCreateLobbyButtonClicked()
     {
         HideError();
 
-        if (NetworkSessionOrchestrator.Instance == null)
-        {
-            ShowError("Network session orchestrator is missing.");
+        if (!HasSessionService())
             return;
-        }
 
-        await NetworkSessionOrchestrator.Instance.HostLanAsync();
+        await sessionService.HostLanAsync();
     }
 
     public async void OnJoinLobbyButtonClicked()
     {
         HideError();
 
-        if (NetworkSessionOrchestrator.Instance == null)
-        {
-            ShowError("Network session orchestrator is missing.");
+        if (!HasSessionService())
             return;
-        }
 
         if (ipInputField == null || string.IsNullOrWhiteSpace(ipInputField.text))
         {
@@ -44,7 +53,7 @@ public class MainMenuUI : MonoBehaviour
             return;
         }
 
-        await NetworkSessionOrchestrator.Instance.JoinLanAsync(ipInputField.text);
+        await sessionService.JoinLanAsync(ipInputField.text);
     }
 
     public void OnQuitButtonClicked()
@@ -54,31 +63,56 @@ public class MainMenuUI : MonoBehaviour
 
     public void HideError()
     {
-        if (errorPanel != null) errorPanel.SetActive(false);
+        if (errorPanel != null)
+            errorPanel.SetActive(false);
+    }
+
+    private void ResolveSessionService()
+    {
+        if (sessionService != null)
+            return;
+
+        if (networkSessionOrchestrator == null)
+            networkSessionOrchestrator = FindFirstObjectByType<NetworkSessionOrchestrator>();
+
+        sessionService = networkSessionOrchestrator;
+    }
+
+    private bool HasSessionService()
+    {
+        ResolveSessionService();
+
+        if (sessionService != null)
+            return true;
+
+        ShowError("Network session service is missing.");
+        return false;
     }
 
     private void ShowLastConnectionErrorIfNeeded()
     {
-        if (NetworkSessionOrchestrator.Instance == null)
+        if (!HasSessionService())
         {
             HideError();
             return;
         }
 
-        if (!NetworkSessionOrchestrator.Instance.HasLastError)
+        if (!sessionService.HasLastError)
         {
             HideError();
             return;
         }
 
-        ShowError(NetworkSessionOrchestrator.Instance.LastErrorMessage);
-        NetworkSessionOrchestrator.Instance.ClearLastError();
+        ShowError(sessionService.LastErrorMessage);
+        sessionService.ClearLastError();
     }
 
     private void ShowError(string message)
     {
-        if (errorPanel != null) errorPanel.SetActive(true);
+        if (errorPanel != null)
+            errorPanel.SetActive(true);
 
-        if (errorText != null) errorText.text = message;
+        if (errorText != null)
+            errorText.text = message;
     }
 }

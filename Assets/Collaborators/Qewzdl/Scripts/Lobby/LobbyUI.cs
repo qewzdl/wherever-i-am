@@ -74,6 +74,9 @@ public class LobbyUI : MonoBehaviour
             return;
         }
 
+        if (readService.Phase != LobbyPhase.Open)
+            return;
+
         if (!readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer))
         {
             Debug.LogWarning("Local lobby player was not found.");
@@ -90,6 +93,9 @@ public class LobbyUI : MonoBehaviour
             Debug.LogError("Lobby command service is not assigned.");
             return;
         }
+
+        if (readService == null || readService.Phase != LobbyPhase.Open)
+            return;
 
         commandService.StartGame();
     }
@@ -121,6 +127,9 @@ public class LobbyUI : MonoBehaviour
 
         StringBuilder builder = new StringBuilder();
 
+        builder.AppendLine($"Lobby phase: {readService.Phase}");
+        builder.AppendLine();
+
         for (int i = 0; i < readService.PlayerCount; i++)
         {
             LobbyPlayerData player = readService.GetPlayer(i);
@@ -136,15 +145,17 @@ public class LobbyUI : MonoBehaviour
 
     private void RefreshButtons()
     {
+        bool isLobbyOpen = readService.Phase == LobbyPhase.Open;
+
         if (startGameButton != null)
         {
             startGameButton.gameObject.SetActive(readService.IsLocalPlayerRoomOwner);
-            startGameButton.interactable = readService.CanStartGame;
+            startGameButton.interactable = isLobbyOpen && readService.CanStartGame;
         }
 
         if (readyButton != null)
         {
-            readyButton.interactable = readService.TryGetLocalPlayer(out _);
+            readyButton.interactable = isLobbyOpen && readService.TryGetLocalPlayer(out _);
         }
     }
 }

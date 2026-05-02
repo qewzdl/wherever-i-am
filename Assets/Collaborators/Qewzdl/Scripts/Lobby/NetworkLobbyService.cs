@@ -15,6 +15,7 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     public event Action SettingsChanged;
     public event Action OwnerChanged;
     public event Action StartAvailabilityChanged;
+    public event Action PhaseChanged;
 
     public int PlayerCount => lobbyState != null && lobbyState.Players != null
         ? lobbyState.Players.Count
@@ -32,6 +33,10 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     }
 
     public bool CanStartGame => lobbyState != null && lobbyState.CanStartGame.Value;
+
+    public LobbyPhase Phase => lobbyState != null
+        ? lobbyState.Phase.Value
+        : LobbyPhase.Closed;
 
     public LobbySettingsData Settings => lobbyState != null
         ? lobbyState.Settings.Value
@@ -188,6 +193,7 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         lobbyState.SettingsChanged += HandleSettingsChanged;
         lobbyState.OwnerChanged += HandleOwnerChanged;
         lobbyState.StartAvailabilityChanged += HandleStartAvailabilityChanged;
+        lobbyState.PhaseChanged += HandlePhaseChanged;
 
         isSubscribedToLobbyState = true;
     }
@@ -202,6 +208,7 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         lobbyState.SettingsChanged -= HandleSettingsChanged;
         lobbyState.OwnerChanged -= HandleOwnerChanged;
         lobbyState.StartAvailabilityChanged -= HandleStartAvailabilityChanged;
+        lobbyState.PhaseChanged -= HandlePhaseChanged;
 
         isSubscribedToLobbyState = false;
     }
@@ -229,6 +236,11 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     private void HandleStartAvailabilityChanged()
     {
         StartAvailabilityChanged?.Invoke();
+    }
+
+    private void HandlePhaseChanged()
+    {
+        PhaseChanged?.Invoke();
     }
 
     private void RaiseLobbyChanged()

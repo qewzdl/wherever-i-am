@@ -15,11 +15,12 @@ public class LobbySettingsService
             return;
 
         lobbyState.Settings.Value = LobbySettingsData.FromConfig(lobbyConfig);
+        lobbyState.Phase.Value = LobbyPhase.Open;
     }
 
     public void SetGameMode(int gameModeId)
     {
-        if (!HasLobbyState())
+        if (!CanChangeSettings())
             return;
 
         LobbySettingsData settings = lobbyState.Settings.Value;
@@ -29,12 +30,26 @@ public class LobbySettingsService
 
     public void SetMap(int mapId)
     {
-        if (!HasLobbyState())
+        if (!CanChangeSettings())
             return;
 
         LobbySettingsData settings = lobbyState.Settings.Value;
         settings.MapId = mapId;
         lobbyState.Settings.Value = settings;
+    }
+
+    private bool CanChangeSettings()
+    {
+        if (!HasLobbyState())
+            return false;
+
+        if (lobbyState.Phase.Value != LobbyPhase.Open)
+        {
+            Debug.LogWarning($"Lobby settings cannot be changed while lobby phase is {lobbyState.Phase.Value}.");
+            return false;
+        }
+
+        return true;
     }
 
     private bool HasLobbyState()

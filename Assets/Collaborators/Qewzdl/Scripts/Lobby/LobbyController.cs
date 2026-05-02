@@ -6,9 +6,6 @@ public class LobbyController : NetworkBehaviour
     [SerializeField] private LobbyState lobbyState;
     [SerializeField] private LobbyConfig lobbyConfig;
 
-    [Header("Session")]
-    [SerializeField] private NetworkSessionOrchestrator networkSessionOrchestrator;
-
     private INetworkSessionService sessionService;
 
     private LobbyOwnershipService ownershipService;
@@ -59,12 +56,6 @@ public class LobbyController : NetworkBehaviour
 
         if (lobbyConfig == null)
             Debug.LogError("LobbyConfig is not assigned.");
-
-        if (networkSessionOrchestrator == null)
-            networkSessionOrchestrator = FindFirstObjectByType<NetworkSessionOrchestrator>();
-
-        if (sessionService == null)
-            sessionService = networkSessionOrchestrator;
     }
 
     private void CreateServices()
@@ -93,6 +84,9 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetReadyRpc(bool isReady, RpcParams rpcParams = default)
     {
+        if (lobbyState.Phase.Value != LobbyPhase.Open)
+            return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
         playerCustomizationService.SetReady(senderClientId, isReady);
@@ -102,6 +96,9 @@ public class LobbyController : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetCharacterRpc(int characterId, RpcParams rpcParams = default)
     {
+        if (lobbyState.Phase.Value != LobbyPhase.Open)
+            return;
+
         ulong senderClientId = rpcParams.Receive.SenderClientId;
 
         playerCustomizationService.SetCharacter(senderClientId, characterId);

@@ -45,6 +45,9 @@ public class LobbyStartService
             return;
         }
 
+        lobbyState.Phase.Value = LobbyPhase.Starting;
+        lobbyState.CanStartGame.Value = false;
+
         sessionService.StartGame();
     }
 

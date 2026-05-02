@@ -5,6 +5,9 @@ public class LobbyStartRules
         if (lobbyState == null || lobbyState.Players == null)
             return false;
 
+        if (lobbyState.Phase.Value != LobbyPhase.Open)
+            return false;
+
         LobbySettingsData settings = lobbyState.Settings.Value;
 
         if (lobbyState.Players.Count < settings.MinPlayersToStart)
