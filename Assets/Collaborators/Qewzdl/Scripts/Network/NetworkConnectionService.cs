@@ -14,6 +14,7 @@ public class NetworkConnectionService : MonoBehaviour
     [SerializeField] private ushort port = 7777;
     [SerializeField] private string hostAddress = "127.0.0.1";
     [SerializeField] private string listenAddress = "0.0.0.0";
+    [SerializeField] private float clientConnectionTimeoutSeconds = 5f;
 
     private readonly Dictionary<ConnectionMode, IConnectionStrategy> strategies = new Dictionary<ConnectionMode, IConnectionStrategy>();
 
@@ -50,7 +51,8 @@ public class NetworkConnectionService : MonoBehaviour
             ConnectionMode.Lan,
             ConnectionRole.Client,
             ip,
-            port
+            port,
+            clientConnectionTimeoutSeconds: clientConnectionTimeoutSeconds
         );
 
         return StartConnectionAsync(config);
@@ -152,6 +154,11 @@ public class NetworkConnectionService : MonoBehaviour
         IConnectionStrategy lanStrategy = new LanConnectionStrategy(networkManager, transport);
 
         strategies.Add(lanStrategy.Mode, lanStrategy);
+    }
+
+    private void OnValidate()
+    {
+        clientConnectionTimeoutSeconds = Mathf.Max(1f, clientConnectionTimeoutSeconds);
     }
 
     private ConnectionResult CanStartConnection()
