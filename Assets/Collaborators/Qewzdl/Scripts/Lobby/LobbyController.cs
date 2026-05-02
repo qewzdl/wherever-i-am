@@ -37,12 +37,12 @@ public class LobbyController : NetworkBehaviour
 
         if (!IsConstructed()) return;
 
-        settingsService.InitializeFromConfig(lobbyConfig);
+        settingsService.InitializeFromConfig();
 
         NetworkManager.OnClientConnectedCallback += HandleClientConnected;
         NetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
 
-        playerRegistry.AddPlayerIfNotExists(NetworkManager.LocalClientId);
+        playerRegistry.TryAddPlayer(NetworkManager.LocalClientId);
         startService.RefreshCanStartGame();
     }
 
@@ -68,9 +68,9 @@ public class LobbyController : NetworkBehaviour
         LobbyStartRules startRules = new LobbyStartRules();
 
         ownershipService = new LobbyOwnershipService(lobbyState);
-        playerRegistry = new LobbyPlayerRegistry(lobbyState, ownershipService);
-        playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState);
-        settingsService = new LobbySettingsService(lobbyState);
+        playerRegistry = new LobbyPlayerRegistry(lobbyState, ownershipService, lobbyConfig);
+        playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState, lobbyConfig);
+        settingsService = new LobbySettingsService(lobbyState, lobbyConfig);
         startService = new LobbyStartService(lobbyState, startRules, sessionService);
     }
 
@@ -93,7 +93,12 @@ public class LobbyController : NetworkBehaviour
     {
         if (!IsConstructed()) return;
 
-        playerRegistry.AddPlayerIfNotExists(clientId);
+        if (!playerRegistry.TryAddPlayer(clientId))
+        {
+            NetworkManager.DisconnectClient(clientId);
+            return;
+        }
+
         startService.RefreshCanStartGame();
     }
 

@@ -44,8 +44,8 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
             config.MinPlayersToStart,
             config.MaxPlayers,
             config.RequireAllPlayersReady,
-            gameModeId: 0,
-            mapId: 0
+            config.DefaultGameModeId,
+            config.DefaultMapId
         );
     }
 

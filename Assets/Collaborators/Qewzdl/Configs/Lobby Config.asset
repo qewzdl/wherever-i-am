@@ -15,3 +15,9 @@ MonoBehaviour:
   minPlayersToStart: 1
   maxPlayers: 4
   requireAllPlayersReady: 1
+  gameModeIds:
+  - 0
+  mapIds:
+  - 0
+  characterIds:
+  - 0

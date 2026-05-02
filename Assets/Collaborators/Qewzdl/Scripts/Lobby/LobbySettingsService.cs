@@ -3,13 +3,15 @@ using UnityEngine;
 public class LobbySettingsService
 {
     private readonly LobbyState lobbyState;
+    private readonly LobbyConfig lobbyConfig;
 
-    public LobbySettingsService(LobbyState lobbyState)
+    public LobbySettingsService(LobbyState lobbyState, LobbyConfig lobbyConfig)
     {
         this.lobbyState = lobbyState;
+        this.lobbyConfig = lobbyConfig;
     }
 
-    public void InitializeFromConfig(LobbyConfig lobbyConfig)
+    public void InitializeFromConfig()
     {
         if (!HasLobbyState())
             return;
@@ -23,6 +25,9 @@ public class LobbySettingsService
         if (!CanChangeSettings())
             return;
 
+        if (!IsValidGameModeId(gameModeId))
+            return;
+
         LobbySettingsData settings = lobbyState.Settings.Value;
         settings.GameModeId = gameModeId;
         lobbyState.Settings.Value = settings;
@@ -33,9 +38,30 @@ public class LobbySettingsService
         if (!CanChangeSettings())
             return;
 
+        if (!IsValidMapId(mapId))
+            return;
+
         LobbySettingsData settings = lobbyState.Settings.Value;
         settings.MapId = mapId;
         lobbyState.Settings.Value = settings;
+    }
+
+    private bool IsValidGameModeId(int gameModeId)
+    {
+        if (lobbyConfig != null && lobbyConfig.IsValidGameModeId(gameModeId))
+            return true;
+
+        Debug.LogWarning($"Rejected invalid lobby game mode id: {gameModeId}.");
+        return false;
+    }
+
+    private bool IsValidMapId(int mapId)
+    {
+        if (lobbyConfig != null && lobbyConfig.IsValidMapId(mapId))
+            return true;
+
+        Debug.LogWarning($"Rejected invalid lobby map id: {mapId}.");
+        return false;
     }
 
     private bool CanChangeSettings()

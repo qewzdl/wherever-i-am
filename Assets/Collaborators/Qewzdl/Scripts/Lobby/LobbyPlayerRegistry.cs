@@ -4,20 +4,28 @@ public class LobbyPlayerRegistry
 {
     private readonly LobbyState lobbyState;
     private readonly LobbyOwnershipService ownershipService;
+    private readonly LobbyConfig lobbyConfig;
 
-    public LobbyPlayerRegistry(LobbyState lobbyState, LobbyOwnershipService ownershipService)
+    public LobbyPlayerRegistry(
+        LobbyState lobbyState,
+        LobbyOwnershipService ownershipService,
+        LobbyConfig lobbyConfig)
     {
         this.lobbyState = lobbyState;
         this.ownershipService = ownershipService;
+        this.lobbyConfig = lobbyConfig;
     }
 
-    public void AddPlayerIfNotExists(ulong clientId)
+    public bool TryAddPlayer(ulong clientId)
     {
         if (!HasLobbyState())
-            return;
+            return false;
 
         if (lobbyState.TryGetPlayerIndex(clientId, out _))
-            return;
+            return true;
+
+        if (!CanAcceptNewPlayer())
+            return false;
 
         bool shouldBecomeRoomOwner = !ownershipService.HasValidRoomOwner();
 
@@ -26,11 +34,13 @@ public class LobbyPlayerRegistry
             $"Player {clientId}",
             false,
             shouldBecomeRoomOwner,
-            0
+            GetDefaultCharacterId()
         ));
 
         if (shouldBecomeRoomOwner)
             ownershipService.AssignRoomOwner(clientId);
+
+        return true;
     }
 
     public void RemovePlayer(ulong clientId)
@@ -56,5 +66,29 @@ public class LobbyPlayerRegistry
 
         Debug.LogError("LobbyState is missing.");
         return false;
+    }
+
+    private bool CanAcceptNewPlayer()
+    {
+        if (lobbyState.Phase.Value != LobbyPhase.Open)
+        {
+            Debug.LogWarning($"Rejected lobby player because lobby phase is {lobbyState.Phase.Value}.");
+            return false;
+        }
+
+        int maxPlayers = lobbyState.Settings.Value.MaxPlayers;
+
+        if (lobbyState.Players.Count < maxPlayers)
+            return true;
+
+        Debug.LogWarning($"Rejected lobby player because lobby is full: {lobbyState.Players.Count}/{maxPlayers}.");
+        return false;
+    }
+
+    private int GetDefaultCharacterId()
+    {
+        return lobbyConfig != null
+            ? lobbyConfig.DefaultCharacterId
+            : 0;
     }
 }
