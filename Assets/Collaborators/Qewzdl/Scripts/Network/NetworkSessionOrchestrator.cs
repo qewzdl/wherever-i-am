@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -8,11 +9,16 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     public static NetworkSessionOrchestrator Instance { get; private set; }
 
     [Header("References")]
+    [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkConnectionService connectionService;
     [SerializeField] private NetworkSceneLoader sceneLoader;
 
+    [Header("Player")]
+    [SerializeField] private GameObject playerPrefab;
+
     private bool networkCallbacksSubscribed;
+    private bool networkSceneCallbacksSubscribed;
     public string LastErrorMessage { get; private set; }
 
     public bool HasLastError => !string.IsNullOrWhiteSpace(LastErrorMessage);
@@ -28,20 +34,24 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         Instance = this;
 
         ResolveReferences();
+        ConfigureConnectionApproval();
     }
 
     private void OnEnable()
     {
         ResolveReferences();
+        ConfigureConnectionApproval();
 
         SceneManager.sceneLoaded += HandleSceneLoaded;
         SubscribeToNetworkCallbacks();
+        SubscribeToNetworkSceneCallbacks();
     }
 
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         UnsubscribeFromNetworkCallbacks();
+        UnsubscribeFromNetworkSceneCallbacks();
     }
 
     public async Task HostLanAsync()
@@ -65,6 +75,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         }
 
         SubscribeToNetworkCallbacks();
+        SubscribeToNetworkSceneCallbacks();
 
         if (!sceneLoader.LoadLobby())
         {
@@ -89,6 +100,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         }
 
         SubscribeToNetworkCallbacks();
+        SubscribeToNetworkSceneCallbacks();
 
         Debug.Log(result.Message);
     }
@@ -128,6 +140,12 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     private void ResolveReferences()
     {
+        if (networkManager == null)
+            networkManager = GetComponent<NetworkManager>();
+
+        if (networkManager == null)
+            networkManager = NetworkManager.Singleton;
+
         if (stateMachine == null)
             stateMachine = GetComponent<GameStateMachine>();
 
@@ -136,6 +154,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (sceneLoader == null)
             sceneLoader = GetComponent<NetworkSceneLoader>();
+
+        if (playerPrefab == null && networkManager != null)
+            playerPrefab = networkManager.NetworkConfig.PlayerPrefab;
     }
 
     private bool HasRequiredReferences()
@@ -161,15 +182,34 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         return true;
     }
 
+    private void ConfigureConnectionApproval()
+    {
+        if (networkManager == null || networkManager.IsListening)
+            return;
+
+        networkManager.NetworkConfig.ConnectionApproval = true;
+        networkManager.ConnectionApprovalCallback = ApproveConnectionWithoutPlayerObject;
+    }
+
+    private void ApproveConnectionWithoutPlayerObject(
+        NetworkManager.ConnectionApprovalRequest request,
+        NetworkManager.ConnectionApprovalResponse response)
+    {
+        response.Approved = true;
+        response.CreatePlayerObject = false;
+        response.Pending = false;
+    }
+
     private void SubscribeToNetworkCallbacks()
     {
         if (networkCallbacksSubscribed)
             return;
 
-        if (NetworkManager.Singleton == null)
+        if (networkManager == null)
             return;
 
-        NetworkManager.Singleton.OnClientDisconnectCallback += HandleClientDisconnected;
+        networkManager.OnClientConnectedCallback += HandleClientConnected;
+        networkManager.OnClientDisconnectCallback += HandleClientDisconnected;
         networkCallbacksSubscribed = true;
     }
 
@@ -178,18 +218,55 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (!networkCallbacksSubscribed)
             return;
 
-        if (NetworkManager.Singleton != null)
-            NetworkManager.Singleton.OnClientDisconnectCallback -= HandleClientDisconnected;
+        if (networkManager != null)
+        {
+            networkManager.OnClientConnectedCallback -= HandleClientConnected;
+            networkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+        }
 
         networkCallbacksSubscribed = false;
     }
 
-    private void HandleClientDisconnected(ulong clientId)
+    private void SubscribeToNetworkSceneCallbacks()
     {
-        if (NetworkManager.Singleton == null)
+        if (networkSceneCallbacksSubscribed)
             return;
 
-        if (clientId != NetworkManager.Singleton.LocalClientId)
+        if (networkManager == null || networkManager.SceneManager == null)
+            return;
+
+        networkManager.SceneManager.OnLoadEventCompleted += HandleNetworkLoadEventCompleted;
+        networkSceneCallbacksSubscribed = true;
+    }
+
+    private void UnsubscribeFromNetworkSceneCallbacks()
+    {
+        if (!networkSceneCallbacksSubscribed)
+            return;
+
+        if (networkManager != null && networkManager.SceneManager != null)
+            networkManager.SceneManager.OnLoadEventCompleted -= HandleNetworkLoadEventCompleted;
+
+        networkSceneCallbacksSubscribed = false;
+    }
+
+    private void HandleClientConnected(ulong clientId)
+    {
+        if (networkManager == null || sceneLoader == null || !networkManager.IsServer)
+            return;
+
+        if (!IsCurrentScene(sceneLoader.GameSceneName))
+            return;
+
+        SpawnPlayerForClient(clientId);
+    }
+
+    private void HandleClientDisconnected(ulong clientId)
+    {
+        if (networkManager == null)
+            return;
+
+        if (clientId != networkManager.LocalClientId)
             return;
 
         if (stateMachine == null)
@@ -217,6 +294,65 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         {
             FailAndReturnToMainMenu("Disconnected from network session.");
         }
+    }
+
+    private void HandleNetworkLoadEventCompleted(
+        string sceneName,
+        LoadSceneMode loadSceneMode,
+        List<ulong> clientsCompleted,
+        List<ulong> clientsTimedOut)
+    {
+        if (sceneLoader == null)
+            return;
+
+        if (sceneName != sceneLoader.GameSceneName)
+            return;
+
+        if (networkManager == null || !networkManager.IsServer)
+            return;
+
+        SpawnPlayersForConnectedClients();
+    }
+
+    private void SpawnPlayersForConnectedClients()
+    {
+        if (networkManager == null || playerPrefab == null)
+            return;
+
+        foreach (ulong clientId in networkManager.ConnectedClientsIds)
+        {
+            SpawnPlayerForClient(clientId);
+        }
+    }
+
+    private void SpawnPlayerForClient(ulong clientId)
+    {
+        if (networkManager == null || playerPrefab == null)
+            return;
+
+        if (!networkManager.ConnectedClients.TryGetValue(clientId, out NetworkClient client))
+            return;
+
+        if (client.PlayerObject != null)
+            return;
+
+        if (!playerPrefab.TryGetComponent(out NetworkObject playerNetworkObject))
+        {
+            Debug.LogError("Player prefab is missing NetworkObject.");
+            return;
+        }
+
+        NetworkObject playerInstance = Instantiate(
+            playerNetworkObject,
+            playerPrefab.transform.position,
+            playerPrefab.transform.rotation);
+
+        playerInstance.SpawnAsPlayerObject(clientId, true);
+    }
+
+    private bool IsCurrentScene(string sceneName)
+    {
+        return SceneManager.GetActiveScene().name == sceneName;
     }
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
