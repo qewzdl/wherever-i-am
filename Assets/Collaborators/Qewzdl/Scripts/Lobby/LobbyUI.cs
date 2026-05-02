@@ -134,7 +134,7 @@ public class LobbyUI : MonoBehaviour
         {
             LobbyPlayerData player = readService.GetPlayer(i);
 
-            string ownerText = player.IsRoomOwner ? "Owner" : "Player";
+            string ownerText = player.ClientId == readService.RoomOwnerClientId ? "Owner" : "Player";
             string readyText = player.IsReady ? "Ready" : "Not ready";
 
             builder.AppendLine($"{player.PlayerName} | {ownerText} | {readyText} | Character {player.CharacterId}");

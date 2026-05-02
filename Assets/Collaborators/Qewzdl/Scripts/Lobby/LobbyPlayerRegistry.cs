@@ -33,7 +33,6 @@ public class LobbyPlayerRegistry
             clientId,
             $"Player {clientId}",
             false,
-            shouldBecomeRoomOwner,
             GetDefaultCharacterId()
         ));
 

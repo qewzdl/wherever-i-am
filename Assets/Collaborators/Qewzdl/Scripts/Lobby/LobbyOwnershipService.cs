@@ -45,13 +45,6 @@ public class LobbyOwnershipService
             return;
 
         lobbyState.RoomOwnerClientId.Value = clientId;
-
-        for (int i = 0; i < lobbyState.Players.Count; i++)
-        {
-            LobbyPlayerData player = lobbyState.Players[i];
-            player.IsRoomOwner = player.ClientId == clientId;
-            lobbyState.Players[i] = player;
-        }
     }
 
     public void AssignNextRoomOwner()

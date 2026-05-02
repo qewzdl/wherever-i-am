@@ -21,6 +21,10 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         ? lobbyState.Players.Count
         : 0;
 
+    public ulong RoomOwnerClientId => lobbyState != null
+        ? lobbyState.RoomOwnerClientId.Value
+        : LobbyState.NoRoomOwner;
+
     public bool IsLocalPlayerRoomOwner
     {
         get
@@ -28,7 +32,7 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
             if (NetworkManager.Singleton == null || lobbyState == null)
                 return false;
 
-            return lobbyState.RoomOwnerClientId.Value == NetworkManager.Singleton.LocalClientId;
+            return RoomOwnerClientId == NetworkManager.Singleton.LocalClientId;
         }
     }
 

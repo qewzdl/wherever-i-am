@@ -10,6 +10,7 @@ public interface ILobbyReadService
     event Action PhaseChanged;
 
     int PlayerCount { get; }
+    ulong RoomOwnerClientId { get; }
     bool IsLocalPlayerRoomOwner { get; }
     bool CanStartGame { get; }
     LobbyPhase Phase { get; }
