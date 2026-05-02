@@ -715,8 +715,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playersText: {fileID: 394823907}
   readyButton: {fileID: 1492635990}
+  readyButtonLabel: {fileID: 0}
   startGameButton: {fileID: 1202106741}
   leaveButton: {fileID: 916248616}
+  readyActionText: Ready
+  notReadyActionText: Not ready
 --- !u!114 &896598417
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -815,6 +818,7 @@ GameObject:
   - component: {fileID: 916248618}
   - component: {fileID: 916248617}
   - component: {fileID: 916248616}
+  - component: {fileID: 916248619}
   m_Layer: 5
   m_Name: LeaveButton
   m_TagString: Untagged
@@ -924,6 +928,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 916248614}
   m_CullTransparentMesh: 1
+--- !u!114 &916248619
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 916248614}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79e8ecce19ffb574f9dfda342623927a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playHoverSound: 1
+  playClickSound: 1
 --- !u!1 &1074123539
 GameObject:
   m_ObjectHideFlags: 0
@@ -1028,6 +1046,7 @@ GameObject:
   - component: {fileID: 1202106743}
   - component: {fileID: 1202106742}
   - component: {fileID: 1202106741}
+  - component: {fileID: 1202106744}
   m_Layer: 5
   m_Name: StartGameButton
   m_TagString: Untagged
@@ -1137,6 +1156,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1202106739}
   m_CullTransparentMesh: 1
+--- !u!114 &1202106744
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1202106739}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79e8ecce19ffb574f9dfda342623927a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playHoverSound: 1
+  playClickSound: 1
 --- !u!1 &1492635988
 GameObject:
   m_ObjectHideFlags: 0
@@ -1149,6 +1182,7 @@ GameObject:
   - component: {fileID: 1492635992}
   - component: {fileID: 1492635991}
   - component: {fileID: 1492635990}
+  - component: {fileID: 1492635993}
   m_Layer: 5
   m_Name: ReadyButton
   m_TagString: Untagged
@@ -1258,6 +1292,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1492635988}
   m_CullTransparentMesh: 1
+--- !u!114 &1492635993
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1492635988}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79e8ecce19ffb574f9dfda342623927a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playHoverSound: 1
+  playClickSound: 1
 --- !u!1 &1629856382
 GameObject:
   m_ObjectHideFlags: 0

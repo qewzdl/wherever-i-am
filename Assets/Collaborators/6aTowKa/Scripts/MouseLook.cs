@@ -1,5 +1,3 @@
-using Unity.Netcode;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -8,57 +6,45 @@ public class MouseLook : MonoBehaviour
     [SerializeField] private Transform playerTransform;
     [SerializeField] private float sensitivity = 100f;
 
-    private float rotationX = 0;
-    private float rotationY = 0;
+    private float rotationX;
+    private float rotationY;
 
-    private bool cursorIsLocked;
+    private IPauseService pauseService;
 
-    private void OnApplicationFocus(bool focus)
+    public void Construct(IPauseService pauseService)
     {
-        cursorIsLocked = focus;
-        SetCursorState(cursorIsLocked);
-    }
-
-    private void Start()
-    {
-        cursorIsLocked = true;
-        SetCursorState(cursorIsLocked);
+        this.pauseService = pauseService;
     }
 
     private void Update()
     {
-        if (cursorIsLocked) Look();
+        if (!CanLook())
+            return;
 
-        if (Keyboard.current.leftAltKey.wasPressedThisFrame)
-        {
-            cursorIsLocked = false;
-            SetCursorState(cursorIsLocked);
-        }
-        else if (Keyboard.current.leftAltKey.wasReleasedThisFrame)
-        {
-            cursorIsLocked = true;
-            SetCursorState(cursorIsLocked);
-        }
+        Look();
+    }
+
+    private bool CanLook()
+    {
+        if (pauseService != null && pauseService.IsPaused)
+            return false;
+
+        if (Mouse.current == null)
+            return false;
+
+        return Cursor.lockState == CursorLockMode.Locked;
     }
 
     private void Look()
     {
-        Vector2 delta = Mouse.current.delta.value * sensitivity/500;
+        Vector2 delta = Mouse.current.delta.value * sensitivity / 500f;
 
         rotationX -= delta.y;
-        rotationX = Mathf.Clamp(rotationX, -90, 90);
+        rotationX = Mathf.Clamp(rotationX, -90f, 90f);
 
         rotationY += delta.x;
 
-        playerTransform.localRotation = Quaternion.Euler(0, rotationY, 0);
-        gameObject.transform.localRotation = Quaternion.Euler(rotationX, 0, 0);
-    }
-
-    private void SetCursorState(bool isLocked)
-    {
-        if (isLocked) Cursor.lockState = CursorLockMode.Locked;
-        else Cursor.lockState = CursorLockMode.None;
-
-        Cursor.visible = !isLocked;
+        playerTransform.localRotation = Quaternion.Euler(0f, rotationY, 0f);
+        transform.localRotation = Quaternion.Euler(rotationX, 0f, 0f);
     }
 }
