@@ -5,7 +5,6 @@ public class LobbyStartRules
     public LobbyStartRules() : this(
         new LobbyPhaseOpenStartRule(),
         new LobbyMinPlayersStartRule(),
-        new LobbyMaxPlayersStartRule(),
         new LobbyAllPlayersReadyStartRule())
     {
     }
