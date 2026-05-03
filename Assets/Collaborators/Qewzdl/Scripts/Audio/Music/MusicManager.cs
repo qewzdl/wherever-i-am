@@ -15,9 +15,15 @@ public class MusicManager : MonoBehaviour
     private AudioSource nextSource;
 
     private MusicTrack currentTrack;
+    private MusicCue currentCue;
+
     private Coroutine transitionCoroutine;
+    private Coroutine cueRoutine;
+
+    private MusicSelectionState cueState;
 
     public MusicTrack CurrentTrack => currentTrack;
+    public MusicCue CurrentCue => currentCue;
     public bool IsPlaying => currentSource != null && currentSource.isPlaying;
 
     private void Awake()
@@ -26,7 +32,148 @@ public class MusicManager : MonoBehaviour
         nextSource = CreateAudioSource("Next Music Source");
     }
 
+    public void PlayCue(MusicCue cue, bool restartIfSameCue = false)
+    {
+        if (cue == null || !cue.IsValid)
+        {
+            Debug.LogWarning("MusicManager: MusicCue is missing or empty.");
+            return;
+        }
+
+        if (currentCue == cue && cueRoutine != null && !restartIfSameCue)
+        {
+            return;
+        }
+
+        StopCueRoutine();
+
+        currentCue = cue;
+        cueState = new MusicSelectionState();
+        cueRoutine = StartCoroutine(PlayCueRoutine(cue));
+    }
+
     public void PlayTrack(MusicTrack track, bool restartIfSameTrack = false)
+    {
+        StopCueRoutine();
+        currentCue = null;
+
+        PlayTrackInternal(track, restartIfSameTrack);
+    }
+
+    public void StopMusic(float fadeOutTime = 1f)
+    {
+        StopCueRoutine();
+        currentCue = null;
+
+        if (transitionCoroutine != null)
+        {
+            StopCoroutine(transitionCoroutine);
+        }
+
+        transitionCoroutine = StartCoroutine(FadeOutAndStop(fadeOutTime));
+    }
+
+    public void Pause()
+    {
+        if (currentSource != null)
+        {
+            currentSource.Pause();
+        }
+
+        if (nextSource != null)
+        {
+            nextSource.Pause();
+        }
+    }
+
+    public void Resume()
+    {
+        if (currentSource != null)
+        {
+            currentSource.UnPause();
+        }
+
+        if (nextSource != null)
+        {
+            nextSource.UnPause();
+        }
+    }
+
+    public void SetMasterVolume(float volume)
+    {
+        masterVolume = Mathf.Clamp01(volume);
+
+        if (currentTrack != null && currentSource != null)
+        {
+            currentSource.volume = currentTrack.Volume * masterVolume;
+        }
+    }
+
+    private IEnumerator PlayCueRoutine(MusicCue cue)
+    {
+        while (true)
+        {
+            MusicTrack track = GetNextTrack(cue);
+
+            if (track == null || track.Clip == null)
+            {
+                Debug.LogWarning("MusicManager: Track or AudioClip is missing.");
+                cueRoutine = null;
+                yield break;
+            }
+
+            bool shouldRestartIfSameTrack = cueState.PlayedCount > 0;
+            PlayTrackInternal(track, shouldRestartIfSameTrack);
+
+            cueState.LastTrack = track;
+            cueState.PlayedCount++;
+
+            if (!ShouldScheduleNextTrack(cue))
+            {
+                cueRoutine = null;
+                yield break;
+            }
+
+            float waitTime = Mathf.Max(
+                0f,
+                track.Clip.length - cue.CrossfadeBeforeTrackEnds
+            );
+
+            yield return Wait(waitTime);
+
+            if (cue.DelayBetweenTracks > 0f)
+            {
+                yield return Wait(cue.DelayBetweenTracks);
+            }
+        }
+    }
+
+    private MusicTrack GetNextTrack(MusicCue cue)
+    {
+        if (cue.Selector == null)
+        {
+            return cue.GetFirstTrack();
+        }
+
+        return cue.Selector.SelectNext(cue.Tracks, cueState);
+    }
+
+    private bool ShouldScheduleNextTrack(MusicCue cue)
+    {
+        if (cue.LoopCue)
+        {
+            return true;
+        }
+
+        if (!cue.ContinueAfterTrackEnds || cue.Selector == null)
+        {
+            return false;
+        }
+
+        return cueState.PlayedCount < cue.Tracks.Length;
+    }
+
+    private void PlayTrackInternal(MusicTrack track, bool restartIfSameTrack)
     {
         if (track == null || track.Clip == null)
         {
@@ -47,36 +194,13 @@ public class MusicManager : MonoBehaviour
         transitionCoroutine = StartCoroutine(CrossfadeToTrack(track));
     }
 
-    public void StopMusic(float fadeOutTime = 1f)
+    private void StopCueRoutine()
     {
-        if (transitionCoroutine != null)
-        {
-            StopCoroutine(transitionCoroutine);
-        }
+        if (cueRoutine == null) return;
 
-        transitionCoroutine = StartCoroutine(FadeOutAndStop(fadeOutTime));
-    }
-
-    public void Pause()
-    {
-        currentSource.Pause();
-        nextSource.Pause();
-    }
-
-    public void Resume()
-    {
-        currentSource.UnPause();
-        nextSource.UnPause();
-    }
-
-    public void SetMasterVolume(float volume)
-    {
-        masterVolume = Mathf.Clamp01(volume);
-
-        if (currentTrack != null)
-        {
-            currentSource.volume = currentTrack.Volume * masterVolume;
-        }
+        StopCoroutine(cueRoutine);
+        cueRoutine = null;
+        cueState = null;
     }
 
     private AudioSource CreateAudioSource(string sourceName)
@@ -156,8 +280,8 @@ public class MusicManager : MonoBehaviour
 
     private IEnumerator FadeOutAndStop(float fadeOutTime)
     {
-        float currentStartVolume = currentSource.volume;
-        float nextStartVolume = nextSource.volume;
+        float currentStartVolume = currentSource != null ? currentSource.volume : 0f;
+        float nextStartVolume = nextSource != null ? nextSource.volume : 0f;
 
         float timer = 0f;
 
@@ -167,23 +291,47 @@ public class MusicManager : MonoBehaviour
 
             float t = fadeOutTime > 0f ? Mathf.Clamp01(timer / fadeOutTime) : 1f;
 
-            currentSource.volume = Mathf.Lerp(currentStartVolume, 0f, t);
-            nextSource.volume = Mathf.Lerp(nextStartVolume, 0f, t);
+            if (currentSource != null)
+            {
+                currentSource.volume = Mathf.Lerp(currentStartVolume, 0f, t);
+            }
+
+            if (nextSource != null)
+            {
+                nextSource.volume = Mathf.Lerp(nextStartVolume, 0f, t);
+            }
 
             yield return null;
         }
 
-        currentSource.Stop();
-        nextSource.Stop();
+        if (currentSource != null)
+        {
+            currentSource.Stop();
+            currentSource.clip = null;
+            currentSource.volume = 0f;
+        }
 
-        currentSource.clip = null;
-        nextSource.clip = null;
-
-        currentSource.volume = 0f;
-        nextSource.volume = 0f;
+        if (nextSource != null)
+        {
+            nextSource.Stop();
+            nextSource.clip = null;
+            nextSource.volume = 0f;
+        }
 
         currentTrack = null;
         transitionCoroutine = null;
+    }
+
+    private IEnumerator Wait(float seconds)
+    {
+        if (useUnscaledTime)
+        {
+            yield return new WaitForSecondsRealtime(seconds);
+        }
+        else
+        {
+            yield return new WaitForSeconds(seconds);
+        }
     }
 
     private float GetDeltaTime()

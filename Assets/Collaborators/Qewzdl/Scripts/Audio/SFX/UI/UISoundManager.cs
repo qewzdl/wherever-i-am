@@ -9,67 +9,89 @@ public class UiSoundManager : MonoBehaviour
     [Header("Settings")]
     [SerializeField, Range(0f, 1f)] private float masterVolume = 1f;
 
-    [Header("Default UI Sounds")]
-    [SerializeField] private SoundEffect clickSound;
-    [SerializeField] private SoundEffect hoverSound;
-    [SerializeField] private SoundEffect openSound;
-    [SerializeField] private SoundEffect closeSound;
-    [SerializeField] private SoundEffect confirmSound;
-    [SerializeField] private SoundEffect cancelSound;
-    [SerializeField] private SoundEffect errorSound;
-    [SerializeField] private SoundEffect inputSound;
-
     private AudioSource source;
+    private UiSoundTheme activeTheme;
 
     private void Awake()
     {
         source = CreateAudioSource();
     }
 
+    public void ApplyTheme(UiSoundTheme theme)
+    {
+        activeTheme = theme;
+    }
+
+    public void ClearTheme()
+    {
+        activeTheme = null;
+    }
+
     public void PlayClick()
     {
-        Play(clickSound);
+        Play(UiSoundType.Click);
     }
 
     public void PlayHover()
     {
-        Play(hoverSound);
+        Play(UiSoundType.Hover);
     }
 
     public void PlayOpen()
     {
-        Play(openSound);
+        Play(UiSoundType.Open);
     }
 
     public void PlayClose()
     {
-        Play(closeSound);
+        Play(UiSoundType.Close);
     }
 
     public void PlayConfirm()
     {
-        Play(confirmSound);
+        Play(UiSoundType.Confirm);
     }
 
     public void PlayCancel()
     {
-        Play(cancelSound);
+        Play(UiSoundType.Cancel);
     }
 
     public void PlayError()
     {
-        Play(errorSound);
+        Play(UiSoundType.Error);
     }
 
     public void PlayInput()
     {
-        Play(inputSound);
+        Play(UiSoundType.Input);
+    }
+
+    public void Play(UiSoundType type)
+    {
+        if (activeTheme == null)
+        {
+            return;
+        }
+
+        if (!activeTheme.TryGetSound(type, out SoundEffect sound))
+        {
+            return;
+        }
+
+        Play(sound);
     }
 
     public void Play(SoundEffect sound)
     {
         if (sound == null)
         {
+            return;
+        }
+
+        if (source == null)
+        {
+            Debug.LogWarning("UiSoundManager: AudioSource is missing.");
             return;
         }
 

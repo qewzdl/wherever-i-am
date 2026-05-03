@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 
 public class MusicCuePlayer : MonoBehaviour
@@ -9,10 +8,7 @@ public class MusicCuePlayer : MonoBehaviour
     [Header("Playback")]
     [SerializeField] private bool playOnStart = true;
     [SerializeField] private bool stopOnDisable = false;
-    [SerializeField] private bool restartIfSameTrack = false;
-
-    private Coroutine playRoutine;
-    private MusicSelectionState state;
+    [SerializeField] private bool restartIfSameCue = false;
 
     private void Start()
     {
@@ -44,89 +40,16 @@ public class MusicCuePlayer : MonoBehaviour
             return;
         }
 
-        StopRoutine();
-
-        state = new MusicSelectionState();
-        playRoutine = StartCoroutine(PlayCueRoutine());
+        AudioManager.Instance.Music.PlayCue(cue, restartIfSameCue);
     }
 
     public void Stop()
     {
-        StopRoutine();
-
-        if (AudioManager.Instance == null || AudioManager.Instance.Music == null) return;
+        if (AudioManager.Instance == null || AudioManager.Instance.Music == null)
+        {
+            return;
+        }
 
         AudioManager.Instance.Music.StopMusic();
-    }
-
-    private IEnumerator PlayCueRoutine()
-    {
-        while (true)
-        {
-            MusicTrack track = GetNextTrack();
-
-            if (track == null || track.Clip == null)
-            {
-                Debug.LogWarning("MusicCuePlayer: Track or AudioClip is missing.");
-                yield break;
-            }
-
-            bool shouldRestartIfSameTrack = restartIfSameTrack || state.PlayedCount > 0;
-            AudioManager.Instance.Music.PlayTrack(track, shouldRestartIfSameTrack);
-
-            state.LastTrack = track;
-            state.PlayedCount++;
-
-            if (!ShouldScheduleNextTrack())
-            {
-                playRoutine = null;
-                yield break;
-            }
-
-            float waitTime = Mathf.Max(
-                0f,
-                track.Clip.length - cue.CrossfadeBeforeTrackEnds
-            );
-
-            yield return new WaitForSecondsRealtime(waitTime);
-
-            if (cue.DelayBetweenTracks > 0f)
-            {
-                yield return new WaitForSecondsRealtime(cue.DelayBetweenTracks);
-            }
-        }
-    }
-
-    private MusicTrack GetNextTrack()
-    {
-        if (cue.Selector == null)
-        {
-            return cue.GetFirstTrack();
-        }
-
-        return cue.Selector.SelectNext(cue.Tracks, state);
-    }
-
-    private bool ShouldScheduleNextTrack()
-    {
-        if (cue.LoopCue)
-        {
-            return true;
-        }
-
-        if (!cue.ContinueAfterTrackEnds || cue.Selector == null)
-        {
-            return false;
-        }
-
-        return state.PlayedCount < cue.Tracks.Length;
-    }
-
-    private void StopRoutine()
-    {
-        if (playRoutine == null) return;
-
-        StopCoroutine(playRoutine);
-        playRoutine = null;
     }
 }
