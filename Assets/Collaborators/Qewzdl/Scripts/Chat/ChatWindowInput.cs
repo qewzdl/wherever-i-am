@@ -143,6 +143,10 @@ public sealed class ChatWindowInput : MonoBehaviour
         if (!TryResolveChatWindowUI())
             return;
 
+        if (!chatWindowUI.IsOpen)
+            return;
+
+        PauseMenuInput.SuppressToggleForCurrentFrame();
         chatWindowUI.Close();
     }
 
