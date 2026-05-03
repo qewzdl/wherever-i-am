@@ -1,7 +1,6 @@
-using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerAnimation : NetworkBehaviour
+public class PlayerAnimation : MonoBehaviour
 {
     [SerializeField] private Transform playerModelTransform;
     [SerializeField] private float animationSpeed;

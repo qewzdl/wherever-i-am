@@ -1,0 +1,64 @@
+using Unity.Netcode;
+using Unity.Netcode.Components;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class PlayerSetup : NetworkBehaviour
+{
+    private void Start()
+    {
+        SetupPlayer();
+    }
+
+    public void SetupPlayer()
+    {
+
+        if (NetworkManager.Singleton) // Multiplayer
+        {
+            GetComponent<NetworkObject>().enabled = true;
+            GetComponent<NetworkTransform>().enabled = true;
+
+            GetComponent<PlayerNetwork>().enabled = true;
+            GetComponent<PlayerAnimation>().enabled = true;
+
+            if (IsOwner) // local player
+            {
+                GetComponent<PlayerInput>().enabled = true;
+                GetComponent<PlayerInputHandler>().enabled = true;
+                GetComponent<PlayerController>().enabled = true;
+            }
+            else // server player
+            {
+                Destroy(GetComponent<PlayerInput>());
+                Destroy(GetComponent<PlayerInputHandler>());
+                Destroy(GetComponent<PlayerController>());
+
+                GetComponentInChildren<MouseLook>().enabled = false;
+                GetComponentInChildren<Camera>().enabled = false;
+            }
+        }
+        else // singleplayer
+        {
+            Destroy(GetComponent<NetworkObject>());
+            Destroy(GetComponent<NetworkTransform>());
+            Destroy(GetComponent<PlayerNetwork>());
+
+            GetComponent<PlayerInput>().enabled = true;
+            GetComponent<PlayerInputHandler>().enabled = true;
+            GetComponent<PlayerController>().enabled = true;
+            GetComponent<PlayerAnimation>().enabled = true;
+        }
+
+        foreach (Behaviour component in GetComponents<Behaviour>())
+        {
+            if (component.enabled == false)
+            {
+                Debug.LogWarning("Component (" + component.ToString() + ") is not enabled. The Player Setup cannot initialize this module");
+            }
+        }
+
+        GetComponent<PlayerOrchestrator>().Setup(NetworkManager.Singleton, IsOwner);
+
+        Destroy(this);
+    }
+}
