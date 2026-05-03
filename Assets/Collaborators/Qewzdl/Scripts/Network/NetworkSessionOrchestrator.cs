@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -19,6 +20,11 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     private bool networkCallbacksSubscribed;
     private bool networkSceneCallbacksSubscribed;
+
+    private NetworkManager subscribedNetworkManager;
+    private NetworkSceneManager subscribedNetworkSceneManager;
+    private Coroutine shutdownRoutine;
+
     private IUiErrorService errorService;
 
     private void Awake()
@@ -75,8 +81,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return;
         }
 
-        SubscribeToNetworkCallbacks();
-        SubscribeToNetworkSceneCallbacks();
+        RefreshNetworkSubscriptions();
 
         if (!sceneLoader.LoadLobby())
         {
@@ -106,8 +111,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return;
         }
 
-        SubscribeToNetworkCallbacks();
-        SubscribeToNetworkSceneCallbacks();
+        RefreshNetworkSubscriptions();
 
         Debug.Log(result.DebugMessage);
     }
@@ -138,11 +142,42 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     {
         if (!HasRequiredReferences()) return;
 
+        if (shutdownRoutine != null)
+            return;
+
+        shutdownRoutine = StartCoroutine(ShutdownToMainMenuRoutine());
+    }
+
+    private IEnumerator ShutdownToMainMenuRoutine()
+    {
         stateMachine.ChangeState(GameState.Disconnecting);
+
+        ResetNetworkSubscriptions();
 
         connectionService.Shutdown();
 
-        sceneLoader.LoadMainMenu();
+        yield return null;
+
+        if (sceneLoader != null)
+            sceneLoader.LoadMainMenu();
+
+        shutdownRoutine = null;
+    }
+
+    private void RefreshNetworkSubscriptions()
+    {
+        ResetNetworkSubscriptions();
+
+        ResolveReferences();
+
+        SubscribeToNetworkCallbacks();
+        SubscribeToNetworkSceneCallbacks();
+    }
+
+    private void ResetNetworkSubscriptions()
+    {
+        UnsubscribeFromNetworkCallbacks();
+        UnsubscribeFromNetworkSceneCallbacks();
     }
 
     private void ResolveReferences()
@@ -215,14 +250,18 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     private void SubscribeToNetworkCallbacks()
     {
-        if (networkCallbacksSubscribed)
-            return;
-
         if (networkManager == null)
             return;
 
-        networkManager.OnClientConnectedCallback += HandleClientConnected;
-        networkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+        if (networkCallbacksSubscribed && subscribedNetworkManager == networkManager)
+            return;
+
+        UnsubscribeFromNetworkCallbacks();
+
+        subscribedNetworkManager = networkManager;
+        subscribedNetworkManager.OnClientConnectedCallback += HandleClientConnected;
+        subscribedNetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+
         networkCallbacksSubscribed = true;
     }
 
@@ -231,24 +270,31 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (!networkCallbacksSubscribed)
             return;
 
-        if (networkManager != null)
+        if (subscribedNetworkManager != null)
         {
-            networkManager.OnClientConnectedCallback -= HandleClientConnected;
-            networkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+            subscribedNetworkManager.OnClientConnectedCallback -= HandleClientConnected;
+            subscribedNetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
         }
 
+        subscribedNetworkManager = null;
         networkCallbacksSubscribed = false;
     }
 
     private void SubscribeToNetworkSceneCallbacks()
     {
-        if (networkSceneCallbacksSubscribed)
-            return;
-
         if (networkManager == null || networkManager.SceneManager == null)
             return;
 
-        networkManager.SceneManager.OnLoadEventCompleted += HandleNetworkLoadEventCompleted;
+        NetworkSceneManager currentSceneManager = networkManager.SceneManager;
+
+        if (networkSceneCallbacksSubscribed && subscribedNetworkSceneManager == currentSceneManager)
+            return;
+
+        UnsubscribeFromNetworkSceneCallbacks();
+
+        subscribedNetworkSceneManager = currentSceneManager;
+        subscribedNetworkSceneManager.OnLoadEventCompleted += HandleNetworkLoadEventCompleted;
+
         networkSceneCallbacksSubscribed = true;
     }
 
@@ -257,9 +303,10 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (!networkSceneCallbacksSubscribed)
             return;
 
-        if (networkManager != null && networkManager.SceneManager != null)
-            networkManager.SceneManager.OnLoadEventCompleted -= HandleNetworkLoadEventCompleted;
+        if (subscribedNetworkSceneManager != null)
+            subscribedNetworkSceneManager.OnLoadEventCompleted -= HandleNetworkLoadEventCompleted;
 
+        subscribedNetworkSceneManager = null;
         networkSceneCallbacksSubscribed = false;
     }
 
@@ -409,6 +456,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (stateMachine != null)
             stateMachine.ChangeState(GameState.Error);
+
+        ResetNetworkSubscriptions();
 
         if (connectionService != null)
             connectionService.Shutdown();
