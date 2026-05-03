@@ -9,4 +9,9 @@ public class PlayerNetwork : NetworkBehaviour
     {
         PlayerIsCrouching.Value = value;
     }
+
+    public void Start()
+    {
+        
+    }
 }

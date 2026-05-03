@@ -1,32 +1,21 @@
 using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerEntity : NetworkBehaviour
+public class PlayerEntity : MonoBehaviour
 {
     private PlayerInput playerInput;
     private PlayerController playerController;
     private PlayerNetwork playerNetwork;
     private PlayerAnimation playerAnimation;
 
-    public override void OnNetworkSpawn()
+    private void Awake()
     {
-        //both   
         playerNetwork = GetComponent<PlayerNetwork>();
         playerAnimation = GetComponent<PlayerAnimation>();
+        playerInput = GetComponent<PlayerInput>();
+        playerController = GetComponent<PlayerController>();
 
-        if (IsOwner) //local player
-        {
-            playerInput = GetComponent<PlayerInput>();
-            playerController = GetComponent<PlayerController>();
-
-            playerInput.OnMoveUpdated += playerController.SetDirection;
-            playerInput.OnCrouchUpdated += playerController.UpdateIsCrouching;
-
-            playerController.IsCrouchingUpdated += StartCrouchAnimation;
-            playerController.IsCrouchingUpdated += UpdateNetworkIsCrouching;
-        }
-        else //server player
-        {
+        playerNetwork.Start();
             GetComponentInChildren<Camera>().enabled = false;
             GetComponentInChildren<CameraFollow>().enabled = false;
             GetComponentInChildren<MouseLook>().enabled = false;
@@ -34,27 +23,28 @@ public class PlayerEntity : NetworkBehaviour
 
             GetComponent<PlayerInput>().enabled = false;
             GetComponent<PlayerController>().enabled = false;
-
-            playerNetwork.PlayerIsCrouching.OnValueChanged += StartCrouchAnimation;
-        }
     }
 
-    public override void OnNetworkDespawn()
+    private void OnEnable()
     {
-        //both
+        playerInput.OnMoveUpdated += playerController.SetDirection;
+        playerInput.OnCrouchUpdated += playerController.UpdateIsCrouching;
 
-        if (IsOwner) // local player
-        {
-            playerInput.OnMoveUpdated -= playerController.SetDirection;
-            playerInput.OnCrouchUpdated -= playerController.UpdateIsCrouching;
+        playerController.IsCrouchingUpdated += StartCrouchAnimation;
+        playerController.IsCrouchingUpdated += UpdateNetworkIsCrouching;
 
-            playerController.IsCrouchingUpdated -= StartCrouchAnimation;
-            playerController.IsCrouchingUpdated -= UpdateNetworkIsCrouching;
-        }
-        else // server player
-        {
-            playerNetwork.PlayerIsCrouching.OnValueChanged -= StartCrouchAnimation;
-        }
+        playerNetwork.PlayerIsCrouching.OnValueChanged += StartCrouchAnimation;
+    }
+
+    private void OnDisable()
+    {
+        playerInput.OnMoveUpdated -= playerController.SetDirection;
+        playerInput.OnCrouchUpdated -= playerController.UpdateIsCrouching;
+
+        playerController.IsCrouchingUpdated -= StartCrouchAnimation;
+        playerController.IsCrouchingUpdated -= UpdateNetworkIsCrouching;
+
+        playerNetwork.PlayerIsCrouching.OnValueChanged -= StartCrouchAnimation;
     }
 
     //Animation
