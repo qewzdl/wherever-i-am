@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class PlayerAnimation : MonoBehaviour
+public class PlayerAnimation : PlayerComponent, IPlayerSignalListener
 {
     [SerializeField] private Transform playerModelTransform;
     [SerializeField] private float animationSpeed;
@@ -10,6 +10,22 @@ public class PlayerAnimation : MonoBehaviour
     private float targetHeight;
     private float lastHeight;
     private bool playCrouchAnimation;
+
+    protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
+    {
+        signals.CrouchUpdateSignal.Listen(SetupAnimation);
+
+        if (isMultiplayer && !isOwner)
+        {
+            signals.CrouchSyncSignal.Listen(SetupAnimation);
+        }
+    }
+
+    public void Cleanup()
+    {
+        signals.CrouchUpdateSignal.Unlisten(SetupAnimation);
+        signals.CrouchSyncSignal.Unlisten(SetupAnimation); // ???????
+    }
 
     private void Update()
     {

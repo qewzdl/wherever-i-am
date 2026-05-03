@@ -1,19 +1,27 @@
-using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerInputHandler : MonoBehaviour
+public class PlayerInputHandler : PlayerComponent
 {
-    public Action<Vector2> OnMoveUpdated;
-    public Action OnCrouchUpdated;
+    private bool inputActive = true;
 
     public void OnMove(InputAction.CallbackContext context)
     {
-        OnMoveUpdated?.Invoke(context.ReadValue<Vector2>());
+        if (inputActive)
+            signals.MoveSignal.Trigger(context.ReadValue<Vector2>());
     }
 
     public void OnCrouch()
     {
-        OnCrouchUpdated?.Invoke();
+        if (inputActive)
+            signals.CrouchInputSignal.Trigger();
+    }    
+    
+    public void SetInputActive(bool value)
+    {
+        inputActive = value;
+
+        if (inputActive == false)
+            signals.MoveSignal.Trigger(Vector2.zero);
     }
 } 

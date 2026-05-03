@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.Netcode;
 using Unity.Netcode.Components;
 using UnityEngine;
@@ -5,6 +6,8 @@ using UnityEngine.InputSystem;
 
 public class PlayerSetup : NetworkBehaviour
 {
+    private List<Component> destroingComponents = new List<Component>();
+
     private void Start()
     {
         SetupPlayer();
@@ -29,9 +32,9 @@ public class PlayerSetup : NetworkBehaviour
             }
             else // server player
             {
-                Destroy(GetComponent<PlayerInput>());
-                Destroy(GetComponent<PlayerInputHandler>());
-                Destroy(GetComponent<PlayerController>());
+                destroingComponents.Add(GetComponent<PlayerInput>());
+                destroingComponents.Add(GetComponent<PlayerInputHandler>());
+                destroingComponents.Add(GetComponent<PlayerController>());
 
                 GetComponentInChildren<MouseLook>().enabled = false;
                 GetComponentInChildren<Camera>().enabled = false;
@@ -39,9 +42,9 @@ public class PlayerSetup : NetworkBehaviour
         }
         else // singleplayer
         {
-            Destroy(GetComponent<NetworkObject>());
-            Destroy(GetComponent<NetworkTransform>());
-            Destroy(GetComponent<PlayerNetwork>());
+            destroingComponents.Add(GetComponent<NetworkObject>());
+            destroingComponents.Add(GetComponent<NetworkTransform>());
+            destroingComponents.Add(GetComponent<PlayerNetwork>());
 
             GetComponent<PlayerInput>().enabled = true;
             GetComponent<PlayerInputHandler>().enabled = true;
@@ -51,10 +54,15 @@ public class PlayerSetup : NetworkBehaviour
 
         foreach (Behaviour component in GetComponents<Behaviour>())
         {
-            if (component.enabled == false)
+            if (!destroingComponents.Contains(component) && component.enabled == false)
             {
                 Debug.LogWarning("Component (" + component.ToString() + ") is not enabled. The Player Setup cannot initialize this module");
             }
+        }
+
+        foreach (Component component in destroingComponents)
+        {
+            Destroy(component);
         }
 
         GetComponent<PlayerOrchestrator>().Setup(NetworkManager.Singleton, IsOwner);

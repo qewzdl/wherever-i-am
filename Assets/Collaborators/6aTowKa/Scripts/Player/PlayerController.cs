@@ -1,16 +1,24 @@
-using System;
-using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerController : NetworkBehaviour
+public class PlayerController : PlayerComponent, IPlayerSignalListener
 {
-    public Action<bool> IsCrouchingUpdated;
-
     [SerializeField] private float speed;
     [SerializeField] private float speedToCrouch;
 
     private Vector2 direction;
     private bool isCrouching = false;
+
+    protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
+    {
+        signals.MoveSignal.Listen(SetDirection);
+        signals.CrouchInputSignal.Listen(UpdateIsCrouching);
+    }
+
+    public void Cleanup()
+    {
+        signals.MoveSignal.Unlisten(SetDirection);
+        signals.CrouchInputSignal.Unlisten(UpdateIsCrouching);
+    }
 
     private void Update()
     {
@@ -30,6 +38,6 @@ public class PlayerController : NetworkBehaviour
     public void UpdateIsCrouching()
     {
         isCrouching = !isCrouching;
-        IsCrouchingUpdated?.Invoke(isCrouching);
+        signals.CrouchUpdateSignal.Trigger(isCrouching);
     }
 }

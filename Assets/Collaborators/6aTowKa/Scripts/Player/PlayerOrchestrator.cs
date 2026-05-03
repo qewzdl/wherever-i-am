@@ -2,82 +2,33 @@ using UnityEngine;
 
 public class PlayerOrchestrator : MonoBehaviour
 {
+    public readonly PlayerSignals Signals = new PlayerSignals();
+
     public void Setup(bool isMultiplayer, bool isOwner)
     {
-        PlayerInputHandler playerInputHandler = GetComponent<PlayerInputHandler>();
-        PlayerController playerController = GetComponent<PlayerController>();
-        PlayerNetwork playerNetwork = GetComponent<PlayerNetwork>();
-
-
-        if (playerInputHandler != null)
+        foreach (PlayerComponent playerComponent in GetComponents<PlayerComponent>())
         {
-            playerInputHandler.OnMoveUpdated += playerController.SetDirection;
-            playerInputHandler.OnCrouchUpdated += playerController.UpdateIsCrouching;
+            if (playerComponent.enabled)
+                playerComponent.Init(this, isMultiplayer, isOwner);
         }
 
-        if (playerController != null)
+        foreach (PlayerNetworkComponent playerComponent in GetComponents<PlayerNetworkComponent>())
         {
-            playerController.IsCrouchingUpdated += StartCrouchAnimation;
-            if (isMultiplayer)
-            {
-                playerController.IsCrouchingUpdated += UpdateNetworkIsCrouching;
-            }
-        }
-
-        if (playerNetwork != null)
-        {
-            if (!isOwner)
-            {
-                playerNetwork.PlayerIsCrouching.OnValueChanged += StartCrouchAnimation;
-            }
+            if (playerComponent.enabled)
+                playerComponent.Init(this);
         }
     }
 
     private void Cleanup()
     {
-        PlayerInputHandler playerInputHandler = GetComponent<PlayerInputHandler>();
-        PlayerController playerController = GetComponent<PlayerController>();
-        PlayerNetwork playerNetwork = GetComponent<PlayerNetwork>();
-
-
-        if (playerInputHandler != null)
+        foreach (IPlayerSignalListener playerComponent in GetComponents<IPlayerSignalListener>())
         {
-            playerInputHandler.OnMoveUpdated -= playerController.SetDirection;
-            playerInputHandler.OnCrouchUpdated -= playerController.UpdateIsCrouching;
-        }
-
-        if (playerController != null)
-        {
-            playerController.IsCrouchingUpdated -= StartCrouchAnimation;
-            playerController.IsCrouchingUpdated -= UpdateNetworkIsCrouching;
-        }
-
-        if (playerNetwork != null)
-        {
-            playerNetwork.PlayerIsCrouching.OnValueChanged -= StartCrouchAnimation;
+            playerComponent.Cleanup();
         }
     }
 
     private void OnDestroy()
     {
         Cleanup();
-    }
-
-    //Animation
-    private void StartCrouchAnimation(bool isCrouching)
-    {
-        GetComponent<PlayerAnimation>().SetupAnimation(isCrouching);
-    }
-
-    private void StartCrouchAnimation(bool oldIsCrouching, bool newIsCrouching)
-    {
-        if (oldIsCrouching == newIsCrouching) return;
-        StartCrouchAnimation(newIsCrouching);
-    }
-
-    //Network
-    private void UpdateNetworkIsCrouching(bool isCrouching)
-    {
-        GetComponent<PlayerNetwork>().SetNetworkPlayerIsCrouchingRpc(isCrouching);
     }
 }
