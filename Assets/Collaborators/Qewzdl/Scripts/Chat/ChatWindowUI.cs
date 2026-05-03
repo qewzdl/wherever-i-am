@@ -16,10 +16,17 @@ public class ChatWindowUI : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField] private bool submitOnEnter = true;
+    [SerializeField] private bool closeAfterSubmit = false;
 
     private IChatReadService readService;
     private IChatCommandService commandService;
     private GameStateMachine stateMachine;
+
+    private bool isOpen;
+
+    public bool IsOpen => isOpen;
+    public bool CanOpen => readService != null && readService.CanSubmitMessages;
+    public bool IsInputFocused => inputField != null && inputField.isFocused;
 
     public void Construct(
         IChatReadService readService,
@@ -34,8 +41,48 @@ public class ChatWindowUI : MonoBehaviour
 
         SubscribeToServices();
 
+        isOpen = false;
+
         RefreshVisibility();
         RefreshMessages();
+    }
+
+    public void Toggle()
+    {
+        if (isOpen)
+        {
+            Close();
+            return;
+        }
+
+        Open();
+    }
+
+    public void Open()
+    {
+        if (!CanOpen)
+            return;
+
+        isOpen = true;
+
+        RefreshVisibility();
+        RefreshMessages();
+
+        if (inputField != null)
+        {
+            inputField.ActivateInputField();
+            inputField.Select();
+        }
+    }
+
+    public void Close()
+    {
+        isOpen = false;
+
+        if (inputField != null)
+            inputField.DeactivateInputField();
+
+        RefreshVisibility();
     }
 
     private void Awake()
@@ -49,6 +96,7 @@ public class ChatWindowUI : MonoBehaviour
         if (inputField != null)
             inputField.onSubmit.AddListener(HandleInputSubmitted);
 
+        isOpen = false;
         Hide();
     }
 
@@ -68,7 +116,7 @@ public class ChatWindowUI : MonoBehaviour
         if (readService != null)
         {
             readService.MessagesChanged += RefreshMessages;
-            readService.AvailabilityChanged += RefreshVisibility;
+            readService.AvailabilityChanged += HandleAvailabilityChanged;
         }
 
         if (stateMachine != null)
@@ -80,15 +128,26 @@ public class ChatWindowUI : MonoBehaviour
         if (readService != null)
         {
             readService.MessagesChanged -= RefreshMessages;
-            readService.AvailabilityChanged -= RefreshVisibility;
+            readService.AvailabilityChanged -= HandleAvailabilityChanged;
         }
 
         if (stateMachine != null)
             stateMachine.StateChanged -= HandleGameStateChanged;
     }
 
+    private void HandleAvailabilityChanged()
+    {
+        if (!CanOpen)
+            isOpen = false;
+
+        RefreshVisibility();
+    }
+
     private void HandleGameStateChanged(GameState previousState, GameState newState)
     {
+        if (!CanOpen)
+            isOpen = false;
+
         RefreshVisibility();
         RefreshMessages();
     }
@@ -120,12 +179,20 @@ public class ChatWindowUI : MonoBehaviour
         commandService.SubmitMessage(text);
 
         inputField.text = string.Empty;
+
+        if (closeAfterSubmit)
+        {
+            Close();
+            return;
+        }
+
         inputField.ActivateInputField();
+        inputField.Select();
     }
 
     private void RefreshVisibility()
     {
-        bool shouldShow = readService != null && readService.CanSubmitMessages;
+        bool shouldShow = isOpen && CanOpen;
 
         if (shouldShow)
             Show();

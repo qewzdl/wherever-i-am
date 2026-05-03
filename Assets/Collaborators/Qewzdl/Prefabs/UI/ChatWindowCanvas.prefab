@@ -1525,6 +1525,7 @@ GameObject:
   - component: {fileID: 8498042609947060423}
   - component: {fileID: 3981910934134069399}
   - component: {fileID: 5316998988759408262}
+  - component: {fileID: 7598188858718854096}
   - component: {fileID: 9208680767485770640}
   m_Layer: 5
   m_Name: ChatWindowCanvas
@@ -1616,6 +1617,23 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &7598188858718854096
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8759480122583237467}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96861199b5578504488dac6c011d80d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  chatWindowUI: {fileID: 9208680767485770640}
+  openChatAction: {fileID: 8891911222002233920, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  closeChatAction: {fileID: -1059257315747361160, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  enableActionOnEnable: 1
+  ignoreOpenWhileInputFocused: 1
 --- !u!114 &9208680767485770640
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1634,3 +1652,4 @@ MonoBehaviour:
   sendButton: {fileID: 8559810272989824580}
   scrollRect: {fileID: 3126403392455779249}
   submitOnEnter: 1
+  closeAfterSubmit: 0
