@@ -10,6 +10,7 @@ public class PlayerInput : MonoBehaviour
     public void OnMove(InputAction.CallbackContext context)
     {
         OnMoveUpdated?.Invoke(context.ReadValue<Vector2>());
+        print("see");
     }
 
     public void OnCrouch()
