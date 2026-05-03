@@ -14,6 +14,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkConnectionService connectionService;
     [SerializeField] private NetworkSceneLoader sceneLoader;
+    [SerializeField] private NetworkChatSessionSpawner chatSessionSpawner;
 
     [Header("Player")]
     [SerializeField] private GameObject playerPrefab;
@@ -82,6 +83,15 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         }
 
         RefreshNetworkSubscriptions();
+
+        if (chatSessionSpawner != null)
+        {
+            chatSessionSpawner.SpawnForServer();  
+        }
+        else
+        {
+            Debug.LogWarning("NetworkChatSessionSpawner is missing. Chat will be disabled.");           
+        }
 
         if (!sceneLoader.LoadLobby())
         {
@@ -154,6 +164,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         ResetNetworkSubscriptions();
 
+        if (chatSessionSpawner != null)
+            chatSessionSpawner.DespawnForServer();
+
         connectionService.Shutdown();
 
         yield return null;
@@ -205,6 +218,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             if (UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
                 errorService = uiErrorManager;
         }
+
+        if (chatSessionSpawner == null)
+            chatSessionSpawner = GetComponent<NetworkChatSessionSpawner>();
     }
 
     private bool HasRequiredReferences()
@@ -458,6 +474,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             stateMachine.ChangeState(GameState.Error);
 
         ResetNetworkSubscriptions();
+
+        if (chatSessionSpawner != null)
+            chatSessionSpawner.DespawnForServer();
 
         if (connectionService != null)
             connectionService.Shutdown();

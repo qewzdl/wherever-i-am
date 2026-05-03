@@ -1,0 +1,82 @@
+using Unity.Netcode;
+using UnityEngine;
+
+public class NetworkChatSessionSpawner : MonoBehaviour
+{
+    [Header("References")]
+    [SerializeField] private NetworkManager networkManager;
+    [SerializeField] private NetworkChatSession chatSessionPrefab;
+
+    private NetworkChatSession spawnedSession;
+
+    private void Awake()
+    {
+        ResolveReferences();
+    }
+
+    public void SpawnForServer()
+    {
+        ResolveReferences();
+
+        if (networkManager == null)
+        {
+            Debug.LogError("NetworkManager is missing.");
+            return;
+        }
+
+        if (!networkManager.IsServer)
+            return;
+
+        if (chatSessionPrefab == null)
+        {
+            Debug.LogError("NetworkChatSession prefab is not assigned.");
+            return;
+        }
+
+        if (spawnedSession != null && spawnedSession.IsSpawned)
+            return;
+
+        NetworkChatSession instance = Instantiate(chatSessionPrefab);
+
+        if (!instance.TryGetComponent(out NetworkObject networkObject))
+        {
+            Debug.LogError("NetworkChatSession prefab is missing NetworkObject.");
+            Destroy(instance.gameObject);
+            return;
+        }
+
+        spawnedSession = instance;
+        networkObject.Spawn(false);
+    }
+
+    public void DespawnForServer()
+    {
+        if (spawnedSession == null)
+            return;
+
+        if (networkManager == null)
+            ResolveReferences();
+
+        if (networkManager == null || !networkManager.IsServer)
+            return;
+
+        if (spawnedSession.IsSpawned)
+        {
+            spawnedSession.NetworkObject.Despawn(true);
+            spawnedSession = null;
+            return;
+        }
+
+        Destroy(spawnedSession.gameObject);
+        spawnedSession = null;
+    }
+
+    private void ResolveReferences()
+    {
+        if (networkManager == null)
+            networkManager = GetComponent<NetworkManager>();
+
+        if (networkManager == null)
+            networkManager = NetworkManager.Singleton;
+    }
+}
