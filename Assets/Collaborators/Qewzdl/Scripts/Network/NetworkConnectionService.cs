@@ -6,8 +6,6 @@ using UnityEngine;
 
 public class NetworkConnectionService : MonoBehaviour
 {
-    public static NetworkConnectionService Instance { get; private set; }
-
     [Header("Network References")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private UnityTransport transport;
@@ -16,10 +14,11 @@ public class NetworkConnectionService : MonoBehaviour
     [SerializeField] private ushort port = 7777;
     [SerializeField] private string hostAddress = "127.0.0.1";
     [SerializeField] private string listenAddress = "0.0.0.0";
+    [SerializeField] private float clientConnectionTimeoutSeconds = 5f;
 
-    private readonly Dictionary<ConnectionMode, IConnectionProvider> providers = new Dictionary<ConnectionMode, IConnectionProvider>();
+    private readonly Dictionary<ConnectionMode, IConnectionStrategy> strategies = new Dictionary<ConnectionMode, IConnectionStrategy>();
 
-    private IConnectionProvider activeProvider;
+    private IConnectionStrategy activeStrategy;
 
     public bool IsHost => networkManager != null && networkManager.IsHost;
     public bool IsClient => networkManager != null && networkManager.IsClient;
@@ -27,92 +26,95 @@ public class NetworkConnectionService : MonoBehaviour
     public bool IsConnected => networkManager != null && networkManager.IsConnectedClient;
     public bool IsListening => networkManager != null && networkManager.IsListening;
 
-    private void Awake() 
+    private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
-        DontDestroyOnLoad(gameObject);
-
-        InitializeReferences();
-        InitializeProviders();
+        ResolveReferences();
+        InitializeStrategies();
     }
 
     public Task<ConnectionResult> StartHostAsync()
     {
-        ConnectionRequest request = new ConnectionRequest(
-            ConnectionMode.LAN,
+        ConnectionConfig config = new ConnectionConfig(
+            ConnectionMode.Lan,
             ConnectionRole.Host,
             hostAddress,
             port,
             listenAddress
         );
 
-        return StartConnectionAsync(request);
+        return StartConnectionAsync(config);
     }
 
     public Task<ConnectionResult> StartClientAsync(string ip)
     {
-        ConnectionRequest request = new ConnectionRequest(
-            ConnectionMode.LAN,
+        ConnectionConfig config = new ConnectionConfig(
+            ConnectionMode.Lan,
             ConnectionRole.Client,
             ip,
-            port
+            port,
+            clientConnectionTimeoutSeconds: clientConnectionTimeoutSeconds
         );
 
-        return StartConnectionAsync(request);
+        return StartConnectionAsync(config);
     }
 
-    public async Task<ConnectionResult> StartConnectionAsync(ConnectionRequest request)
+    public async Task<ConnectionResult> StartConnectionAsync(ConnectionConfig config)
     {
         ConnectionResult validationResult = CanStartConnection();
 
         if (!validationResult.Success)
         {
-            Debug.LogError(validationResult.Message);
+            Debug.LogError(validationResult.DebugMessage);
             return validationResult;
         }
 
-        if (!providers.TryGetValue(request.Mode, out IConnectionProvider provider))
+        if (!strategies.TryGetValue(config.Mode, out IConnectionStrategy strategy))
         {
-            ConnectionResult result = ConnectionResult.Fail($"Connection provider not found for mode: {request.Mode}");
-            Debug.LogError(result.Message);
+            ConnectionResult result = ConnectionResult.Fail(
+                ConnectionErrorCode.StrategyNotFound,
+                "Failed to start the connection.",
+                $"Connection strategy not found for mode: {config.Mode}.",
+                false
+            );
+
+            Debug.LogError(result.DebugMessage);
             return result;
         }
 
         ConnectionResult connectionResult;
 
-        switch (request.Role)
+        switch (config.Role)
         {
             case ConnectionRole.Host:
-                connectionResult = await provider.StartHostAsync(request);
+                connectionResult = await strategy.StartHostAsync(config);
                 break;
 
             case ConnectionRole.Client:
-                connectionResult = await provider.StartClientAsync(request);
+                connectionResult = await strategy.StartClientAsync(config);
                 break;
 
             case ConnectionRole.Server:
-                connectionResult = await provider.StartServerAsync(request);
+                connectionResult = await strategy.StartServerAsync(config);
                 break;
 
             default:
-                connectionResult = ConnectionResult.Fail("Unsupported connection role.");
+                connectionResult = ConnectionResult.Fail(
+                    ConnectionErrorCode.UnsupportedConnectionRole,
+                    "Failed to start the connection.",
+                    $"Unsupported connection role: {config.Role}.",
+                    false
+                );
                 break;
         }
 
         if (connectionResult.Success)
         {
-            activeProvider = provider;
-            Debug.Log(connectionResult.Message);
+            activeStrategy = strategy;
+            Debug.Log(connectionResult.DebugMessage);
         }
         else
         {
-            Debug.LogError(connectionResult.Message);
+            Debug.LogError(connectionResult.DebugMessage);
         }
 
         return connectionResult;
@@ -120,43 +122,87 @@ public class NetworkConnectionService : MonoBehaviour
 
     public void Shutdown()
     {
-        if (networkManager == null) return;
-        if (!networkManager.IsListening) return;
+        if (activeStrategy != null)
+        {
+            activeStrategy.Shutdown();
+            activeStrategy = null;
 
-        if (activeProvider != null)
-        {
-            activeProvider.Shutdown();
-            activeProvider = null;
-        } else
-        {
-            networkManager.Shutdown();
+            Debug.Log("Network shutdown by active strategy.");
+            return;
         }
+
+        if (networkManager == null)
+            return;
+
+        if (!networkManager.IsListening &&
+            !networkManager.IsClient &&
+            !networkManager.IsServer)
+        {
+            return;
+        }
+
+        networkManager.Shutdown();
 
         Debug.Log("Network shutdown.");
     }
 
-    private void InitializeReferences()
+    private void ResolveReferences()
     {
-        if (networkManager == null) networkManager = NetworkManager.Singleton;
-        if (transport == null && networkManager != null) transport = networkManager.GetComponent<UnityTransport>();
+        if (networkManager == null)
+            networkManager = GetComponent<NetworkManager>();
+
+        if (networkManager == null)
+            networkManager = NetworkManager.Singleton;
+
+        if (transport == null && networkManager != null)
+            transport = networkManager.GetComponent<UnityTransport>();
     }
 
-    private void InitializeProviders()
+    private void InitializeStrategies()
     {
-        providers.Clear();
+        strategies.Clear();
 
-        IConnectionProvider lanProvider = new LANConnectionProvider(networkManager, transport);
+        IConnectionStrategy lanStrategy = new LanConnectionStrategy(networkManager, transport);
 
-        providers.Add(lanProvider.Mode, lanProvider);
+        strategies.Add(lanStrategy.Mode, lanStrategy);
+    }
+
+    private void OnValidate()
+    {
+        clientConnectionTimeoutSeconds = Mathf.Max(1f, clientConnectionTimeoutSeconds);
     }
 
     private ConnectionResult CanStartConnection()
     {
-        if (networkManager == null) return ConnectionResult.Fail("NetworkManager not found in the scene.");
+        if (networkManager == null)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.NetworkManagerMissing,
+                "Failed to start the network connection.",
+                "NetworkManager not found in the scene.",
+                false
+            );
+        }
 
-        if (transport == null) return ConnectionResult.Fail("UnityTransport not found on NetworkManager.");
+        if (transport == null)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.TransportMissing,
+                "Failed to start the network connection.",
+                "UnityTransport not found on NetworkManager.",
+                false
+            );
+        }
 
-        if (networkManager.IsListening) return ConnectionResult.Fail("Network is already running.");
+        if (networkManager.IsListening)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.NetworkAlreadyRunning,
+                "The network session is already running.",
+                "Network is already running.",
+                false
+            );
+        }
 
         return ConnectionResult.Ok("Connection can be started.");
     }

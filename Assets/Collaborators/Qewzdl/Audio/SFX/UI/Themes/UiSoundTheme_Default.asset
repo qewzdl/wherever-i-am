@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1975de7b9721fdd479d08823cc72844a, type: 3}
+  m_Name: UiSoundTheme_Default
+  m_EditorClassIdentifier: 
+  sounds:
+  - type: 0
+    sound: {fileID: 11400000, guid: 5135387f9d0b3414d9ff249c1d43136d, type: 2}
+  - type: 1
+    sound: {fileID: 11400000, guid: 5eff787e1c0043a4b87982146c338827, type: 2}
+  - type: 2
+    sound: {fileID: 11400000, guid: 9e52c6af074654544a0aeec961d8a88e, type: 2}
+  - type: 3
+    sound: {fileID: 11400000, guid: 9e52c6af074654544a0aeec961d8a88e, type: 2}
+  - type: 4
+    sound: {fileID: 11400000, guid: 6afd9c2f260d08548967a5be6ea52730, type: 2}
+  - type: 5
+    sound: {fileID: 11400000, guid: 5135387f9d0b3414d9ff249c1d43136d, type: 2}
+  - type: 6
+    sound: {fileID: 11400000, guid: 0179a9dd12a484f45afb4f0973e33841, type: 2}
+  - type: 7
+    sound: {fileID: 11400000, guid: 82f493a9e71df5a4295a6b780335f041, type: 2}

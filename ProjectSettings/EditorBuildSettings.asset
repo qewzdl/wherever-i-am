@@ -6,14 +6,17 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Collaborators/Qewzdl/Scenes/Multiplayer Test.unity
+    path: Assets/Collaborators/Qewzdl/Scenes/Bootstrap.unity
+    guid: 08de030e7d2f5f64eb3de4e204f4cd21
+  - enabled: 1
+    path: Assets/Collaborators/Qewzdl/Scenes/Main Menu.unity
     guid: 0dce89eec711dde448cf00c56079113a
   - enabled: 1
-    path: Assets/Collaborators/6aTowKa/Scenes/ControllerTestScene.unity
-    guid: ba2e713237634af4296c237f747e1d3a
+    path: Assets/Collaborators/Qewzdl/Scenes/Lobby.unity
+    guid: f1e4b6d4b47ccf14fa77bd9859f40e6e
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+    path: Assets/Collaborators/Qewzdl/Scenes/Game.unity
+    guid: c0b4f9334ba04fa4491335b1eb431f9f
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
