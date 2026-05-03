@@ -109,10 +109,15 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             if (clientId != networkManager.LocalClientId)
                 return;
 
+            string disconnectReason = GetServerDisconnectReason();
+            string userMessage = string.IsNullOrWhiteSpace(disconnectReason)
+                ? "Failed to connect to the host. Check the IP address and make sure the lobby is already running."
+                : disconnectReason;
+
             completion.TrySetResult(ConnectionResult.Fail(
                 ConnectionErrorCode.ConnectionFailed,
-                "Failed to connect to the host. Check the IP address and make sure the lobby is already running.",
-                $"LAN client disconnected while trying to connect to {ip}:{port}.",
+                userMessage,
+                $"LAN client disconnected while trying to connect to {ip}:{port}. {disconnectReason}",
                 true
             ));
         }
@@ -178,5 +183,18 @@ public class LanConnectionStrategy : BaseConnectionStrategy
                !IPAddress.Any.Equals(address) &&
                !IPAddress.Broadcast.Equals(address) &&
                !IPAddress.IPv6Any.Equals(address);
+    }
+
+    private string GetServerDisconnectReason()
+    {
+        if (networkManager == null)
+            return string.Empty;
+
+        string reason = networkManager.DisconnectReason;
+
+        if (string.IsNullOrWhiteSpace(reason) || reason.StartsWith("[Disconnect Event]", StringComparison.Ordinal))
+            return string.Empty;
+
+        return reason;
     }
 }

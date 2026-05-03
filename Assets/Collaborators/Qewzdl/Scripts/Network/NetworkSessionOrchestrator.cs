@@ -7,6 +7,8 @@ using UnityEngine.SceneManagement;
 
 public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 {
+    private const string LobbyJoinDeniedReason = "The game has already started. You can only join while the host is in the lobby.";
+
     public static NetworkSessionOrchestrator Instance { get; private set; }
 
     [Header("References")]
@@ -252,16 +254,37 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return;
 
         networkManager.NetworkConfig.ConnectionApproval = true;
-        networkManager.ConnectionApprovalCallback = ApproveConnectionWithoutPlayerObject;
+        networkManager.ConnectionApprovalCallback = ApproveLobbyConnectionWithoutPlayerObject;
     }
 
-    private void ApproveConnectionWithoutPlayerObject(
+    private void ApproveLobbyConnectionWithoutPlayerObject(
         NetworkManager.ConnectionApprovalRequest request,
         NetworkManager.ConnectionApprovalResponse response)
     {
-        response.Approved = true;
         response.CreatePlayerObject = false;
         response.Pending = false;
+
+        if (request.ClientNetworkId == NetworkManager.ServerClientId || IsAcceptingRemoteClientConnections())
+        {
+            response.Approved = true;
+            return;
+        }
+
+        response.Approved = false;
+        response.Reason = LobbyJoinDeniedReason;
+
+        Debug.Log($"Rejected client {request.ClientNetworkId}: {LobbyJoinDeniedReason}");
+    }
+
+    private bool IsAcceptingRemoteClientConnections()
+    {
+        if (stateMachine != null)
+            return stateMachine.CurrentState == GameState.Lobby;
+
+        if (sceneLoader != null)
+            return SceneManager.GetActiveScene().name == sceneLoader.LobbySceneName;
+
+        return false;
     }
 
     private void SubscribeToNetworkCallbacks()
