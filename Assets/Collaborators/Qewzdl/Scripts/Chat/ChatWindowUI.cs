@@ -14,19 +14,32 @@ public class ChatWindowUI : MonoBehaviour
     [SerializeField] private Button sendButton;
     [SerializeField] private ScrollRect scrollRect;
 
-    [Header("References")]
-    [SerializeField] private GameStateMachine stateMachine;
-
     [Header("Settings")]
     [SerializeField] private bool submitOnEnter = true;
 
     private IChatReadService readService;
     private IChatCommandService commandService;
+    private GameStateMachine stateMachine;
+
+    public void Construct(
+        IChatReadService readService,
+        IChatCommandService commandService,
+        GameStateMachine stateMachine)
+    {
+        UnsubscribeFromServices();
+
+        this.readService = readService;
+        this.commandService = commandService;
+        this.stateMachine = stateMachine;
+
+        SubscribeToServices();
+
+        RefreshVisibility();
+        RefreshMessages();
+    }
 
     private void Awake()
     {
-        ResolveReferences();
-
         if (messagesText != null)
             messagesText.richText = false;
 
@@ -39,33 +52,10 @@ public class ChatWindowUI : MonoBehaviour
         Hide();
     }
 
-    private void OnEnable()
-    {
-        NetworkChatSession.SessionSpawned += HandleChatSessionSpawned;
-        NetworkChatSession.SessionDespawned += HandleChatSessionDespawned;
-
-        if (stateMachine != null)
-            stateMachine.StateChanged += HandleGameStateChanged;
-
-        if (NetworkChatSession.Instance != null)
-            Bind(NetworkChatSession.Instance);
-
-        RefreshVisibility();
-    }
-
-    private void OnDisable()
-    {
-        NetworkChatSession.SessionSpawned -= HandleChatSessionSpawned;
-        NetworkChatSession.SessionDespawned -= HandleChatSessionDespawned;
-
-        if (stateMachine != null)
-            stateMachine.StateChanged -= HandleGameStateChanged;
-
-        Unbind();
-    }
-
     private void OnDestroy()
     {
+        UnsubscribeFromServices();
+
         if (sendButton != null)
             sendButton.onClick.RemoveListener(SubmitCurrentMessage);
 
@@ -73,21 +63,19 @@ public class ChatWindowUI : MonoBehaviour
             inputField.onSubmit.RemoveListener(HandleInputSubmitted);
     }
 
-    private void Bind(NetworkChatSession chatSession)
+    private void SubscribeToServices()
     {
-        Unbind();
+        if (readService != null)
+        {
+            readService.MessagesChanged += RefreshMessages;
+            readService.AvailabilityChanged += RefreshVisibility;
+        }
 
-        readService = chatSession;
-        commandService = chatSession;
-
-        readService.MessagesChanged += RefreshMessages;
-        readService.AvailabilityChanged += RefreshVisibility;
-
-        RefreshVisibility();
-        RefreshMessages();
+        if (stateMachine != null)
+            stateMachine.StateChanged += HandleGameStateChanged;
     }
 
-    private void Unbind()
+    private void UnsubscribeFromServices()
     {
         if (readService != null)
         {
@@ -95,20 +83,8 @@ public class ChatWindowUI : MonoBehaviour
             readService.AvailabilityChanged -= RefreshVisibility;
         }
 
-        readService = null;
-        commandService = null;
-    }
-
-    private void HandleChatSessionSpawned(NetworkChatSession chatSession)
-    {
-        Bind(chatSession);
-    }
-
-    private void HandleChatSessionDespawned()
-    {
-        Unbind();
-        ClearMessages();
-        Hide();
+        if (stateMachine != null)
+            stateMachine.StateChanged -= HandleGameStateChanged;
     }
 
     private void HandleGameStateChanged(GameState previousState, GameState newState)
@@ -223,11 +199,5 @@ public class ChatWindowUI : MonoBehaviour
     {
         if (root != null)
             root.SetActive(false);
-    }
-
-    private void ResolveReferences()
-    {
-        if (stateMachine == null)
-            stateMachine = FindFirstObjectByType<GameStateMachine>();
     }
 }
