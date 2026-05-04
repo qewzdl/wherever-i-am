@@ -225,12 +225,7 @@ public class NetworkEnemyController : NetworkBehaviour
 
         agent.isStopped = false;
         agent.speed = config.chaseSpeed;
-
-        if (TrySetDestination(currentTarget.position))
-        {
-            lastKnownTargetPosition = currentTarget.position;
-            hasLastKnownTargetPosition = true;
-        }
+        TrySetDestination(currentTarget.position);
     }
 
     private void TickAttackServer()
@@ -333,6 +328,7 @@ public class NetworkEnemyController : NetworkBehaviour
         }
 
         currentTarget = bestTarget;
+        RememberTargetPositionServer(bestTarget.position);
 
         NetworkObject targetNetworkObject = bestTarget.GetComponentInParent<NetworkObject>();
 
@@ -511,6 +507,12 @@ public class NetworkEnemyController : NetworkBehaviour
         }
 
         return false;
+    }
+
+    private void RememberTargetPositionServer(Vector3 position)
+    {
+        lastKnownTargetPosition = position;
+        hasLastKnownTargetPosition = true;
     }
 
     private void ClearTargetServer()
