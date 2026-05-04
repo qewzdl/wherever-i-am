@@ -14,6 +14,10 @@ public class NetworkEnemyController : NetworkBehaviour
     [SerializeField] private EnemyPatrolRoute patrolRoute;
     [SerializeField] private NavMeshAgent agent;
 
+    [Header("Navigation")]
+    [SerializeField] private RuntimeNavMeshBuilder navMeshBuilder;
+    [SerializeField] private bool waitForRuntimeNavMesh = true;
+
     [Header("Detection")]
     [SerializeField] private EnemyTargetDetector targetDetector;
 
@@ -36,6 +40,9 @@ public class NetworkEnemyController : NetworkBehaviour
     private bool warnedAboutMissingNavMesh;
     private Vector3 lastKnownTargetPosition;
     private bool hasLastKnownTargetPosition;
+
+    private bool aiStarted;
+    private bool subscribedToNavMeshBuilder;
 
     public EnemyConfig Config => config;
     public EnemyState CurrentState => currentState.Value;
@@ -82,16 +89,7 @@ public class NetworkEnemyController : NetworkBehaviour
         if (IsServer)
         {
             ConfigureAgent();
-
-            if (TryEnsureAgentOnNavMesh())
-            {
-                SetState(EnemyState.Patrol);
-                MoveToNextPatrolPoint();
-            }
-            else
-            {
-                SetState(EnemyState.Idle);
-            }
+            TryStartAiWhenReadyServer();
         }
         else
         {
@@ -101,13 +99,22 @@ public class NetworkEnemyController : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        UnsubscribeFromNavMeshBuilderServer();
+
         currentTarget = null;
+        aiStarted = false;
     }
 
     private void Update()
     {
         if (!IsServer)
         {
+            return;
+        }
+
+        if (!aiStarted)
+        {
+            TryStartAiWhenReadyServer();
             return;
         }
 
@@ -297,6 +304,88 @@ public class NetworkEnemyController : NetworkBehaviour
         agent.acceleration = config.acceleration;
         agent.angularSpeed = config.angularSpeed;
         agent.stoppingDistance = config.stoppingDistance;
+    }
+
+    private void TryStartAiWhenReadyServer()
+    {
+        if (aiStarted)
+        {
+            return;
+        }
+
+        if (waitForRuntimeNavMesh && navMeshBuilder != null && !navMeshBuilder.HasBuilt)
+        {
+            if (navMeshBuilder.BuildIfAllowed())
+            {
+                StartAiServer();
+                return;
+            }
+
+            SubscribeToNavMeshBuilderServer();
+            SetState(EnemyState.Idle);
+            return;
+        }
+
+        StartAiServer();
+    }
+
+    private void StartAiServer()
+    {
+        if (aiStarted)
+        {
+            return;
+        }
+
+        if (!TryEnsureAgentOnNavMesh())
+        {
+            SetState(EnemyState.Idle);
+            return;
+        }
+
+        aiStarted = true;
+
+        if (patrolRoute != null && patrolRoute.HasPoints)
+        {
+            SetState(EnemyState.Patrol);
+            MoveToNextPatrolPoint();
+        }
+        else
+        {
+            SetState(EnemyState.Idle);
+        }
+    }
+
+    private void SubscribeToNavMeshBuilderServer()
+    {
+        if (subscribedToNavMeshBuilder || navMeshBuilder == null)
+        {
+            return;
+        }
+
+        subscribedToNavMeshBuilder = true;
+        navMeshBuilder.AddBuiltListener(OnRuntimeNavMeshBuiltServer);
+    }
+
+    private void UnsubscribeFromNavMeshBuilderServer()
+    {
+        if (!subscribedToNavMeshBuilder || navMeshBuilder == null)
+        {
+            return;
+        }
+
+        navMeshBuilder.RemoveBuiltListener(OnRuntimeNavMeshBuiltServer);
+        subscribedToNavMeshBuilder = false;
+    }
+
+    private void OnRuntimeNavMeshBuiltServer(RuntimeNavMeshBuilder builder)
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        UnsubscribeFromNavMeshBuilderServer();
+        TryStartAiWhenReadyServer();
     }
 
     private void RefreshTargetServer()

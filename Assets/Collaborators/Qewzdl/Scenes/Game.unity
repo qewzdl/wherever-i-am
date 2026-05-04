@@ -1423,11 +1423,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24997627f064413b91739226cbdb3421, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  buildMode: 2
+  serverWaitTimeout: 5
   includedLayers:
     serializedVersion: 2
     m_Bits: 897
   geometry: 1
-  buildOnAwake: 1
 --- !u!1 &320448154
 GameObject:
   m_ObjectHideFlags: 0
@@ -5525,6 +5526,8 @@ MonoBehaviour:
   config: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
   patrolRoute: {fileID: 1602318126}
   agent: {fileID: 2061582538}
+  navMeshBuilder: {fileID: 314159267}
+  waitForRuntimeNavMesh: 1
   targetDetector: {fileID: 2061582540}
 --- !u!195 &2061582538
 NavMeshAgent:
@@ -5613,6 +5616,9 @@ MonoBehaviour:
   obstructionMask:
     serializedVersion: 2
     m_Bits: 897
+  maxDetectionResults: 16
+  overflowWarningCooldown: 2
+  cachedController: {fileID: 2061582537}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
