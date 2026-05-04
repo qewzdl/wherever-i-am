@@ -10,6 +10,7 @@ public sealed class PauseMenuUI : MonoBehaviour
     [SerializeField] private Button resumeButton;
     [SerializeField] private Button mainMenuButton;
     [SerializeField] private Button quitButton;
+    [SerializeField] private PlayerInputHandler playerInputHandler;
 
     private IPauseService pauseService;
     private INetworkSessionService sessionService;
@@ -18,19 +19,21 @@ public sealed class PauseMenuUI : MonoBehaviour
         IPauseService pauseService,
         INetworkSessionService sessionService)
     {
+        Unsubscribe();
+
         this.pauseService = pauseService;
         this.sessionService = sessionService;
 
         Subscribe();
-        Hide();
+        HandlePauseStateChanged(this.pauseService != null && this.pauseService.IsPaused);
     }
 
     private void OnDestroy()
     {
-        Unsubscribe();
+        if (pauseService != null && pauseService.IsPaused)
+            SetPlayerInputActive(true);
 
-        if (pauseService != null)
-            pauseService.PauseStateChanged -= HandlePauseStateChanged;
+        Unsubscribe();
     }
 
     private void Subscribe()
@@ -58,6 +61,9 @@ public sealed class PauseMenuUI : MonoBehaviour
 
         if (quitButton != null)
             quitButton.onClick.RemoveListener(QuitGame);
+
+        if (pauseService != null)
+            pauseService.PauseStateChanged -= HandlePauseStateChanged;
     }
 
     private void HandlePauseStateChanged(bool isPaused)
@@ -66,6 +72,8 @@ public sealed class PauseMenuUI : MonoBehaviour
             Show();
         else
             Hide();
+
+        SetPlayerInputActive(!isPaused);
     }
 
     private void Resume()
@@ -93,5 +101,29 @@ public sealed class PauseMenuUI : MonoBehaviour
     {
         if (root != null)
             root.SetActive(false);
+    }
+
+    private void SetPlayerInputActive(bool value)
+    {
+        PlayerInputHandler inputHandler = ResolvePlayerInputHandler();
+
+        if (inputHandler == null)
+            return;
+
+        inputHandler.SetInputActive(this, value);
+    }
+
+    private PlayerInputHandler ResolvePlayerInputHandler()
+    {
+        if (playerInputHandler != null)
+            return playerInputHandler;
+
+        playerInputHandler = PlayerInputHandler.Active;
+
+        if (playerInputHandler != null)
+            return playerInputHandler;
+
+        playerInputHandler = FindFirstObjectByType<PlayerInputHandler>();
+        return playerInputHandler;
     }
 }

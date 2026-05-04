@@ -13,6 +13,7 @@ public class ChatWindowUI : MonoBehaviour
     [SerializeField] private TMP_InputField inputField;
     [SerializeField] private Button sendButton;
     [SerializeField] private ScrollRect scrollRect;
+    [SerializeField] private PlayerInputHandler playerInputHandler;
 
     [Header("Settings")]
     [SerializeField] private bool submitOnEnter = true;
@@ -41,6 +42,9 @@ public class ChatWindowUI : MonoBehaviour
 
         SubscribeToServices();
 
+        if (isOpen)
+            SetPlayerInputActive(true);
+
         isOpen = false;
 
         RefreshVisibility();
@@ -63,7 +67,11 @@ public class ChatWindowUI : MonoBehaviour
         if (!CanOpen)
             return;
 
+        if (isOpen)
+            return;
+
         isOpen = true;
+        SetPlayerInputActive(false);
 
         RefreshVisibility();
         RefreshMessages();
@@ -77,10 +85,15 @@ public class ChatWindowUI : MonoBehaviour
 
     public void Close()
     {
+        bool wasOpen = isOpen;
+
         isOpen = false;
 
         if (inputField != null)
             inputField.DeactivateInputField();
+
+        if (wasOpen)
+            SetPlayerInputActive(true);
 
         RefreshVisibility();
     }
@@ -102,6 +115,9 @@ public class ChatWindowUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (isOpen)
+            SetPlayerInputActive(true);
+
         UnsubscribeFromServices();
 
         if (sendButton != null)
@@ -138,7 +154,10 @@ public class ChatWindowUI : MonoBehaviour
     private void HandleAvailabilityChanged()
     {
         if (!CanOpen)
-            isOpen = false;
+        {
+            Close();
+            return;
+        }
 
         RefreshVisibility();
     }
@@ -146,7 +165,10 @@ public class ChatWindowUI : MonoBehaviour
     private void HandleGameStateChanged(GameState previousState, GameState newState)
     {
         if (!CanOpen)
-            isOpen = false;
+        {
+            Close();
+            return;
+        }
 
         RefreshVisibility();
         RefreshMessages();
@@ -266,5 +288,29 @@ public class ChatWindowUI : MonoBehaviour
     {
         if (root != null)
             root.SetActive(false);
+    }
+
+    private void SetPlayerInputActive(bool value)
+    {
+        PlayerInputHandler inputHandler = ResolvePlayerInputHandler();
+
+        if (inputHandler == null)
+            return;
+
+        inputHandler.SetInputActive(this, value);
+    }
+
+    private PlayerInputHandler ResolvePlayerInputHandler()
+    {
+        if (playerInputHandler != null)
+            return playerInputHandler;
+
+        playerInputHandler = PlayerInputHandler.Active;
+
+        if (playerInputHandler != null)
+            return playerInputHandler;
+
+        playerInputHandler = FindFirstObjectByType<PlayerInputHandler>();
+        return playerInputHandler;
     }
 }
