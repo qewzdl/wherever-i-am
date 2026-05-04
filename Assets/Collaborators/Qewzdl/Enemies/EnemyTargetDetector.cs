@@ -1,4 +1,3 @@
-using Unity.Netcode;
 using UnityEngine;
 
 public class EnemyTargetDetector : MonoBehaviour
@@ -22,7 +21,7 @@ public class EnemyTargetDetector : MonoBehaviour
         EnsureDetectionBuffers();
     }
 
-    public Transform FindBestVisibleTarget(EnemyConfig config)
+    public EnemyTarget FindBestVisibleTarget(EnemyConfig config)
     {
         if (config == null)
         {
@@ -43,7 +42,7 @@ public class EnemyTargetDetector : MonoBehaviour
 
         WarnIfDetectionBufferIsFull(hitCount);
 
-        Transform bestTarget = null;
+        EnemyTarget bestTarget = null;
         float bestDistanceSqr = float.MaxValue;
         int processedTargetCount = 0;
 
@@ -90,7 +89,7 @@ public class EnemyTargetDetector : MonoBehaviour
                 continue;
             }
 
-            bestTarget = enemyTarget.transform;
+            bestTarget = enemyTarget;
             bestDistanceSqr = distanceSqr;
         }
 

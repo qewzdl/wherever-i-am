@@ -29,7 +29,7 @@ public class NetworkEnemyController : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
-    private Transform currentTarget;
+    private EnemyTarget currentTarget;
     private int patrolPointIndex;
     private float targetRefreshTimer;
     private float attackCooldownTimer;
@@ -197,13 +197,15 @@ public class NetworkEnemyController : NetworkBehaviour
 
     private void TickChaseServer()
     {
-        if (currentTarget == null)
+        if (!IsCurrentTargetValid())
         {
+            ClearTargetServer();
             StopChaseServer();
             return;
         }
 
-        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
+        Vector3 targetPosition = GetTargetNavigationPosition(currentTarget);
+        float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
 
         if (distanceToTarget > config.loseTargetDistance)
         {
@@ -225,18 +227,20 @@ public class NetworkEnemyController : NetworkBehaviour
 
         agent.isStopped = false;
         agent.speed = config.chaseSpeed;
-        TrySetDestination(currentTarget.position);
+        TrySetDestination(targetPosition);
     }
 
     private void TickAttackServer()
     {
-        if (currentTarget == null)
+        if (!IsCurrentTargetValid())
         {
+            ClearTargetServer();
             StopChaseServer();
             return;
         }
 
-        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
+        Vector3 targetPosition = GetTargetNavigationPosition(currentTarget);
+        float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
 
         if (distanceToTarget > config.attackDistance)
         {
@@ -297,7 +301,7 @@ public class NetworkEnemyController : NetworkBehaviour
 
     private void RefreshTargetServer()
     {
-        Transform bestTarget = targetDetector != null
+        EnemyTarget bestTarget = targetDetector != null
             ? targetDetector.FindBestVisibleTarget(config)
             : null;
 
@@ -328,9 +332,9 @@ public class NetworkEnemyController : NetworkBehaviour
         }
 
         currentTarget = bestTarget;
-        RememberTargetPositionServer(bestTarget.position);
+        RememberTargetPositionServer(GetTargetNavigationPosition(bestTarget));
 
-        NetworkObject targetNetworkObject = bestTarget.GetComponentInParent<NetworkObject>();
+        NetworkObject targetNetworkObject = bestTarget.NetworkObject;
 
         if (targetNetworkObject != null && targetNetworkObject.IsSpawned)
         {
@@ -405,12 +409,14 @@ public class NetworkEnemyController : NetworkBehaviour
 
     private void PerformAttackServer()
     {
-        if (currentTarget == null)
+        if (!IsCurrentTargetValid())
         {
+            ClearTargetServer();
+            StopChaseServer();
             return;
         }
 
-        NetworkObject targetNetworkObject = currentTarget.GetComponentInParent<NetworkObject>();
+        NetworkObject targetNetworkObject = currentTarget.NetworkObject;
 
         if (targetNetworkObject == null || !targetNetworkObject.IsSpawned)
         {
@@ -419,13 +425,21 @@ public class NetworkEnemyController : NetworkBehaviour
             return;
         }
 
+        Vector3 targetPosition = GetTargetNavigationPosition(currentTarget);
+        float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
+
+        if (distanceToTarget > config.attackDistance)
+        {
+            StartChaseServer();
+            return;
+        }
+
         Debug.Log($"Enemy attacked client {targetNetworkObject.OwnerClientId}.", this);
 
         // Future extension point:
-        // 1. Get player health/caught component.
-        // 2. Validate attack distance again.
-        // 3. Apply server-side damage/caught state.
-        // 4. Trigger ClientRpc for one-shot visual/audio feedback if needed.
+        // 1. Delegate to EnemyAttackHandler.
+        // 2. Apply server-side caught/damage state.
+        // 3. Trigger ClientRpc for one-shot feedback.
     }
 
     private void MoveToNextPatrolPoint()
@@ -513,6 +527,28 @@ public class NetworkEnemyController : NetworkBehaviour
     {
         lastKnownTargetPosition = position;
         hasLastKnownTargetPosition = true;
+    }
+
+    private bool IsCurrentTargetValid()
+    {
+        return currentTarget != null && currentTarget.IsValidNetworkTarget;
+    }
+
+    private Vector3 GetTargetNavigationPosition(EnemyTarget target)
+    {
+        if (target == null)
+        {
+            return transform.position;
+        }
+
+        NetworkObject targetNetworkObject = target.NetworkObject;
+
+        if (targetNetworkObject != null && targetNetworkObject.IsSpawned)
+        {
+            return targetNetworkObject.transform.position;
+        }
+
+        return target.transform.position;
     }
 
     private void ClearTargetServer()
