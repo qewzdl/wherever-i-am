@@ -6,6 +6,7 @@ using UnityEngine.AI;
 
 [DefaultExecutionOrder(-10000)]
 [DisallowMultipleComponent]
+[RequireComponent(typeof(NavMeshSurface))]
 public class RuntimeNavMeshBuilder : MonoBehaviour
 {
     [Header("Build")]
@@ -13,10 +14,10 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     [SerializeField] private float serverWaitTimeout = 5f;
 
     [Header("Surface")]
+    [SerializeField] private NavMeshSurface surface;
     [SerializeField] private LayerMask includedLayers = Physics.DefaultRaycastLayers;
     [SerializeField] private NavMeshCollectGeometry geometry = NavMeshCollectGeometry.PhysicsColliders;
 
-    private NavMeshSurface surface;
     private bool hasBuilt;
     private Coroutine buildWhenServerReadyCoroutine;
 
@@ -27,6 +28,8 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
 
     private void Awake()
     {
+        CacheSurface();
+
         if (buildMode == RuntimeNavMeshBuildMode.Disabled)
         {
             return;
@@ -61,8 +64,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
             return false;
         }
 
-        BuildNavMesh();
-        return hasBuilt;
+        return BuildNavMesh();
     }
 
     public void AddBuiltListener(System.Action<RuntimeNavMeshBuilder> listener, bool notifyImmediatelyIfBuilt = true)
@@ -155,32 +157,70 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
                networkManager.IsServer;
     }
 
-    private void BuildNavMesh()
+    private bool BuildNavMesh()
     {
         if (hasBuilt)
         {
-            return;
+            return true;
         }
 
-        surface = GetComponent<NavMeshSurface>();
-
-        if (surface == null)
+        if (!TryGetSurface(out NavMeshSurface navMeshSurface))
         {
-            surface = gameObject.AddComponent<NavMeshSurface>();
+            return false;
         }
 
-        surface.collectObjects = CollectObjects.All;
-        surface.layerMask = includedLayers;
-        surface.useGeometry = geometry;
-        surface.ignoreNavMeshAgent = true;
-        surface.ignoreNavMeshObstacle = true;
-        surface.BuildNavMesh();
+        navMeshSurface.collectObjects = CollectObjects.All;
+        navMeshSurface.layerMask = includedLayers;
+        navMeshSurface.useGeometry = geometry;
+        navMeshSurface.ignoreNavMeshAgent = true;
+        navMeshSurface.ignoreNavMeshObstacle = true;
+        navMeshSurface.BuildNavMesh();
 
         hasBuilt = true;
         Built?.Invoke(this);
+
+        return true;
+    }
+
+    private bool TryGetSurface(out NavMeshSurface navMeshSurface)
+    {
+        CacheSurface();
+
+        navMeshSurface = surface;
+
+        if (navMeshSurface != null)
+        {
+            return true;
+        }
+
+        Debug.LogError(
+            $"{nameof(RuntimeNavMeshBuilder)} requires {nameof(NavMeshSurface)} on the same GameObject.",
+            this
+        );
+
+        return false;
+    }
+
+    private void CacheSurface()
+    {
+        if (surface == null)
+        {
+            surface = GetComponent<NavMeshSurface>();
+        }
     }
 
 #if UNITY_EDITOR
+    private void Reset()
+    {
+        CacheSurface();
+    }
+
+    private void OnValidate()
+    {
+        serverWaitTimeout = Mathf.Max(0f, serverWaitTimeout);
+        CacheSurface();
+    }
+
     [ContextMenu("Build NavMesh Now")]
     private void BuildNavMeshNow()
     {
