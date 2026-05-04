@@ -37,6 +37,7 @@ public class NetworkEnemyController : NetworkBehaviour
     private Vector3 lastKnownTargetPosition;
     private bool hasLastKnownTargetPosition;
 
+    public EnemyConfig Config => config;
     public EnemyState CurrentState => currentState.Value;
     public ulong CurrentTargetClientId => currentTargetClientId.Value;
     public bool HasTarget => currentTargetClientId.Value != NoTargetClientId;
@@ -46,6 +47,14 @@ public class NetworkEnemyController : NetworkBehaviour
         if (targetDetector == null)
         {
             targetDetector = GetComponent<EnemyTargetDetector>();
+        }
+
+        if (targetDetector == null)
+        {
+            Debug.LogWarning(
+                $"{nameof(NetworkEnemyController)} has no {nameof(EnemyTargetDetector)}. Enemy will patrol but will not detect players.",
+                this
+            );
         }
 
         if (agent == null)

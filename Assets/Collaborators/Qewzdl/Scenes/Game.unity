@@ -5525,7 +5525,7 @@ MonoBehaviour:
   config: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
   patrolRoute: {fileID: 1602318126}
   agent: {fileID: 2061582538}
-  targetDetector: {fileID: 0}
+  targetDetector: {fileID: 2061582540}
 --- !u!195 &2061582538
 NavMeshAgent:
   m_ObjectHideFlags: 0

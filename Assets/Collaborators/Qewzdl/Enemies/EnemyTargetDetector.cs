@@ -14,7 +14,7 @@ public class EnemyTargetDetector : MonoBehaviour
             return null;
         }
 
-        Transform origin = eyes != null ? eyes : transform;
+        Transform origin = GetOrigin();
 
         Collider[] hits = Physics.OverlapSphere(
             transform.position,
@@ -69,17 +69,23 @@ public class EnemyTargetDetector : MonoBehaviour
             return false;
         }
 
-        Transform origin = eyes != null ? eyes : transform;
+        Transform origin = GetOrigin();
+
         Vector3 targetPoint = GetTargetPoint(target, config);
         Vector3 directionToTarget = targetPoint - origin.position;
         float distanceToTarget = directionToTarget.magnitude;
+
+        if (distanceToTarget <= 0.001f)
+        {
+            return true;
+        }
 
         if (distanceToTarget > config.detectionRadius)
         {
             return false;
         }
 
-        float angle = Vector3.Angle(transform.forward, directionToTarget);
+        float angle = Vector3.Angle(origin.forward, directionToTarget);
 
         if (angle > config.viewAngle * 0.5f)
         {
@@ -102,8 +108,67 @@ public class EnemyTargetDetector : MonoBehaviour
         return !blocked;
     }
 
+    private Transform GetOrigin()
+    {
+        return eyes != null ? eyes : transform;
+    }
+
     private Vector3 GetTargetPoint(Transform target, EnemyConfig config)
     {
         return target.position + Vector3.up * config.targetHeightOffset;
     }
+
+#if UNITY_EDITOR
+    private void OnDrawGizmosSelected()
+    {
+        EnemyConfig config = GetDebugConfig();
+
+        if (config == null)
+        {
+            return;
+        }
+
+        Transform origin = GetOrigin();
+
+        DrawDetectionRadius(config);
+        DrawViewAngle(config, origin);
+        DrawEyesOrigin(origin);
+    }
+
+    private EnemyConfig GetDebugConfig()
+    {
+        NetworkEnemyController controller = GetComponent<NetworkEnemyController>();
+
+        if (controller == null)
+        {
+            return null;
+        }
+
+        return controller.Config;
+    }
+
+    private void DrawDetectionRadius(EnemyConfig config)
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, config.detectionRadius);
+    }
+
+    private void DrawViewAngle(EnemyConfig config, Transform origin)
+    {
+        Vector3 forward = origin.forward;
+        Vector3 leftDirection = Quaternion.AngleAxis(-config.viewAngle * 0.5f, Vector3.up) * forward;
+        Vector3 rightDirection = Quaternion.AngleAxis(config.viewAngle * 0.5f, Vector3.up) * forward;
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(origin.position, origin.position + forward * config.detectionRadius);
+        Gizmos.DrawLine(origin.position, origin.position + leftDirection * config.detectionRadius);
+        Gizmos.DrawLine(origin.position, origin.position + rightDirection * config.detectionRadius);
+    }
+
+    private void DrawEyesOrigin(Transform origin)
+    {
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawSphere(origin.position, 0.08f);
+    }
+#endif
 }
