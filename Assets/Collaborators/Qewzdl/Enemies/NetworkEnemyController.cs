@@ -1,25 +1,19 @@
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.AI;
 
 [RequireComponent(typeof(NetworkObject))]
-[RequireComponent(typeof(NavMeshAgent))]
+[RequireComponent(typeof(EnemyNavigator))]
+[RequireComponent(typeof(EnemyAttackController))]
+[RequireComponent(typeof(EnemyNavMeshStartupGate))]
 public class NetworkEnemyController : NetworkBehaviour
 {
-    private const ulong NoTargetClientId = ulong.MaxValue;
-    private const float NavMeshSampleRadius = 2f;
-
     [Header("References")]
     [SerializeField] private EnemyConfig config;
     [SerializeField] private EnemyPatrolRoute patrolRoute;
-    [SerializeField] private NavMeshAgent agent;
-
-    [Header("Navigation")]
-    [SerializeField] private RuntimeNavMeshBuilder navMeshBuilder;
-    [SerializeField] private bool waitForRuntimeNavMesh = true;
-
-    [Header("Detection")]
     [SerializeField] private EnemyTargetDetector targetDetector;
+    [SerializeField] private EnemyNavigator navigator;
+    [SerializeField] private EnemyAttackController attackController;
+    [SerializeField] private EnemyNavMeshStartupGate navMeshStartupGate;
 
     private readonly NetworkVariable<EnemyState> currentState = new(
         EnemyState.Idle,
@@ -28,32 +22,118 @@ public class NetworkEnemyController : NetworkBehaviour
     );
 
     private readonly NetworkVariable<ulong> currentTargetClientId = new(
-        NoTargetClientId,
+        EnemyTargetMemory.NoTargetClientId,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
 
-    private EnemyTarget currentTarget;
-    private int patrolPointIndex;
-    private float targetRefreshTimer;
-    private float attackCooldownTimer;
-    private bool warnedAboutMissingNavMesh;
-    private Vector3 lastKnownTargetPosition;
-    private bool hasLastKnownTargetPosition;
-
-    private bool aiStarted;
-    private bool subscribedToNavMeshBuilder;
+    private EnemyServerBrain brain;
 
     public EnemyConfig Config => config;
     public EnemyState CurrentState => currentState.Value;
     public ulong CurrentTargetClientId => currentTargetClientId.Value;
-    public bool HasTarget => currentTargetClientId.Value != NoTargetClientId;
+    public bool HasTarget => currentTargetClientId.Value != EnemyTargetMemory.NoTargetClientId;
 
     private void Awake()
+    {
+        CacheComponents();
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        CacheComponents();
+
+        if (!ValidateDependencies())
+        {
+            enabled = false;
+            return;
+        }
+
+        if (!IsServer)
+        {
+            navigator.DisableAgent();
+            return;
+        }
+
+        navigator.Configure(config);
+        CreateBrainServer();
+        TryStartBrainServer();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (navMeshStartupGate != null)
+        {
+            navMeshStartupGate.RemoveReadyListener(OnNavMeshReadyServer);
+        }
+
+        brain?.Dispose();
+        brain = null;
+    }
+
+    private void Update()
+    {
+        if (!IsServer || brain == null)
+        {
+            return;
+        }
+
+        if (!brain.HasStarted)
+        {
+            TryStartBrainServer();
+            return;
+        }
+
+        brain.Tick(Time.deltaTime);
+    }
+
+    private void CacheComponents()
     {
         if (targetDetector == null)
         {
             targetDetector = GetComponent<EnemyTargetDetector>();
+        }
+
+        if (navigator == null)
+        {
+            navigator = GetComponent<EnemyNavigator>();
+        }
+
+        if (attackController == null)
+        {
+            attackController = GetComponent<EnemyAttackController>();
+        }
+
+        if (navMeshStartupGate == null)
+        {
+            navMeshStartupGate = GetComponent<EnemyNavMeshStartupGate>();
+        }
+    }
+
+    private bool ValidateDependencies()
+    {
+        if (config == null)
+        {
+            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyConfig)}.", this);
+            return false;
+        }
+
+        if (navigator == null)
+        {
+            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNavigator)}.", this);
+            return false;
+        }
+
+        if (attackController == null)
+        {
+            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyAttackController)}.", this);
+            return false;
+        }
+
+        if (navMeshStartupGate == null)
+        {
+            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNavMeshStartupGate)}.", this);
+            return false;
         }
 
         if (targetDetector == null)
@@ -64,602 +144,74 @@ public class NetworkEnemyController : NetworkBehaviour
             );
         }
 
-        if (agent == null)
-        {
-            agent = GetComponent<NavMeshAgent>();
-        }
+        return true;
     }
 
-    public override void OnNetworkSpawn()
+    private void CreateBrainServer()
     {
-        if (config == null)
+        EnemyPatrolController patrolController = new EnemyPatrolController(
+            patrolRoute,
+            navigator,
+            config
+        );
+
+        brain = new EnemyServerBrain(
+            config,
+            navigator,
+            targetDetector,
+            patrolController,
+            attackController,
+            SetStateServer,
+            SetTargetClientIdServer
+        );
+    }
+
+    private void TryStartBrainServer()
+    {
+        if (brain == null)
         {
-            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyConfig)}.", this);
-            enabled = false;
             return;
         }
 
-        if (agent == null)
+        if (navMeshStartupGate != null && !navMeshStartupGate.TryMakeReadyServer())
         {
-            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(NavMeshAgent)}.", this);
-            enabled = false;
+            SetStateServer(EnemyState.Idle);
+            navMeshStartupGate.AddReadyListener(OnNavMeshReadyServer);
             return;
         }
 
-        if (IsServer)
-        {
-            ConfigureAgent();
-            TryStartAiWhenReadyServer();
-        }
-        else
-        {
-            agent.enabled = false;
-        }
+        brain.Start();
     }
 
-    public override void OnNetworkDespawn()
-    {
-        UnsubscribeFromNavMeshBuilderServer();
-
-        currentTarget = null;
-        aiStarted = false;
-    }
-
-    private void Update()
+    private void OnNavMeshReadyServer()
     {
         if (!IsServer)
         {
             return;
         }
 
-        if (!aiStarted)
-        {
-            TryStartAiWhenReadyServer();
-            return;
-        }
-
-        if (config == null || agent == null || !agent.enabled || !TryEnsureAgentOnNavMesh())
-        {
-            return;
-        }
-
-        TickServer(Time.deltaTime);
+        navMeshStartupGate.RemoveReadyListener(OnNavMeshReadyServer);
+        TryStartBrainServer();
     }
 
-    private void TickServer(float deltaTime)
+    private void SetStateServer(EnemyState nextState)
     {
-        attackCooldownTimer -= deltaTime;
-        targetRefreshTimer -= deltaTime;
-
-        if (targetRefreshTimer <= 0f)
-        {
-            targetRefreshTimer = config.targetRefreshInterval;
-            RefreshTargetServer();
-        }
-
-        switch (currentState.Value)
-        {
-            case EnemyState.Idle:
-                TickIdleServer();
-                break;
-
-            case EnemyState.Patrol:
-                TickPatrolServer();
-                break;
-
-            case EnemyState.Chase:
-                TickChaseServer();
-                break;
-
-            case EnemyState.Investigate:
-                TickInvestigateServer();
-                break;
-
-            case EnemyState.Attack:
-                TickAttackServer();
-                break;
-        }
-    }
-
-    private void TickIdleServer()
-    {
-        if (currentTarget != null)
-        {
-            StartChaseServer();
-            return;
-        }
-
-        if (patrolRoute != null && patrolRoute.HasPoints)
-        {
-            SetState(EnemyState.Patrol);
-            MoveToNextPatrolPoint();
-        }
-    }
-
-    private void TickPatrolServer()
-    {
-        if (currentTarget != null)
-        {
-            StartChaseServer();
-            return;
-        }
-
-        if (patrolRoute == null || !patrolRoute.HasPoints)
-        {
-            SetState(EnemyState.Idle);
-            ResetAgentPath();
-            return;
-        }
-
-        if (!TryEnsureAgentOnNavMesh())
-        {
-            return;
-        }
-
-        if (!agent.pathPending && agent.remainingDistance <= config.patrolPointReachDistance)
-        {
-            MoveToNextPatrolPoint();
-        }
-    }
-
-    private void TickChaseServer()
-    {
-        if (!IsCurrentTargetValid())
-        {
-            ClearTargetServer();
-            StopChaseServer();
-            return;
-        }
-
-        Vector3 targetPosition = GetTargetNavigationPosition(currentTarget);
-        float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
-
-        if (distanceToTarget > config.loseTargetDistance)
-        {
-            ClearTargetServer();
-            StopChaseServer();
-            return;
-        }
-
-        if (distanceToTarget <= config.attackDistance)
-        {
-            StartAttackServer();
-            return;
-        }
-
-        if (!TryEnsureAgentOnNavMesh())
-        {
-            return;
-        }
-
-        agent.isStopped = false;
-        agent.speed = config.chaseSpeed;
-        TrySetDestination(targetPosition);
-    }
-
-    private void TickAttackServer()
-    {
-        if (!IsCurrentTargetValid())
-        {
-            ClearTargetServer();
-            StopChaseServer();
-            return;
-        }
-
-        Vector3 targetPosition = GetTargetNavigationPosition(currentTarget);
-        float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
-
-        if (distanceToTarget > config.attackDistance)
-        {
-            StartChaseServer();
-            return;
-        }
-
-        if (TryEnsureAgentOnNavMesh())
-        {
-            agent.isStopped = true;
-        }
-
-        if (attackCooldownTimer > 0f)
-        {
-            return;
-        }
-
-        attackCooldownTimer = config.attackCooldown;
-        PerformAttackServer();
-    }
-
-    private void TickInvestigateServer()
-    {
-        if (currentTarget != null)
-        {
-            StartChaseServer();
-            return;
-        }
-
-        if (!hasLastKnownTargetPosition)
-        {
-            StopChaseServer();
-            return;
-        }
-
-        if (!TryEnsureAgentOnNavMesh())
-        {
-            return;
-        }
-
-        agent.isStopped = false;
-        agent.speed = config.chaseSpeed;
-
-        if (!agent.pathPending && agent.remainingDistance <= config.patrolPointReachDistance)
-        {
-            ClearTargetMemoryServer();
-            StopChaseServer();
-        }
-    }
-
-    private void ConfigureAgent()
-    {
-        agent.speed = config.patrolSpeed;
-        agent.acceleration = config.acceleration;
-        agent.angularSpeed = config.angularSpeed;
-        agent.stoppingDistance = config.stoppingDistance;
-    }
-
-    private void TryStartAiWhenReadyServer()
-    {
-        if (aiStarted)
-        {
-            return;
-        }
-
-        if (waitForRuntimeNavMesh && navMeshBuilder != null && !navMeshBuilder.HasBuilt)
-        {
-            if (navMeshBuilder.BuildIfAllowed())
-            {
-                StartAiServer();
-                return;
-            }
-
-            SubscribeToNavMeshBuilderServer();
-            SetState(EnemyState.Idle);
-            return;
-        }
-
-        StartAiServer();
-    }
-
-    private void StartAiServer()
-    {
-        if (aiStarted)
-        {
-            return;
-        }
-
-        if (!TryEnsureAgentOnNavMesh())
-        {
-            SetState(EnemyState.Idle);
-            return;
-        }
-
-        aiStarted = true;
-
-        if (patrolRoute != null && patrolRoute.HasPoints)
-        {
-            SetState(EnemyState.Patrol);
-            MoveToNextPatrolPoint();
-        }
-        else
-        {
-            SetState(EnemyState.Idle);
-        }
-    }
-
-    private void SubscribeToNavMeshBuilderServer()
-    {
-        if (subscribedToNavMeshBuilder || navMeshBuilder == null)
-        {
-            return;
-        }
-
-        subscribedToNavMeshBuilder = true;
-        navMeshBuilder.AddBuiltListener(OnRuntimeNavMeshBuiltServer);
-    }
-
-    private void UnsubscribeFromNavMeshBuilderServer()
-    {
-        if (!subscribedToNavMeshBuilder || navMeshBuilder == null)
-        {
-            return;
-        }
-
-        navMeshBuilder.RemoveBuiltListener(OnRuntimeNavMeshBuiltServer);
-        subscribedToNavMeshBuilder = false;
-    }
-
-    private void OnRuntimeNavMeshBuiltServer(RuntimeNavMeshBuilder builder)
-    {
-        if (!IsServer)
-        {
-            return;
-        }
-
-        UnsubscribeFromNavMeshBuilderServer();
-        TryStartAiWhenReadyServer();
-    }
-
-    private void RefreshTargetServer()
-    {
-        EnemyTarget bestTarget = targetDetector != null
-            ? targetDetector.FindBestVisibleTarget(config)
-            : null;
-
-        if (bestTarget == null)
-        {
-            if (currentState.Value == EnemyState.Chase || currentState.Value == EnemyState.Attack)
-            {
-                ClearTargetServer();
-
-                if (hasLastKnownTargetPosition)
-                {
-                    StartInvestigateServer();
-                }
-                else
-                {
-                    StopChaseServer();
-                }
-
-                return;
-            }
-
-            if (currentState.Value != EnemyState.Investigate)
-            {
-                ClearTargetServer();
-            }
-
-            return;
-        }
-
-        currentTarget = bestTarget;
-        RememberTargetPositionServer(GetTargetNavigationPosition(bestTarget));
-
-        NetworkObject targetNetworkObject = bestTarget.NetworkObject;
-
-        if (targetNetworkObject != null && targetNetworkObject.IsSpawned)
-        {
-            currentTargetClientId.Value = targetNetworkObject.OwnerClientId;
-        }
-        else
-        {
-            currentTargetClientId.Value = NoTargetClientId;
-        }
-    }
-
-    private void StartInvestigateServer()
-    {
-        if (!hasLastKnownTargetPosition)
-        {
-            ClearTargetMemoryServer();
-            StopChaseServer();
-            return;
-        }
-
-        SetState(EnemyState.Investigate);
-
-        if (!TryEnsureAgentOnNavMesh())
-        {
-            return;
-        }
-
-        agent.isStopped = false;
-        agent.speed = config.chaseSpeed;
-
-        if (!TrySetDestination(lastKnownTargetPosition))
-        {
-            ClearTargetMemoryServer();
-            StopChaseServer();
-        }
-    }
-
-    private void StartChaseServer()
-    {
-        SetState(EnemyState.Chase);
-
-        if (TryEnsureAgentOnNavMesh())
-        {
-            agent.isStopped = false;
-            agent.speed = config.chaseSpeed;
-        }
-    }
-
-    private void StopChaseServer()
-    {
-        if (patrolRoute != null && patrolRoute.HasPoints)
-        {
-            SetState(EnemyState.Patrol);
-            MoveToNextPatrolPoint();
-            return;
-        }
-
-        SetState(EnemyState.Idle);
-        ResetAgentPath();
-    }
-
-    private void StartAttackServer()
-    {
-        SetState(EnemyState.Attack);
-        ResetAgentPath();
-
-        if (TryEnsureAgentOnNavMesh())
-        {
-            agent.isStopped = true;
-        }
-    }
-
-    private void PerformAttackServer()
-    {
-        if (!IsCurrentTargetValid())
-        {
-            ClearTargetServer();
-            StopChaseServer();
-            return;
-        }
-
-        NetworkObject targetNetworkObject = currentTarget.NetworkObject;
-
-        if (targetNetworkObject == null || !targetNetworkObject.IsSpawned)
-        {
-            ClearTargetServer();
-            StopChaseServer();
-            return;
-        }
-
-        Vector3 targetPosition = GetTargetNavigationPosition(currentTarget);
-        float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
-
-        if (distanceToTarget > config.attackDistance)
-        {
-            StartChaseServer();
-            return;
-        }
-
-        Debug.Log($"Enemy attacked client {targetNetworkObject.OwnerClientId}.", this);
-
-        // Future extension point:
-        // 1. Delegate to EnemyAttackHandler.
-        // 2. Apply server-side caught/damage state.
-        // 3. Trigger ClientRpc for one-shot feedback.
-    }
-
-    private void MoveToNextPatrolPoint()
-    {
-        if (patrolRoute == null || !patrolRoute.HasPoints)
-        {
-            SetState(EnemyState.Idle);
-            return;
-        }
-
-        if (!TryEnsureAgentOnNavMesh())
-        {
-            return;
-        }
-
-        Transform point = patrolRoute.GetPoint(patrolPointIndex);
-        patrolPointIndex++;
-
-        if (point == null)
-        {
-            return;
-        }
-
-        agent.isStopped = false;
-        agent.speed = config.patrolSpeed;
-        TrySetDestination(point.position);
-    }
-
-    private void ResetAgentPath()
-    {
-        if (TryEnsureAgentOnNavMesh())
-        {
-            agent.ResetPath();
-        }
-    }
-
-    private bool TrySetDestination(Vector3 destination)
-    {
-        if (!TryEnsureAgentOnNavMesh())
-        {
-            return false;
-        }
-
-        if (NavMesh.SamplePosition(destination, out NavMeshHit hit, NavMeshSampleRadius, NavMesh.AllAreas))
-        {
-            return agent.SetDestination(hit.position);
-        }
-
-        return agent.SetDestination(destination);
-    }
-
-    private bool TryEnsureAgentOnNavMesh()
-    {
-        if (agent == null || !agent.enabled || !agent.gameObject.activeInHierarchy)
-        {
-            return false;
-        }
-
-        if (agent.isOnNavMesh)
-        {
-            warnedAboutMissingNavMesh = false;
-            return true;
-        }
-
-        if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, NavMeshSampleRadius, NavMesh.AllAreas)
-            && agent.Warp(hit.position))
-        {
-            warnedAboutMissingNavMesh = false;
-            return true;
-        }
-
-        if (!warnedAboutMissingNavMesh)
-        {
-            Debug.LogWarning(
-                $"{nameof(NetworkEnemyController)} is waiting for its {nameof(NavMeshAgent)} to be placed on a NavMesh.",
-                this
-            );
-            warnedAboutMissingNavMesh = true;
-        }
-
-        return false;
-    }
-
-    private void RememberTargetPositionServer(Vector3 position)
-    {
-        lastKnownTargetPosition = position;
-        hasLastKnownTargetPosition = true;
-    }
-
-    private bool IsCurrentTargetValid()
-    {
-        return currentTarget != null && currentTarget.IsValidNetworkTarget;
-    }
-
-    private Vector3 GetTargetNavigationPosition(EnemyTarget target)
-    {
-        if (target == null)
-        {
-            return transform.position;
-        }
-
-        NetworkObject targetNetworkObject = target.NetworkObject;
-
-        if (targetNetworkObject != null && targetNetworkObject.IsSpawned)
-        {
-            return targetNetworkObject.transform.position;
-        }
-
-        return target.transform.position;
-    }
-
-    private void ClearTargetServer()
-    {
-        currentTarget = null;
-        currentTargetClientId.Value = NoTargetClientId;
-    }
-
-    private void ClearTargetMemoryServer()
-    {
-        ClearTargetServer();
-        hasLastKnownTargetPosition = false;
-    }
-
-    private void SetState(EnemyState nextState)
-    {
-        if (currentState.Value == nextState)
+        if (!IsServer || currentState.Value == nextState)
         {
             return;
         }
 
         currentState.Value = nextState;
+    }
+
+    private void SetTargetClientIdServer(ulong targetClientId)
+    {
+        if (!IsServer || currentTargetClientId.Value == targetClientId)
+        {
+            return;
+        }
+
+        currentTargetClientId.Value = targetClientId;
     }
 
 #if UNITY_EDITOR
