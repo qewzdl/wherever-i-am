@@ -93,6 +93,7 @@ public class EnemyTargetDetector : MonoBehaviour
             bestDistanceSqr = distanceSqr;
         }
 
+        ClearProcessedTargets(processedTargetCount);
         return bestTarget;
     }
 
@@ -168,6 +169,14 @@ public class EnemyTargetDetector : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void ClearProcessedTargets(int processedTargetCount)
+    {
+        for (int i = 0; i < processedTargetCount; i++)
+        {
+            processedTargets[i] = null;
+        }
     }
 
     private void WarnIfDetectionBufferIsFull(int hitCount)
