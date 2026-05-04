@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 269333747235537778}
   - component: {fileID: 1182184287527981468}
   - component: {fileID: 8111588279690829731}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Main Camera
   m_TagString: MainCamera
   m_Icon: {fileID: 0}
@@ -178,7 +178,7 @@ GameObject:
   - component: {fileID: 1609141610853577837}
   - component: {fileID: 4219681505707531556}
   - component: {fileID: 5517377447485859117}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Body
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -288,7 +288,7 @@ GameObject:
   - component: {fileID: 1427534031727663395}
   - component: {fileID: 8045575881734863734}
   - component: {fileID: 8328286952889563659}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Eyes (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -393,7 +393,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6240376699478474161}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: CameraTarget
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -427,7 +427,7 @@ GameObject:
   - component: {fileID: 298787168465662834}
   - component: {fileID: 2718842905889537735}
   - component: {fileID: 7864842314922813983}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Eyes
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -541,7 +541,7 @@ GameObject:
   - component: {fileID: 8635111170416589885}
   - component: {fileID: 784913897881827357}
   - component: {fileID: 5904258511668209545}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -577,7 +577,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 2808745214
+  GlobalObjectIdHash: 335265680
   InScenePlacedSourceGlobalObjectIdHash: 335265680
   DeferredDespawnTick: 0
   Ownership: 1
@@ -661,7 +661,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d9686bb7d63cdf94dbe7ab789f8c9714, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
   speed: 5
   speedToCrouch: 5
 --- !u!114 &8635111170416589885
@@ -801,6 +800,14 @@ MonoBehaviour:
       m_Calls: []
     m_ActionId: 9caa3d8a-6b2f-4e8e-8bad-6ede561bd9be
     m_ActionName: UI/TrackedDeviceOrientation
+  - m_PersistentCalls:
+      m_Calls: []
+    m_ActionId: 14c04637-37e4-4d10-b92b-88f8591ac447
+    m_ActionName: 'UI/OpenChat[/Keyboard/t]'
+  - m_PersistentCalls:
+      m_Calls: []
+    m_ActionId: 07d21a67-d4e2-4be3-8da0-261079c3bf80
+    m_ActionName: 'UI/CloseChat[/Keyboard/escape]'
   m_NeverAutoSwitchControlSchemes: 1
   m_DefaultControlScheme: 
   m_DefaultActionMap: Player
@@ -861,7 +868,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3689984352628262258}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: PlayerContainer
   m_TagString: Untagged
   m_Icon: {fileID: 0}

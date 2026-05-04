@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5839c61074e2e8a469e774a5fc68f51e, type: 3}
+  m_Name: Granny EnemyConfig
+  m_EditorClassIdentifier: 
+  patrolSpeed: 1.5
+  chaseSpeed: 3.5
+  acceleration: 12
+  angularSpeed: 360
+  stoppingDistance: 0.2
+  detectionRadius: 12
+  viewAngle: 110
+  loseTargetDistance: 16
+  targetHeightOffset: 1.2
+  targetRefreshInterval: 0.25
+  attackDistance: 1.6
+  attackCooldown: 1.5
+  patrolPointReachDistance: 0.4
