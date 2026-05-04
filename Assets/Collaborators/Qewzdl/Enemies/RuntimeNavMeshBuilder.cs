@@ -18,6 +18,12 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
 
     private NavMeshSurface surface;
     private bool hasBuilt;
+    private Coroutine buildWhenServerReadyCoroutine;
+
+    public bool HasBuilt => hasBuilt;
+    public NavMeshSurface Surface => surface;
+
+    public event System.Action<RuntimeNavMeshBuilder> Built;
 
     private void Awake()
     {
@@ -34,8 +40,64 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
 
         if (buildMode == RuntimeNavMeshBuildMode.ServerOnly)
         {
-            StartCoroutine(BuildWhenServerIsReady());
+            StartBuildWhenServerIsReady();
         }
+    }
+
+    public bool BuildIfAllowed()
+    {
+        if (hasBuilt)
+        {
+            return true;
+        }
+
+        if (buildMode == RuntimeNavMeshBuildMode.Disabled)
+        {
+            return false;
+        }
+
+        if (!ShouldBuildImmediately())
+        {
+            return false;
+        }
+
+        BuildNavMesh();
+        return hasBuilt;
+    }
+
+    public void AddBuiltListener(System.Action<RuntimeNavMeshBuilder> listener, bool notifyImmediatelyIfBuilt = true)
+    {
+        if (listener == null)
+        {
+            return;
+        }
+
+        Built += listener;
+
+        if (notifyImmediatelyIfBuilt && hasBuilt)
+        {
+            listener.Invoke(this);
+        }
+    }
+
+    public void RemoveBuiltListener(System.Action<RuntimeNavMeshBuilder> listener)
+    {
+        if (listener == null)
+        {
+            return;
+        }
+
+        Built -= listener;
+    }
+
+    private void StartBuildWhenServerIsReady()
+    {
+        if (buildWhenServerReadyCoroutine != null)
+        {
+            return;
+        }
+
+        buildWhenServerReadyCoroutine = StartCoroutine(BuildWhenServerIsReady());
     }
 
     private bool ShouldBuildImmediately()
@@ -69,11 +131,14 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
             if (IsServerReady())
             {
                 BuildNavMesh();
+                buildWhenServerReadyCoroutine = null;
                 yield break;
             }
 
             yield return null;
         }
+
+        buildWhenServerReadyCoroutine = null;
 
         Debug.LogWarning(
             $"{nameof(RuntimeNavMeshBuilder)} did not build NavMesh because server was not ready within {serverWaitTimeout:0.##} seconds.",
@@ -112,6 +177,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         surface.BuildNavMesh();
 
         hasBuilt = true;
+        Built?.Invoke(this);
     }
 
 #if UNITY_EDITOR
