@@ -36,6 +36,8 @@ public class NetworkEnemyController : NetworkBehaviour
     private float targetRefreshTimer;
     private float attackCooldownTimer;
     private bool warnedAboutMissingNavMesh;
+    private Vector3 lastKnownTargetPosition;
+    private bool hasLastKnownTargetPosition;
 
     public EnemyState CurrentState => currentState.Value;
     public ulong CurrentTargetClientId => currentTargetClientId.Value;
@@ -212,7 +214,12 @@ public class NetworkEnemyController : NetworkBehaviour
 
         agent.isStopped = false;
         agent.speed = config.chaseSpeed;
-        agent.SetDestination(currentTarget.position);
+
+        if (TrySetDestination(currentTarget.position))
+        {
+            lastKnownTargetPosition = currentTarget.position;
+            hasLastKnownTargetPosition = true;
+        }
     }
 
     private void TickAttackServer()
@@ -451,7 +458,7 @@ public class NetworkEnemyController : NetworkBehaviour
 
         agent.isStopped = false;
         agent.speed = config.patrolSpeed;
-        agent.SetDestination(point.position);
+        TrySetDestination(point.position);
     }
 
     private void ResetAgentPath()
@@ -460,6 +467,21 @@ public class NetworkEnemyController : NetworkBehaviour
         {
             agent.ResetPath();
         }
+    }
+
+    private bool TrySetDestination(Vector3 destination)
+    {
+        if (!TryEnsureAgentOnNavMesh())
+        {
+            return false;
+        }
+
+        if (NavMesh.SamplePosition(destination, out NavMeshHit hit, NavMeshSampleRadius, NavMesh.AllAreas))
+        {
+            return agent.SetDestination(hit.position);
+        }
+
+        return agent.SetDestination(destination);
     }
 
     private bool TryEnsureAgentOnNavMesh()

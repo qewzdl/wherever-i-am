@@ -20,6 +20,20 @@ public class EnemyPatrolRoute : MonoBehaviour
     }
 
 #if UNITY_EDITOR
+    [ContextMenu("Collect Child Points")]
+    private void CollectChildPoints()
+    {
+        int childCount = transform.childCount;
+        points = new Transform[childCount];
+
+        for (int i = 0; i < childCount; i++)
+        {
+            points[i] = transform.GetChild(i);
+        }
+
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+
     private void OnDrawGizmos()
     {
         if (points == null || points.Length == 0)
