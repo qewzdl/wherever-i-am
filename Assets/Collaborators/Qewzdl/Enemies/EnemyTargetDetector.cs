@@ -75,7 +75,7 @@ public class EnemyTargetDetector : MonoBehaviour
             processedTargets[processedTargetCount] = enemyTarget;
             processedTargetCount++;
 
-            Vector3 targetPoint = GetTargetPoint(enemyTarget, config);
+            Vector3 targetPoint = GetTargetPoint(enemyTarget);
             Vector3 toCandidate = targetPoint - origin.position;
             float distanceSqr = toCandidate.sqrMagnitude;
 
@@ -105,7 +105,7 @@ public class EnemyTargetDetector : MonoBehaviour
 
         Transform origin = GetOrigin();
 
-        Vector3 targetPoint = GetTargetPoint(target, config);
+        Vector3 targetPoint = GetTargetPoint(target);
         Vector3 directionToTarget = targetPoint - origin.position;
         float distanceToTarget = directionToTarget.magnitude;
 
@@ -196,9 +196,9 @@ public class EnemyTargetDetector : MonoBehaviour
         return eyes != null ? eyes : transform;
     }
 
-    private Vector3 GetTargetPoint(EnemyTarget target, EnemyConfig config)
+    private Vector3 GetTargetPoint(EnemyTarget target)
     {
-        return target.AimPosition + Vector3.up * config.targetHeightOffset;
+        return target.AimPosition;
     }
 
 #if UNITY_EDITOR
