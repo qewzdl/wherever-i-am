@@ -1,4 +1,6 @@
+using System.Collections;
 using Unity.AI.Navigation;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -6,29 +8,96 @@ using UnityEngine.AI;
 [DisallowMultipleComponent]
 public class RuntimeNavMeshBuilder : MonoBehaviour
 {
-    private const int DefaultLayer = 0;
-    private const int EnvironmentLayer = 7;
-    private const int WallsLayer = 8;
-    private const int DoorsLayer = 9;
+    [Header("Build")]
+    [SerializeField] private RuntimeNavMeshBuildMode buildMode = RuntimeNavMeshBuildMode.ServerOnly;
+    [SerializeField] private float serverWaitTimeout = 5f;
 
-    [SerializeField]
-    private LayerMask includedLayers =
-        (1 << DefaultLayer) |
-        (1 << EnvironmentLayer) |
-        (1 << WallsLayer) |
-        (1 << DoorsLayer);
-
+    [Header("Surface")]
+    [SerializeField] private LayerMask includedLayers = Physics.DefaultRaycastLayers;
     [SerializeField] private NavMeshCollectGeometry geometry = NavMeshCollectGeometry.PhysicsColliders;
-    [SerializeField] private bool buildOnAwake = true;
+
+    private NavMeshSurface surface;
+    private bool hasBuilt;
 
     private void Awake()
     {
-        if (!buildOnAwake)
+        if (buildMode == RuntimeNavMeshBuildMode.Disabled)
         {
             return;
         }
 
-        NavMeshSurface surface = GetComponent<NavMeshSurface>();
+        if (ShouldBuildImmediately())
+        {
+            BuildNavMesh();
+            return;
+        }
+
+        if (buildMode == RuntimeNavMeshBuildMode.ServerOnly)
+        {
+            StartCoroutine(BuildWhenServerIsReady());
+        }
+    }
+
+    private bool ShouldBuildImmediately()
+    {
+        switch (buildMode)
+        {
+            case RuntimeNavMeshBuildMode.Always:
+                return true;
+
+            case RuntimeNavMeshBuildMode.EditorOnly:
+#if UNITY_EDITOR
+                return true;
+#else
+                return false;
+#endif
+
+            case RuntimeNavMeshBuildMode.ServerOnly:
+                return IsServerReady();
+
+            default:
+                return false;
+        }
+    }
+
+    private IEnumerator BuildWhenServerIsReady()
+    {
+        float deadline = Time.unscaledTime + serverWaitTimeout;
+
+        while (Time.unscaledTime < deadline)
+        {
+            if (IsServerReady())
+            {
+                BuildNavMesh();
+                yield break;
+            }
+
+            yield return null;
+        }
+
+        Debug.LogWarning(
+            $"{nameof(RuntimeNavMeshBuilder)} did not build NavMesh because server was not ready within {serverWaitTimeout:0.##} seconds.",
+            this
+        );
+    }
+
+    private bool IsServerReady()
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+
+        return networkManager != null &&
+               networkManager.IsListening &&
+               networkManager.IsServer;
+    }
+
+    private void BuildNavMesh()
+    {
+        if (hasBuilt)
+        {
+            return;
+        }
+
+        surface = GetComponent<NavMeshSurface>();
 
         if (surface == null)
         {
@@ -41,5 +110,16 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         surface.ignoreNavMeshAgent = true;
         surface.ignoreNavMeshObstacle = true;
         surface.BuildNavMesh();
+
+        hasBuilt = true;
     }
+
+#if UNITY_EDITOR
+    [ContextMenu("Build NavMesh Now")]
+    private void BuildNavMeshNow()
+    {
+        hasBuilt = false;
+        BuildNavMesh();
+    }
+#endif
 }
