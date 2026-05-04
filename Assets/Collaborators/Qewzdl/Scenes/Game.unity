@@ -5460,6 +5460,7 @@ GameObject:
   - component: {fileID: 2061582539}
   - component: {fileID: 2061582538}
   - component: {fileID: 2061582537}
+  - component: {fileID: 2061582540}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -5524,13 +5525,7 @@ MonoBehaviour:
   config: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
   patrolRoute: {fileID: 1602318126}
   agent: {fileID: 2061582538}
-  eyes: {fileID: 2044443797}
-  playerMask:
-    serializedVersion: 2
-    m_Bits: 8
-  obstructionMask:
-    serializedVersion: 2
-    m_Bits: 961
+  targetDetector: {fileID: 0}
 --- !u!195 &2061582538
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -5599,6 +5594,25 @@ MonoBehaviour:
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &2061582540
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2061582525}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68c76a0fd63b86b40920ddc4a2f3195e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  eyes: {fileID: 2044443797}
+  playerMask:
+    serializedVersion: 2
+    m_Bits: 8
+  obstructionMask:
+    serializedVersion: 2
+    m_Bits: 897
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

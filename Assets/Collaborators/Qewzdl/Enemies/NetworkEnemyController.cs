@@ -13,11 +13,9 @@ public class NetworkEnemyController : NetworkBehaviour
     [SerializeField] private EnemyConfig config;
     [SerializeField] private EnemyPatrolRoute patrolRoute;
     [SerializeField] private NavMeshAgent agent;
-    [SerializeField] private Transform eyes;
 
     [Header("Detection")]
-    [SerializeField] private LayerMask playerMask;
-    [SerializeField] private LayerMask obstructionMask;
+    [SerializeField] private EnemyTargetDetector targetDetector;
 
     private readonly NetworkVariable<EnemyState> currentState = new(
         EnemyState.Idle,
@@ -45,14 +43,14 @@ public class NetworkEnemyController : NetworkBehaviour
 
     private void Awake()
     {
+        if (targetDetector == null)
+        {
+            targetDetector = GetComponent<EnemyTargetDetector>();
+        }
+
         if (agent == null)
         {
             agent = GetComponent<NavMeshAgent>();
-        }
-
-        if (eyes == null)
-        {
-            eyes = transform;
         }
     }
 
@@ -278,11 +276,9 @@ public class NetworkEnemyController : NetworkBehaviour
         agent.isStopped = false;
         agent.speed = config.chaseSpeed;
 
-        TrySetDestination(lastKnownTargetPosition);
-
         if (!agent.pathPending && agent.remainingDistance <= config.patrolPointReachDistance)
         {
-            hasLastKnownTargetPosition = false;
+            ClearTargetMemoryServer();
             StopChaseServer();
         }
     }
@@ -297,7 +293,9 @@ public class NetworkEnemyController : NetworkBehaviour
 
     private void RefreshTargetServer()
     {
-        Transform bestTarget = FindBestVisibleTargetServer();
+        Transform bestTarget = targetDetector != null
+            ? targetDetector.FindBestVisibleTarget(config)
+            : null;
 
         if (bestTarget == null)
         {
@@ -317,7 +315,11 @@ public class NetworkEnemyController : NetworkBehaviour
                 return;
             }
 
-            ClearTargetServer();
+            if (currentState.Value != EnemyState.Investigate)
+            {
+                ClearTargetServer();
+            }
+
             return;
         }
 
@@ -329,114 +331,35 @@ public class NetworkEnemyController : NetworkBehaviour
         {
             currentTargetClientId.Value = targetNetworkObject.OwnerClientId;
         }
-    }
-
-    private Transform FindBestVisibleTargetServer()
-    {
-        Collider[] hits = Physics.OverlapSphere(
-            transform.position,
-            config.detectionRadius,
-            playerMask,
-            QueryTriggerInteraction.Ignore
-        );
-
-        Transform bestTarget = null;
-        float bestDistanceSqr = float.MaxValue;
-
-        foreach (Collider hit in hits)
+        else
         {
-            if (hit == null)
-            {
-                continue;
-            }
-
-            NetworkObject networkObject = hit.GetComponentInParent<NetworkObject>();
-
-            if (networkObject == null || !networkObject.IsSpawned)
-            {
-                continue;
-            }
-
-            Transform candidate = networkObject.transform;
-            Vector3 toCandidate = GetTargetPoint(candidate) - eyes.position;
-            float distanceSqr = toCandidate.sqrMagnitude;
-
-            if (distanceSqr >= bestDistanceSqr)
-            {
-                continue;
-            }
-
-            if (!CanSeeTarget(candidate))
-            {
-                continue;
-            }
-
-            bestTarget = candidate;
-            bestDistanceSqr = distanceSqr;
+            currentTargetClientId.Value = NoTargetClientId;
         }
-
-        return bestTarget;
-    }
-
-    private bool CanSeeTarget(Transform target)
-    {
-        if (target == null || eyes == null)
-        {
-            return false;
-        }
-
-        Vector3 targetPoint = GetTargetPoint(target);
-        Vector3 directionToTarget = targetPoint - eyes.position;
-        float distanceToTarget = directionToTarget.magnitude;
-
-        if (distanceToTarget > config.detectionRadius)
-        {
-            return false;
-        }
-
-        float angle = Vector3.Angle(transform.forward, directionToTarget);
-
-        if (angle > config.viewAngle * 0.5f)
-        {
-            return false;
-        }
-
-        if (obstructionMask.value == 0)
-        {
-            return true;
-        }
-
-        bool blocked = Physics.Raycast(
-            eyes.position,
-            directionToTarget.normalized,
-            distanceToTarget,
-            obstructionMask,
-            QueryTriggerInteraction.Ignore
-        );
-
-        return !blocked;
-    }
-
-    private Vector3 GetTargetPoint(Transform target)
-    {
-        return target.position + Vector3.up * config.targetHeightOffset;
     }
 
     private void StartInvestigateServer()
     {
         if (!hasLastKnownTargetPosition)
         {
+            ClearTargetMemoryServer();
             StopChaseServer();
             return;
         }
 
         SetState(EnemyState.Investigate);
 
-        if (TryEnsureAgentOnNavMesh())
+        if (!TryEnsureAgentOnNavMesh())
         {
-            agent.isStopped = false;
-            agent.speed = config.chaseSpeed;
-            TrySetDestination(lastKnownTargetPosition);
+            return;
+        }
+
+        agent.isStopped = false;
+        agent.speed = config.chaseSpeed;
+
+        if (!TrySetDestination(lastKnownTargetPosition))
+        {
+            ClearTargetMemoryServer();
+            StopChaseServer();
         }
     }
 
