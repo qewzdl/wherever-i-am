@@ -6,6 +6,7 @@ public class EnemyTargetDetector : MonoBehaviour
     [SerializeField] private Transform eyes;
     [SerializeField] private LayerMask playerMask;
     [SerializeField] private LayerMask obstructionMask;
+    [SerializeField, HideInInspector] private NetworkEnemyController cachedController;
 
     public Transform FindBestVisibleTarget(EnemyConfig config)
     {
@@ -119,6 +120,16 @@ public class EnemyTargetDetector : MonoBehaviour
     }
 
 #if UNITY_EDITOR
+    private void Reset()
+    {
+        CacheController();
+    }
+
+    private void OnValidate()
+    {
+        CacheController();
+    }
+
     private void OnDrawGizmosSelected()
     {
         EnemyConfig config = GetDebugConfig();
@@ -137,14 +148,22 @@ public class EnemyTargetDetector : MonoBehaviour
 
     private EnemyConfig GetDebugConfig()
     {
-        NetworkEnemyController controller = GetComponent<NetworkEnemyController>();
-
-        if (controller == null)
+        if (cachedController == null)
         {
-            return null;
+            CacheController();
         }
 
-        return controller.Config;
+        return cachedController != null ? cachedController.Config : null;
+    }
+
+    private void CacheController()
+    {
+        if (cachedController != null)
+        {
+            return;
+        }
+
+        cachedController = GetComponent<NetworkEnemyController>();
     }
 
     private void DrawDetectionRadius(EnemyConfig config)
