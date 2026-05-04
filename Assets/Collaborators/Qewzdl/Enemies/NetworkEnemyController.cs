@@ -137,6 +137,10 @@ public class NetworkEnemyController : NetworkBehaviour
                 TickChaseServer();
                 break;
 
+            case EnemyState.Investigate:
+                TickInvestigateServer();
+                break;
+
             case EnemyState.Attack:
                 TickAttackServer();
                 break;
@@ -252,6 +256,37 @@ public class NetworkEnemyController : NetworkBehaviour
         PerformAttackServer();
     }
 
+    private void TickInvestigateServer()
+    {
+        if (currentTarget != null)
+        {
+            StartChaseServer();
+            return;
+        }
+
+        if (!hasLastKnownTargetPosition)
+        {
+            StopChaseServer();
+            return;
+        }
+
+        if (!TryEnsureAgentOnNavMesh())
+        {
+            return;
+        }
+
+        agent.isStopped = false;
+        agent.speed = config.chaseSpeed;
+
+        TrySetDestination(lastKnownTargetPosition);
+
+        if (!agent.pathPending && agent.remainingDistance <= config.patrolPointReachDistance)
+        {
+            hasLastKnownTargetPosition = false;
+            StopChaseServer();
+        }
+    }
+
     private void ConfigureAgent()
     {
         agent.speed = config.patrolSpeed;
@@ -266,11 +301,23 @@ public class NetworkEnemyController : NetworkBehaviour
 
         if (bestTarget == null)
         {
-            if (currentState.Value != EnemyState.Chase && currentState.Value != EnemyState.Attack)
+            if (currentState.Value == EnemyState.Chase || currentState.Value == EnemyState.Attack)
             {
                 ClearTargetServer();
+
+                if (hasLastKnownTargetPosition)
+                {
+                    StartInvestigateServer();
+                }
+                else
+                {
+                    StopChaseServer();
+                }
+
+                return;
             }
 
+            ClearTargetServer();
             return;
         }
 
@@ -373,6 +420,24 @@ public class NetworkEnemyController : NetworkBehaviour
     private Vector3 GetTargetPoint(Transform target)
     {
         return target.position + Vector3.up * config.targetHeightOffset;
+    }
+
+    private void StartInvestigateServer()
+    {
+        if (!hasLastKnownTargetPosition)
+        {
+            StopChaseServer();
+            return;
+        }
+
+        SetState(EnemyState.Investigate);
+
+        if (TryEnsureAgentOnNavMesh())
+        {
+            agent.isStopped = false;
+            agent.speed = config.chaseSpeed;
+            TrySetDestination(lastKnownTargetPosition);
+        }
     }
 
     private void StartChaseServer()
@@ -520,6 +585,12 @@ public class NetworkEnemyController : NetworkBehaviour
     {
         currentTarget = null;
         currentTargetClientId.Value = NoTargetClientId;
+    }
+
+    private void ClearTargetMemoryServer()
+    {
+        ClearTargetServer();
+        hasLastKnownTargetPosition = false;
     }
 
     private void SetState(EnemyState nextState)
