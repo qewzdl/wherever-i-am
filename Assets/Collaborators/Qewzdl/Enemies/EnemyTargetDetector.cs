@@ -6,7 +6,21 @@ public class EnemyTargetDetector : MonoBehaviour
     [SerializeField] private Transform eyes;
     [SerializeField] private LayerMask playerMask;
     [SerializeField] private LayerMask obstructionMask;
+
+    [Header("Performance")]
+    [SerializeField, Min(1)] private int maxDetectionResults = 16;
+    [SerializeField, Min(0.1f)] private float overflowWarningCooldown = 2f;
+
     [SerializeField, HideInInspector] private NetworkEnemyController cachedController;
+
+    private Collider[] detectionResults;
+    private EnemyTarget[] processedTargets;
+    private float nextOverflowWarningTime;
+
+    private void Awake()
+    {
+        EnsureDetectionBuffers();
+    }
 
     public Transform FindBestVisibleTarget(EnemyConfig config)
     {
@@ -15,34 +29,54 @@ public class EnemyTargetDetector : MonoBehaviour
             return null;
         }
 
+        EnsureDetectionBuffers();
+
         Transform origin = GetOrigin();
 
-        Collider[] hits = Physics.OverlapSphere(
+        int hitCount = Physics.OverlapSphereNonAlloc(
             transform.position,
             config.detectionRadius,
+            detectionResults,
             playerMask,
             QueryTriggerInteraction.Ignore
         );
 
+        WarnIfDetectionBufferIsFull(hitCount);
+
         Transform bestTarget = null;
         float bestDistanceSqr = float.MaxValue;
+        int processedTargetCount = 0;
 
-        foreach (Collider hit in hits)
+        for (int i = 0; i < hitCount; i++)
         {
+            Collider hit = detectionResults[i];
+
             if (hit == null)
             {
                 continue;
             }
 
-            NetworkObject networkObject = hit.GetComponentInParent<NetworkObject>();
+            EnemyTarget enemyTarget = hit.GetComponentInParent<EnemyTarget>();
 
-            if (networkObject == null || !networkObject.IsSpawned)
+            if (enemyTarget == null)
             {
                 continue;
             }
 
-            Transform candidate = networkObject.transform;
-            Vector3 targetPoint = GetTargetPoint(candidate, config);
+            if (!enemyTarget.CanBeDetected || !enemyTarget.IsValidNetworkTarget)
+            {
+                continue;
+            }
+
+            if (HasProcessedTarget(enemyTarget, processedTargetCount))
+            {
+                continue;
+            }
+
+            processedTargets[processedTargetCount] = enemyTarget;
+            processedTargetCount++;
+
+            Vector3 targetPoint = GetTargetPoint(enemyTarget, config);
             Vector3 toCandidate = targetPoint - origin.position;
             float distanceSqr = toCandidate.sqrMagnitude;
 
@@ -51,19 +85,19 @@ public class EnemyTargetDetector : MonoBehaviour
                 continue;
             }
 
-            if (!CanSeeTarget(candidate, config))
+            if (!CanSeeTarget(enemyTarget, config))
             {
                 continue;
             }
 
-            bestTarget = candidate;
+            bestTarget = enemyTarget.transform;
             bestDistanceSqr = distanceSqr;
         }
 
         return bestTarget;
     }
 
-    public bool CanSeeTarget(Transform target, EnemyConfig config)
+    private bool CanSeeTarget(EnemyTarget target, EnemyConfig config)
     {
         if (target == null || config == null)
         {
@@ -109,25 +143,79 @@ public class EnemyTargetDetector : MonoBehaviour
         return !blocked;
     }
 
+    private void EnsureDetectionBuffers()
+    {
+        int safeSize = Mathf.Max(1, maxDetectionResults);
+
+        if (detectionResults == null || detectionResults.Length != safeSize)
+        {
+            detectionResults = new Collider[safeSize];
+        }
+
+        if (processedTargets == null || processedTargets.Length != safeSize)
+        {
+            processedTargets = new EnemyTarget[safeSize];
+        }
+    }
+
+    private bool HasProcessedTarget(EnemyTarget target, int processedTargetCount)
+    {
+        for (int i = 0; i < processedTargetCount; i++)
+        {
+            if (processedTargets[i] == target)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void WarnIfDetectionBufferIsFull(int hitCount)
+    {
+        if (hitCount < detectionResults.Length)
+        {
+            return;
+        }
+
+        if (Time.unscaledTime < nextOverflowWarningTime)
+        {
+            return;
+        }
+
+        nextOverflowWarningTime = Time.unscaledTime + overflowWarningCooldown;
+
+        Debug.LogWarning(
+            $"{nameof(EnemyTargetDetector)} reached max detection results ({detectionResults.Length}). " +
+            $"Increase {nameof(maxDetectionResults)} if targets can be missed.",
+            this
+        );
+    }
+
     private Transform GetOrigin()
     {
         return eyes != null ? eyes : transform;
     }
 
-    private Vector3 GetTargetPoint(Transform target, EnemyConfig config)
+    private Vector3 GetTargetPoint(EnemyTarget target, EnemyConfig config)
     {
-        return target.position + Vector3.up * config.targetHeightOffset;
+        return target.AimPosition + Vector3.up * config.targetHeightOffset;
     }
 
 #if UNITY_EDITOR
     private void Reset()
     {
         CacheController(forceRefresh: true);
+        EnsureDetectionBuffers();
     }
 
     private void OnValidate()
     {
+        maxDetectionResults = Mathf.Max(1, maxDetectionResults);
+        overflowWarningCooldown = Mathf.Max(0.1f, overflowWarningCooldown);
+
         CacheController(forceRefresh: true);
+        EnsureDetectionBuffers();
     }
 
     private void OnDrawGizmosSelected()
