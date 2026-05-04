@@ -543,9 +543,6 @@ public class NetworkEnemyController : NetworkBehaviour
             return;
         }
 
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, config.detectionRadius);
-
         Gizmos.color = Color.magenta;
         Gizmos.DrawWireSphere(transform.position, config.attackDistance);
     }
