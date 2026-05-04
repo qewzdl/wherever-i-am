@@ -4,7 +4,10 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyAttackController : MonoBehaviour
 {
+    [SerializeField] private EnemyAttackEffect attackEffect;
+
     private float cooldownTimer;
+    private bool warnedAboutMissingAttackEffect;
 
     public void Tick(float deltaTime)
     {
@@ -47,18 +50,41 @@ public class EnemyAttackController : MonoBehaviour
 
         cooldownTimer = config.attackCooldown;
 
-        Debug.Log($"Enemy attacked client {targetNetworkObject.OwnerClientId}.", logContext);
+        EnemyAttackContext context = new EnemyAttackContext(
+            target,
+            targetNetworkObject,
+            config,
+            attackerPosition,
+            logContext != null ? logContext : this
+        );
 
-        // Future extension point:
-        // 1. Apply server-side caught/damage state.
-        // 2. Trigger ClientRpc for one-shot feedback.
-        // 3. Route attack result into player health, death, capture, or scare systems.
+        if (attackEffect == null)
+        {
+            WarnAboutMissingAttackEffect(context);
+            return false;
+        }
 
-        return true;
+        return attackEffect.TryApply(context);
     }
 
     public void ResetCooldown()
     {
         cooldownTimer = 0f;
+    }
+
+    private void WarnAboutMissingAttackEffect(EnemyAttackContext context)
+    {
+        if (warnedAboutMissingAttackEffect)
+        {
+            return;
+        }
+
+        warnedAboutMissingAttackEffect = true;
+
+        Debug.LogWarning(
+            $"{nameof(EnemyAttackController)} has no {nameof(EnemyAttackEffect)} assigned. " +
+            $"Attack against client {context.TargetClientId} was validated but no result was applied.",
+            this
+        );
     }
 }
