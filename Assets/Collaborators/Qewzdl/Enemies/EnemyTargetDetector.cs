@@ -122,12 +122,12 @@ public class EnemyTargetDetector : MonoBehaviour
 #if UNITY_EDITOR
     private void Reset()
     {
-        CacheController();
+        CacheController(forceRefresh: true);
     }
 
     private void OnValidate()
     {
-        CacheController();
+        CacheController(forceRefresh: true);
     }
 
     private void OnDrawGizmosSelected()
@@ -156,9 +156,9 @@ public class EnemyTargetDetector : MonoBehaviour
         return cachedController != null ? cachedController.Config : null;
     }
 
-    private void CacheController()
+    private void CacheController(bool forceRefresh = false)
     {
-        if (cachedController != null)
+        if (!forceRefresh && cachedController != null)
         {
             return;
         }
