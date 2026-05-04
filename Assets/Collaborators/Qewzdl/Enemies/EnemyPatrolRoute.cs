@@ -15,8 +15,13 @@ public class EnemyPatrolRoute : MonoBehaviour
             return null;
         }
 
-        int safeIndex = Mathf.Abs(index) % points.Length;
+        int safeIndex = WrapIndex(index, points.Length);
         return points[safeIndex];
+    }
+
+    private int WrapIndex(int index, int length)
+    {
+        return ((index % length) + length) % length;
     }
 
 #if UNITY_EDITOR
