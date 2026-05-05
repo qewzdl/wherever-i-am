@@ -38,6 +38,13 @@ public class EnemyAttackController : MonoBehaviour
             return false;
         }
 
+        EnemyTargetIdentity targetIdentity = EnemyTargetIdentity.FromNetworkObject(targetNetworkObject);
+
+        if (!targetIdentity.HasTarget)
+        {
+            return false;
+        }
+
         float distanceToTarget = Vector3.Distance(
             attackerPosition,
             targetNetworkObject.transform.position
@@ -52,6 +59,7 @@ public class EnemyAttackController : MonoBehaviour
 
         EnemyAttackContext context = new EnemyAttackContext(
             target,
+            targetIdentity,
             targetNetworkObject,
             config,
             attackerPosition,
@@ -83,7 +91,7 @@ public class EnemyAttackController : MonoBehaviour
 
         Debug.LogWarning(
             $"{nameof(EnemyAttackController)} has no {nameof(EnemyAttackEffect)} assigned. " +
-            $"Attack against client {context.TargetClientId} was validated but no result was applied.",
+            $"Attack against target {context.TargetDebugName} was validated but no result was applied.",
             this
         );
     }

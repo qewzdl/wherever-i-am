@@ -22,7 +22,8 @@ public sealed class EnemyReceiverAttackEffect : EnemyAttackEffect
             if (logMissingReceiver)
             {
                 Debug.LogWarning(
-                    $"Enemy attacked client {context.TargetClientId}, but target has no {nameof(IEnemyAttackReceiver)}.",
+                    $"Enemy attacked target {context.TargetDebugName}, " +
+                    $"but target has no {nameof(IEnemyAttackReceiver)}.",
                     context.Source
                 );
             }

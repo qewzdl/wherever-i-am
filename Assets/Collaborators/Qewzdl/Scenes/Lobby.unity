@@ -715,7 +715,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playersText: {fileID: 394823907}
   readyButton: {fileID: 1492635990}
-  readyButtonLabel: {fileID: 0}
+  readyButtonLabel: {fileID: 142239127}
   startGameButton: {fileID: 1202106741}
   leaveButton: {fileID: 916248616}
   readyActionText: Ready

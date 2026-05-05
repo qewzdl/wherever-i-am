@@ -14,7 +14,7 @@ public sealed class EnemyDebugAttackEffect : EnemyAttackEffect
         }
 
         Debug.Log(
-            $"Enemy attack effect applied to client {context.TargetClientId}.",
+            $"Enemy attack effect applied to target {context.TargetDebugName}.",
             context.Source
         );
 
