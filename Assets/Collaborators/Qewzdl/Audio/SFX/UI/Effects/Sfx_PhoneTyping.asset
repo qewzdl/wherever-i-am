@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7ecd4af83654fb4aa3b9a79655e585b, type: 3}
+  m_Name: Sfx_PhoneTyping
+  m_EditorClassIdentifier: 
+  clips:
+  - {fileID: 8300000, guid: 25bc1bcc441ac214388805548c1db00b, type: 3}
+  - {fileID: 8300000, guid: 92a72453fadc36c40ad58d8115937b22, type: 3}
+  - {fileID: 8300000, guid: 2a0d33780bc5a8a489209cb00b48841e, type: 3}
+  - {fileID: 8300000, guid: b727f68563a055f41a360431290e6a90, type: 3}
+  - {fileID: 8300000, guid: c0b4afb54f3a5944ab89812f85b0e8eb, type: 3}
+  - {fileID: 8300000, guid: c140dae1a89e6df469317cb04cbe40a4, type: 3}
+  volume: 0.05
+  randomizeVolume: 0
+  minVolume: 0.9
+  maxVolume: 1
+  randomizePitch: 0
+  minPitch: 0.95
+  maxPitch: 1.05
+  spatialBlend: 1
+  minDistance: 1
+  maxDistance: 25

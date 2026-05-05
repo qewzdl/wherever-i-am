@@ -25,7 +25,7 @@ MonoBehaviour:
   randomizeVolume: 0
   minVolume: 0.9
   maxVolume: 1
-  randomizePitch: 1
+  randomizePitch: 0
   minPitch: 0.95
   maxPitch: 1.05
   spatialBlend: 1
