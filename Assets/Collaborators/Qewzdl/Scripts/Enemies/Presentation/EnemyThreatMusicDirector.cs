@@ -10,10 +10,13 @@ public class EnemyThreatMusicDirector : MonoBehaviour
 
     [Header("Threat Music")]
     [SerializeField] private EnemyThreatMusicEntry[] musicByThreatLevel;
+    [SerializeField] private bool stopThreatCueWhenNoThreat = true;
+    [SerializeField, Min(0f)] private float threatFadeOutTime = 1f;
 
     private readonly Dictionary<EnemyPresentationController, EnemyThreatLevel> threatLevels = new();
 
     private EnemyThreatLevel currentAppliedThreatLevel = EnemyThreatLevel.None;
+    private MusicCue currentThreatCue;
 
     private void OnEnable()
     {
@@ -31,8 +34,11 @@ public class EnemyThreatMusicDirector : MonoBehaviour
         EnemyPresentationController.Unregistered -= HandleEnemyUnregistered;
         EnemyPresentationController.ThreatLevelChanged -= HandleThreatLevelChanged;
 
+        StopCurrentThreatCue();
+
         threatLevels.Clear();
         currentAppliedThreatLevel = EnemyThreatLevel.None;
+        currentThreatCue = null;
     }
 
     private void RegisterExistingEnemies()
@@ -44,7 +50,7 @@ public class EnemyThreatMusicDirector : MonoBehaviour
         {
             EnemyPresentationController controller = activeControllers[i];
 
-            if (controller == null)
+            if (controller == null || controller.CurrentThreatLevel == EnemyThreatLevel.None)
             {
                 continue;
             }
@@ -60,7 +66,15 @@ public class EnemyThreatMusicDirector : MonoBehaviour
             return;
         }
 
-        threatLevels[controller] = controller.CurrentThreatLevel;
+        if (controller.CurrentThreatLevel == EnemyThreatLevel.None)
+        {
+            threatLevels.Remove(controller);
+        }
+        else
+        {
+            threatLevels[controller] = controller.CurrentThreatLevel;
+        }
+
         ApplyHighestThreatLevel(force: false);
     }
 
@@ -106,30 +120,78 @@ public class EnemyThreatMusicDirector : MonoBehaviour
             return;
         }
 
+        EnemyThreatLevel previousThreatLevel = currentAppliedThreatLevel;
         currentAppliedThreatLevel = highestThreatLevel;
 
         if (highestThreatLevel == EnemyThreatLevel.None)
         {
-            ApplyNoThreatMusic();
+            HandleNoThreat();
             return;
         }
 
-        if (!TryGetCue(highestThreatLevel, out MusicCue cue, out bool restartIfSameCue))
+        if (!TryGetCue(highestThreatLevel, out MusicCue nextThreatCue, out bool restartIfSameCue))
         {
+            StopCurrentThreatCue();
             return;
         }
 
-        PlayCue(cue, restartIfSameCue);
+        PlayThreatCue(nextThreatCue, restartIfSameCue, previousThreatLevel);
     }
 
-    private void ApplyNoThreatMusic()
+    private void HandleNoThreat()
     {
-        if (!restoreNoThreatCue || noThreatCue == null)
+        if (restoreNoThreatCue && noThreatCue != null)
+        {
+            currentThreatCue = null;
+            PlayCue(noThreatCue, restartIfSameCue: false);
+            return;
+        }
+
+        if (stopThreatCueWhenNoThreat)
+        {
+            StopCurrentThreatCue();
+        }
+    }
+
+    private void PlayThreatCue(
+        MusicCue cue,
+        bool restartIfSameCue,
+        EnemyThreatLevel previousThreatLevel
+    )
+    {
+        if (cue == null)
         {
             return;
         }
 
-        PlayCue(noThreatCue, restartIfSameCue: false);
+        if (currentThreatCue != null && currentThreatCue != cue)
+        {
+            StopCurrentThreatCue();
+        }
+
+        currentThreatCue = cue;
+
+        bool shouldRestart = restartIfSameCue || previousThreatLevel != currentAppliedThreatLevel;
+        PlayCue(cue, shouldRestart);
+    }
+
+    private void StopCurrentThreatCue()
+    {
+        if (currentThreatCue == null)
+        {
+            return;
+        }
+
+        AudioManager audioManager = AudioManager.Instance;
+
+        if (audioManager == null || audioManager.Music == null)
+        {
+            currentThreatCue = null;
+            return;
+        }
+
+        audioManager.Music.StopCue(currentThreatCue, threatFadeOutTime);
+        currentThreatCue = null;
     }
 
     private void PlayCue(MusicCue cue, bool restartIfSameCue)
@@ -194,4 +256,11 @@ public class EnemyThreatMusicDirector : MonoBehaviour
 
         return false;
     }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        threatFadeOutTime = Mathf.Max(0f, threatFadeOutTime);
+    }
+#endif
 }

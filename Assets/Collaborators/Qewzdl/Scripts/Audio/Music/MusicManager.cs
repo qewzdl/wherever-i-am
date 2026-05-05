@@ -73,6 +73,16 @@ public class MusicManager : MonoBehaviour
         transitionCoroutine = StartCoroutine(FadeOutAndStop(fadeOutTime));
     }
 
+    public void StopCue(MusicCue cue, float fadeOutTime = 1f)
+    {
+        if (cue == null || currentCue != cue)
+        {
+            return;
+        }
+
+        StopMusic(fadeOutTime);
+    }
+
     public void Pause()
     {
         if (currentSource != null)
@@ -319,6 +329,8 @@ public class MusicManager : MonoBehaviour
         }
 
         currentTrack = null;
+        currentCue = null;
+        cueState = null;
         transitionCoroutine = null;
     }
 
