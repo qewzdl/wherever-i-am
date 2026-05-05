@@ -333,6 +333,8 @@ GameObject:
   - component: {fileID: 3485127563032254563}
   - component: {fileID: 7387159276498090581}
   - component: {fileID: 4840997165000147843}
+  - component: {fileID: 3681341265359804249}
+  - component: {fileID: 7002212260278922464}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -480,16 +482,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 68c76a0fd63b86b40920ddc4a2f3195e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  eyes: {fileID: 6277349385977637387}
-  playerMask:
-    serializedVersion: 2
-    m_Bits: 8
-  obstructionMask:
-    serializedVersion: 2
-    m_Bits: 897
-  maxDetectionResults: 16
-  overflowWarningCooldown: 2
-  cachedController: {fileID: 3244720467120631997}
+  visionSensor: {fileID: 3681341265359804249}
+  hearingSensor: {fileID: 7002212260278922464}
+  preferVisionOverHearing: 1
 --- !u!114 &3485127563032254563
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -530,6 +525,39 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   navMeshBuilder: {fileID: 0}
   waitForRuntimeNavMesh: 1
+--- !u!114 &3681341265359804249
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7fef9dfd661caf4e9741d9fbc7db2c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  eyes: {fileID: 6277349385977637387}
+  playerMask:
+    serializedVersion: 2
+    m_Bits: 8
+  obstructionMask:
+    serializedVersion: 2
+    m_Bits: 897
+  maxDetectionResults: 16
+  overflowWarningCooldown: 2
+--- !u!114 &7002212260278922464
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6bfd1c18b62f42040a9895dd4bb949b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

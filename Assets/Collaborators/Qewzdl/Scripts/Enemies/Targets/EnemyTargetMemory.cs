@@ -27,6 +27,11 @@ public sealed class EnemyTargetMemory
     {
         CurrentTarget = target;
         CurrentTargetIdentity = EnemyTargetIdentity.FromTarget(target);
+        RememberPosition(position);
+    }
+
+    public void RememberPosition(Vector3 position)
+    {
         LastKnownTargetPosition = position;
         HasLastKnownTargetPosition = true;
     }

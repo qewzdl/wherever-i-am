@@ -161,19 +161,45 @@ public sealed class EnemyServerBrain
 
     private void RefreshTarget()
     {
-        EnemyTarget bestTarget = targetDetector != null
-            ? targetDetector.FindBestVisibleTarget(config)
-            : null;
+        EnemyPerceptionStimulus stimulus = EnemyPerceptionStimulus.None;
+        bool hasStimulus = targetDetector != null &&
+                        targetDetector.TryFindBestStimulus(config, out stimulus);
 
-        if (bestTarget == null)
+        if (!hasStimulus)
         {
             HandleNoVisibleTarget();
             return;
         }
 
-        Vector3 targetPosition = context.GetTargetNavigationPosition(bestTarget);
-        targetMemory.SetTarget(bestTarget, targetPosition);
-        SyncTarget();
+        if (stimulus.IsConfirmedTarget && stimulus.HasTarget)
+        {
+            targetMemory.SetTarget(stimulus.Target, stimulus.Position);
+            SyncTarget();
+            return;
+        }
+
+        ApplySuspiciousStimulus(stimulus);
+    }
+
+    private void ApplySuspiciousStimulus(EnemyPerceptionStimulus stimulus)
+    {
+        if (!stimulus.HasStimulus)
+        {
+            return;
+        }
+
+        if (targetMemory.HasTarget)
+        {
+            targetMemory.ClearTargetOnly();
+            SyncTarget();
+        }
+
+        targetMemory.RememberPosition(stimulus.Position);
+
+        if (currentState == EnemyState.Idle || currentState == EnemyState.Patrol)
+        {
+            ChangeState(EnemyState.Investigate);
+        }
     }
 
     private void HandleNoVisibleTarget()
