@@ -26,6 +26,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     private bool isSubscribedToStateMachine;
 
     public event Action MessagesChanged;
+    public event Action<ChatMessageData> MessageAdded;
     public event Action AvailabilityChanged;
 
     public bool CanSubmitMessages => ResolveCurrentChannel(out _);
@@ -335,6 +336,9 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     private void HandleMessagesChanged(NetworkListEvent<ChatMessageData> changeEvent)
     {
+        if (changeEvent.Type == NetworkListEvent<ChatMessageData>.EventType.Add)
+            MessageAdded?.Invoke(changeEvent.Value);
+
         MessagesChanged?.Invoke();
     }
 

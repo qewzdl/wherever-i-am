@@ -3,6 +3,7 @@ using System;
 public interface IChatReadService
 {
     event Action MessagesChanged;
+    event Action<ChatMessageData> MessageAdded;
     event Action AvailabilityChanged;
 
     bool CanSubmitMessages { get; }

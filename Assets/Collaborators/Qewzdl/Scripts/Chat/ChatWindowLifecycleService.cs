@@ -5,8 +5,9 @@ public sealed class ChatWindowLifecycleService : MonoBehaviour
     [Header("References")]
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private ChatWindowUI chatWindowPrefab;
-
+    
     private ChatWindowUI activeWindow;
+    private ChatUnreadMessageNotifier activeNotifier;
 
     private void Awake()
     {
@@ -98,6 +99,7 @@ public sealed class ChatWindowLifecycleService : MonoBehaviour
         if (activeWindow != null)
         {
             activeWindow.Construct(chatSession, chatSession, stateMachine);
+            ConstructNotifier(chatSession);
             return;
         }
 
@@ -113,12 +115,15 @@ public sealed class ChatWindowLifecycleService : MonoBehaviour
         DontDestroyOnLoad(activeWindow.gameObject);
 
         activeWindow.Construct(chatSession, chatSession, stateMachine);
+        ConstructNotifier(chatSession);
     }
 
     private void DestroyWindow()
     {
         if (activeWindow == null)
             return;
+
+        activeNotifier = null;
 
         Destroy(activeWindow.gameObject);
         activeWindow = null;
@@ -131,5 +136,18 @@ public sealed class ChatWindowLifecycleService : MonoBehaviour
 
         if (stateMachine == null)
             stateMachine = FindFirstObjectByType<GameStateMachine>();
+    }
+
+    private void ConstructNotifier(NetworkChatSession chatSession)
+    {
+        if (activeWindow == null || chatSession == null)
+            return;
+
+        activeNotifier = activeWindow.GetComponent<ChatUnreadMessageNotifier>();
+
+        if (activeNotifier == null)
+            return;
+
+        activeNotifier.Construct(chatSession, activeWindow);
     }
 }

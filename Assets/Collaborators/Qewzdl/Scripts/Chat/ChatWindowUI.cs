@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -24,6 +25,9 @@ public class ChatWindowUI : MonoBehaviour
     private GameStateMachine stateMachine;
 
     private bool isOpen;
+
+    public event Action Opened;
+    public event Action Closed;
 
     public bool IsOpen => isOpen;
     public bool CanOpen => readService != null && readService.CanSubmitMessages;
@@ -81,6 +85,8 @@ public class ChatWindowUI : MonoBehaviour
             inputField.ActivateInputField();
             inputField.Select();
         }
+
+        Opened?.Invoke();
     }
 
     public void Close()
@@ -93,7 +99,10 @@ public class ChatWindowUI : MonoBehaviour
             inputField.DeactivateInputField();
 
         if (wasOpen)
+        {
             SetPlayerInputActive(true);
+            Closed?.Invoke();
+        }
 
         RefreshVisibility();
     }
