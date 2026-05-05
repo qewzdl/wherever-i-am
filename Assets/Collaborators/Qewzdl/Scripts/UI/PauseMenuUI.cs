@@ -11,6 +11,7 @@ public sealed class PauseMenuUI : MonoBehaviour
     [SerializeField] private Button mainMenuButton;
     [SerializeField] private Button quitButton;
     [SerializeField] private PlayerInputHandler playerInputHandler;
+    [SerializeField] private HUDUI hudUI;
 
     private IPauseService pauseService;
     private INetworkSessionService sessionService;
@@ -94,13 +95,20 @@ public sealed class PauseMenuUI : MonoBehaviour
     private void Show()
     {
         if (root != null)
+        {
             root.SetActive(true);
+            hudUI.HideHUD();
+        }
+
     }
 
     private void Hide()
     {
         if (root != null)
+        {
             root.SetActive(false);
+            hudUI.ShowHUD();    
+        }
     }
 
     private void SetPlayerInputActive(bool value)

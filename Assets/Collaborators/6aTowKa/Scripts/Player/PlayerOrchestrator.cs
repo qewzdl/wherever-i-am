@@ -25,6 +25,14 @@ public class PlayerOrchestrator : MonoBehaviour
         {
             playerComponent.Cleanup();
         }
+
+        foreach (BasePlayerSignal signal in Signals.SignalsList)
+        {
+            if (signal.GetListeners() != null)
+            {
+                Debug.Log($"Signal {signal.DebugName} has an active listener(s) that was not unsubscribed");
+            }
+        }
     }
 
     private void OnDestroy()

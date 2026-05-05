@@ -8,6 +8,8 @@ public class PlayerInputHandler : PlayerComponent
 
     private readonly HashSet<object> inputBlockers = new();
     private bool inputActive = true;
+    private bool isMovingInput = false;
+    private Vector2 lastMoveInputDirection;
 
     private void OnEnable()
     {
@@ -22,16 +24,35 @@ public class PlayerInputHandler : PlayerComponent
 
     public void OnMove(InputAction.CallbackContext context)
     {
+        Vector2 direction = context.ReadValue<Vector2>();
+
+        if (context.started)
+            isMovingInput = true;
+        else if (context.canceled)
+            isMovingInput = false;
+
         if (inputActive)
-            signals.MoveSignal.Trigger(context.ReadValue<Vector2>());
+        {
+            signals.MoveSignal.Trigger(direction);
+        }
+
+        if (isMovingInput)
+            lastMoveInputDirection = direction;
     }
 
     public void OnCrouch()
     {
         if (inputActive)
             signals.CrouchInputSignal.Trigger();
-    }    
+    }  
     
+    public void OnInteract(InputAction.CallbackContext context)
+    {
+        if (inputActive && context.started)
+            signals.Interact.Trigger();
+    }
+
+
     public void SetInputActive(bool value)
     {
         inputBlockers.Clear();
@@ -63,5 +84,9 @@ public class PlayerInputHandler : PlayerComponent
 
         if (inputActive == false && signals != null)
             signals.MoveSignal.Trigger(Vector2.zero);
+        else if (inputActive == true && signals != null && isMovingInput)
+        {
+            signals.MoveSignal.Trigger(lastMoveInputDirection);
+        }
     }
 } 
