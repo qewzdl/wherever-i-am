@@ -1,10 +1,14 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 {
     [SerializeField] private Transform eyes;
-    [SerializeField] private LayerMask playerMask;
+
+    [FormerlySerializedAs("playerMask")]
+    [SerializeField] private LayerMask targetMask;
+
     [SerializeField] private LayerMask obstructionMask;
 
     [Header("Performance")]
@@ -63,7 +67,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             transform.position,
             config.detectionRadius,
             detectionResults,
-            playerMask,
+            targetMask,
             QueryTriggerInteraction.Ignore
         );
 
