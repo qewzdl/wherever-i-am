@@ -161,30 +161,49 @@ public sealed class EnemyServerBrain
 
     private void RefreshTarget()
     {
-        EnemyPerceptionStimulus stimulus = EnemyPerceptionStimulus.None;
-        bool hasStimulus = targetDetector != null &&
-                        targetDetector.TryFindBestStimulus(config, out stimulus);
-
-        if (!hasStimulus)
+        if (targetDetector == null)
         {
-            HandleNoVisibleTarget();
+            HandleNoStimulus();
+            return;
+        }
+
+        if (!targetDetector.TryFindBestStimulus(config, out EnemyPerceptionStimulus stimulus))
+        {
+            HandleNoStimulus();
             return;
         }
 
         if (stimulus.IsConfirmedTarget && stimulus.HasTarget)
         {
-            targetMemory.SetTarget(stimulus.Target, stimulus.Position);
-            SyncTarget();
+            ApplyConfirmedTargetStimulus(stimulus);
             return;
         }
 
         ApplySuspiciousStimulus(stimulus);
     }
 
+    private void ApplyConfirmedTargetStimulus(EnemyPerceptionStimulus stimulus)
+    {
+        targetMemory.SetTarget(stimulus.Target, stimulus.Position);
+        targetMemory.ClearSecondarySuspiciousPosition();
+        SyncTarget();
+
+        if (currentState != EnemyState.Chase && currentState != EnemyState.Attack)
+        {
+            ChangeState(EnemyState.Chase);
+        }
+    }
+
     private void ApplySuspiciousStimulus(EnemyPerceptionStimulus stimulus)
     {
         if (!stimulus.HasStimulus)
         {
+            return;
+        }
+
+        if (IsPursuingConfirmedTarget())
+        {
+            targetMemory.RememberSecondarySuspiciousPosition(stimulus.Position);
             return;
         }
 
@@ -196,13 +215,20 @@ public sealed class EnemyServerBrain
 
         targetMemory.RememberPosition(stimulus.Position);
 
-        if (currentState == EnemyState.Idle || currentState == EnemyState.Patrol)
+        if (currentState != EnemyState.Investigate)
         {
             ChangeState(EnemyState.Investigate);
         }
     }
 
-    private void HandleNoVisibleTarget()
+    private bool IsPursuingConfirmedTarget()
+    {
+        return targetMemory.HasTarget &&
+               targetMemory.IsCurrentTargetValid &&
+               (currentState == EnemyState.Chase || currentState == EnemyState.Attack);
+    }
+
+    private void HandleNoStimulus()
     {
         if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
         {

@@ -6,11 +6,14 @@ public sealed class EnemyTargetMemory
 
     public EnemyTarget CurrentTarget { get; private set; }
     public EnemyTargetIdentity CurrentTargetIdentity { get; private set; } = EnemyTargetIdentity.None;
+
     public Vector3 LastKnownTargetPosition { get; private set; }
     public bool HasLastKnownTargetPosition { get; private set; }
 
-    public bool HasTarget => CurrentTarget != null;
+    public Vector3 SecondarySuspiciousPosition { get; private set; }
+    public bool HasSecondarySuspiciousPosition { get; private set; }
 
+    public bool HasTarget => CurrentTarget != null;
     public ulong CurrentTargetClientId => CurrentTargetIdentity.OwnerClientId;
 
     public bool IsCurrentTargetValid
@@ -36,16 +39,48 @@ public sealed class EnemyTargetMemory
         HasLastKnownTargetPosition = true;
     }
 
+    public void RememberSecondarySuspiciousPosition(Vector3 position)
+    {
+        SecondarySuspiciousPosition = position;
+        HasSecondarySuspiciousPosition = true;
+    }
+
+    public bool PromoteSecondarySuspiciousPositionToLastKnown()
+    {
+        if (!HasSecondarySuspiciousPosition)
+        {
+            return false;
+        }
+
+        LastKnownTargetPosition = SecondarySuspiciousPosition;
+        HasLastKnownTargetPosition = true;
+
+        ClearSecondarySuspiciousPosition();
+        return true;
+    }
+
+    public void ClearSecondarySuspiciousPosition()
+    {
+        SecondarySuspiciousPosition = default;
+        HasSecondarySuspiciousPosition = false;
+    }
+
     public void ClearTargetOnly()
     {
         CurrentTarget = null;
         CurrentTargetIdentity = EnemyTargetIdentity.None;
     }
 
+    public void ClearPrimaryInvestigationPosition()
+    {
+        LastKnownTargetPosition = default;
+        HasLastKnownTargetPosition = false;
+    }
+
     public void ClearAll()
     {
         ClearTargetOnly();
-        LastKnownTargetPosition = default;
-        HasLastKnownTargetPosition = false;
+        ClearPrimaryInvestigationPosition();
+        ClearSecondarySuspiciousPosition();
     }
 }

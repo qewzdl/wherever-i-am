@@ -11,20 +11,13 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     public void Enter()
     {
-        if (!context.TargetMemory.HasLastKnownTargetPosition)
+        if (!EnsureInvestigationPosition())
         {
             context.ReturnToDefaultBehaviour();
             return;
         }
 
-        if (!context.Navigator.TryMoveTo(
-            context.TargetMemory.LastKnownTargetPosition,
-            context.Config.chaseSpeed
-        ))
-        {
-            context.ClearAllTargetMemory();
-            context.ReturnToDefaultBehaviour();
-        }
+        MoveToInvestigationPosition();
     }
 
     public void Tick(float deltaTime)
@@ -35,25 +28,54 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        if (!context.TargetMemory.HasLastKnownTargetPosition)
+        if (!EnsureInvestigationPosition())
         {
             context.ReturnToDefaultBehaviour();
             return;
         }
 
-        context.Navigator.TryMoveTo(
-            context.TargetMemory.LastKnownTargetPosition,
-            context.Config.chaseSpeed
-        );
+        MoveToInvestigationPosition();
 
-        if (context.Navigator.HasReached(context.Config.patrolPointReachDistance))
+        if (!context.Navigator.HasReached(context.Config.patrolPointReachDistance))
         {
-            context.ClearAllTargetMemory();
-            context.ReturnToDefaultBehaviour();
+            return;
         }
+
+        context.TargetMemory.ClearPrimaryInvestigationPosition();
+
+        if (context.TargetMemory.PromoteSecondarySuspiciousPositionToLastKnown())
+        {
+            MoveToInvestigationPosition();
+            return;
+        }
+
+        context.ClearAllTargetMemory();
+        context.ReturnToDefaultBehaviour();
     }
 
     public void Exit()
     {
+    }
+
+    private bool EnsureInvestigationPosition()
+    {
+        if (context.TargetMemory.HasLastKnownTargetPosition)
+        {
+            return true;
+        }
+
+        return context.TargetMemory.PromoteSecondarySuspiciousPositionToLastKnown();
+    }
+
+    private void MoveToInvestigationPosition()
+    {
+        if (!context.Navigator.TryMoveTo(
+            context.TargetMemory.LastKnownTargetPosition,
+            context.Config.chaseSpeed
+        ))
+        {
+            context.ClearAllTargetMemory();
+            context.ReturnToDefaultBehaviour();
+        }
     }
 }
