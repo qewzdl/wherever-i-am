@@ -10,9 +10,8 @@ public sealed class EnemyStatePresentation
     [SerializeField] private string enterTrigger;
     [SerializeField] private bool resetTriggerOnExit;
 
-    [Header("Enter Sound")]
-    [SerializeField] private SoundEffect enterSound;
-    [SerializeField] private bool playEnterSoundAtEnemyPosition = true;
+    [Header("Enter Sounds")]
+    [SerializeField] private EnemyPresentationSound[] enterSounds;
 
     [Header("Looping Sound")]
     [SerializeField] private SoundEffect loopingSound;
@@ -33,8 +32,8 @@ public sealed class EnemyStatePresentation
     public string EnterTrigger => enterTrigger;
     public bool ResetTriggerOnExit => resetTriggerOnExit;
 
-    public SoundEffect EnterSound => enterSound;
-    public bool PlayEnterSoundAtEnemyPosition => playEnterSoundAtEnemyPosition;
+    public EnemyPresentationSound[] EnterSounds => enterSounds;
+    public bool HasEnterSounds => enterSounds != null && enterSounds.Length > 0;
 
     public SoundEffect LoopingSound => loopingSound;
     public bool HasLoopingSound => loopingSound != null;

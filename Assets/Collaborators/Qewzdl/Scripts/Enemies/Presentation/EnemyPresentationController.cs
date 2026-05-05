@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -27,6 +28,7 @@ public class EnemyPresentationController : NetworkBehaviour
     private EnemyStatePresentation currentPresentation;
     private EnemyThreatLevel currentThreatLevel = EnemyThreatLevel.None;
 
+    private readonly List<Coroutine> delayedSoundRoutines = new();
     private float nextLoopingSoundTime;
     private bool isRegistered;
     private bool subscribedToNetworkState;
@@ -119,8 +121,9 @@ public class EnemyPresentationController : NetworkBehaviour
             return;
         }
 
-        EnemyState previousState = currentPresentedState;
         EnemyStatePresentation previousPresentation = currentPresentation;
+
+        StopDelayedSounds();
 
         currentPresentedState = nextState;
         currentPresentation = null;
@@ -137,7 +140,7 @@ public class EnemyPresentationController : NetworkBehaviour
         currentPresentation = nextPresentation;
 
         ApplyAnimatorState(nextPresentation);
-        PlayEnterSound(nextPresentation);
+        PlayEnterSounds(nextPresentation);
         ApplyLoopingSound(nextPresentation);
         SetThreatLevel(nextPresentation.ThreatLevel);
     }
@@ -180,17 +183,61 @@ public class EnemyPresentationController : NetworkBehaviour
         animator.ResetTrigger(previousPresentation.EnterTrigger);
     }
 
-    private void PlayEnterSound(EnemyStatePresentation presentation)
+    private void PlayEnterSounds(EnemyStatePresentation presentation)
     {
-        if (presentation == null || presentation.EnterSound == null)
+        if (presentation == null || !presentation.HasEnterSounds)
         {
             return;
         }
 
-        PlaySound(
-            presentation.EnterSound,
-            presentation.PlayEnterSoundAtEnemyPosition
-        );
+        EnemyPresentationSound[] enterSounds = presentation.EnterSounds;
+
+        for (int i = 0; i < enterSounds.Length; i++)
+        {
+            PlayPresentationSound(enterSounds[i]);
+        }
+    }
+
+    private void PlayPresentationSound(EnemyPresentationSound presentationSound)
+    {
+        if (presentationSound == null || !presentationSound.ShouldPlay())
+        {
+            return;
+        }
+
+        if (presentationSound.HasDelay)
+        {
+            Coroutine routine = StartCoroutine(PlayPresentationSoundDelayed(presentationSound));
+            delayedSoundRoutines.Add(routine);
+            return;
+        }
+
+        PlaySound(presentationSound.Sound, presentationSound.PlayAtEnemyPosition);
+    }
+
+    private IEnumerator PlayPresentationSoundDelayed(EnemyPresentationSound presentationSound)
+    {
+        yield return new WaitForSeconds(presentationSound.Delay);
+
+        if (presentationSound != null && presentationSound.IsValid)
+        {
+            PlaySound(presentationSound.Sound, presentationSound.PlayAtEnemyPosition);
+        }
+    }
+
+    private void StopDelayedSounds()
+    {
+        for (int i = 0; i < delayedSoundRoutines.Count; i++)
+        {
+            Coroutine routine = delayedSoundRoutines[i];
+
+            if (routine != null)
+            {
+                StopCoroutine(routine);
+            }
+        }
+
+        delayedSoundRoutines.Clear();
     }
 
     private void ApplyLoopingSound(EnemyStatePresentation presentation)
@@ -315,8 +362,10 @@ public class EnemyPresentationController : NetworkBehaviour
     {
         UnsubscribeFromNetworkState();
         UnregisterClientPresentation();
+        StopDelayedSounds();
 
         currentPresentation = null;
+        currentThreatLevel = EnemyThreatLevel.None;
         nextLoopingSoundTime = 0f;
     }
 
