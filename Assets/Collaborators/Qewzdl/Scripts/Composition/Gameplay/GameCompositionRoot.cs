@@ -6,6 +6,9 @@ public sealed class GameCompositionRoot : CompositionRoot
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkSessionOrchestrator sessionService;
 
+    [Header("Enemies")]
+    [SerializeField] private EnemyNoiseLifecycle enemyNoiseLifecycle;
+
     [Header("Pause")]
     [SerializeField] private GamePauseService pauseService;
     [SerializeField] private PauseMenuInput pauseMenuInput;
@@ -25,6 +28,9 @@ public sealed class GameCompositionRoot : CompositionRoot
                 ? NetworkSessionOrchestrator.Instance
                 : FindFirstObjectByType<NetworkSessionOrchestrator>();
 
+        if (enemyNoiseLifecycle == null)
+            enemyNoiseLifecycle = FindFirstObjectByType<EnemyNoiseLifecycle>();
+
         if (pauseService == null)
             pauseService = FindFirstObjectByType<GamePauseService>();
 
@@ -43,6 +49,11 @@ public sealed class GameCompositionRoot : CompositionRoot
 
     protected override void Compose()
     {
+        if (enemyNoiseLifecycle != null)
+            enemyNoiseLifecycle.Initialize();
+        else
+            Debug.LogWarning($"{nameof(EnemyNoiseLifecycle)} was not found. Enemy noise events will not be cleared by gameplay lifecycle.");
+
         if (pauseService == null)
         {
             Debug.LogError("GamePauseService was not found.");
