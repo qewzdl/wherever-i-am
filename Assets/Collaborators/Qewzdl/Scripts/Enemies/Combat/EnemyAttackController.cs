@@ -6,6 +6,9 @@ public class EnemyAttackController : MonoBehaviour
 {
     [SerializeField] private EnemyAttackEffect attackEffect;
 
+    [Tooltip("If enabled, failed attack effects still consume cooldown. Keep disabled for most gameplay cases.")]
+    [SerializeField] private bool consumeCooldownOnFailedEffect;
+
     private float cooldownTimer;
     private bool warnedAboutMissingAttackEffect;
 
@@ -55,8 +58,6 @@ public class EnemyAttackController : MonoBehaviour
             return false;
         }
 
-        cooldownTimer = config.attackCooldown;
-
         EnemyAttackContext context = new EnemyAttackContext(
             target,
             targetIdentity,
@@ -72,12 +73,35 @@ public class EnemyAttackController : MonoBehaviour
             return false;
         }
 
-        return attackEffect.TryApply(context);
+        bool attackApplied = attackEffect.TryApply(context);
+
+        if (!attackApplied)
+        {
+            if (consumeCooldownOnFailedEffect)
+            {
+                StartCooldown(config);
+            }
+
+            return false;
+        }
+
+        StartCooldown(config);
+        return true;
     }
 
     public void ResetCooldown()
     {
         cooldownTimer = 0f;
+    }
+
+    private void StartCooldown(EnemyConfig config)
+    {
+        if (config == null)
+        {
+            return;
+        }
+
+        cooldownTimer = config.attackCooldown;
     }
 
     private void WarnAboutMissingAttackEffect(EnemyAttackContext context)
