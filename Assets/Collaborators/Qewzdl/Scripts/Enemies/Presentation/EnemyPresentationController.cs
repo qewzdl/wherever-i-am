@@ -8,6 +8,17 @@ using UnityEngine;
 [RequireComponent(typeof(EnemyNetworkState))]
 public class EnemyPresentationController : NetworkBehaviour
 {
+    private sealed class LoopingSoundRuntime
+    {
+        public EnemyLoopingPresentationSound Sound;
+        public float NextPlayTime;
+
+        public LoopingSoundRuntime(EnemyLoopingPresentationSound sound)
+        {
+            Sound = sound;
+        }
+    }
+
     private static readonly List<EnemyPresentationController> activeControllers = new();
 
     public static event Action<EnemyPresentationController> Registered;
@@ -24,12 +35,13 @@ public class EnemyPresentationController : NetworkBehaviour
     [Header("Profile")]
     [SerializeField] private EnemyPresentationProfile profile;
 
+    private readonly List<Coroutine> delayedSoundRoutines = new();
+    private readonly List<LoopingSoundRuntime> activeLoopingSounds = new();
+
     private EnemyState currentPresentedState = EnemyState.Idle;
     private EnemyStatePresentation currentPresentation;
     private EnemyThreatLevel currentThreatLevel = EnemyThreatLevel.None;
 
-    private readonly List<Coroutine> delayedSoundRoutines = new();
-    private float nextLoopingSoundTime;
     private bool isRegistered;
     private bool subscribedToNetworkState;
 
@@ -73,22 +85,32 @@ public class EnemyPresentationController : NetworkBehaviour
 
     private void Update()
     {
-        if (!IsClient || currentPresentation == null || !currentPresentation.HasLoopingSound)
+        if (!IsClient || activeLoopingSounds.Count == 0)
         {
             return;
         }
 
-        if (Time.time < nextLoopingSoundTime)
+        for (int i = 0; i < activeLoopingSounds.Count; i++)
         {
-            return;
+            LoopingSoundRuntime runtime = activeLoopingSounds[i];
+
+            if (runtime == null || runtime.Sound == null || !runtime.Sound.IsValid)
+            {
+                continue;
+            }
+
+            if (Time.time < runtime.NextPlayTime)
+            {
+                continue;
+            }
+
+            if (runtime.Sound.ShouldPlay())
+            {
+                PlaySound(runtime.Sound.Sound, runtime.Sound.PlayAtEnemyPosition);
+            }
+
+            ScheduleNextLoopingSound(runtime);
         }
-
-        PlaySound(
-            currentPresentation.LoopingSound,
-            currentPresentation.PlayLoopingSoundAtEnemyPosition
-        );
-
-        ScheduleNextLoopingSound(currentPresentation);
     }
 
     public void PlayAnimationSound(string eventId)
@@ -124,10 +146,10 @@ public class EnemyPresentationController : NetworkBehaviour
         EnemyStatePresentation previousPresentation = currentPresentation;
 
         StopDelayedSounds();
+        StopLoopingSounds();
 
         currentPresentedState = nextState;
         currentPresentation = null;
-        nextLoopingSoundTime = 0f;
 
         ResetPreviousTrigger(previousPresentation);
 
@@ -141,7 +163,7 @@ public class EnemyPresentationController : NetworkBehaviour
 
         ApplyAnimatorState(nextPresentation);
         PlayEnterSounds(nextPresentation);
-        ApplyLoopingSound(nextPresentation);
+        ApplyLoopingSounds(nextPresentation);
         SetThreatLevel(nextPresentation.ThreatLevel);
     }
 
@@ -219,10 +241,12 @@ public class EnemyPresentationController : NetworkBehaviour
     {
         yield return new WaitForSeconds(presentationSound.Delay);
 
-        if (presentationSound != null && presentationSound.IsValid)
+        if (presentationSound == null || !presentationSound.IsValid)
         {
-            PlaySound(presentationSound.Sound, presentationSound.PlayAtEnemyPosition);
+            yield break;
         }
+
+        PlaySound(presentationSound.Sound, presentationSound.PlayAtEnemyPosition);
     }
 
     private void StopDelayedSounds()
@@ -240,34 +264,51 @@ public class EnemyPresentationController : NetworkBehaviour
         delayedSoundRoutines.Clear();
     }
 
-    private void ApplyLoopingSound(EnemyStatePresentation presentation)
+    private void ApplyLoopingSounds(EnemyStatePresentation presentation)
     {
-        if (presentation == null || !presentation.HasLoopingSound)
+        StopLoopingSounds();
+
+        if (presentation == null || !presentation.HasLoopingSounds)
         {
-            nextLoopingSoundTime = 0f;
             return;
         }
 
-        if (presentation.PlayLoopingSoundImmediatelyOnEnter)
-        {
-            PlaySound(
-                presentation.LoopingSound,
-                presentation.PlayLoopingSoundAtEnemyPosition
-            );
-        }
+        EnemyLoopingPresentationSound[] loopingSounds = presentation.LoopingSounds;
 
-        ScheduleNextLoopingSound(presentation);
+        for (int i = 0; i < loopingSounds.Length; i++)
+        {
+            EnemyLoopingPresentationSound loopingSound = loopingSounds[i];
+
+            if (loopingSound == null || !loopingSound.IsValid)
+            {
+                continue;
+            }
+
+            LoopingSoundRuntime runtime = new LoopingSoundRuntime(loopingSound);
+            activeLoopingSounds.Add(runtime);
+
+            if (loopingSound.PlayImmediatelyOnEnter && loopingSound.ShouldPlay())
+            {
+                PlaySound(loopingSound.Sound, loopingSound.PlayAtEnemyPosition);
+            }
+
+            ScheduleNextLoopingSound(runtime);
+        }
     }
 
-    private void ScheduleNextLoopingSound(EnemyStatePresentation presentation)
+    private void ScheduleNextLoopingSound(LoopingSoundRuntime runtime)
     {
-        if (presentation == null || !presentation.HasLoopingSound)
+        if (runtime == null || runtime.Sound == null)
         {
-            nextLoopingSoundTime = 0f;
             return;
         }
 
-        nextLoopingSoundTime = Time.time + presentation.GetNextLoopingSoundDelay();
+        runtime.NextPlayTime = Time.time + runtime.Sound.GetNextDelay();
+    }
+
+    private void StopLoopingSounds()
+    {
+        activeLoopingSounds.Clear();
     }
 
     private void PlaySound(SoundEffect sound, bool playAtEnemyPosition)
@@ -362,11 +403,12 @@ public class EnemyPresentationController : NetworkBehaviour
     {
         UnsubscribeFromNetworkState();
         UnregisterClientPresentation();
+
         StopDelayedSounds();
+        StopLoopingSounds();
 
         currentPresentation = null;
         currentThreatLevel = EnemyThreatLevel.None;
-        nextLoopingSoundTime = 0f;
     }
 
     private void CacheComponents()

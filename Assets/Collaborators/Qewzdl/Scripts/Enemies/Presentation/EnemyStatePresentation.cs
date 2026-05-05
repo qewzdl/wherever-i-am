@@ -13,12 +13,8 @@ public sealed class EnemyStatePresentation
     [Header("Enter Sounds")]
     [SerializeField] private EnemyPresentationSound[] enterSounds;
 
-    [Header("Looping Sound")]
-    [SerializeField] private SoundEffect loopingSound;
-    [SerializeField] private bool playLoopingSoundImmediatelyOnEnter;
-    [SerializeField] private bool playLoopingSoundAtEnemyPosition = true;
-    [SerializeField, Min(0.05f)] private float minLoopingSoundDelay = 2f;
-    [SerializeField, Min(0.05f)] private float maxLoopingSoundDelay = 4f;
+    [Header("Looping Sounds")]
+    [SerializeField] private EnemyLoopingPresentationSound[] loopingSounds;
 
     [Header("Animation Event Sounds")]
     [SerializeField] private EnemyAnimationSound[] animationSounds;
@@ -35,20 +31,10 @@ public sealed class EnemyStatePresentation
     public EnemyPresentationSound[] EnterSounds => enterSounds;
     public bool HasEnterSounds => enterSounds != null && enterSounds.Length > 0;
 
-    public SoundEffect LoopingSound => loopingSound;
-    public bool HasLoopingSound => loopingSound != null;
-    public bool PlayLoopingSoundImmediatelyOnEnter => playLoopingSoundImmediatelyOnEnter;
-    public bool PlayLoopingSoundAtEnemyPosition => playLoopingSoundAtEnemyPosition;
+    public EnemyLoopingPresentationSound[] LoopingSounds => loopingSounds;
+    public bool HasLoopingSounds => loopingSounds != null && loopingSounds.Length > 0;
 
     public EnemyThreatLevel ThreatLevel => threatLevel;
-
-    public float GetNextLoopingSoundDelay()
-    {
-        float safeMinDelay = Mathf.Max(0.05f, minLoopingSoundDelay);
-        float safeMaxDelay = Mathf.Max(safeMinDelay, maxLoopingSoundDelay);
-
-        return Random.Range(safeMinDelay, safeMaxDelay);
-    }
 
     public bool TryGetAnimationSound(string eventId, out EnemyAnimationSound animationSound)
     {
@@ -77,7 +63,14 @@ public sealed class EnemyStatePresentation
 
     public void Normalize()
     {
-        minLoopingSoundDelay = Mathf.Max(0.05f, minLoopingSoundDelay);
-        maxLoopingSoundDelay = Mathf.Max(minLoopingSoundDelay, maxLoopingSoundDelay);
+        if (loopingSounds == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < loopingSounds.Length; i++)
+        {
+            loopingSounds[i]?.Normalize();
+        }
     }
 }
