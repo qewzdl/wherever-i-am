@@ -21,8 +21,8 @@ public class NetworkEnemyController : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
-    private readonly NetworkVariable<ulong> currentTargetClientId = new(
-        EnemyTargetMemory.NoTargetClientId,
+    private readonly NetworkVariable<EnemyTargetIdentity> currentTargetIdentity = new(
+        EnemyTargetIdentity.None,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
@@ -31,8 +31,10 @@ public class NetworkEnemyController : NetworkBehaviour
 
     public EnemyConfig Config => config;
     public EnemyState CurrentState => currentState.Value;
-    public ulong CurrentTargetClientId => currentTargetClientId.Value;
-    public bool HasTarget => currentTargetClientId.Value != EnemyTargetMemory.NoTargetClientId;
+    
+    public EnemyTargetIdentity CurrentTargetIdentity => currentTargetIdentity.Value;
+    public ulong CurrentTargetClientId => currentTargetIdentity.Value.OwnerClientId;
+    public bool HasTarget => currentTargetIdentity.Value.HasTarget;
 
     private void Awake()
     {
@@ -162,7 +164,7 @@ public class NetworkEnemyController : NetworkBehaviour
             patrolController,
             attackController,
             SetStateServer,
-            SetTargetClientIdServer
+            SetTargetIdentityServer
         );
     }
 
@@ -204,14 +206,14 @@ public class NetworkEnemyController : NetworkBehaviour
         currentState.Value = nextState;
     }
 
-    private void SetTargetClientIdServer(ulong targetClientId)
+    private void SetTargetIdentityServer(EnemyTargetIdentity targetIdentity)
     {
-        if (!IsServer || currentTargetClientId.Value == targetClientId)
+        if (!IsServer || currentTargetIdentity.Value == targetIdentity)
         {
             return;
         }
 
-        currentTargetClientId.Value = targetClientId;
+        currentTargetIdentity.Value = targetIdentity;
     }
 
 #if UNITY_EDITOR

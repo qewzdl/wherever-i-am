@@ -1,4 +1,3 @@
-using Unity.Netcode;
 using UnityEngine;
 
 public sealed class EnemyTargetMemory
@@ -6,24 +5,28 @@ public sealed class EnemyTargetMemory
     public const ulong NoTargetClientId = ulong.MaxValue;
 
     public EnemyTarget CurrentTarget { get; private set; }
-    public ulong CurrentTargetClientId { get; private set; } = NoTargetClientId;
+    public EnemyTargetIdentity CurrentTargetIdentity { get; private set; } = EnemyTargetIdentity.None;
     public Vector3 LastKnownTargetPosition { get; private set; }
     public bool HasLastKnownTargetPosition { get; private set; }
 
     public bool HasTarget => CurrentTarget != null;
 
+    public ulong CurrentTargetClientId => CurrentTargetIdentity.OwnerClientId;
+
     public bool IsCurrentTargetValid
     {
         get
         {
-            return CurrentTarget != null && CurrentTarget.IsValidNetworkTarget;
+            return CurrentTarget != null &&
+                   CurrentTarget.IsValidNetworkTarget &&
+                   CurrentTargetIdentity.HasTarget;
         }
     }
 
     public void SetTarget(EnemyTarget target, Vector3 position)
     {
         CurrentTarget = target;
-        CurrentTargetClientId = GetClientId(target);
+        CurrentTargetIdentity = EnemyTargetIdentity.FromTarget(target);
         LastKnownTargetPosition = position;
         HasLastKnownTargetPosition = true;
     }
@@ -31,7 +34,7 @@ public sealed class EnemyTargetMemory
     public void ClearTargetOnly()
     {
         CurrentTarget = null;
-        CurrentTargetClientId = NoTargetClientId;
+        CurrentTargetIdentity = EnemyTargetIdentity.None;
     }
 
     public void ClearAll()
@@ -39,22 +42,5 @@ public sealed class EnemyTargetMemory
         ClearTargetOnly();
         LastKnownTargetPosition = default;
         HasLastKnownTargetPosition = false;
-    }
-
-    public static ulong GetClientId(EnemyTarget target)
-    {
-        if (target == null)
-        {
-            return NoTargetClientId;
-        }
-
-        NetworkObject targetNetworkObject = target.NetworkObject;
-
-        if (targetNetworkObject == null || !targetNetworkObject.IsSpawned)
-        {
-            return NoTargetClientId;
-        }
-
-        return targetNetworkObject.OwnerClientId;
     }
 }

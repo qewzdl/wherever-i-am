@@ -9,7 +9,7 @@ public sealed class EnemyServerBrain
     private readonly EnemyTargetDetector targetDetector;
     private readonly EnemyAttackController attackController;
     private readonly Action<EnemyState> setState;
-    private readonly Action<ulong> setTargetClientId;
+    private readonly Action<EnemyTargetIdentity> setTargetIdentity;
 
     private readonly EnemyTargetMemory targetMemory = new();
     private readonly Dictionary<EnemyState, IEnemyStateHandler> stateHandlers = new();
@@ -28,7 +28,7 @@ public sealed class EnemyServerBrain
         EnemyPatrolController patrolController,
         EnemyAttackController attackController,
         Action<EnemyState> setState,
-        Action<ulong> setTargetClientId
+        Action<EnemyTargetIdentity> setTargetIdentity
     )
     {
         this.config = config;
@@ -36,7 +36,7 @@ public sealed class EnemyServerBrain
         this.targetDetector = targetDetector;
         this.attackController = attackController;
         this.setState = setState;
-        this.setTargetClientId = setTargetClientId;
+        this.setTargetIdentity = setTargetIdentity;
 
         context = new EnemyBrainContext(
             config,
@@ -194,7 +194,7 @@ public sealed class EnemyServerBrain
             return;
         }
 
-        if (targetMemory.HasTarget || targetMemory.CurrentTargetClientId != EnemyTargetMemory.NoTargetClientId)
+        if (targetMemory.HasTarget || targetMemory.CurrentTargetIdentity.HasTarget)
         {
             targetMemory.ClearAll();
             SyncTarget();
@@ -203,6 +203,6 @@ public sealed class EnemyServerBrain
 
     private void SyncTarget()
     {
-        setTargetClientId?.Invoke(targetMemory.CurrentTargetClientId);
+        setTargetIdentity?.Invoke(targetMemory.CurrentTargetIdentity);
     }
 }
