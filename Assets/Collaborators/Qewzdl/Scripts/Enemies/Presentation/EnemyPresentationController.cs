@@ -18,14 +18,18 @@ public class EnemyPresentationController : NetworkBehaviour
     [Header("References")]
     [SerializeField] private EnemyNetworkState networkState;
     [SerializeField] private Animator animator;
-
-    [Header("Presentation")]
-    [SerializeField] private EnemyPresentationProfile profile;
     [SerializeField] private Transform soundOrigin;
 
+    [Header("Profile")]
+    [SerializeField] private EnemyPresentationProfile profile;
+
     private EnemyState currentPresentedState = EnemyState.Idle;
+    private EnemyStatePresentation currentPresentation;
     private EnemyThreatLevel currentThreatLevel = EnemyThreatLevel.None;
+
+    private float nextLoopingSoundTime;
     private bool isRegistered;
+    private bool subscribedToNetworkState;
 
     public EnemyThreatLevel CurrentThreatLevel => currentThreatLevel;
 
@@ -49,20 +53,58 @@ public class EnemyPresentationController : NetworkBehaviour
             return;
         }
 
-        networkState.StateChanged += HandleStateChanged;
-
+        SubscribeToNetworkState();
         RegisterClientPresentation();
+
         ApplyState(networkState.CurrentState, force: true);
     }
 
     public override void OnNetworkDespawn()
     {
-        if (networkState != null)
+        CleanupClientPresentation();
+    }
+
+    private void OnDisable()
+    {
+        CleanupClientPresentation();
+    }
+
+    private void Update()
+    {
+        if (!IsClient || currentPresentation == null || !currentPresentation.HasLoopingSound)
         {
-            networkState.StateChanged -= HandleStateChanged;
+            return;
         }
 
-        UnregisterClientPresentation();
+        if (Time.time < nextLoopingSoundTime)
+        {
+            return;
+        }
+
+        PlaySound(
+            currentPresentation.LoopingSound,
+            currentPresentation.PlayLoopingSoundAtEnemyPosition
+        );
+
+        ScheduleNextLoopingSound(currentPresentation);
+    }
+
+    public void PlayAnimationSound(string eventId)
+    {
+        if (!IsClient || profile == null || string.IsNullOrWhiteSpace(eventId))
+        {
+            return;
+        }
+
+        if (!profile.TryGetAnimationSound(
+            currentPresentedState,
+            eventId,
+            out EnemyAnimationSound animationSound))
+        {
+            return;
+        }
+
+        PlaySound(animationSound.Sound, animationSound.PlayAtEnemyPosition);
     }
 
     private void HandleStateChanged(EnemyState previousState, EnemyState nextState)
@@ -78,19 +120,26 @@ public class EnemyPresentationController : NetworkBehaviour
         }
 
         EnemyState previousState = currentPresentedState;
+        EnemyStatePresentation previousPresentation = currentPresentation;
+
         currentPresentedState = nextState;
+        currentPresentation = null;
+        nextLoopingSoundTime = 0f;
 
-        ResetPreviousTrigger(previousState);
+        ResetPreviousTrigger(previousPresentation);
 
-        if (!profile.TryGetPresentation(nextState, out EnemyStatePresentation presentation))
+        if (!profile.TryGetPresentation(nextState, out EnemyStatePresentation nextPresentation))
         {
             SetThreatLevel(EnemyThreatLevel.None);
             return;
         }
 
-        ApplyAnimatorState(presentation);
-        PlayEnterSound(presentation);
-        SetThreatLevel(presentation.ThreatLevel);
+        currentPresentation = nextPresentation;
+
+        ApplyAnimatorState(nextPresentation);
+        PlayEnterSound(nextPresentation);
+        ApplyLoopingSound(nextPresentation);
+        SetThreatLevel(nextPresentation.ThreatLevel);
     }
 
     private void ApplyAnimatorState(EnemyStatePresentation presentation)
@@ -115,14 +164,9 @@ public class EnemyPresentationController : NetworkBehaviour
         }
     }
 
-    private void ResetPreviousTrigger(EnemyState previousState)
+    private void ResetPreviousTrigger(EnemyStatePresentation previousPresentation)
     {
-        if (animator == null || profile == null)
-        {
-            return;
-        }
-
-        if (!profile.TryGetPresentation(previousState, out EnemyStatePresentation previousPresentation))
+        if (animator == null || previousPresentation == null)
         {
             return;
         }
@@ -143,6 +187,49 @@ public class EnemyPresentationController : NetworkBehaviour
             return;
         }
 
+        PlaySound(
+            presentation.EnterSound,
+            presentation.PlayEnterSoundAtEnemyPosition
+        );
+    }
+
+    private void ApplyLoopingSound(EnemyStatePresentation presentation)
+    {
+        if (presentation == null || !presentation.HasLoopingSound)
+        {
+            nextLoopingSoundTime = 0f;
+            return;
+        }
+
+        if (presentation.PlayLoopingSoundImmediatelyOnEnter)
+        {
+            PlaySound(
+                presentation.LoopingSound,
+                presentation.PlayLoopingSoundAtEnemyPosition
+            );
+        }
+
+        ScheduleNextLoopingSound(presentation);
+    }
+
+    private void ScheduleNextLoopingSound(EnemyStatePresentation presentation)
+    {
+        if (presentation == null || !presentation.HasLoopingSound)
+        {
+            nextLoopingSoundTime = 0f;
+            return;
+        }
+
+        nextLoopingSoundTime = Time.time + presentation.GetNextLoopingSoundDelay();
+    }
+
+    private void PlaySound(SoundEffect sound, bool playAtEnemyPosition)
+    {
+        if (sound == null)
+        {
+            return;
+        }
+
         AudioManager audioManager = AudioManager.Instance;
 
         if (audioManager == null || audioManager.Gameplay == null)
@@ -150,14 +237,14 @@ public class EnemyPresentationController : NetworkBehaviour
             return;
         }
 
-        if (presentation.PlaySoundAtEnemyPosition)
+        if (playAtEnemyPosition)
         {
             Transform origin = soundOrigin != null ? soundOrigin : transform;
-            audioManager.Gameplay.PlayAtPosition(presentation.EnterSound, origin.position);
+            audioManager.Gameplay.PlayAtPosition(sound, origin.position);
             return;
         }
 
-        audioManager.Gameplay.Play2D(presentation.EnterSound);
+        audioManager.Gameplay.Play2D(sound);
     }
 
     private void SetThreatLevel(EnemyThreatLevel nextThreatLevel)
@@ -169,6 +256,28 @@ public class EnemyPresentationController : NetworkBehaviour
 
         currentThreatLevel = nextThreatLevel;
         ThreatLevelChanged?.Invoke(this, currentThreatLevel);
+    }
+
+    private void SubscribeToNetworkState()
+    {
+        if (subscribedToNetworkState || networkState == null)
+        {
+            return;
+        }
+
+        networkState.StateChanged += HandleStateChanged;
+        subscribedToNetworkState = true;
+    }
+
+    private void UnsubscribeFromNetworkState()
+    {
+        if (!subscribedToNetworkState || networkState == null)
+        {
+            return;
+        }
+
+        networkState.StateChanged -= HandleStateChanged;
+        subscribedToNetworkState = false;
     }
 
     private void RegisterClientPresentation()
@@ -200,6 +309,15 @@ public class EnemyPresentationController : NetworkBehaviour
 
         ThreatLevelChanged?.Invoke(this, EnemyThreatLevel.None);
         Unregistered?.Invoke(this);
+    }
+
+    private void CleanupClientPresentation()
+    {
+        UnsubscribeFromNetworkState();
+        UnregisterClientPresentation();
+
+        currentPresentation = null;
+        nextLoopingSoundTime = 0f;
     }
 
     private void CacheComponents()
@@ -237,7 +355,7 @@ public class EnemyPresentationController : NetworkBehaviour
         if (animator == null)
         {
             Debug.LogWarning(
-                $"{nameof(EnemyPresentationController)} has no Animator. Enemy SFX and threat presentation will still work.",
+                $"{nameof(EnemyPresentationController)} has no Animator. Audio and threat presentation will still work.",
                 this
             );
         }

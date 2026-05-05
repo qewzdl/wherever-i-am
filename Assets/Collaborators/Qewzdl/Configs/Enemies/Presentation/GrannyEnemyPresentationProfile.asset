@@ -19,34 +19,65 @@ MonoBehaviour:
     animatorStateValue: 0
     enterTrigger: 
     resetTriggerOnExit: 0
-    enterSound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
-    playSoundAtEnemyPosition: 1
+    enterSound: {fileID: 0}
+    playEnterSoundAtEnemyPosition: 1
+    loopingSound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
+    playLoopingSoundImmediatelyOnEnter: 0
+    playLoopingSoundAtEnemyPosition: 1
+    minLoopingSoundDelay: 2
+    maxLoopingSoundDelay: 4
+    animationSounds: []
     threatLevel: 0
   - state: 1
     animatorStateValue: 1
     enterTrigger: 
     resetTriggerOnExit: 0
-    enterSound: {fileID: 11400000, guid: a1df360407c71424f84b942e677d6815, type: 2}
-    playSoundAtEnemyPosition: 1
+    enterSound: {fileID: 0}
+    playEnterSoundAtEnemyPosition: 1
+    loopingSound: {fileID: 11400000, guid: a1df360407c71424f84b942e677d6815, type: 2}
+    playLoopingSoundImmediatelyOnEnter: 0
+    playLoopingSoundAtEnemyPosition: 1
+    minLoopingSoundDelay: 0.5
+    maxLoopingSoundDelay: 1
+    animationSounds: []
     threatLevel: 0
   - state: 2
     animatorStateValue: 2
     enterTrigger: 
     resetTriggerOnExit: 0
     enterSound: {fileID: 11400000, guid: 18b7a30a31bfff04b8bc94094755bb23, type: 2}
-    playSoundAtEnemyPosition: 1
+    playEnterSoundAtEnemyPosition: 1
+    loopingSound: {fileID: 11400000, guid: 18b7a30a31bfff04b8bc94094755bb23, type: 2}
+    playLoopingSoundImmediatelyOnEnter: 0
+    playLoopingSoundAtEnemyPosition: 1
+    minLoopingSoundDelay: 2
+    maxLoopingSoundDelay: 4
+    animationSounds: []
     threatLevel: 2
   - state: 3
     animatorStateValue: 3
     enterTrigger: 
     resetTriggerOnExit: 0
     enterSound: {fileID: 11400000, guid: 0116defcf45f09443aab7c5e0c119f79, type: 2}
-    playSoundAtEnemyPosition: 1
+    playEnterSoundAtEnemyPosition: 1
+    loopingSound: {fileID: 0}
+    playLoopingSoundImmediatelyOnEnter: 0
+    playLoopingSoundAtEnemyPosition: 1
+    minLoopingSoundDelay: 2
+    maxLoopingSoundDelay: 4
+    animationSounds: []
     threatLevel: 3
   - state: 4
     animatorStateValue: 4
     enterTrigger: 
     resetTriggerOnExit: 0
-    enterSound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
-    playSoundAtEnemyPosition: 1
+    enterSound: {fileID: 0}
+    playEnterSoundAtEnemyPosition: 1
+    loopingSound: {fileID: 11400000, guid: 18b7a30a31bfff04b8bc94094755bb23, type: 2}
+    playLoopingSoundImmediatelyOnEnter: 0
+    playLoopingSoundAtEnemyPosition: 1
+    minLoopingSoundDelay: 2
+    maxLoopingSoundDelay: 4
+    animationSounds: []
     threatLevel: 1
+  fallbackAnimationSounds: []

@@ -338,8 +338,7 @@ GameObject:
   - component: {fileID: 5660041982996278054}
   - component: {fileID: 6370502762402772414}
   - component: {fileID: 799151811322310901}
-  - component: {fileID: 603606508533552859}
-  - component: {fileID: 5488285789650572463}
+  - component: {fileID: 1081402138771381397}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -606,9 +605,9 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   networkState: {fileID: 5660041982996278054}
   animator: {fileID: 0}
+  soundOrigin: {fileID: 4339498192358923099}
   profile: {fileID: 11400000, guid: 3278e6d2f867edd4297b3be857df2141, type: 2}
-  soundOrigin: {fileID: 4339498192358923099}
---- !u!114 &603606508533552859
+--- !u!114 &1081402138771381397
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -617,55 +616,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 5706861626712077370}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6120332fcd0cb9c48bbaca6548906239, type: 3}
+  m_Script: {fileID: 11500000, guid: b30979de16d94ef499a27551908ec83c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  soundOrigin: {fileID: 4339498192358923099}
-  footstepSound: {fileID: 11400000, guid: a1df360407c71424f84b942e677d6815, type: 2}
-  chaseFootstepSound: {fileID: 11400000, guid: a1df360407c71424f84b942e677d6815, type: 2}
-  networkState: {fileID: 5660041982996278054}
-  breathingSound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
-  attackSwingSound: {fileID: 11400000, guid: 0116defcf45f09443aab7c5e0c119f79, type: 2}
---- !u!114 &5488285789650572463
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5706861626712077370}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c8bf2a3073d190f448afc36e7c530964, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  networkState: {fileID: 5660041982996278054}
-  soundOrigin: {fileID: 4339498192358923099}
-  loopingSounds:
-  - state: 0
-    sound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
-    playImmediatelyOnEnter: 0
-    minDelay: 0.05
-    maxDelay: 0.05
-    playAtEnemyPosition: 1
-  - state: 1
-    sound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
-    playImmediatelyOnEnter: 0
-    minDelay: 0.05
-    maxDelay: 0.05
-    playAtEnemyPosition: 1
-  - state: 2
-    sound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
-    playImmediatelyOnEnter: 0
-    minDelay: 0.05
-    maxDelay: 0.05
-    playAtEnemyPosition: 1
-  - state: 4
-    sound: {fileID: 11400000, guid: fd7c3d72d629b6443b809cc5d0c8dc50, type: 2}
-    playImmediatelyOnEnter: 0
-    minDelay: 0.05
-    maxDelay: 0.05
-    playAtEnemyPosition: 1
+  presentationController: {fileID: 799151811322310901}
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

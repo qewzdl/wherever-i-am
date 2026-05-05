@@ -13,6 +13,9 @@ public class EnemyPresentationProfile : ScriptableObject
     [Header("State Presentation")]
     [SerializeField] private EnemyStatePresentation[] states;
 
+    [Header("Fallback Animation Event Sounds")]
+    [SerializeField] private EnemyAnimationSound[] fallbackAnimationSounds;
+
     public string StateIntegerParameter => stateIntegerParameter;
     public bool UseStateIntegerParameter => useStateIntegerParameter;
 
@@ -43,4 +46,64 @@ public class EnemyPresentationProfile : ScriptableObject
 
         return false;
     }
+
+    public bool TryGetAnimationSound(
+        EnemyState state,
+        string eventId,
+        out EnemyAnimationSound animationSound
+    )
+    {
+        animationSound = null;
+
+        if (TryGetPresentation(state, out EnemyStatePresentation presentation) &&
+            presentation.TryGetAnimationSound(eventId, out animationSound))
+        {
+            return true;
+        }
+
+        return TryGetFallbackAnimationSound(eventId, out animationSound);
+    }
+
+    private bool TryGetFallbackAnimationSound(
+        string eventId,
+        out EnemyAnimationSound animationSound
+    )
+    {
+        animationSound = null;
+
+        if (fallbackAnimationSounds == null || string.IsNullOrWhiteSpace(eventId))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < fallbackAnimationSounds.Length; i++)
+        {
+            EnemyAnimationSound candidate = fallbackAnimationSounds[i];
+
+            if (candidate == null || !candidate.Matches(eventId))
+            {
+                continue;
+            }
+
+            animationSound = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (states == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < states.Length; i++)
+        {
+            states[i]?.Normalize();
+        }
+    }
+#endif
 }

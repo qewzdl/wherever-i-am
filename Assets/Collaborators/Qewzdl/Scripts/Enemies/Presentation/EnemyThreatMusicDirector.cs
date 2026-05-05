@@ -4,11 +4,12 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyThreatMusicDirector : MonoBehaviour
 {
-    [Header("Music")]
-    [SerializeField] private EnemyThreatMusicEntry[] musicByThreatLevel;
+    [Header("No Threat")]
+    [SerializeField] private MusicCue noThreatCue;
+    [SerializeField] private bool restoreNoThreatCue = true;
 
-    [Header("Behaviour")]
-    [SerializeField] private bool playNoneCueWhenNoThreat = true;
+    [Header("Threat Music")]
+    [SerializeField] private EnemyThreatMusicEntry[] musicByThreatLevel;
 
     private readonly Dictionary<EnemyPresentationController, EnemyThreatLevel> threatLevels = new();
 
@@ -107,12 +108,33 @@ public class EnemyThreatMusicDirector : MonoBehaviour
 
         currentAppliedThreatLevel = highestThreatLevel;
 
-        if (highestThreatLevel == EnemyThreatLevel.None && !playNoneCueWhenNoThreat)
+        if (highestThreatLevel == EnemyThreatLevel.None)
         {
+            ApplyNoThreatMusic();
             return;
         }
 
         if (!TryGetCue(highestThreatLevel, out MusicCue cue, out bool restartIfSameCue))
+        {
+            return;
+        }
+
+        PlayCue(cue, restartIfSameCue);
+    }
+
+    private void ApplyNoThreatMusic()
+    {
+        if (!restoreNoThreatCue || noThreatCue == null)
+        {
+            return;
+        }
+
+        PlayCue(noThreatCue, restartIfSameCue: false);
+    }
+
+    private void PlayCue(MusicCue cue, bool restartIfSameCue)
+    {
+        if (cue == null)
         {
             return;
         }
