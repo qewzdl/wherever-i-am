@@ -16,7 +16,7 @@ public static class EnemyNoiseSystem
         Object sourceObject = null
     )
     {
-        if (!CanRaiseNoise())
+        if (!CanRaiseNoiseServer())
         {
             return false;
         }
@@ -117,15 +117,12 @@ public static class EnemyNoiseSystem
         noises.Clear();
     }
 
-    private static bool CanRaiseNoise()
+    public static bool CanRaiseNoiseServer()
     {
         NetworkManager networkManager = NetworkManager.Singleton;
 
-        if (networkManager == null || !networkManager.IsListening)
-        {
-            return true;
-        }
-
-        return networkManager.IsServer;
+        return networkManager != null &&
+               networkManager.IsListening &&
+               networkManager.IsServer;
     }
 }
