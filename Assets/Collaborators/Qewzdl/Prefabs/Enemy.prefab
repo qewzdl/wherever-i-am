@@ -337,6 +337,7 @@ GameObject:
   - component: {fileID: 7002212260278922464}
   - component: {fileID: 5660041982996278054}
   - component: {fileID: 6370502762402772414}
+  - component: {fileID: 799151811322310901}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -588,6 +589,23 @@ MonoBehaviour:
   navigator: {fileID: 3485127563032254563}
   attackController: {fileID: 7387159276498090581}
   navMeshStartupGate: {fileID: 4840997165000147843}
+--- !u!114 &799151811322310901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce114b280e2249040b34e1e05c23d9bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  networkState: {fileID: 5660041982996278054}
+  animator: {fileID: 0}
+  profile: {fileID: 11400000, guid: 3278e6d2f867edd4297b3be857df2141, type: 2}
+  soundOrigin: {fileID: 4339498192358923099}
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

@@ -574,7 +574,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 111286751}
-        m_TargetAssemblyTypeName: MainMenuUI, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuUI, WhereverIAm.Qewzdl
         m_MethodName: OnCreateLobbyButtonClicked
         m_Mode: 1
         m_Arguments:
@@ -722,7 +722,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 111286751}
-        m_TargetAssemblyTypeName: MainMenuUI, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuUI, WhereverIAm.Qewzdl
         m_MethodName: OnJoinLobbyButtonClicked
         m_Mode: 1
         m_Arguments:
@@ -1464,7 +1464,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 111286751}
-        m_TargetAssemblyTypeName: MainMenuUI, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuUI, WhereverIAm.Qewzdl
         m_MethodName: OnQuitButtonClicked
         m_Mode: 1
         m_Arguments:

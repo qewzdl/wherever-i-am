@@ -704,7 +704,7 @@ MonoBehaviour:
   - m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 8635111170416589885}
-        m_TargetAssemblyTypeName: PlayerInput, Assembly-CSharp
+        m_TargetAssemblyTypeName: PlayerInputHandler, WhereverIAm.Player
         m_MethodName: OnMove
         m_Mode: 0
         m_Arguments:
@@ -732,7 +732,7 @@ MonoBehaviour:
   - m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 8635111170416589885}
-        m_TargetAssemblyTypeName: PlayerInput, Assembly-CSharp
+        m_TargetAssemblyTypeName: PlayerInputHandler, WhereverIAm.Player
         m_MethodName: OnCrouch
         m_Mode: 1
         m_Arguments:

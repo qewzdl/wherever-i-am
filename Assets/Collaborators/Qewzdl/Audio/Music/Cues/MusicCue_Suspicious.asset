@@ -10,10 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c41ffc0b388442e43bfeea12fabf8cab, type: 3}
-  m_Name: MusicCue_Game
+  m_Name: MusicCue_Suspicious
   m_EditorClassIdentifier: 
   cueId: gameplay
-  tracks: []
+  tracks:
+  - {fileID: 11400000, guid: 37d30ecbe91a7f34693d1ecae2a99e9d, type: 2}
   selector: {fileID: 11400000, guid: 3343c09ae2be8be4491740f1e6cfbb48, type: 2}
   continueAfterTrackEnds: 0
   loopCue: 1
