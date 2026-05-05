@@ -335,6 +335,8 @@ GameObject:
   - component: {fileID: 4840997165000147843}
   - component: {fileID: 3681341265359804249}
   - component: {fileID: 7002212260278922464}
+  - component: {fileID: 5660041982996278054}
+  - component: {fileID: 6370502762402772414}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -466,10 +468,8 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   config: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
   patrolRoute: {fileID: 0}
-  targetDetector: {fileID: 8819588128110754358}
-  navigator: {fileID: 3485127563032254563}
-  attackController: {fileID: 7387159276498090581}
-  navMeshStartupGate: {fileID: 4840997165000147843}
+  networkState: {fileID: 5660041982996278054}
+  serverRuntime: {fileID: 6370502762402772414}
 --- !u!114 &8819588128110754358
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -511,6 +511,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   attackEffect: {fileID: 11400000, guid: 27a637118f278c44c98a6df94e73d301, type: 2}
+  consumeCooldownOnFailedEffect: 0
 --- !u!114 &4840997165000147843
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -538,7 +539,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   eyes: {fileID: 6277349385977637387}
-  playerMask:
+  targetMask:
     serializedVersion: 2
     m_Bits: 8
   obstructionMask:
@@ -558,6 +559,35 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6bfd1c18b62f42040a9895dd4bb949b5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &5660041982996278054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef0e5b08256f0b24785e0913c812ec19, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &6370502762402772414
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caf53f1dc22be044893ad978c898a62e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetDetector: {fileID: 8819588128110754358}
+  navigator: {fileID: 3485127563032254563}
+  attackController: {fileID: 7387159276498090581}
+  navMeshStartupGate: {fileID: 4840997165000147843}
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

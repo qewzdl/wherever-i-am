@@ -2,39 +2,32 @@ using Unity.Netcode;
 using UnityEngine;
 
 [RequireComponent(typeof(NetworkObject))]
-[RequireComponent(typeof(EnemyNavigator))]
-[RequireComponent(typeof(EnemyAttackController))]
-[RequireComponent(typeof(EnemyNavMeshStartupGate))]
+[RequireComponent(typeof(EnemyNetworkState))]
+[RequireComponent(typeof(EnemyServerRuntime))]
 public class NetworkEnemyController : NetworkBehaviour
 {
-    [Header("References")]
+    [Header("Config")]
     [SerializeField] private EnemyConfig config;
     [SerializeField] private EnemyPatrolRoute patrolRoute;
-    [SerializeField] private EnemyTargetDetector targetDetector;
-    [SerializeField] private EnemyNavigator navigator;
-    [SerializeField] private EnemyAttackController attackController;
-    [SerializeField] private EnemyNavMeshStartupGate navMeshStartupGate;
 
-    private readonly NetworkVariable<EnemyState> currentState = new(
-        EnemyState.Idle,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
+    [Header("Runtime")]
+    [SerializeField] private EnemyNetworkState networkState;
+    [SerializeField] private EnemyServerRuntime serverRuntime;
 
-    private readonly NetworkVariable<EnemyTargetIdentity> currentTargetIdentity = new(
-        EnemyTargetIdentity.None,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
-
-    private EnemyServerBrain brain;
+    private bool shouldStartServerRuntime;
 
     public EnemyConfig Config => config;
-    public EnemyState CurrentState => currentState.Value;
-    
-    public EnemyTargetIdentity CurrentTargetIdentity => currentTargetIdentity.Value;
-    public ulong CurrentTargetClientId => currentTargetIdentity.Value.OwnerClientId;
-    public bool HasTarget => currentTargetIdentity.Value.HasTarget;
+
+    public EnemyState CurrentState =>
+        networkState != null ? networkState.CurrentState : EnemyState.Idle;
+
+    public EnemyTargetIdentity CurrentTargetIdentity =>
+        networkState != null ? networkState.CurrentTargetIdentity : EnemyTargetIdentity.None;
+
+    public ulong CurrentTargetClientId =>
+        networkState != null ? networkState.CurrentTargetClientId : EnemyTargetMemory.NoTargetClientId;
+
+    public bool HasTarget => networkState != null && networkState.HasTarget;
 
     private void Awake()
     {
@@ -53,62 +46,51 @@ public class NetworkEnemyController : NetworkBehaviour
 
         if (!IsServer)
         {
-            navigator.DisableAgent();
+            serverRuntime.DisableClientSimulation();
             return;
         }
 
-        navigator.Configure(config);
-        CreateBrainServer();
-        TryStartBrainServer();
+        shouldStartServerRuntime = true;
     }
 
     public override void OnNetworkDespawn()
     {
-        if (navMeshStartupGate != null)
-        {
-            navMeshStartupGate.RemoveReadyListener(OnNavMeshReadyServer);
-        }
-
-        brain?.Dispose();
-        brain = null;
+        shouldStartServerRuntime = false;
+        serverRuntime?.ShutdownServer();
     }
 
     private void Update()
     {
-        if (!IsServer || brain == null)
+        if (!IsServer || serverRuntime == null)
         {
             return;
         }
 
-        if (!brain.HasStarted)
+        if (shouldStartServerRuntime)
         {
-            TryStartBrainServer();
+            shouldStartServerRuntime = false;
+
+            if (!serverRuntime.TryInitializeServer(config, patrolRoute, networkState))
+            {
+                enabled = false;
+            }
+
             return;
         }
 
-        brain.Tick(Time.deltaTime);
+        serverRuntime.TickServer(Time.deltaTime);
     }
 
     private void CacheComponents()
     {
-        if (targetDetector == null)
+        if (networkState == null)
         {
-            targetDetector = GetComponent<EnemyTargetDetector>();
+            networkState = GetComponent<EnemyNetworkState>();
         }
 
-        if (navigator == null)
+        if (serverRuntime == null)
         {
-            navigator = GetComponent<EnemyNavigator>();
-        }
-
-        if (attackController == null)
-        {
-            attackController = GetComponent<EnemyAttackController>();
-        }
-
-        if (navMeshStartupGate == null)
-        {
-            navMeshStartupGate = GetComponent<EnemyNavMeshStartupGate>();
+            serverRuntime = GetComponent<EnemyServerRuntime>();
         }
     }
 
@@ -120,100 +102,19 @@ public class NetworkEnemyController : NetworkBehaviour
             return false;
         }
 
-        if (navigator == null)
+        if (networkState == null)
         {
-            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNavigator)}.", this);
+            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNetworkState)}.", this);
             return false;
         }
 
-        if (attackController == null)
+        if (serverRuntime == null)
         {
-            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyAttackController)}.", this);
+            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyServerRuntime)}.", this);
             return false;
-        }
-
-        if (navMeshStartupGate == null)
-        {
-            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNavMeshStartupGate)}.", this);
-            return false;
-        }
-
-        if (targetDetector == null)
-        {
-            Debug.LogWarning(
-                $"{nameof(NetworkEnemyController)} has no {nameof(EnemyTargetDetector)}. Enemy will patrol but will not detect players.",
-                this
-            );
         }
 
         return true;
-    }
-
-    private void CreateBrainServer()
-    {
-        EnemyPatrolController patrolController = new EnemyPatrolController(
-            patrolRoute,
-            navigator,
-            config
-        );
-
-        brain = new EnemyServerBrain(
-            config,
-            navigator,
-            targetDetector,
-            patrolController,
-            attackController,
-            SetStateServer,
-            SetTargetIdentityServer
-        );
-    }
-
-    private void TryStartBrainServer()
-    {
-        if (brain == null)
-        {
-            return;
-        }
-
-        if (navMeshStartupGate != null && !navMeshStartupGate.TryMakeReadyServer())
-        {
-            SetStateServer(EnemyState.Idle);
-            navMeshStartupGate.AddReadyListener(OnNavMeshReadyServer);
-            return;
-        }
-
-        brain.Start();
-    }
-
-    private void OnNavMeshReadyServer()
-    {
-        if (!IsServer)
-        {
-            return;
-        }
-
-        navMeshStartupGate.RemoveReadyListener(OnNavMeshReadyServer);
-        TryStartBrainServer();
-    }
-
-    private void SetStateServer(EnemyState nextState)
-    {
-        if (!IsServer || currentState.Value == nextState)
-        {
-            return;
-        }
-
-        currentState.Value = nextState;
-    }
-
-    private void SetTargetIdentityServer(EnemyTargetIdentity targetIdentity)
-    {
-        if (!IsServer || currentTargetIdentity.Value == targetIdentity)
-        {
-            return;
-        }
-
-        currentTargetIdentity.Value = targetIdentity;
     }
 
 #if UNITY_EDITOR
@@ -226,6 +127,16 @@ public class NetworkEnemyController : NetworkBehaviour
 
         Gizmos.color = Color.magenta;
         Gizmos.DrawWireSphere(transform.position, config.attackDistance);
+    }
+
+    private void Reset()
+    {
+        CacheComponents();
+    }
+
+    private void OnValidate()
+    {
+        CacheComponents();
     }
 #endif
 }
