@@ -18,6 +18,7 @@ public class ChatVisibilityController : MonoBehaviour
         if (chatEvents == null)
         {
             Debug.LogError($"{nameof(ChatVisibilityController)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            enabled = false;
         }
     }
 
