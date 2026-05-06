@@ -116,7 +116,11 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     public override void OnDestroy()
     {
         UnsubscribeFromEventChannel();
+        UnsubscribeFromMessages();
+        UnsubscribeFromStateMachine();
+
         messages?.Dispose();
+
         base.OnDestroy();
     }
 
@@ -188,6 +192,11 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     private void HandleSendRequested(ChatSendRequest request)
     {
+        if (!IsClient)
+        {
+            return;
+        }
+
         if (!IsSpawned)
         {
             RaiseLocalSendRejected(request, "Chat session is not ready.");
@@ -200,19 +209,14 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
             return;
         }
 
-        if (!ResolveCurrentChannel(out ChatChannel channel))
-        {
-            RaiseLocalSendRejected(request, "Chat is not available.");
-            return;
-        }
-
         if (!TryNormalizeMessage(request.GetNormalizedText(), out string normalizedText, out string reason))
         {
             RaiseLocalSendRejected(request, reason);
             return;
         }
 
-        SubmitMessageRpc(new FixedString512Bytes(normalizedText), channel);
+        ChatChannel requestedChannel = currentChannel.Value;
+        SubmitMessageRpc(new FixedString512Bytes(normalizedText), requestedChannel);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]

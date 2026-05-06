@@ -14,6 +14,11 @@ public class ChatVisibilityController : MonoBehaviour
     private void Awake()
     {
         CurrentState = initialState;
+
+        if (chatEvents == null)
+        {
+            Debug.LogError($"{nameof(ChatVisibilityController)} requires an assigned {nameof(ChatEventChannel)}.", this);
+        }
     }
 
     private void Start()
@@ -46,13 +51,32 @@ public class ChatVisibilityController : MonoBehaviour
         ChatVisibilityState previousState = CurrentState;
         CurrentState = newState;
 
-        if (chatEvents != null)
-            chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(previousState, CurrentState));
+        if (!HasEventChannel())
+        {
+            return;
+        }
+
+        chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(previousState, CurrentState));
     }
 
     private void RaiseCurrentState()
     {
+        if (!HasEventChannel())
+        {
+            return;
+        }
+
+        chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(CurrentState, CurrentState));
+    }
+
+    private bool HasEventChannel()
+    {
         if (chatEvents != null)
-            chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(CurrentState, CurrentState));
+        {
+            return true;
+        }
+
+        Debug.LogError($"{nameof(ChatVisibilityController)} requires an assigned {nameof(ChatEventChannel)}.", this);
+        return false;
     }
 }
