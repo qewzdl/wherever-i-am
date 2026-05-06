@@ -19,7 +19,12 @@ public class ChatNotificationAudioController : MonoBehaviour
 
     private void OnEnable()
     {
-        ResolveEventChannel();
+        if (chatEvents == null)
+        {
+            Debug.LogError($"{nameof(ChatNotificationAudioController)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            enabled = false;
+            return;
+        }
 
         chatEvents.MessageReceived += OnMessageReceived;
         chatEvents.VisibilityChanged += OnVisibilityChanged;
@@ -76,10 +81,5 @@ public class ChatNotificationAudioController : MonoBehaviour
         }
 
         AudioManager.Instance.UI.Play(sound);
-    }
-
-    private void ResolveEventChannel()
-    {
-        chatEvents = ChatEventChannel.Resolve(chatEvents);
     }
 }

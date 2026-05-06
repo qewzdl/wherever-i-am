@@ -4,45 +4,11 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "ChatEventChannel", menuName = "Chat/Event Channel")]
 public class ChatEventChannel : ScriptableObject
 {
-    private static ChatEventChannel runtimeInstance;
-
     public event Action<ChatSendRequest> SendRequested;
     public event Action<ChatMessageReceivedEvent> MessageReceived;
     public event Action<ChatSendRejectedEvent> SendRejected;
     public event Action<ChatVisibilityChangedEvent> VisibilityChanged;
     public event Action<int> UnreadCountChanged;
-
-    public static ChatEventChannel Runtime
-    {
-        get
-        {
-            if (runtimeInstance == null)
-            {
-                runtimeInstance = CreateInstance<ChatEventChannel>();
-                runtimeInstance.name = "RuntimeChatEventChannel";
-                runtimeInstance.hideFlags = HideFlags.DontSave;
-            }
-
-            return runtimeInstance;
-        }
-    }
-
-    public static ChatEventChannel Resolve(ChatEventChannel channel)
-    {
-        return channel != null ? channel : Runtime;
-    }
-
-    private void OnEnable()
-    {
-        if (runtimeInstance == null)
-            runtimeInstance = this;
-    }
-
-    private void OnDisable()
-    {
-        if (runtimeInstance == this)
-            runtimeInstance = null;
-    }
 
     public bool RaiseSendRequested(ChatSendRequest request)
     {

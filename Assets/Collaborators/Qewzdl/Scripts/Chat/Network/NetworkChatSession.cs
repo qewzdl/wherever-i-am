@@ -70,7 +70,6 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         );
 
         ResolveReferences();
-        ResolveEventChannel();
     }
 
     public override void OnNetworkSpawn()
@@ -421,11 +420,6 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
             stateMachine = FindFirstObjectByType<GameStateMachine>();
     }
 
-    private void ResolveEventChannel()
-    {
-        chatEvents = ChatEventChannel.Resolve(chatEvents);
-    }
-
     private void SubscribeToMessages()
     {
         if (isSubscribedToMessages || messages == null)
@@ -492,10 +486,14 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         if (isSubscribedToEventChannel)
             return;
 
-        ResolveEventChannel();
+        if (!IsClient)
+            return;
 
         if (chatEvents == null)
+        {
+            Debug.LogError($"{nameof(NetworkChatSession)} requires an assigned {nameof(ChatEventChannel)}.", this);
             return;
+        }
 
         chatEvents.SendRequested += HandleSendRequested;
         isSubscribedToEventChannel = true;
@@ -512,7 +510,11 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     private void RaiseMessageReceived(ChatMessageData message)
     {
-        ResolveEventChannel();
+        if (!IsClient)
+            return;
+
+        if (chatEvents == null)
+            return;
 
         bool isSystemMessage = message.Channel == ChatChannel.System;
         bool isLocalSender = !isSystemMessage &&
@@ -534,7 +536,12 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     private void RaiseLocalSendRejected(ChatSendRequest request, string reason)
     {
-        ResolveEventChannel();
+        if (!IsClient)
+            return;
+
+        if (chatEvents == null)
+            return;
+
         chatEvents.RaiseSendRejected(new ChatSendRejectedEvent(request, reason));
     }
 

@@ -27,7 +27,6 @@ public class ChatWindowUI : MonoBehaviour
     [SerializeField] private bool closeAfterSubmit = false;
 
     private IChatReadService readService;
-    private IChatCommandService commandService;
     private GameStateMachine stateMachine;
 
     private bool isOpen;
@@ -48,7 +47,6 @@ public class ChatWindowUI : MonoBehaviour
         UnsubscribeFromServices();
 
         this.readService = readService;
-        this.commandService = commandService;
         this.stateMachine = stateMachine;
 
         ResolveReferences();
@@ -228,16 +226,13 @@ public class ChatWindowUI : MonoBehaviour
             readService != null ? readService.CurrentChannel.ToString() : string.Empty
         );
 
-        ResolveEventChannel();
-
-        if (chatEvents != null)
-            return chatEvents.RaiseSendRequested(request);
-
-        if (commandService == null)
+        if (chatEvents == null)
+        {
+            Debug.LogError($"{nameof(ChatWindowUI)} requires an assigned {nameof(ChatEventChannel)}.", this);
             return false;
+        }
 
-        commandService.SubmitMessage(request.GetNormalizedText());
-        return true;
+        return chatEvents.RaiseSendRequested(request);
     }
 
     private bool ApplyOpenState(bool shouldOpen, bool publishEvent)
@@ -379,8 +374,6 @@ public class ChatWindowUI : MonoBehaviour
         if (isSubscribedToEventChannel)
             return;
 
-        ResolveEventChannel();
-
         if (chatEvents == null)
             return;
 
@@ -406,20 +399,13 @@ public class ChatWindowUI : MonoBehaviour
         ChatVisibilityState previousState,
         ChatVisibilityState currentState)
     {
-        ResolveEventChannel();
-        chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(previousState, currentState));
+        if (chatEvents != null)
+            chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(previousState, currentState));
     }
 
     private void ResolveReferences()
     {
-        ResolveEventChannel();
-
         if (visibilityController == null)
             visibilityController = GetComponent<ChatVisibilityController>();
-    }
-
-    private void ResolveEventChannel()
-    {
-        chatEvents = ChatEventChannel.Resolve(chatEvents);
     }
 }

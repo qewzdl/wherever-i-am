@@ -13,7 +13,12 @@ public class ChatReadStateTracker : MonoBehaviour
 
     private void OnEnable()
     {
-        ResolveEventChannel();
+        if (chatEvents == null)
+        {
+            Debug.LogError($"{nameof(ChatReadStateTracker)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            enabled = false;
+            return;
+        }
 
         chatEvents.MessageReceived += OnMessageReceived;
         chatEvents.VisibilityChanged += OnVisibilityChanged;
@@ -71,11 +76,7 @@ public class ChatReadStateTracker : MonoBehaviour
         }
 
         UnreadCount = normalizedValue;
-        chatEvents.RaiseUnreadCountChanged(UnreadCount);
-    }
-
-    private void ResolveEventChannel()
-    {
-        chatEvents = ChatEventChannel.Resolve(chatEvents);
+        if (chatEvents != null)
+            chatEvents.RaiseUnreadCountChanged(UnreadCount);
     }
 }

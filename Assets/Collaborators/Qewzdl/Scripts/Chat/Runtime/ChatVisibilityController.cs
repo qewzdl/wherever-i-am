@@ -13,7 +13,6 @@ public class ChatVisibilityController : MonoBehaviour
 
     private void Awake()
     {
-        ResolveEventChannel();
         CurrentState = initialState;
     }
 
@@ -47,18 +46,13 @@ public class ChatVisibilityController : MonoBehaviour
         ChatVisibilityState previousState = CurrentState;
         CurrentState = newState;
 
-        ResolveEventChannel();
-        chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(previousState, CurrentState));
+        if (chatEvents != null)
+            chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(previousState, CurrentState));
     }
 
     private void RaiseCurrentState()
     {
-        ResolveEventChannel();
-        chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(CurrentState, CurrentState));
-    }
-
-    private void ResolveEventChannel()
-    {
-        chatEvents = ChatEventChannel.Resolve(chatEvents);
+        if (chatEvents != null)
+            chatEvents.RaiseVisibilityChanged(new ChatVisibilityChangedEvent(CurrentState, CurrentState));
     }
 }
