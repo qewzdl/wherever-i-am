@@ -72,6 +72,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   stateMachine: {fileID: 0}
+  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
   maxStoredMessages: 80
   maxMessageLength: 120
   messageCooldownSeconds: 0.5

@@ -14,6 +14,9 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     [Header("References")]
     [SerializeField] private GameStateMachine stateMachine;
 
+    [Header("Events")]
+    [SerializeField] private ChatEventChannel chatEvents;
+
     [Header("Settings")]
     [SerializeField, Min(1)] private int maxStoredMessages = 80;
     [SerializeField, Min(1)] private int maxMessageLength = 120;
@@ -37,6 +40,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     private NetworkList<ChatMessageData> messages;
     private bool isSubscribedToMessages;
     private bool isSubscribedToStateMachine;
+    private bool isSubscribedToEventChannel;
     private uint nextMessageId = 1;
 
     public event Action MessagesChanged;
@@ -66,6 +70,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         );
 
         ResolveReferences();
+        ResolveEventChannel();
     }
 
     public override void OnNetworkSpawn()
@@ -82,6 +87,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         }
 
         SubscribeToMessages();
+        SubscribeToEventChannel();
 
         currentChannel.OnValueChanged += HandleCurrentChannelChanged;
         isChatAvailable.OnValueChanged += HandleAvailabilityChanged;
@@ -93,6 +99,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     public override void OnNetworkDespawn()
     {
+        UnsubscribeFromEventChannel();
         UnsubscribeFromMessages();
         UnsubscribeFromStateMachine();
 
@@ -109,6 +116,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     public override void OnDestroy()
     {
+        UnsubscribeFromEventChannel();
         messages?.Dispose();
         base.OnDestroy();
     }
@@ -176,17 +184,34 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     public void SubmitMessage(string text)
     {
+        HandleSendRequested(new ChatSendRequest(text, CurrentChannel.ToString()));
+    }
+
+    private void HandleSendRequested(ChatSendRequest request)
+    {
         if (!IsSpawned)
         {
-            Debug.LogWarning("Cannot submit chat message before NetworkChatSession is spawned.");
+            RaiseLocalSendRejected(request, "Chat session is not ready.");
+            return;
+        }
+
+        if (!CanSubmitMessages)
+        {
+            RaiseLocalSendRejected(request, "Chat is not available.");
             return;
         }
 
         if (!ResolveCurrentChannel(out ChatChannel channel))
+        {
+            RaiseLocalSendRejected(request, "Chat is not available.");
             return;
+        }
 
-        if (!TryNormalizeMessage(text, out string normalizedText))
+        if (!TryNormalizeMessage(request.GetNormalizedText(), out string normalizedText, out string reason))
+        {
+            RaiseLocalSendRejected(request, reason);
             return;
+        }
 
         SubmitMessageRpc(new FixedString512Bytes(normalizedText), channel);
     }
@@ -201,27 +226,52 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
             return;
 
         ulong senderClientId = rpcParams.Receive.SenderClientId;
+        string submittedText = rawText.ToString();
 
         if (!IsClientConnected(senderClientId))
             return;
 
         if (!ResolveCurrentChannel(out ChatChannel serverChannel))
+        {
+            RejectMessage(senderClientId, submittedText, "Chat is not available.");
             return;
+        }
 
         if (requestedChannel != serverChannel)
+        {
+            RejectMessage(senderClientId, submittedText, "Chat channel changed. Try again.");
             return;
+        }
 
-        if (!TryNormalizeMessage(rawText.ToString(), out string normalizedText))
+        if (!TryNormalizeMessage(submittedText, out string normalizedText, out string reason))
+        {
+            RejectMessage(senderClientId, submittedText, reason);
             return;
+        }
 
         if (!CanSendMessageNow(senderClientId))
+        {
+            RejectMessage(senderClientId, normalizedText, "You are sending messages too quickly.");
             return;
+        }
 
         AppendMessage(
             senderClientId,
             ResolveSenderName(senderClientId),
             normalizedText,
             serverChannel
+        );
+    }
+
+    [Rpc(SendTo.SpecifiedInParams)]
+    private void RejectMessageRpc(
+        FixedString512Bytes rawText,
+        FixedString128Bytes reason,
+        RpcParams rpcParams = default)
+    {
+        RaiseLocalSendRejected(
+            new ChatSendRequest(rawText.ToString(), CurrentChannel.ToString()),
+            reason.ToString()
         );
     }
 
@@ -326,7 +376,22 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     private bool TryNormalizeMessage(string rawText, out string normalizedText)
     {
-        return messageValidator.TryNormalize(rawText, maxMessageLength, out normalizedText);
+        return TryNormalizeMessage(rawText, out normalizedText, out _);
+    }
+
+    private bool TryNormalizeMessage(
+        string rawText,
+        out string normalizedText,
+        out string rejectionReason)
+    {
+        if (messageValidator.TryNormalize(rawText, maxMessageLength, out normalizedText))
+        {
+            rejectionReason = string.Empty;
+            return true;
+        }
+
+        rejectionReason = "Message is empty.";
+        return false;
     }
 
     private uint GetNextMessageId()
@@ -354,6 +419,11 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     {
         if (stateMachine == null)
             stateMachine = FindFirstObjectByType<GameStateMachine>();
+    }
+
+    private void ResolveEventChannel()
+    {
+        chatEvents = ChatEventChannel.Resolve(chatEvents);
     }
 
     private void SubscribeToMessages()
@@ -401,7 +471,10 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     private void HandleMessagesChanged(NetworkListEvent<ChatMessageData> changeEvent)
     {
         if (changeEvent.Type == NetworkListEvent<ChatMessageData>.EventType.Add)
+        {
             MessageAdded?.Invoke(changeEvent.Value);
+            RaiseMessageReceived(changeEvent.Value);
+        }
 
         MessagesChanged?.Invoke();
     }
@@ -412,5 +485,65 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
         AvailabilityChanged?.Invoke();
         MessagesChanged?.Invoke();
+    }
+
+    private void SubscribeToEventChannel()
+    {
+        if (isSubscribedToEventChannel)
+            return;
+
+        ResolveEventChannel();
+
+        if (chatEvents == null)
+            return;
+
+        chatEvents.SendRequested += HandleSendRequested;
+        isSubscribedToEventChannel = true;
+    }
+
+    private void UnsubscribeFromEventChannel()
+    {
+        if (!isSubscribedToEventChannel || chatEvents == null)
+            return;
+
+        chatEvents.SendRequested -= HandleSendRequested;
+        isSubscribedToEventChannel = false;
+    }
+
+    private void RaiseMessageReceived(ChatMessageData message)
+    {
+        ResolveEventChannel();
+
+        bool isSystemMessage = message.Channel == ChatChannel.System;
+        bool isLocalSender = !isSystemMessage &&
+                             NetworkManager != null &&
+                             NetworkManager.IsListening &&
+                             message.SenderClientId == NetworkManager.LocalClientId;
+
+        chatEvents.RaiseMessageReceived(new ChatMessageReceivedEvent(
+            message.MessageId.ToString(),
+            message.Channel.ToString(),
+            message.SenderClientId,
+            message.SenderName.ToString(),
+            message.Text.ToString(),
+            isLocalSender,
+            isSystemMessage,
+            message.ServerTime
+        ));
+    }
+
+    private void RaiseLocalSendRejected(ChatSendRequest request, string reason)
+    {
+        ResolveEventChannel();
+        chatEvents.RaiseSendRejected(new ChatSendRejectedEvent(request, reason));
+    }
+
+    private void RejectMessage(ulong clientId, string rawText, string reason)
+    {
+        RejectMessageRpc(
+            new FixedString512Bytes(rawText ?? string.Empty),
+            new FixedString128Bytes(reason ?? "Message was rejected."),
+            RpcTarget.Single(clientId, RpcTargetUse.Temp)
+        );
     }
 }

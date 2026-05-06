@@ -17,11 +17,15 @@ MonoBehaviour:
   acceleration: 12
   angularSpeed: 360
   stoppingDistance: 0.2
-  detectionRadius: 12
-  viewAngle: 110
-  loseTargetDistance: 16
+  detectionRadius: 24
+  viewAngle: 180
+  loseTargetDistance: 24
   targetHeightOffset: 1.2
   targetRefreshInterval: 0.25
+  hearingEnabled: 1
+  hearingRadius: 10
+  hearingMemoryDuration: 3
+  minimumNoiseLoudness: 0.1
   attackDistance: 1.6
   attackCooldown: 1.5
   patrolPointReachDistance: 0.4
