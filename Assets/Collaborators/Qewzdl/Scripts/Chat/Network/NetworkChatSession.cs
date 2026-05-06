@@ -4,6 +4,15 @@ using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
+public interface IChatConfig
+{
+    int MaxStoredMessages { get; }
+
+    int MaxMessageLength { get; }
+
+    float MessageCooldownSeconds { get; }
+}
+
 public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatCommandService
 {
     public static NetworkChatSession Instance { get; private set; }
@@ -20,10 +29,12 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     [SerializeField, Min(0f)] private float messageCooldownSeconds = 0.5f;
 
     private readonly Dictionary<ulong, double> lastMessageTimeByClient = new Dictionary<ulong, double>();
+    private readonly ChatMessageValidator messageValidator = new ChatMessageValidator();
 
     private NetworkList<ChatMessageData> messages;
     private bool isSubscribedToMessages;
     private bool isSubscribedToStateMachine;
+    private uint nextMessageId = 1;
 
     public event Action MessagesChanged;
     public event Action<ChatMessageData> MessageAdded;
@@ -43,6 +54,14 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     }
 
     public int MessageCount => messages != null ? messages.Count : 0;
+
+    public void Construct(GameStateMachine injectedStateMachine, IChatConfig config)
+    {
+        if (injectedStateMachine != null)
+            stateMachine = injectedStateMachine;
+
+        ApplyConfig(config);
+    }
 
     private void Awake()
     {
@@ -192,6 +211,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
             : Time.unscaledTimeAsDouble;
 
         messages.Add(new ChatMessageData(
+            GetNextMessageId(),
             senderClientId,
             senderName,
             text,
@@ -257,33 +277,28 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     private bool TryNormalizeMessage(string rawText, out string normalizedText)
     {
-        normalizedText = string.Empty;
+        return messageValidator.TryNormalize(rawText, maxMessageLength, out normalizedText);
+    }
 
-        if (string.IsNullOrWhiteSpace(rawText))
-            return false;
+    private uint GetNextMessageId()
+    {
+        uint messageId = nextMessageId;
+        nextMessageId++;
 
-        int safeMaxLength = Mathf.Clamp(maxMessageLength, 1, 120);
+        if (nextMessageId == 0)
+            nextMessageId = 1;
 
-        string text = rawText
-            .Replace("\r", " ")
-            .Replace("\n", " ")
-            .Trim();
+        return messageId;
+    }
 
-        while (text.Contains("  "))
-            text = text.Replace("  ", " ");
+    private void ApplyConfig(IChatConfig config)
+    {
+        if (config == null)
+            return;
 
-        if (text.Length > safeMaxLength)
-            text = text.Substring(0, safeMaxLength).Trim();
-
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-
-        text = text
-            .Replace("<", "‹")
-            .Replace(">", "›");
-
-        normalizedText = text;
-        return true;
+        maxStoredMessages = config.MaxStoredMessages;
+        maxMessageLength = config.MaxMessageLength;
+        messageCooldownSeconds = config.MessageCooldownSeconds;
     }
 
     private void ResolveReferences()

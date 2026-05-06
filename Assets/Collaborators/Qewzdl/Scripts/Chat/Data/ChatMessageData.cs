@@ -4,6 +4,7 @@ using Unity.Netcode;
 
 public struct ChatMessageData : INetworkSerializable, IEquatable<ChatMessageData>
 {
+    public uint MessageId;
     public ulong SenderClientId;
     public FixedString32Bytes SenderName;
     public FixedString512Bytes Text;
@@ -11,12 +12,14 @@ public struct ChatMessageData : INetworkSerializable, IEquatable<ChatMessageData
     public double ServerTime;
 
     public ChatMessageData(
+        uint messageId,
         ulong senderClientId,
         string senderName,
         string text,
         ChatChannel channel,
         double serverTime)
     {
+        MessageId = messageId;
         SenderClientId = senderClientId;
         SenderName = senderName;
         Text = text;
@@ -26,6 +29,7 @@ public struct ChatMessageData : INetworkSerializable, IEquatable<ChatMessageData
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
+        serializer.SerializeValue(ref MessageId);
         serializer.SerializeValue(ref SenderClientId);
         serializer.SerializeValue(ref SenderName);
         serializer.SerializeValue(ref Text);
@@ -41,7 +45,8 @@ public struct ChatMessageData : INetworkSerializable, IEquatable<ChatMessageData
 
     public bool Equals(ChatMessageData other)
     {
-        return SenderClientId == other.SenderClientId &&
+        return MessageId == other.MessageId &&
+               SenderClientId == other.SenderClientId &&
                SenderName.Equals(other.SenderName) &&
                Text.Equals(other.Text) &&
                Channel == other.Channel &&
@@ -57,7 +62,8 @@ public struct ChatMessageData : INetworkSerializable, IEquatable<ChatMessageData
     {
         unchecked
         {
-            int hashCode = SenderClientId.GetHashCode();
+            int hashCode = MessageId.GetHashCode();
+            hashCode = (hashCode * 397) ^ SenderClientId.GetHashCode();
             hashCode = (hashCode * 397) ^ SenderName.GetHashCode();
             hashCode = (hashCode * 397) ^ Text.GetHashCode();
             hashCode = (hashCode * 397) ^ Channel.GetHashCode();

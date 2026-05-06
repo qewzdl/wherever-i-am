@@ -5,7 +5,9 @@ public class NetworkChatSessionSpawner : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
+    [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkChatSession chatSessionPrefab;
+    [SerializeField] private ScriptableObject chatConfig;
 
     private NetworkChatSession spawnedSession;
 
@@ -33,10 +35,22 @@ public class NetworkChatSessionSpawner : MonoBehaviour
             return;
         }
 
-        if (spawnedSession != null && spawnedSession.IsSpawned)
-            return;
+        if (spawnedSession != null)
+        {
+            if (spawnedSession.IsSpawned)
+                return;
+
+            Destroy(spawnedSession.gameObject);
+            spawnedSession = null;
+        }
+
+        IChatConfig config = chatConfig as IChatConfig;
+
+        if (chatConfig != null && config == null)
+            Debug.LogWarning("Assigned chat config does not implement IChatConfig.");
 
         NetworkChatSession instance = Instantiate(chatSessionPrefab);
+        instance.Construct(stateMachine, config);
 
         if (!instance.TryGetComponent(out NetworkObject networkObject))
         {
@@ -54,8 +68,7 @@ public class NetworkChatSessionSpawner : MonoBehaviour
         if (spawnedSession == null)
             return;
 
-        if (networkManager == null)
-            ResolveReferences();
+        ResolveReferences();
 
         if (networkManager == null || !networkManager.IsServer)
             return;
@@ -78,5 +91,8 @@ public class NetworkChatSessionSpawner : MonoBehaviour
 
         if (networkManager == null)
             networkManager = NetworkManager.Singleton;
+
+        if (stateMachine == null)
+            stateMachine = GetComponent<GameStateMachine>();
     }
 }

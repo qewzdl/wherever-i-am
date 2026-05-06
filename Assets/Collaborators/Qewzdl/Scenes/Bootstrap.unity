@@ -322,7 +322,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
+  stateMachine: {fileID: 481142978}
   chatSessionPrefab: {fileID: 8870712710676629079, guid: 38dc1c674a614d74da8374175a6d3c16, type: 3}
+  chatConfig: {fileID: 11400000, guid: d955cf441c32fcf40a0a951f263c63b8, type: 2}
 --- !u!114 &481142985
 MonoBehaviour:
   m_ObjectHideFlags: 0

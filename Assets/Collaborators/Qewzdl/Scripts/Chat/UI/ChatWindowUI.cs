@@ -9,6 +9,9 @@ public class ChatWindowUI : MonoBehaviour
     [Header("Root")]
     [SerializeField] private GameObject root;
 
+    [Header("Message List")]
+    [SerializeField] private ChatMessageListView messageListView;
+
     [Header("UI")]
     [SerializeField] private TMP_Text messagesText;
     [SerializeField] private TMP_InputField inputField;
@@ -46,11 +49,9 @@ public class ChatWindowUI : MonoBehaviour
 
         SubscribeToServices();
 
-        if (isOpen)
-            SetPlayerInputActive(true);
-
         isOpen = false;
 
+        SetPlayerInputActive(true);
         RefreshVisibility();
         RefreshMessages();
     }
@@ -233,14 +234,25 @@ public class ChatWindowUI : MonoBehaviour
 
     private void RefreshMessages()
     {
-        if (messagesText == null)
-            return;
-
         if (readService == null)
         {
             ClearMessages();
             return;
         }
+
+        if (messageListView != null)
+        {
+            messageListView.Render(readService);
+            return;
+        }
+
+        RefreshMessagesAsTextFallback();
+    }
+
+    private void RefreshMessagesAsTextFallback()
+    {
+        if (messagesText == null)
+            return;
 
         ChatChannel currentChannel = readService.CurrentChannel;
         StringBuilder builder = new StringBuilder();
@@ -283,6 +295,9 @@ public class ChatWindowUI : MonoBehaviour
 
     private void ClearMessages()
     {
+        if (messageListView != null)
+            messageListView.Clear();
+
         if (messagesText != null)
             messagesText.text = string.Empty;
     }
