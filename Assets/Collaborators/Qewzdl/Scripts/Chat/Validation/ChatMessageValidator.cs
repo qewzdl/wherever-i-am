@@ -1,7 +1,5 @@
 public sealed class ChatMessageValidator
 {
-    private const int AbsoluteMaxMessageLength = 120;
-
     public bool TryNormalize(
         string rawText,
         int maxMessageLength,
@@ -40,9 +38,6 @@ public sealed class ChatMessageValidator
     {
         if (value < 1)
             return 1;
-
-        if (value > AbsoluteMaxMessageLength)
-            return AbsoluteMaxMessageLength;
 
         return value;
     }

@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,10 +12,8 @@ public class ChatWindowUI : MonoBehaviour
     [SerializeField] private ChatMessageListView messageListView;
 
     [Header("UI")]
-    [SerializeField] private TMP_Text messagesText;
     [SerializeField] private TMP_InputField inputField;
     [SerializeField] private Button sendButton;
-    [SerializeField] private ScrollRect scrollRect;
     [SerializeField] private PlayerInputHandler playerInputHandler;
 
     [Header("Settings")]
@@ -110,9 +107,6 @@ public class ChatWindowUI : MonoBehaviour
 
     private void Awake()
     {
-        if (messagesText != null)
-            messagesText.richText = false;
-
         if (sendButton != null)
             sendButton.onClick.AddListener(SubmitCurrentMessage);
 
@@ -240,66 +234,16 @@ public class ChatWindowUI : MonoBehaviour
             return;
         }
 
-        if (messageListView != null)
-        {
-            messageListView.Render(readService);
-            return;
-        }
-
-        RefreshMessagesAsTextFallback();
-    }
-
-    private void RefreshMessagesAsTextFallback()
-    {
-        if (messagesText == null)
+        if (messageListView == null)
             return;
 
-        ChatChannel currentChannel = readService.CurrentChannel;
-        StringBuilder builder = new StringBuilder();
-
-        for (int i = 0; i < readService.MessageCount; i++)
-        {
-            ChatMessageData message = readService.GetMessage(i);
-
-            if (!ShouldShowMessage(message, currentChannel))
-                continue;
-
-            if (message.Channel == ChatChannel.System)
-            {
-                builder.Append("[System] ");
-                builder.AppendLine(message.Text.ToString());
-                continue;
-            }
-
-            builder.Append(message.SenderName.ToString());
-            builder.Append(": ");
-            builder.AppendLine(message.Text.ToString());
-        }
-
-        messagesText.text = builder.ToString();
-
-        if (scrollRect != null)
-        {
-            Canvas.ForceUpdateCanvases();
-            scrollRect.verticalNormalizedPosition = 0f;
-        }
-    }
-
-    private bool ShouldShowMessage(ChatMessageData message, ChatChannel currentChannel)
-    {
-        if (message.Channel == ChatChannel.System)
-            return true;
-
-        return message.Channel == currentChannel;
+        messageListView.Render(readService);
     }
 
     private void ClearMessages()
     {
         if (messageListView != null)
             messageListView.Clear();
-
-        if (messagesText != null)
-            messagesText.text = string.Empty;
     }
 
     private void Show()

@@ -4,15 +4,6 @@ using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
-public interface IChatConfig
-{
-    int MaxStoredMessages { get; }
-
-    int MaxMessageLength { get; }
-
-    float MessageCooldownSeconds { get; }
-}
-
 public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatCommandService
 {
     public static NetworkChatSession Instance { get; private set; }
@@ -31,6 +22,18 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     private readonly Dictionary<ulong, double> lastMessageTimeByClient = new Dictionary<ulong, double>();
     private readonly ChatMessageValidator messageValidator = new ChatMessageValidator();
 
+    private readonly NetworkVariable<ChatChannel> currentChannel = new NetworkVariable<ChatChannel>(
+        ChatChannel.Lobby,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private readonly NetworkVariable<bool> isChatAvailable = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     private NetworkList<ChatMessageData> messages;
     private bool isSubscribedToMessages;
     private bool isSubscribedToStateMachine;
@@ -40,18 +43,9 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     public event Action<ChatMessageData> MessageAdded;
     public event Action AvailabilityChanged;
 
-    public bool CanSubmitMessages => ResolveCurrentChannel(out _);
+    public bool CanSubmitMessages => IsSpawned && isChatAvailable.Value;
 
-    public ChatChannel CurrentChannel
-    {
-        get
-        {
-            if (ResolveCurrentChannel(out ChatChannel channel))
-                return channel;
-
-            return ChatChannel.Lobby;
-        }
-    }
+    public ChatChannel CurrentChannel => currentChannel.Value;
 
     public int MessageCount => messages != null ? messages.Count : 0;
 
@@ -80,9 +74,17 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
         Instance = this;
 
-        ResolveReferences();
+        if (IsServer)
+        {
+            ResolveReferences();
+            RefreshAvailabilityFromState();
+            SubscribeToStateMachine();
+        }
+
         SubscribeToMessages();
-        SubscribeToStateMachine();
+
+        currentChannel.OnValueChanged += HandleCurrentChannelChanged;
+        isChatAvailable.OnValueChanged += HandleAvailabilityChanged;
 
         SessionSpawned?.Invoke(this);
         AvailabilityChanged?.Invoke();
@@ -99,6 +101,9 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         if (Instance == this)
             Instance = null;
 
+        currentChannel.OnValueChanged -= HandleCurrentChannelChanged;
+        isChatAvailable.OnValueChanged -= HandleAvailabilityChanged;
+
         SessionDespawned?.Invoke();
     }
 
@@ -106,6 +111,50 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     {
         messages?.Dispose();
         base.OnDestroy();
+    }
+
+    private void RefreshAvailabilityFromState()
+    {
+        if (!IsServer)
+            return;
+
+        if (stateMachine == null)
+            ResolveReferences();
+
+        if (stateMachine == null)
+        {
+            isChatAvailable.Value = false;
+            return;
+        }
+
+        switch (stateMachine.CurrentState)
+        {
+            case GameState.Lobby:
+                currentChannel.Value = ChatChannel.Lobby;
+                isChatAvailable.Value = true;
+                break;
+
+            case GameState.InGame:
+                currentChannel.Value = ChatChannel.Game;
+                isChatAvailable.Value = true;
+                break;
+
+            default:
+                isChatAvailable.Value = false;
+                break;
+        }
+    }
+
+    private void HandleCurrentChannelChanged(ChatChannel previousValue, ChatChannel newValue)
+    {
+        AvailabilityChanged?.Invoke();
+        MessagesChanged?.Invoke();
+    }
+
+    private void HandleAvailabilityChanged(bool previousValue, bool newValue)
+    {
+        AvailabilityChanged?.Invoke();
+        MessagesChanged?.Invoke();
     }
 
     public ChatMessageData GetMessage(int index)
@@ -359,6 +408,8 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
     private void HandleGameStateChanged(GameState previousState, GameState newState)
     {
+        RefreshAvailabilityFromState();
+
         AvailabilityChanged?.Invoke();
         MessagesChanged?.Invoke();
     }

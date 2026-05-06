@@ -7,7 +7,7 @@ public class NetworkChatSessionSpawner : MonoBehaviour
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkChatSession chatSessionPrefab;
-    [SerializeField] private ScriptableObject chatConfig;
+    [SerializeField] private ChatConfig chatConfig;
 
     private NetworkChatSession spawnedSession;
 
@@ -44,13 +44,8 @@ public class NetworkChatSessionSpawner : MonoBehaviour
             spawnedSession = null;
         }
 
-        IChatConfig config = chatConfig as IChatConfig;
-
-        if (chatConfig != null && config == null)
-            Debug.LogWarning("Assigned chat config does not implement IChatConfig.");
-
         NetworkChatSession instance = Instantiate(chatSessionPrefab);
-        instance.Construct(stateMachine, config);
+        instance.Construct(stateMachine, chatConfig);
 
         if (!instance.TryGetComponent(out NetworkObject networkObject))
         {
