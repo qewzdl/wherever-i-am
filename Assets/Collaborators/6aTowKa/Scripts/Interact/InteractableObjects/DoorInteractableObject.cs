@@ -17,7 +17,7 @@ public class DoorInteractableObject : InteractableObject
         isOpen.OnValueChanged -= Sync;
     }
 
-    public override void Interact() 
+    public override void Interact(InteractionContext context) 
     {
         SetIsOpen(!isOpenLocal);
         Door(isOpenLocal);

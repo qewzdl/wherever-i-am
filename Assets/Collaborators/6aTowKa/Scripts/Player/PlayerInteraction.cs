@@ -1,17 +1,24 @@
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 {
     [SerializeField] private float interactionRange = 2f;
     [SerializeField] private Transform rayOrigin;
-    [SerializeField] private Sprite defualtCrosshair;
     [SerializeField] private LayerMask interactableLayer;
 
+    [SerializeField] private Sprite defualtCrosshair;
+    [SerializeField] private Transform playerCameraTransform;
+
     private InteractableObject currentInteractable;
+
+    private InteractionContext interactionContext;
+    private GameObject contactPoint;
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
         signals.Interact.Listen(Interact);
+        contactPoint = new GameObject();
     }
 
     public void Cleanup()
@@ -21,6 +28,8 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private void Raycast()
     {
+
+        Debug.DrawRay(rayOrigin.position, rayOrigin.forward * interactionRange, Color.red);
         Ray ray = new Ray(rayOrigin.position, rayOrigin.forward);
         RaycastHit hit;
 
@@ -34,12 +43,12 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
                 { 
                     currentInteractable = interactable;
                     signals.CrosshairSpriteSignal.Trigger(interactable.InteractionSprite);
-                    return;
                 }
-                else
-                {
+
+                if (interactable is Object)
+                    contactPoint.transform.position = hit.point;
+
                     return;
-                }
             }
         }
 
@@ -52,8 +61,14 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private void Interact()
     {
+        interactionContext = new InteractionContext
+        {
+            HoldPoint = contactPoint.transform,
+            PlayerCameraTransform = this.playerCameraTransform,
+        };
+
         if (currentInteractable)
-            currentInteractable.Interact();
+            currentInteractable.Interact(interactionContext);
     }
 
     private void Update()

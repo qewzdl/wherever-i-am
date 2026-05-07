@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class DoorHandleItem : Item
 {
-    public override void Interact()
+    public override void Interact(InteractionContext context)
     {
 
     }

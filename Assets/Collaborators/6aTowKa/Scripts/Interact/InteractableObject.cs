@@ -35,5 +35,5 @@ public abstract class InteractableObject : NetworkBehaviour
     }
 
 #endif
-    public abstract void Interact();
+    public abstract void Interact(InteractionContext context);
 }
