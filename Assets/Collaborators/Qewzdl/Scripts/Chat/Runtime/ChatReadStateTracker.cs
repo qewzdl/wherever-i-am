@@ -7,12 +7,17 @@ public class ChatReadStateTracker : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField] private bool countOwnMessagesAsUnread;
+    [SerializeField] private bool countSystemMessagesAsUnread = true;
+
+    private ChatVisibilityController visibilityController;
 
     public int UnreadCount { get; private set; }
     public bool IsChatOpen { get; private set; }
 
     private void OnEnable()
     {
+        ResolveReferences();
+
         if (chatEvents == null)
         {
             Debug.LogError($"{nameof(ChatReadStateTracker)} requires an assigned {nameof(ChatEventChannel)}.", this);
@@ -20,9 +25,11 @@ public class ChatReadStateTracker : MonoBehaviour
             return;
         }
 
+        SyncOpenState();
+
         chatEvents.MessageReceived += OnMessageReceived;
         chatEvents.VisibilityChanged += OnVisibilityChanged;
-        chatEvents.RaiseUnreadCountChanged(UnreadCount);
+        PublishUnreadCount(chatEvents.CurrentUnreadCount);
     }
 
     private void OnDisable()
@@ -36,19 +43,14 @@ public class ChatReadStateTracker : MonoBehaviour
         chatEvents.VisibilityChanged -= OnVisibilityChanged;
     }
 
-    public void ResetUnreadCount()
+    public void MarkAllAsRead()
     {
         SetUnreadCount(0);
     }
 
     private void OnMessageReceived(ChatMessageReceivedEvent messageEvent)
     {
-        if (IsChatOpen)
-        {
-            return;
-        }
-
-        if (messageEvent.IsLocalSender && !countOwnMessagesAsUnread)
+        if (IsChatOpen || !ShouldCountMessage(messageEvent))
         {
             return;
         }
@@ -62,21 +64,63 @@ public class ChatReadStateTracker : MonoBehaviour
 
         if (IsChatOpen)
         {
-            ResetUnreadCount();
+            MarkAllAsRead();
         }
+    }
+
+    private bool ShouldCountMessage(ChatMessageReceivedEvent messageEvent)
+    {
+        if (messageEvent.IsLocalSender && !countOwnMessagesAsUnread)
+        {
+            return false;
+        }
+
+        if (messageEvent.IsSystemMessage && !countSystemMessagesAsUnread)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private void SetUnreadCount(int value)
     {
-        int normalizedValue = Mathf.Max(0, value);
+        int nextUnreadCount = Mathf.Max(0, value);
 
-        if (UnreadCount == normalizedValue)
+        if (UnreadCount == nextUnreadCount)
         {
             return;
         }
 
-        UnreadCount = normalizedValue;
-        if (chatEvents != null)
-            chatEvents.RaiseUnreadCountChanged(UnreadCount);
+        int previousUnreadCount = UnreadCount;
+        UnreadCount = nextUnreadCount;
+
+        PublishUnreadCount(previousUnreadCount);
+    }
+
+    private void PublishUnreadCount(int previousUnreadCount)
+    {
+        chatEvents.RaiseUnreadCountChanged(new ChatUnreadCountChangedEvent(
+            previousUnreadCount,
+            UnreadCount
+        ));
+    }
+
+    private void SyncOpenState()
+    {
+        IsChatOpen = visibilityController != null && visibilityController.IsOpen;
+
+        if (IsChatOpen)
+        {
+            UnreadCount = 0;
+        }
+    }
+
+    private void ResolveReferences()
+    {
+        if (visibilityController == null)
+        {
+            visibilityController = GetComponent<ChatVisibilityController>();
+        }
     }
 }

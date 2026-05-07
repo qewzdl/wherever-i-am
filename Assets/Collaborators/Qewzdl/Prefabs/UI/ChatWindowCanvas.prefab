@@ -1390,7 +1390,6 @@ GameObject:
   - component: {fileID: 8418069781121110002}
   - component: {fileID: 8418069781121110003}
   - component: {fileID: 9208680767485770640}
-  - component: {fileID: 6865804918477032486}
   - component: {fileID: 6663419484298050317}
   m_Layer: 5
   m_Name: ChatWindowCanvas
@@ -1527,6 +1526,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
   countOwnMessagesAsUnread: 0
+  countSystemMessagesAsUnread: 1
 --- !u!114 &8418069781121110003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1565,21 +1565,6 @@ MonoBehaviour:
   visibilityController: {fileID: 8418069781121110001}
   submitOnEnter: 1
   closeAfterSubmit: 0
---- !u!114 &6865804918477032486
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8759480122583237467}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 390112c81054fe1418198998efa25773, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  chatWindow: {fileID: 9208680767485770640}
-  ignoreOwnMessages: 1
-  notifyAboutSystemMessages: 1
 --- !u!114 &6663419484298050317
 MonoBehaviour:
   m_ObjectHideFlags: 0

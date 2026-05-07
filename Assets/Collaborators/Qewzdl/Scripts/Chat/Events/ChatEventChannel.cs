@@ -8,7 +8,9 @@ public class ChatEventChannel : ScriptableObject
     public event Action<ChatMessageReceivedEvent> MessageReceived;
     public event Action<ChatSendRejectedEvent> SendRejected;
     public event Action<ChatVisibilityChangedEvent> VisibilityChanged;
-    public event Action<int> UnreadCountChanged;
+    public event Action<ChatUnreadCountChangedEvent> UnreadCountChanged;
+
+    public int CurrentUnreadCount { get; private set; }
 
     public bool RaiseSendRequested(ChatSendRequest request)
     {
@@ -51,8 +53,17 @@ public class ChatEventChannel : ScriptableObject
         VisibilityChanged?.Invoke(visibilityEvent);
     }
 
+    public void RaiseUnreadCountChanged(ChatUnreadCountChangedEvent unreadEvent)
+    {
+        CurrentUnreadCount = unreadEvent.UnreadCount;
+        UnreadCountChanged?.Invoke(unreadEvent);
+    }
+
     public void RaiseUnreadCountChanged(int unreadCount)
     {
-        UnreadCountChanged?.Invoke(Mathf.Max(0, unreadCount));
+        RaiseUnreadCountChanged(new ChatUnreadCountChangedEvent(
+            CurrentUnreadCount,
+            Mathf.Max(0, unreadCount)
+        ));
     }
 }
