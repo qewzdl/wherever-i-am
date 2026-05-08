@@ -1,12 +1,18 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public sealed class ChatWindowLifecycleService : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private GameStateMachine stateMachine;
+    [SerializeField] private Transform uiRoot;
     [SerializeField] private ChatWindowUI chatWindowPrefab;
-    
+
+    [Header("Canvas Fallback")]
+    [SerializeField] private bool createCanvasForPanelPrefab = true;
+
     private ChatWindowUI activeWindow;
+    private GameObject activeCanvasRoot;
 
     private void Awake()
     {
@@ -107,21 +113,72 @@ public sealed class ChatWindowLifecycleService : MonoBehaviour
             return;
         }
 
-        activeWindow = Instantiate(chatWindowPrefab);
-        activeWindow.name = "ChatWindowCanvas";
+        Transform parent = ResolveSpawnParent();
 
-        DontDestroyOnLoad(activeWindow.gameObject);
+        activeWindow = parent != null
+            ? Instantiate(chatWindowPrefab, parent)
+            : Instantiate(chatWindowPrefab);
+
+        activeWindow.name = "ChatWindow";
+
+        if (activeCanvasRoot == null && activeWindow.transform.parent == null)
+            DontDestroyOnLoad(activeWindow.gameObject);
 
         activeWindow.Construct(chatSession, chatSession, stateMachine);
     }
 
     private void DestroyWindow()
     {
-        if (activeWindow == null)
+        if (activeWindow == null && activeCanvasRoot == null)
             return;
 
-        Destroy(activeWindow.gameObject);
+        if (activeCanvasRoot != null)
+            Destroy(activeCanvasRoot);
+        else if (activeWindow != null)
+            Destroy(activeWindow.gameObject);
+
         activeWindow = null;
+        activeCanvasRoot = null;
+    }
+
+    private Transform ResolveSpawnParent()
+    {
+        if (uiRoot != null)
+            return uiRoot;
+
+        if (!createCanvasForPanelPrefab || PrefabProvidesCanvas())
+            return null;
+
+        activeCanvasRoot = CreateCanvasRoot();
+        DontDestroyOnLoad(activeCanvasRoot);
+
+        return activeCanvasRoot.transform;
+    }
+
+    private bool PrefabProvidesCanvas()
+    {
+        return chatWindowPrefab != null && chatWindowPrefab.GetComponentInParent<Canvas>() != null;
+    }
+
+    private GameObject CreateCanvasRoot()
+    {
+        GameObject canvasObject = new GameObject(
+            "ChatWindowCanvas",
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster)
+        );
+
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+        CanvasScaler canvasScaler = canvasObject.GetComponent<CanvasScaler>();
+        canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+        canvasScaler.scaleFactor = 1f;
+        canvasScaler.referencePixelsPerUnit = 100f;
+
+        return canvasObject;
     }
 
     private void ResolveReferences()

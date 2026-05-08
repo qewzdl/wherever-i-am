@@ -332,13 +332,15 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 481142975}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2017d9f4e04e33747b353ea3c875c612, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   stateMachine: {fileID: 481142978}
-  chatWindowPrefab: {fileID: 9208680767485770640, guid: 040041efe163e2748a396e693d1a777a, type: 3}
+  uiRoot: {fileID: 0}
+  chatWindowPrefab: {fileID: 1008245277231494500, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
+  createCanvasForPanelPrefab: 1
 --- !u!1 &542830336
 GameObject:
   m_ObjectHideFlags: 0

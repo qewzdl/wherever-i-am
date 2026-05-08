@@ -59,5 +59,8 @@ public class ChatSessionBinder : MonoBehaviour
 
         if (stateMachine == null)
             stateMachine = GetComponent<GameStateMachine>();
+
+        if (stateMachine == null)
+            stateMachine = FindFirstObjectByType<GameStateMachine>();
     }
 }

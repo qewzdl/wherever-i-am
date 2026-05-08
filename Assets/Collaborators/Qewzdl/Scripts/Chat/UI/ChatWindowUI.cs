@@ -335,14 +335,39 @@ public class ChatWindowUI : MonoBehaviour
 
     private void Show()
     {
+        if (TrySetCanvasGroupVisibility(true))
+            return;
+
         if (root != null)
             root.SetActive(true);
     }
 
     private void Hide()
     {
+        if (TrySetCanvasGroupVisibility(false))
+            return;
+
         if (root != null)
             root.SetActive(false);
+    }
+
+    private bool TrySetCanvasGroupVisibility(bool visible)
+    {
+        if (root == null || root != gameObject)
+            return false;
+
+        CanvasGroup canvasGroup = root.GetComponent<CanvasGroup>();
+
+        if (canvasGroup == null)
+            canvasGroup = root.AddComponent<CanvasGroup>();
+
+        root.SetActive(true);
+
+        canvasGroup.alpha = visible ? 1f : 0f;
+        canvasGroup.interactable = visible;
+        canvasGroup.blocksRaycasts = visible;
+
+        return true;
     }
 
     private void SetPlayerInputActive(bool value)
