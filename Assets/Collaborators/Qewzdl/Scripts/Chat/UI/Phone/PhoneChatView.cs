@@ -254,26 +254,9 @@ public class PhoneChatView : MonoBehaviour
 
         spawnedChatWindow = Instantiate(chatWindowPrefab, chatContainer);
         StretchToParent(spawnedChatWindow);
-        DisableSpawnedChatWindowMessageAudio();
 
         chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
         ApplyChatInputSfx();
-    }
-
-    private void DisableSpawnedChatWindowMessageAudio()
-    {
-        if (spawnedChatWindow == null)
-        {
-            return;
-        }
-
-        ChatNotificationAudioController notificationAudio =
-            spawnedChatWindow.GetComponentInChildren<ChatNotificationAudioController>(true);
-
-        if (notificationAudio != null)
-        {
-            notificationAudio.SetMessageNotificationsEnabled(false);
-        }
     }
 
     private void ApplyChatInputSfx()

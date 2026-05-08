@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ChatNotificationAudioController : MonoBehaviour
+public class ChatMessageNotificationAudioController : MonoBehaviour
 {
     [Header("Events")]
     [SerializeField] private ChatEventChannel chatEvents;
@@ -9,53 +9,67 @@ public class ChatNotificationAudioController : MonoBehaviour
     [SerializeField] private SoundEffect messageWhileChatClosedSound;
     [SerializeField] private SoundEffect messageWhileChatOpenSound;
 
-    [Header("Error Sounds")]
-    [SerializeField] private SoundEffect sendRejectedSound;
-
     [Header("Settings")]
-    [SerializeField] private bool playMessageNotifications = true;
     [SerializeField] private bool playSoundForOwnMessages;
 
     private bool isChatOpen;
+    private bool isSubscribed;
 
-    public void SetMessageNotificationsEnabled(bool value)
+    public void Configure(
+        ChatEventChannel chatEvents,
+        SoundEffect messageWhileChatClosedSound,
+        SoundEffect messageWhileChatOpenSound,
+        bool playSoundForOwnMessages)
     {
-        playMessageNotifications = value;
+        Unsubscribe();
+
+        this.chatEvents = chatEvents;
+        this.messageWhileChatClosedSound = messageWhileChatClosedSound;
+        this.messageWhileChatOpenSound = messageWhileChatOpenSound;
+        this.playSoundForOwnMessages = playSoundForOwnMessages;
+
+        if (isActiveAndEnabled)
+        {
+            Subscribe();
+        }
     }
 
     private void OnEnable()
     {
-        if (chatEvents == null)
+        Subscribe();
+    }
+
+    private void OnDisable()
+    {
+        Unsubscribe();
+    }
+
+    private void Subscribe()
+    {
+        if (isSubscribed || chatEvents == null)
         {
-            Debug.LogError($"{nameof(ChatNotificationAudioController)} requires an assigned {nameof(ChatEventChannel)}.", this);
-            enabled = false;
             return;
         }
 
         chatEvents.MessageReceived += OnMessageReceived;
         chatEvents.VisibilityChanged += OnVisibilityChanged;
-        chatEvents.SendRejected += OnSendRejected;
+        isSubscribed = true;
     }
 
-    private void OnDisable()
+    private void Unsubscribe()
     {
-        if (chatEvents == null)
+        if (!isSubscribed || chatEvents == null)
         {
             return;
         }
 
         chatEvents.MessageReceived -= OnMessageReceived;
         chatEvents.VisibilityChanged -= OnVisibilityChanged;
-        chatEvents.SendRejected -= OnSendRejected;
+        isSubscribed = false;
     }
 
     private void OnMessageReceived(ChatMessageReceivedEvent messageEvent)
     {
-        if (!playMessageNotifications)
-        {
-            return;
-        }
-
         if (messageEvent.IsLocalSender && !playSoundForOwnMessages)
         {
             return;
@@ -73,11 +87,6 @@ public class ChatNotificationAudioController : MonoBehaviour
         isChatOpen = visibilityEvent.IsOpen;
     }
 
-    private void OnSendRejected(ChatSendRejectedEvent rejectedEvent)
-    {
-        PlayUiSound(sendRejectedSound);
-    }
-
     private void PlayUiSound(SoundEffect sound)
     {
         if (sound == null)
@@ -87,7 +96,7 @@ public class ChatNotificationAudioController : MonoBehaviour
 
         if (AudioManager.Instance == null || AudioManager.Instance.UI == null)
         {
-            Debug.LogWarning($"{nameof(ChatNotificationAudioController)}: AudioManager or UiSoundManager is missing.");
+            Debug.LogWarning($"{nameof(ChatMessageNotificationAudioController)}: AudioManager or UiSoundManager is missing.");
             return;
         }
 

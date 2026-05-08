@@ -393,11 +393,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
-  messageWhileChatClosedSound: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
-  messageWhileChatOpenSound: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
   sendRejectedSound: {fileID: 11400000, guid: 0179a9dd12a484f45afb4f0973e33841, type: 2}
-  playMessageNotifications: 1
-  playSoundForOwnMessages: 0
 --- !u!114 &1008245277231494500
 MonoBehaviour:
   m_ObjectHideFlags: 0

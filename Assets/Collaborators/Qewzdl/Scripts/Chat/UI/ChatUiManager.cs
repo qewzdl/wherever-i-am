@@ -8,6 +8,9 @@ public class ChatUiManager : MonoBehaviour
     [Header("Spawn Root")]
     [SerializeField] private Transform uiRoot;
 
+    [Header("Events")]
+    [SerializeField] private ChatEventChannel chatEvents;
+
     [Header("Lobby Chat")]
     [SerializeField] private GameObject lobbyChatPrefab;
 
@@ -16,6 +19,9 @@ public class ChatUiManager : MonoBehaviour
 
     [Header("Audio")]
     [SerializeField] private SoundEffect lobbyInputSfx;
+    [SerializeField] private SoundEffect lobbyMessageWhileChatClosedSfx;
+    [SerializeField] private SoundEffect lobbyMessageWhileChatOpenSfx;
+    [SerializeField] private bool playLobbyMessageSfxForOwnMessages;
     [SerializeField] private SoundEffect phoneInputSfx;
 
     private GameObject spawnedUi;
@@ -66,6 +72,7 @@ public class ChatUiManager : MonoBehaviour
 
         spawnedUi = Instantiate(lobbyChatPrefab, uiRoot);
         ApplyChatInputSfx(spawnedUi, lobbyInputSfx);
+        ApplyLobbyMessageNotificationSfx(spawnedUi);
     }
 
     private void SpawnPhoneChat()
@@ -104,6 +111,34 @@ public class ChatUiManager : MonoBehaviour
         }
 
         chatWindow.SetInputSoundOverride(inputSfx);
+    }
+
+    private void ApplyLobbyMessageNotificationSfx(GameObject root)
+    {
+        if (root == null || chatEvents == null)
+        {
+            return;
+        }
+
+        if (lobbyMessageWhileChatClosedSfx == null && lobbyMessageWhileChatOpenSfx == null)
+        {
+            return;
+        }
+
+        ChatMessageNotificationAudioController notificationAudio =
+            root.GetComponent<ChatMessageNotificationAudioController>();
+
+        if (notificationAudio == null)
+        {
+            notificationAudio = root.AddComponent<ChatMessageNotificationAudioController>();
+        }
+
+        notificationAudio.Configure(
+            chatEvents,
+            lobbyMessageWhileChatClosedSfx,
+            lobbyMessageWhileChatOpenSfx,
+            playLobbyMessageSfxForOwnMessages
+        );
     }
 
     private void StretchToParent(GameObject target)
