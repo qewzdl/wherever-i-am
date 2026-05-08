@@ -364,7 +364,7 @@ public class PhoneChatView : MonoBehaviour
         if (phoneCanvasGroup != null)
         {
             phoneCanvasGroup.alpha = 1f;
-            phoneCanvasGroup.interactable = true;
+            phoneCanvasGroup.interactable = false;
             phoneCanvasGroup.blocksRaycasts = false;
         }
     }
