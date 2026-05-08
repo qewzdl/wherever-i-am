@@ -102,7 +102,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: bf810521098b5624fadd120187ace142, type: 3}
+  m_Sprite: {fileID: 21300000, guid: f4d969c040a91a347b006d2dd0e59abd, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -134,7 +134,7 @@ MonoBehaviour:
     x: 222
     y: 740
     width: 770
-    height: 530
+    height: 540
   chatContainerPadding: {x: 0, y: 0, z: 0, w: 0}
   addScreenRectMask: 1
   chatContainer: {fileID: 878130788754707584}
@@ -179,8 +179,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 308102072240149056}
-  - component: {fileID: 715643037871556352}
-  - component: {fileID: 426791532098409024}
   m_Layer: 5
   m_Name: Screen
   m_TagString: Untagged
@@ -203,46 +201,8 @@ RectTransform:
   - {fileID: 878130788754707584}
   m_Father: {fileID: 433544931794137408}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.1816694, y: 0.3798828}
+  m_AnchorMin: {x: 0.1816694, y: 0.375}
   m_AnchorMax: {x: 0.81178397, y: 0.6386719}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!222 &715643037871556352
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 623843110761046784}
-  m_CullTransparentMesh: 1
---- !u!114 &426791532098409024
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 623843110761046784}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Material: {fileID: 0}
-  m_Color: {r: 0.34901962, g: 0.43137258, b: 0.23137257, a: 1}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
