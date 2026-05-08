@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public class ChatMessageListView : MonoBehaviour
@@ -63,6 +64,35 @@ public class ChatMessageListView : MonoBehaviour
         itemsById.Clear();
     }
 
+    public void ScrollByWheelDelta(Vector2 scrollDelta)
+    {
+        if (scrollRect == null)
+            return;
+
+        if (!scrollRect.vertical)
+            return;
+
+        PointerEventData pointerEventData = new PointerEventData(EventSystem.current)
+        {
+            scrollDelta = scrollDelta
+        };
+
+        scrollRect.OnScroll(pointerEventData);
+    }
+
+    public bool ContainsScreenPoint(Vector2 screenPosition)
+    {
+        RectTransform rectTransform = ResolveScrollRectTransform();
+
+        if (rectTransform == null)
+            return false;
+
+        return RectTransformUtility.RectangleContainsScreenPoint(
+            rectTransform,
+            screenPosition,
+            ResolveEventCamera(rectTransform));
+    }
+
     private ChatMessageItemView CreateItem()
     {
         if (contentRoot == null)
@@ -119,5 +149,28 @@ public class ChatMessageListView : MonoBehaviour
 
         Canvas.ForceUpdateCanvases();
         scrollRect.verticalNormalizedPosition = 0f;
+    }
+
+    private RectTransform ResolveScrollRectTransform()
+    {
+        if (scrollRect != null)
+        {
+            if (scrollRect.viewport != null)
+                return scrollRect.viewport;
+
+            return scrollRect.transform as RectTransform;
+        }
+
+        return transform as RectTransform;
+    }
+
+    private Camera ResolveEventCamera(RectTransform rectTransform)
+    {
+        Canvas canvas = rectTransform.GetComponentInParent<Canvas>();
+
+        if (canvas == null || canvas.renderMode == RenderMode.ScreenSpaceOverlay)
+            return null;
+
+        return canvas.worldCamera;
     }
 }

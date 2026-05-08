@@ -14,6 +14,7 @@ public sealed class ChatWindowInput : MonoBehaviour
     [SerializeField] private bool enableActionOnEnable = true;
     [FormerlySerializedAs("ignoreToggleWhileInputFocused")]
     [SerializeField] private bool ignoreOpenWhileInputFocused = true;
+    [SerializeField] private bool closeOnlyWhenInputFocused = true;
 
     private InputAction subscribedOpenAction;
     private InputAction subscribedCloseAction;
@@ -144,6 +145,9 @@ public sealed class ChatWindowInput : MonoBehaviour
             return;
 
         if (!chatWindowUI.IsOpen)
+            return;
+
+        if (closeOnlyWhenInputFocused && !chatWindowUI.IsInputFocused)
             return;
 
         PauseMenuInput.SuppressToggleForCurrentFrame();

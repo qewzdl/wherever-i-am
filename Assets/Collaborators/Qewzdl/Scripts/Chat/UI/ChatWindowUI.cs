@@ -1,7 +1,8 @@
 using System;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 
 public class ChatWindowUI : MonoBehaviour
 {
@@ -13,7 +14,6 @@ public class ChatWindowUI : MonoBehaviour
 
     [Header("UI")]
     [SerializeField] private TMP_InputField inputField;
-    [SerializeField] private Button sendButton;
     [SerializeField] private PlayerInputHandler playerInputHandler;
 
     [Header("Events")]
@@ -25,11 +25,13 @@ public class ChatWindowUI : MonoBehaviour
     [Header("Settings")]
     [SerializeField] private bool submitOnEnter = true;
     [SerializeField] private bool closeAfterSubmit = false;
+    [SerializeField] private bool releaseFocusAfterSubmit = true;
 
     private IChatReadService readService;
     private GameStateMachine stateMachine;
 
     private bool isOpen;
+    private bool isInputFocused;
     private bool isSubscribedToEventChannel;
 
     public event Action Opened;
@@ -37,7 +39,7 @@ public class ChatWindowUI : MonoBehaviour
 
     public bool IsOpen => isOpen;
     public bool CanOpen => readService != null && readService.CanSubmitMessages;
-    public bool IsInputFocused => inputField != null && inputField.isFocused;
+    public bool IsInputFocused => isInputFocused;
 
     public void Construct(
         IChatReadService readService,
@@ -53,7 +55,7 @@ public class ChatWindowUI : MonoBehaviour
         SubscribeToEventChannel();
         SubscribeToServices();
 
-        SetPlayerInputActive(true);
+        SetInputFocusState(false, true);
         ApplyOpenState(visibilityController != null && visibilityController.IsOpen, false);
         RefreshMessages();
     }
@@ -83,10 +85,12 @@ public class ChatWindowUI : MonoBehaviour
             else
                 ApplyOpenState(true, false);
 
+            FocusInput();
             return;
         }
 
         ApplyOpenState(true, true);
+        FocusInput();
     }
 
     public void Close()
@@ -106,34 +110,69 @@ public class ChatWindowUI : MonoBehaviour
         ApplyOpenState(false, true);
     }
 
+    public void FocusInput()
+    {
+        if (!isOpen)
+            return;
+
+        if (inputField == null)
+            return;
+
+        inputField.ActivateInputField();
+        inputField.Select();
+        SetInputFocusState(true);
+    }
+
+    public void ReleaseInputFocus()
+    {
+        if (inputField != null)
+        {
+            inputField.DeactivateInputField();
+
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == inputField.gameObject)
+                EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        SetInputFocusState(false);
+    }
+
     private void Awake()
     {
         ResolveReferences();
         SubscribeToEventChannel();
 
-        if (sendButton != null)
-            sendButton.onClick.AddListener(SubmitCurrentMessage);
-
         if (inputField != null)
+        {
             inputField.onSubmit.AddListener(HandleInputSubmitted);
+            inputField.onSelect.AddListener(HandleInputSelected);
+            inputField.onDeselect.AddListener(HandleInputDeselected);
+        }
 
         isOpen = false;
         Hide();
+    }
+
+    private void Update()
+    {
+        HandleFocusedInputScroll();
     }
 
     private void OnDestroy()
     {
         if (isOpen)
             ApplyOpenState(false, true);
+        else
+            ReleaseInputFocus();
 
         UnsubscribeFromEventChannel();
         UnsubscribeFromServices();
 
-        if (sendButton != null)
-            sendButton.onClick.RemoveListener(SubmitCurrentMessage);
-
         if (inputField != null)
+        {
             inputField.onSubmit.RemoveListener(HandleInputSubmitted);
+            inputField.onSelect.RemoveListener(HandleInputSelected);
+            inputField.onDeselect.RemoveListener(HandleInputDeselected);
+        }
     }
 
     private void SubscribeToServices()
@@ -191,6 +230,41 @@ public class ChatWindowUI : MonoBehaviour
         SubmitCurrentMessage();
     }
 
+    private void HandleInputSelected(string value)
+    {
+        if (!isOpen)
+            return;
+
+        SetInputFocusState(true);
+    }
+
+    private void HandleInputDeselected(string value)
+    {
+        SetInputFocusState(false);
+    }
+
+    private void HandleFocusedInputScroll()
+    {
+        if (!isOpen || !isInputFocused)
+            return;
+
+        if (messageListView == null)
+            return;
+
+        if (Mouse.current == null)
+            return;
+
+        Vector2 scrollDelta = Mouse.current.scroll.ReadValue();
+
+        if (Mathf.Approximately(scrollDelta.y, 0f))
+            return;
+
+        if (messageListView.ContainsScreenPoint(Mouse.current.position.ReadValue()))
+            return;
+
+        messageListView.ScrollByWheelDelta(scrollDelta);
+    }
+
     private void SubmitCurrentMessage()
     {
         if (readService == null)
@@ -215,8 +289,10 @@ public class ChatWindowUI : MonoBehaviour
             return;
         }
 
-        inputField.ActivateInputField();
-        inputField.Select();
+        if (releaseFocusAfterSubmit)
+            ReleaseInputFocus();
+        else
+            FocusInput();
     }
 
     private bool SubmitSendRequest(string text)
@@ -257,25 +333,15 @@ public class ChatWindowUI : MonoBehaviour
 
         if (isOpen)
         {
-            SetPlayerInputActive(false);
-
             RefreshVisibility();
             RefreshMessages();
 
-            if (inputField != null)
-            {
-                inputField.ActivateInputField();
-                inputField.Select();
-            }
-
+            FocusInput();
             Opened?.Invoke();
         }
         else
         {
-            if (inputField != null)
-                inputField.DeactivateInputField();
-
-            SetPlayerInputActive(true);
+            ReleaseInputFocus();
             RefreshVisibility();
             Closed?.Invoke();
         }
@@ -378,6 +444,15 @@ public class ChatWindowUI : MonoBehaviour
             return;
 
         inputHandler.SetInputActive(this, value);
+    }
+
+    private void SetInputFocusState(bool value, bool forcePlayerInputUpdate = false)
+    {
+        if (isInputFocused == value && !forcePlayerInputUpdate)
+            return;
+
+        isInputFocused = value;
+        SetPlayerInputActive(!isInputFocused);
     }
 
     private PlayerInputHandler ResolvePlayerInputHandler()
