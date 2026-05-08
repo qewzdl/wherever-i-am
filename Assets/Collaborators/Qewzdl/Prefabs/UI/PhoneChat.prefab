@@ -170,6 +170,7 @@ MonoBehaviour:
   fallbackAudioSource: {fileID: 0}
   openSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
   closeSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
+  inputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
 --- !u!1 &623843110761046784
 GameObject:
   m_ObjectHideFlags: 0

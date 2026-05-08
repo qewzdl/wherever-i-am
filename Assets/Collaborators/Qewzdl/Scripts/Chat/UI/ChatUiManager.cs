@@ -14,6 +14,10 @@ public class ChatUiManager : MonoBehaviour
     [Header("Phone Chat")]
     [SerializeField] private PhoneChatView phoneChatPrefab;
 
+    [Header("Audio")]
+    [SerializeField] private SoundEffect lobbyInputSfx;
+    [SerializeField] private SoundEffect phoneInputSfx;
+
     private GameObject spawnedUi;
 
     private void Awake()
@@ -61,6 +65,7 @@ public class ChatUiManager : MonoBehaviour
         }
 
         spawnedUi = Instantiate(lobbyChatPrefab, uiRoot);
+        ApplyChatInputSfx(spawnedUi, lobbyInputSfx);
     }
 
     private void SpawnPhoneChat()
@@ -75,7 +80,30 @@ public class ChatUiManager : MonoBehaviour
         spawnedUi = phoneView.gameObject;
 
         StretchToParent(spawnedUi);
+
+        if (phoneInputSfx != null)
+        {
+            phoneView.SetInputSfx(phoneInputSfx);
+        }
+
         phoneView.Initialize();
+    }
+
+    private void ApplyChatInputSfx(GameObject root, SoundEffect inputSfx)
+    {
+        if (root == null || inputSfx == null)
+        {
+            return;
+        }
+
+        ChatWindowUI chatWindow = root.GetComponentInChildren<ChatWindowUI>(true);
+
+        if (chatWindow == null)
+        {
+            return;
+        }
+
+        chatWindow.SetInputSoundOverride(inputSfx);
     }
 
     private void StretchToParent(GameObject target)

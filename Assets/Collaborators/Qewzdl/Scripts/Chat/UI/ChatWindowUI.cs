@@ -43,6 +43,26 @@ public class ChatWindowUI : MonoBehaviour
     public bool CanOpen => readService != null && readService.CanSubmitMessages;
     public bool IsInputFocused => isInputFocused;
 
+    public void SetInputSoundOverride(SoundEffect sound)
+    {
+        ResolveReferences();
+
+        if (inputField == null)
+            return;
+
+        UiInputSound inputSound = inputField.GetComponent<UiInputSound>();
+
+        if (inputSound == null)
+        {
+            if (sound == null)
+                return;
+
+            inputSound = inputField.gameObject.AddComponent<UiInputSound>();
+        }
+
+        inputSound.SetInputSoundOverride(sound);
+    }
+
     public void Construct(
         IChatReadService readService,
         IChatCommandService commandService,

@@ -1643,6 +1643,39 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2061941465}
   m_CullTransparentMesh: 1
+--- !u!114 &213095891524083776
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 417636812377290944}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c6745b0401040838b8ffab6e511259a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mode: 0
+  uiRoot: {fileID: 896598420}
+  lobbyChatPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
+  phoneChatPrefab: {fileID: 580301795716557312, guid: 531fc2ecdc954bbdbdc1cea9d3dcc24f, type: 3}
+  lobbyInputSfx: {fileID: 11400000, guid: 82f493a9e71df5a4295a6b780335f041, type: 2}
+  phoneInputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
+--- !u!4 &250138345965943968
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 417636812377290944}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &417636812377290944
 GameObject:
   m_ObjectHideFlags: 0
@@ -1660,37 +1693,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &250138345965943968
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 417636812377290944}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &213095891524083776
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 417636812377290944}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5c6745b0401040838b8ffab6e511259a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  mode: 0
-  uiRoot: {fileID: 896598420}
-  lobbyChatPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
-  phoneChatPrefab: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

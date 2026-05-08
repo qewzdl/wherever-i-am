@@ -11,6 +11,7 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     [SerializeField] private bool playInputSound = true;
 
     [Header("Input Sound Settings")]
+    [SerializeField] private SoundEffect inputSoundOverride;
     [SerializeField] private bool playOnDelete = false;
     [SerializeField, Min(0f)] private float inputSoundCooldown = 0.03f;
 
@@ -50,6 +51,11 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
         AudioManager.Instance.UI.PlayClick();
     }
 
+    public void SetInputSoundOverride(SoundEffect sound)
+    {
+        inputSoundOverride = sound;
+    }
+
     private void OnInputValueChanged(string newText)
     {
         if (!playInputSound) 
@@ -82,6 +88,10 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
         if (Time.unscaledTime - lastInputSoundTime < inputSoundCooldown) return;
 
         lastInputSoundTime = Time.unscaledTime;
-        AudioManager.Instance.UI.PlayInput();
+
+        if (inputSoundOverride != null)
+            AudioManager.Instance.UI.Play(inputSoundOverride);
+        else
+            AudioManager.Instance.UI.PlayInput();
     }
 } 

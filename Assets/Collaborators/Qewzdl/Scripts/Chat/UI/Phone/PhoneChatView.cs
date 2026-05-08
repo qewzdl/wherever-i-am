@@ -31,6 +31,7 @@ public class PhoneChatView : MonoBehaviour
     [SerializeField] private AudioSource fallbackAudioSource;
     [SerializeField] private SoundEffect openSfx;
     [SerializeField] private SoundEffect closeSfx;
+    [SerializeField] private SoundEffect inputSfx;
 
     private GameObject spawnedChatWindow;
     private ChatWindowUI chatWindow;
@@ -88,6 +89,12 @@ public class PhoneChatView : MonoBehaviour
         ForceClosed();
 
         isInitialized = true;
+    }
+
+    public void SetInputSfx(SoundEffect sound)
+    {
+        inputSfx = sound;
+        ApplyChatInputSfx();
     }
 
     private void ResolveReferences()
@@ -237,6 +244,17 @@ public class PhoneChatView : MonoBehaviour
         StretchToParent(spawnedChatWindow);
 
         chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
+        ApplyChatInputSfx();
+    }
+
+    private void ApplyChatInputSfx()
+    {
+        if (chatWindow == null)
+        {
+            return;
+        }
+
+        chatWindow.SetInputSoundOverride(inputSfx);
     }
 
     private void SubscribeToChatWindow()
