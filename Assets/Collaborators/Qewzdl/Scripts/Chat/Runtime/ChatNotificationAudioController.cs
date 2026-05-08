@@ -13,9 +13,15 @@ public class ChatNotificationAudioController : MonoBehaviour
     [SerializeField] private SoundEffect sendRejectedSound;
 
     [Header("Settings")]
+    [SerializeField] private bool playMessageNotifications = true;
     [SerializeField] private bool playSoundForOwnMessages;
 
     private bool isChatOpen;
+
+    public void SetMessageNotificationsEnabled(bool value)
+    {
+        playMessageNotifications = value;
+    }
 
     private void OnEnable()
     {
@@ -45,6 +51,11 @@ public class ChatNotificationAudioController : MonoBehaviour
 
     private void OnMessageReceived(ChatMessageReceivedEvent messageEvent)
     {
+        if (!playMessageNotifications)
+        {
+            return;
+        }
+
         if (messageEvent.IsLocalSender && !playSoundForOwnMessages)
         {
             return;

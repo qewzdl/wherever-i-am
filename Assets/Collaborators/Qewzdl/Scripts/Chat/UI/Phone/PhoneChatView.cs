@@ -20,6 +20,9 @@ public class PhoneChatView : MonoBehaviour
     [SerializeField] private RectTransform chatContainer;
     [SerializeField] private GameObject chatWindowPrefab;
 
+    [Header("Events")]
+    [SerializeField] private ChatEventChannel chatEvents;
+
     [Header("Animation")]
     [SerializeField] private bool useCurrentPositionAsShownPosition = true;
     [SerializeField] private Vector2 shownAnchoredPosition = new Vector2(40f, 40f);
@@ -32,6 +35,11 @@ public class PhoneChatView : MonoBehaviour
     [SerializeField] private SoundEffect openSfx;
     [SerializeField] private SoundEffect closeSfx;
     [SerializeField] private SoundEffect inputSfx;
+    [SerializeField] private SoundEffect incomingWhenClosedSfx;
+    [SerializeField] private SoundEffect incomingWhenOpenedSfx;
+
+    [Header("Settings")]
+    [SerializeField] private bool playIncomingSfxForOwnMessages;
 
     private GameObject spawnedChatWindow;
     private ChatWindowUI chatWindow;
@@ -40,6 +48,7 @@ public class PhoneChatView : MonoBehaviour
     private bool isInitialized;
     private bool isOpen;
     private bool isSubscribedToChatWindow;
+    private bool isSubscribedToChatEvents;
 
     private void OnValidate()
     {
@@ -52,12 +61,14 @@ public class PhoneChatView : MonoBehaviour
         if (isInitialized)
         {
             SubscribeToChatWindow();
+            SubscribeToChatEvents();
         }
     }
 
     private void OnDisable()
     {
         UnsubscribeFromChatWindow();
+        UnsubscribeFromChatEvents();
     }
 
     public void Initialize()
@@ -86,6 +97,7 @@ public class PhoneChatView : MonoBehaviour
 
         SpawnChatWindow();
         SubscribeToChatWindow();
+        SubscribeToChatEvents();
         ForceClosed();
 
         isInitialized = true;
@@ -242,9 +254,26 @@ public class PhoneChatView : MonoBehaviour
 
         spawnedChatWindow = Instantiate(chatWindowPrefab, chatContainer);
         StretchToParent(spawnedChatWindow);
+        DisableSpawnedChatWindowMessageAudio();
 
         chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
         ApplyChatInputSfx();
+    }
+
+    private void DisableSpawnedChatWindowMessageAudio()
+    {
+        if (spawnedChatWindow == null)
+        {
+            return;
+        }
+
+        ChatNotificationAudioController notificationAudio =
+            spawnedChatWindow.GetComponentInChildren<ChatNotificationAudioController>(true);
+
+        if (notificationAudio != null)
+        {
+            notificationAudio.SetMessageNotificationsEnabled(false);
+        }
     }
 
     private void ApplyChatInputSfx()
@@ -281,6 +310,28 @@ public class PhoneChatView : MonoBehaviour
         isSubscribedToChatWindow = false;
     }
 
+    private void SubscribeToChatEvents()
+    {
+        if (chatEvents == null || isSubscribedToChatEvents)
+        {
+            return;
+        }
+
+        chatEvents.MessageReceived += HandleMessageReceived;
+        isSubscribedToChatEvents = true;
+    }
+
+    private void UnsubscribeFromChatEvents()
+    {
+        if (chatEvents == null || !isSubscribedToChatEvents)
+        {
+            return;
+        }
+
+        chatEvents.MessageReceived -= HandleMessageReceived;
+        isSubscribedToChatEvents = false;
+    }
+
     private void HandleChatWindowOpened()
     {
         OpenShell();
@@ -289,6 +340,20 @@ public class PhoneChatView : MonoBehaviour
     private void HandleChatWindowClosed()
     {
         CloseShell();
+    }
+
+    private void HandleMessageReceived(ChatMessageReceivedEvent messageEvent)
+    {
+        if (messageEvent.IsLocalSender && !playIncomingSfxForOwnMessages)
+        {
+            return;
+        }
+
+        SoundEffect incomingSfx = isOpen
+            ? incomingWhenOpenedSfx
+            : incomingWhenClosedSfx;
+
+        PlayOneShot(incomingSfx);
     }
 
     private void ForceClosed()

@@ -139,6 +139,7 @@ MonoBehaviour:
   addScreenRectMask: 1
   chatContainer: {fileID: 878130788754707584}
   chatWindowPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
+  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
   useCurrentPositionAsShownPosition: 1
   shownAnchoredPosition: {x: 0, y: 0}
   hiddenOffset: {x: 0, y: -680}
@@ -171,6 +172,9 @@ MonoBehaviour:
   openSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
   closeSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
   inputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
+  incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
+  incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
+  playIncomingSfxForOwnMessages: 0
 --- !u!1 &623843110761046784
 GameObject:
   m_ObjectHideFlags: 0
