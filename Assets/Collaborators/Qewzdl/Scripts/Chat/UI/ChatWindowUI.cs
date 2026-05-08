@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -33,6 +34,7 @@ public class ChatWindowUI : MonoBehaviour
     private bool isOpen;
     private bool isInputFocused;
     private bool isSubscribedToEventChannel;
+    private Coroutine pendingInputRefocus;
 
     public event Action Opened;
     public event Action Closed;
@@ -125,6 +127,8 @@ public class ChatWindowUI : MonoBehaviour
 
     public void ReleaseInputFocus()
     {
+        CancelPendingInputRefocus();
+
         if (inputField != null)
         {
             inputField.DeactivateInputField();
@@ -278,9 +282,19 @@ public class ChatWindowUI : MonoBehaviour
 
         string text = inputField.text;
 
-        if (!SubmitSendRequest(text))
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            RefocusInputAfterRejectedSubmit();
             return;
+        }
 
+        if (!SubmitSendRequest(text))
+        {
+            RefocusInputAfterRejectedSubmit();
+            return;
+        }
+
+        CancelPendingInputRefocus();
         inputField.text = string.Empty;
 
         if (closeAfterSubmit)
@@ -309,6 +323,39 @@ public class ChatWindowUI : MonoBehaviour
         }
 
         return chatEvents.RaiseSendRequested(request);
+    }
+
+    private void RefocusInputAfterRejectedSubmit()
+    {
+        if (!isOpen || inputField == null)
+            return;
+
+        FocusInput();
+
+        CancelPendingInputRefocus();
+        pendingInputRefocus = StartCoroutine(RefocusInputNextFrame());
+    }
+
+    private IEnumerator RefocusInputNextFrame()
+    {
+        yield return null;
+
+        pendingInputRefocus = null;
+
+        if (!isOpen || inputField == null)
+            yield break;
+
+        FocusInput();
+        inputField.MoveTextEnd(false);
+    }
+
+    private void CancelPendingInputRefocus()
+    {
+        if (pendingInputRefocus == null)
+            return;
+
+        StopCoroutine(pendingInputRefocus);
+        pendingInputRefocus = null;
     }
 
     private bool ApplyOpenState(bool shouldOpen, bool publishEvent)
