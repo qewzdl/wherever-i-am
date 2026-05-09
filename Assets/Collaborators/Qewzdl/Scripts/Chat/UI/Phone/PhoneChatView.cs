@@ -5,6 +5,10 @@ using UnityEngine.UI;
 public class PhoneChatView : MonoBehaviour
 {
     private const float HiddenPositionBottomPadding = 40f;
+    private const string PhoneRootName = "PhoneRoot";
+    private const string PhoneImageName = "PhoneImage";
+    private const string ScreenName = "Screen";
+    private const string ChatContainerName = "ChatContainer";
 
     [Header("Phone Root")]
     [SerializeField] private RectTransform phoneRoot;
@@ -166,11 +170,6 @@ public class PhoneChatView : MonoBehaviour
 
     private void ResolveReferences()
     {
-        if (phoneRoot == null)
-        {
-            phoneRoot = transform as RectTransform;
-        }
-
         ResolveScreenReferences();
 
         if (phoneCanvasGroup == null && phoneRoot != null)
@@ -200,6 +199,11 @@ public class PhoneChatView : MonoBehaviour
     {
         if (phoneRoot == null)
         {
+            phoneRoot = FindChildRectTransform(PhoneRootName);
+        }
+
+        if (phoneRoot == null)
+        {
             phoneRoot = transform as RectTransform;
         }
 
@@ -208,10 +212,55 @@ public class PhoneChatView : MonoBehaviour
             phoneImage = phoneRoot.GetComponent<Image>();
         }
 
+        if (phoneImage == null)
+        {
+            phoneImage = FindChildImage(PhoneImageName);
+        }
+
+        if (screenRect == null)
+        {
+            screenRect = FindChildRectTransform(ScreenName);
+        }
+
         if (screenRect == null && chatContainer != null)
         {
             screenRect = chatContainer.parent as RectTransform;
         }
+
+        if (chatContainer == null)
+        {
+            chatContainer = FindChildRectTransform(ChatContainerName);
+        }
+    }
+
+    private RectTransform FindChildRectTransform(string childName)
+    {
+        RectTransform[] rectTransforms = GetComponentsInChildren<RectTransform>(true);
+
+        for (int i = 0; i < rectTransforms.Length; i++)
+        {
+            if (rectTransforms[i].name == childName)
+            {
+                return rectTransforms[i];
+            }
+        }
+
+        return null;
+    }
+
+    private Image FindChildImage(string childName)
+    {
+        Image[] images = GetComponentsInChildren<Image>(true);
+
+        for (int i = 0; i < images.Length; i++)
+        {
+            if (images[i].name == childName)
+            {
+                return images[i];
+            }
+        }
+
+        return null;
     }
 
     private void ApplyScreenLayout(bool ensureMask)
