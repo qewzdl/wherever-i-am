@@ -310,12 +310,37 @@ public class PhoneChatView : MonoBehaviour
 
         chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
         ApplyChatEventChannel();
+        DisableSpawnedChatNotificationAudio();
         ApplyChatInputSfx();
     }
 
     private void ApplyChatEventChannel()
     {
         ChatUiEventChannelBinder.Apply(spawnedChatWindow, chatEvents);
+    }
+
+    private void DisableSpawnedChatNotificationAudio()
+    {
+        if (spawnedChatWindow == null)
+        {
+            return;
+        }
+
+        ChatMessageNotificationAudioController[] messageNotificationAudioControllers =
+            spawnedChatWindow.GetComponentsInChildren<ChatMessageNotificationAudioController>(true);
+
+        for (int i = 0; i < messageNotificationAudioControllers.Length; i++)
+        {
+            messageNotificationAudioControllers[i].enabled = false;
+        }
+
+        ChatSendRejectedAudioController[] sendRejectedAudioControllers =
+            spawnedChatWindow.GetComponentsInChildren<ChatSendRejectedAudioController>(true);
+
+        for (int i = 0; i < sendRejectedAudioControllers.Length; i++)
+        {
+            sendRejectedAudioControllers[i].enabled = false;
+        }
     }
 
     private void ApplyChatInputSfx()
