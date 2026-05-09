@@ -40,6 +40,7 @@ public class PhoneChatView : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField] private bool playIncomingSfxForOwnMessages;
+    [SerializeField] private bool playIncomingSfxForSystemMessages = true;
 
     private GameObject spawnedChatWindow;
     private ChatWindowUI chatWindow;
@@ -381,6 +382,11 @@ public class PhoneChatView : MonoBehaviour
     private void HandleMessageReceived(ChatMessageReceivedEvent messageEvent)
     {
         if (messageEvent.IsLocalSender && !playIncomingSfxForOwnMessages)
+        {
+            return;
+        }
+
+        if (messageEvent.IsSystemMessage && !playIncomingSfxForSystemMessages)
         {
             return;
         }
