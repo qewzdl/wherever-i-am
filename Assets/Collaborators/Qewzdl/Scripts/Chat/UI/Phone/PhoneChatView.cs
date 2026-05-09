@@ -103,6 +103,53 @@ public class PhoneChatView : MonoBehaviour
         isInitialized = true;
     }
 
+    public void Initialize(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx)
+    {
+        Configure(
+            chatEvents,
+            inputSfx,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx
+        );
+
+        Initialize();
+    }
+
+    public void Configure(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx)
+    {
+        bool shouldResubscribe = isSubscribedToChatEvents && isActiveAndEnabled;
+        UnsubscribeFromChatEvents();
+
+        this.chatEvents = chatEvents;
+        this.inputSfx = inputSfx;
+        this.incomingWhenClosedSfx = incomingWhenClosedSfx;
+        this.incomingWhenOpenedSfx = incomingWhenOpenedSfx;
+        this.openSfx = openSfx;
+        this.closeSfx = closeSfx;
+
+        ApplyChatInputSfx();
+        ApplyChatEventChannel();
+
+        if (shouldResubscribe)
+        {
+            SubscribeToChatEvents();
+        }
+    }
+
     public void SetInputSfx(SoundEffect sound)
     {
         inputSfx = sound;
@@ -256,7 +303,13 @@ public class PhoneChatView : MonoBehaviour
         StretchToParent(spawnedChatWindow);
 
         chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
+        ApplyChatEventChannel();
         ApplyChatInputSfx();
+    }
+
+    private void ApplyChatEventChannel()
+    {
+        ChatUiEventChannelBinder.Apply(spawnedChatWindow, chatEvents);
     }
 
     private void ApplyChatInputSfx()

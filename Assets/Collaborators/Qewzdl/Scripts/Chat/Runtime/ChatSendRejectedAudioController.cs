@@ -10,7 +10,30 @@ public class ChatSendRejectedAudioController : MonoBehaviour
 
     private bool isSubscribed;
 
+    public void SetEventChannel(ChatEventChannel chatEvents)
+    {
+        bool shouldSubscribe = isActiveAndEnabled;
+        Unsubscribe();
+
+        this.chatEvents = chatEvents;
+
+        if (shouldSubscribe)
+        {
+            Subscribe();
+        }
+    }
+
     private void OnEnable()
+    {
+        Subscribe();
+    }
+
+    private void OnDisable()
+    {
+        Unsubscribe();
+    }
+
+    private void Subscribe()
     {
         if (isSubscribed)
         {
@@ -28,10 +51,11 @@ public class ChatSendRejectedAudioController : MonoBehaviour
         isSubscribed = true;
     }
 
-    private void OnDisable()
+    private void Unsubscribe()
     {
         if (!isSubscribed || chatEvents == null)
         {
+            isSubscribed = false;
             return;
         }
 

@@ -14,8 +14,43 @@ public class ChatReadStateTracker : MonoBehaviour
     public int UnreadCount { get; private set; }
     public bool IsChatOpen { get; private set; }
 
+    private bool isSubscribed;
+
+    public void SetEventChannel(ChatEventChannel chatEvents)
+    {
+        bool shouldSubscribe = isActiveAndEnabled;
+        Unsubscribe();
+
+        this.chatEvents = chatEvents;
+
+        if (shouldSubscribe)
+        {
+            Subscribe();
+        }
+    }
+
     private void OnEnable()
     {
+        Subscribe();
+    }
+
+    private void OnDisable()
+    {
+        Unsubscribe();
+    }
+
+    public void MarkAllAsRead()
+    {
+        SetUnreadCount(0);
+    }
+
+    private void Subscribe()
+    {
+        if (isSubscribed)
+        {
+            return;
+        }
+
         ResolveReferences();
 
         if (chatEvents == null)
@@ -29,23 +64,22 @@ public class ChatReadStateTracker : MonoBehaviour
 
         chatEvents.MessageReceived += OnMessageReceived;
         chatEvents.VisibilityChanged += OnVisibilityChanged;
+        isSubscribed = true;
+
         PublishUnreadCount(chatEvents.CurrentUnreadCount);
     }
 
-    private void OnDisable()
+    private void Unsubscribe()
     {
-        if (chatEvents == null)
+        if (!isSubscribed || chatEvents == null)
         {
+            isSubscribed = false;
             return;
         }
 
         chatEvents.MessageReceived -= OnMessageReceived;
         chatEvents.VisibilityChanged -= OnVisibilityChanged;
-    }
-
-    public void MarkAllAsRead()
-    {
-        SetUnreadCount(0);
+        isSubscribed = false;
     }
 
     private void OnMessageReceived(ChatMessageReceivedEvent messageEvent)

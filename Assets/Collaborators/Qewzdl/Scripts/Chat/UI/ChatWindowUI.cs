@@ -63,6 +63,26 @@ public class ChatWindowUI : MonoBehaviour
         inputSound.SetInputSoundOverride(sound);
     }
 
+    public void SetEventChannel(ChatEventChannel chatEvents)
+    {
+        bool shouldResubscribe = isSubscribedToEventChannel;
+        UnsubscribeFromEventChannel();
+
+        this.chatEvents = chatEvents;
+
+        ResolveReferences();
+
+        if (visibilityController != null)
+        {
+            visibilityController.SetEventChannel(chatEvents);
+        }
+
+        if (shouldResubscribe)
+        {
+            SubscribeToEventChannel();
+        }
+    }
+
     public void Construct(
         IChatReadService readService,
         IChatCommandService commandService,

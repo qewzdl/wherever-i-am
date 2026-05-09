@@ -5,6 +5,9 @@ public class ChatUiManager : MonoBehaviour
     [Header("UI Mode")]
     [SerializeField] private ChatUiMode mode = ChatUiMode.LobbyWindow;
 
+    [Header("Profile")]
+    [SerializeField] private ChatUiProfile profile;
+
     [Header("Spawn Root")]
     [SerializeField] private Transform uiRoot;
 
@@ -23,8 +26,26 @@ public class ChatUiManager : MonoBehaviour
     [SerializeField] private SoundEffect lobbyMessageWhileChatOpenSfx;
     [SerializeField] private bool playLobbyMessageSfxForOwnMessages;
     [SerializeField] private SoundEffect phoneInputSfx;
+    [SerializeField] private SoundEffect phoneOpenSfx;
+    [SerializeField] private SoundEffect phoneCloseSfx;
+    [SerializeField] private SoundEffect incomingWhenClosedSfx;
+    [SerializeField] private SoundEffect incomingWhenOpenedSfx;
 
     private GameObject spawnedUi;
+
+    private ChatEventChannel ActiveChatEvents => profile != null ? profile.ChatEvents : chatEvents;
+    private SoundEffect ActiveLobbyInputSfx => profile != null ? profile.LobbyInputSfx : lobbyInputSfx;
+    private SoundEffect ActiveLobbyMessageWhileChatClosedSfx =>
+        profile != null ? profile.LobbyMessageWhileChatClosedSfx : lobbyMessageWhileChatClosedSfx;
+    private SoundEffect ActiveLobbyMessageWhileChatOpenSfx =>
+        profile != null ? profile.LobbyMessageWhileChatOpenSfx : lobbyMessageWhileChatOpenSfx;
+    private SoundEffect ActivePhoneInputSfx => profile != null ? profile.PhoneInputSfx : phoneInputSfx;
+    private SoundEffect ActivePhoneOpenSfx => profile != null ? profile.PhoneOpenSfx : phoneOpenSfx;
+    private SoundEffect ActivePhoneCloseSfx => profile != null ? profile.PhoneCloseSfx : phoneCloseSfx;
+    private SoundEffect ActiveIncomingWhenClosedSfx =>
+        profile != null ? profile.IncomingWhenClosedSfx : incomingWhenClosedSfx;
+    private SoundEffect ActiveIncomingWhenOpenedSfx =>
+        profile != null ? profile.IncomingWhenOpenedSfx : incomingWhenOpenedSfx;
 
     private void Awake()
     {
@@ -71,7 +92,8 @@ public class ChatUiManager : MonoBehaviour
         }
 
         spawnedUi = Instantiate(lobbyChatPrefab, uiRoot);
-        ApplyChatInputSfx(spawnedUi, lobbyInputSfx);
+        ChatUiEventChannelBinder.Apply(spawnedUi, ActiveChatEvents);
+        ApplyChatInputSfx(spawnedUi, ActiveLobbyInputSfx);
         ApplyLobbyMessageNotificationSfx(spawnedUi);
     }
 
@@ -88,12 +110,14 @@ public class ChatUiManager : MonoBehaviour
 
         StretchToParent(spawnedUi);
 
-        if (phoneInputSfx != null)
-        {
-            phoneView.SetInputSfx(phoneInputSfx);
-        }
-
-        phoneView.Initialize();
+        phoneView.Initialize(
+            ActiveChatEvents,
+            ActivePhoneInputSfx,
+            ActiveIncomingWhenClosedSfx,
+            ActiveIncomingWhenOpenedSfx,
+            ActivePhoneOpenSfx,
+            ActivePhoneCloseSfx
+        );
     }
 
     private void ApplyChatInputSfx(GameObject root, SoundEffect inputSfx)
@@ -115,12 +139,17 @@ public class ChatUiManager : MonoBehaviour
 
     private void ApplyLobbyMessageNotificationSfx(GameObject root)
     {
-        if (root == null || chatEvents == null)
+        ChatEventChannel activeChatEvents = ActiveChatEvents;
+
+        if (root == null || activeChatEvents == null)
         {
             return;
         }
 
-        if (lobbyMessageWhileChatClosedSfx == null && lobbyMessageWhileChatOpenSfx == null)
+        SoundEffect messageWhileChatClosedSfx = ActiveLobbyMessageWhileChatClosedSfx;
+        SoundEffect messageWhileChatOpenSfx = ActiveLobbyMessageWhileChatOpenSfx;
+
+        if (messageWhileChatClosedSfx == null && messageWhileChatOpenSfx == null)
         {
             return;
         }
@@ -134,9 +163,9 @@ public class ChatUiManager : MonoBehaviour
         }
 
         notificationAudio.Configure(
-            chatEvents,
-            lobbyMessageWhileChatClosedSfx,
-            lobbyMessageWhileChatOpenSfx,
+            activeChatEvents,
+            messageWhileChatClosedSfx,
+            messageWhileChatOpenSfx,
             playLobbyMessageSfxForOwnMessages
         );
     }

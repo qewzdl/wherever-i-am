@@ -11,6 +11,11 @@ public class ChatVisibilityController : MonoBehaviour
     public ChatVisibilityState CurrentState { get; private set; }
     public bool IsOpen => CurrentState == ChatVisibilityState.Open;
 
+    public void SetEventChannel(ChatEventChannel chatEvents)
+    {
+        this.chatEvents = chatEvents;
+    }
+
     private void Awake()
     {
         CurrentState = initialState;
