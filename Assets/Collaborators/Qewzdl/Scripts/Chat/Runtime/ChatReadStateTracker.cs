@@ -64,7 +64,7 @@ public class ChatReadStateTracker : MonoBehaviour
         chatEvents.VisibilityChanged += OnVisibilityChanged;
         isSubscribed = true;
 
-        PublishUnreadCount(chatEvents.CurrentUnreadCount);
+        SyncUnreadCountFromEventChannel();
     }
 
     private void Unsubscribe()
@@ -143,14 +143,24 @@ public class ChatReadStateTracker : MonoBehaviour
         ));
     }
 
-    private void SyncOpenState()
+    private void SyncUnreadCountFromEventChannel()
     {
-        IsChatOpen = visibilityController != null && visibilityController.IsOpen;
+        if (chatEvents == null)
+        {
+            return;
+        }
+
+        UnreadCount = chatEvents.CurrentUnreadCount;
 
         if (IsChatOpen)
         {
-            UnreadCount = 0;
+            SetUnreadCount(0);
         }
+    }
+
+    private void SyncOpenState()
+    {
+        IsChatOpen = visibilityController != null && visibilityController.IsOpen;
     }
 
     private void ResolveReferences()
