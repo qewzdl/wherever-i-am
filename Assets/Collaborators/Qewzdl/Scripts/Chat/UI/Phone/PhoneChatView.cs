@@ -518,7 +518,11 @@ public class PhoneChatView : MonoBehaviour
 
     private Vector2 CalculateHiddenAnchoredPosition()
     {
-        return shownAnchoredPosition + new Vector2(0f, -phoneRoot.rect.height - HiddenPositionBottomPadding);
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(phoneRoot);
+
+        float hiddenOffsetY = -phoneRoot.rect.height - HiddenPositionBottomPadding;
+        return shownAnchoredPosition + new Vector2(0f, hiddenOffsetY);
     }
 
     private void StartSlide(Vector2 targetPosition, bool shouldInteractAfterSlide)
