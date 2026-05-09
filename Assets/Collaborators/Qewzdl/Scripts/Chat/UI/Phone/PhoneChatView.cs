@@ -371,11 +371,20 @@ public class PhoneChatView : MonoBehaviour
         StretchToParent(spawnedChatWindow);
 
         chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
+
+        if (chatWindow == null)
+        {
+            Debug.LogError($"{nameof(PhoneChatView)}: Spawned Chat Window has no {nameof(ChatWindowUI)}.", this);
+            Destroy(spawnedChatWindow);
+            spawnedChatWindow = null;
+            return false;
+        }
+
         ApplyChatEventChannel();
         DisableSpawnedChatMessageNotificationAudio();
         ApplyChatInputSfx();
 
-        return chatWindow != null;
+        return true;
     }
 
     private void ApplyChatEventChannel()
