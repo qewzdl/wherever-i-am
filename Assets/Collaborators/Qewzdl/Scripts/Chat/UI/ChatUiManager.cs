@@ -88,19 +88,27 @@ public class ChatUiManager : MonoBehaviour
             return;
         }
 
+        ChatEventChannel activeChatEvents = ActiveChatEvents;
+
+        if (activeChatEvents == null)
+        {
+            Debug.LogError($"{nameof(ChatUiManager)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            return;
+        }
+
         switch (mode)
         {
             case ChatUiMode.LobbyWindow:
-                SpawnLobbyChat();
+                SpawnLobbyChat(activeChatEvents);
                 break;
 
             case ChatUiMode.PhoneWindow:
-                SpawnPhoneChat();
+                SpawnPhoneChat(activeChatEvents);
                 break;
         }
     }
 
-    private void SpawnLobbyChat()
+    private void SpawnLobbyChat(ChatEventChannel activeChatEvents)
     {
         if (lobbyChatPrefab == null)
         {
@@ -109,24 +117,16 @@ public class ChatUiManager : MonoBehaviour
         }
 
         spawnedUi = Instantiate(lobbyChatPrefab, uiRoot);
-        ChatUiEventChannelBinder.Apply(spawnedUi, ActiveChatEvents);
+        ChatUiEventChannelBinder.Apply(spawnedUi, activeChatEvents);
         ApplyChatInputSfx(spawnedUi, ActiveLobbyInputSfx);
-        ApplyLobbyMessageNotificationSfx(spawnedUi);
+        ApplyLobbyMessageNotificationSfx(spawnedUi, activeChatEvents);
     }
 
-    private void SpawnPhoneChat()
+    private void SpawnPhoneChat(ChatEventChannel activeChatEvents)
     {
         if (phoneChatPrefab == null)
         {
             Debug.LogError($"{nameof(ChatUiManager)}: Phone Chat Prefab is not assigned.", this);
-            return;
-        }
-
-        ChatEventChannel activeChatEvents = ActiveChatEvents;
-
-        if (activeChatEvents == null)
-        {
-            Debug.LogError($"{nameof(ChatUiManager)} requires an assigned {nameof(ChatEventChannel)} for Phone Chat.", this);
             return;
         }
 
@@ -162,10 +162,8 @@ public class ChatUiManager : MonoBehaviour
         chatWindow.SetInputSoundOverride(inputSfx);
     }
 
-    private void ApplyLobbyMessageNotificationSfx(GameObject root)
+    private void ApplyLobbyMessageNotificationSfx(GameObject root, ChatEventChannel activeChatEvents)
     {
-        ChatEventChannel activeChatEvents = ActiveChatEvents;
-
         if (root == null || activeChatEvents == null)
         {
             return;
