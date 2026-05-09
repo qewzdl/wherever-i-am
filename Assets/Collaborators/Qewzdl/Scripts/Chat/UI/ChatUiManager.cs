@@ -122,13 +122,21 @@ public class ChatUiManager : MonoBehaviour
             return;
         }
 
+        ChatEventChannel activeChatEvents = ActiveChatEvents;
+
+        if (activeChatEvents == null)
+        {
+            Debug.LogError($"{nameof(ChatUiManager)} requires an assigned {nameof(ChatEventChannel)} for Phone Chat.", this);
+            return;
+        }
+
         PhoneChatView phoneView = Instantiate(phoneChatPrefab, uiRoot);
         spawnedUi = phoneView.gameObject;
 
         StretchToParent(spawnedUi);
 
         phoneView.Initialize(
-            ActiveChatEvents,
+            activeChatEvents,
             ActivePhoneInputSfx,
             ActiveIncomingWhenClosedSfx,
             ActiveIncomingWhenOpenedSfx,
