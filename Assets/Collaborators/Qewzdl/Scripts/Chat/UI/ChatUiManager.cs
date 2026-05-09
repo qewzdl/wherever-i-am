@@ -31,6 +31,8 @@ public class ChatUiManager : MonoBehaviour
     [SerializeField] private SoundEffect phoneCloseSfx;
     [SerializeField] private SoundEffect incomingWhenClosedSfx;
     [SerializeField] private SoundEffect incomingWhenOpenedSfx;
+    [SerializeField] private bool playPhoneIncomingSfxForOwnMessages;
+    [SerializeField] private bool playPhoneIncomingSfxForSystemMessages = true;
 
     private GameObject spawnedUi;
 
@@ -48,6 +50,14 @@ public class ChatUiManager : MonoBehaviour
             profile != null ? profile.LobbyMessageWhileChatOpenSfx : null,
             lobbyMessageWhileChatOpenSfx
         );
+    private bool ActivePlayLobbyMessageSfxForOwnMessages =>
+        profile != null
+            ? profile.PlayLobbyMessageSfxForOwnMessages
+            : playLobbyMessageSfxForOwnMessages;
+    private bool ActivePlayLobbyMessageSfxForSystemMessages =>
+        profile != null
+            ? profile.PlayLobbyMessageSfxForSystemMessages
+            : playLobbyMessageSfxForSystemMessages;
     private SoundEffect ActivePhoneInputSfx =>
         ResolveProfileValue(profile != null ? profile.PhoneInputSfx : null, phoneInputSfx);
     private SoundEffect ActivePhoneOpenSfx =>
@@ -58,6 +68,14 @@ public class ChatUiManager : MonoBehaviour
         ResolveProfileValue(profile != null ? profile.IncomingWhenClosedSfx : null, incomingWhenClosedSfx);
     private SoundEffect ActiveIncomingWhenOpenedSfx =>
         ResolveProfileValue(profile != null ? profile.IncomingWhenOpenedSfx : null, incomingWhenOpenedSfx);
+    private bool ActivePlayPhoneIncomingSfxForOwnMessages =>
+        profile != null
+            ? profile.PlayPhoneIncomingSfxForOwnMessages
+            : playPhoneIncomingSfxForOwnMessages;
+    private bool ActivePlayPhoneIncomingSfxForSystemMessages =>
+        profile != null
+            ? profile.PlayPhoneIncomingSfxForSystemMessages
+            : playPhoneIncomingSfxForSystemMessages;
 
     private void Awake()
     {
@@ -141,7 +159,9 @@ public class ChatUiManager : MonoBehaviour
             ActiveIncomingWhenClosedSfx,
             ActiveIncomingWhenOpenedSfx,
             ActivePhoneOpenSfx,
-            ActivePhoneCloseSfx
+            ActivePhoneCloseSfx,
+            ActivePlayPhoneIncomingSfxForOwnMessages,
+            ActivePlayPhoneIncomingSfxForSystemMessages
         );
     }
 
@@ -189,8 +209,8 @@ public class ChatUiManager : MonoBehaviour
             activeChatEvents,
             messageWhileChatClosedSfx,
             messageWhileChatOpenSfx,
-            playLobbyMessageSfxForOwnMessages,
-            playLobbyMessageSfxForSystemMessages
+            ActivePlayLobbyMessageSfxForOwnMessages,
+            ActivePlayLobbyMessageSfxForSystemMessages
         );
     }
 

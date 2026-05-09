@@ -133,8 +133,6 @@ MonoBehaviour:
   inputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
   incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
   incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
-  playIncomingSfxForOwnMessages: 0
-  playIncomingSfxForSystemMessages: 1
 --- !u!1 &623843110761046784
 GameObject:
   m_ObjectHideFlags: 0

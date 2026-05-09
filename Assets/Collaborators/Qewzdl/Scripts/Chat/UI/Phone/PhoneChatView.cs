@@ -43,10 +43,6 @@ public class PhoneChatView : MonoBehaviour
     [SerializeField] private SoundEffect incomingWhenClosedSfx;
     [SerializeField] private SoundEffect incomingWhenOpenedSfx;
 
-    [Header("Settings")]
-    [SerializeField] private bool playIncomingSfxForOwnMessages;
-    [SerializeField] private bool playIncomingSfxForSystemMessages = true;
-
     private GameObject spawnedChatWindow;
     private ChatWindowUI chatWindow;
     private Coroutine slideCoroutine;
@@ -57,6 +53,8 @@ public class PhoneChatView : MonoBehaviour
     private bool isOpen;
     private bool isSubscribedToChatWindow;
     private bool isSubscribedToChatEvents;
+    private bool playIncomingSfxForOwnMessages;
+    private bool playIncomingSfxForSystemMessages = true;
 
     private void OnValidate()
     {
@@ -141,6 +139,30 @@ public class PhoneChatView : MonoBehaviour
         Initialize();
     }
 
+    public void Initialize(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx,
+        bool playIncomingSfxForOwnMessages,
+        bool playIncomingSfxForSystemMessages)
+    {
+        Configure(
+            chatEvents,
+            inputSfx,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx,
+            playIncomingSfxForOwnMessages,
+            playIncomingSfxForSystemMessages
+        );
+
+        Initialize();
+    }
+
     public void Configure(
         ChatEventChannel chatEvents,
         SoundEffect inputSfx,
@@ -148,6 +170,28 @@ public class PhoneChatView : MonoBehaviour
         SoundEffect incomingWhenOpenedSfx,
         SoundEffect openSfx,
         SoundEffect closeSfx)
+    {
+        Configure(
+            chatEvents,
+            inputSfx,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx,
+            playIncomingSfxForOwnMessages,
+            playIncomingSfxForSystemMessages
+        );
+    }
+
+    public void Configure(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx,
+        bool playIncomingSfxForOwnMessages,
+        bool playIncomingSfxForSystemMessages)
     {
         bool shouldResubscribe = isSubscribedToChatEvents && isActiveAndEnabled;
         UnsubscribeFromChatEvents();
@@ -158,6 +202,8 @@ public class PhoneChatView : MonoBehaviour
         this.incomingWhenOpenedSfx = incomingWhenOpenedSfx;
         this.openSfx = openSfx;
         this.closeSfx = closeSfx;
+        this.playIncomingSfxForOwnMessages = playIncomingSfxForOwnMessages;
+        this.playIncomingSfxForSystemMessages = playIncomingSfxForSystemMessages;
 
         if (spawnedChatWindow != null)
         {

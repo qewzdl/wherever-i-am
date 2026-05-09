@@ -1671,6 +1671,8 @@ MonoBehaviour:
   phoneCloseSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
   incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
   incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
+  playPhoneIncomingSfxForOwnMessages: 0
+  playPhoneIncomingSfxForSystemMessages: 1
 --- !u!4 &250138345965943968
 Transform:
   m_ObjectHideFlags: 0
