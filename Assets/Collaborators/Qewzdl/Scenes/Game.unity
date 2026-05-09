@@ -5220,6 +5220,7 @@ MonoBehaviour:
   lobbyMessageWhileChatClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
   lobbyMessageWhileChatOpenSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
   playLobbyMessageSfxForOwnMessages: 0
+  playLobbyMessageSfxForSystemMessages: 1
   phoneInputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
   phoneOpenSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
   phoneCloseSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}

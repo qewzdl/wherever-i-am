@@ -11,6 +11,7 @@ public class ChatMessageNotificationAudioController : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField] private bool playSoundForOwnMessages;
+    [SerializeField] private bool playSoundForSystemMessages = true;
 
     private bool isChatOpen;
     private bool isSubscribed;
@@ -21,12 +22,29 @@ public class ChatMessageNotificationAudioController : MonoBehaviour
         SoundEffect messageWhileChatOpenSound,
         bool playSoundForOwnMessages)
     {
+        Configure(
+            chatEvents,
+            messageWhileChatClosedSound,
+            messageWhileChatOpenSound,
+            playSoundForOwnMessages,
+            playSoundForSystemMessages
+        );
+    }
+
+    public void Configure(
+        ChatEventChannel chatEvents,
+        SoundEffect messageWhileChatClosedSound,
+        SoundEffect messageWhileChatOpenSound,
+        bool playSoundForOwnMessages,
+        bool playSoundForSystemMessages)
+    {
         Unsubscribe();
 
         this.chatEvents = chatEvents;
         this.messageWhileChatClosedSound = messageWhileChatClosedSound;
         this.messageWhileChatOpenSound = messageWhileChatOpenSound;
         this.playSoundForOwnMessages = playSoundForOwnMessages;
+        this.playSoundForSystemMessages = playSoundForSystemMessages;
 
         if (isActiveAndEnabled)
         {
@@ -71,6 +89,11 @@ public class ChatMessageNotificationAudioController : MonoBehaviour
     private void OnMessageReceived(ChatMessageReceivedEvent messageEvent)
     {
         if (messageEvent.IsLocalSender && !playSoundForOwnMessages)
+        {
+            return;
+        }
+
+        if (messageEvent.IsSystemMessage && !playSoundForSystemMessages)
         {
             return;
         }

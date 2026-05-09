@@ -25,6 +25,7 @@ public class ChatUiManager : MonoBehaviour
     [SerializeField] private SoundEffect lobbyMessageWhileChatClosedSfx;
     [SerializeField] private SoundEffect lobbyMessageWhileChatOpenSfx;
     [SerializeField] private bool playLobbyMessageSfxForOwnMessages;
+    [SerializeField] private bool playLobbyMessageSfxForSystemMessages = true;
     [SerializeField] private SoundEffect phoneInputSfx;
     [SerializeField] private SoundEffect phoneOpenSfx;
     [SerializeField] private SoundEffect phoneCloseSfx;
@@ -166,7 +167,8 @@ public class ChatUiManager : MonoBehaviour
             activeChatEvents,
             messageWhileChatClosedSfx,
             messageWhileChatOpenSfx,
-            playLobbyMessageSfxForOwnMessages
+            playLobbyMessageSfxForOwnMessages,
+            playLobbyMessageSfxForSystemMessages
         );
     }
 
