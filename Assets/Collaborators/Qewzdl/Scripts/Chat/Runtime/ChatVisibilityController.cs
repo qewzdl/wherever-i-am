@@ -11,24 +11,31 @@ public class ChatVisibilityController : MonoBehaviour
     public ChatVisibilityState CurrentState { get; private set; }
     public bool IsOpen => CurrentState == ChatVisibilityState.Open;
 
+    private bool hasStarted;
+
     public void SetEventChannel(ChatEventChannel chatEvents)
     {
+        if (this.chatEvents == chatEvents)
+        {
+            return;
+        }
+
         this.chatEvents = chatEvents;
+
+        if (hasStarted && isActiveAndEnabled)
+        {
+            RaiseCurrentState();
+        }
     }
 
     private void Awake()
     {
         CurrentState = initialState;
-
-        if (chatEvents == null)
-        {
-            Debug.LogError($"{nameof(ChatVisibilityController)} requires an assigned {nameof(ChatEventChannel)}.", this);
-            enabled = false;
-        }
     }
 
     private void Start()
     {
+        hasStarted = true;
         RaiseCurrentState();
     }
 
@@ -77,12 +84,6 @@ public class ChatVisibilityController : MonoBehaviour
 
     private bool HasEventChannel()
     {
-        if (chatEvents != null)
-        {
-            return true;
-        }
-
-        Debug.LogError($"{nameof(ChatVisibilityController)} requires an assigned {nameof(ChatEventChannel)}.", this);
-        return false;
+        return chatEvents != null;
     }
 }

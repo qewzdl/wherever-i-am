@@ -42,8 +42,6 @@ public class ChatSendRejectedAudioController : MonoBehaviour
 
         if (chatEvents == null)
         {
-            Debug.LogError($"{nameof(ChatSendRejectedAudioController)} requires an assigned {nameof(ChatEventChannel)}.", this);
-            enabled = false;
             return;
         }
 

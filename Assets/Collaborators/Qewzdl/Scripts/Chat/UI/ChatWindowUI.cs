@@ -65,21 +65,16 @@ public class ChatWindowUI : MonoBehaviour
 
     public void SetEventChannel(ChatEventChannel chatEvents)
     {
-        bool shouldResubscribe = isSubscribedToEventChannel;
         UnsubscribeFromEventChannel();
 
         this.chatEvents = chatEvents;
 
         ResolveReferences();
+        SubscribeToEventChannel();
 
         if (visibilityController != null)
         {
             visibilityController.SetEventChannel(chatEvents);
-        }
-
-        if (shouldResubscribe)
-        {
-            SubscribeToEventChannel();
         }
     }
 

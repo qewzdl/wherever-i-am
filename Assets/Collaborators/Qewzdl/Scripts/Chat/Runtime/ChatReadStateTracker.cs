@@ -55,8 +55,6 @@ public class ChatReadStateTracker : MonoBehaviour
 
         if (chatEvents == null)
         {
-            Debug.LogError($"{nameof(ChatReadStateTracker)} requires an assigned {nameof(ChatEventChannel)}.", this);
-            enabled = false;
             return;
         }
 
@@ -134,6 +132,11 @@ public class ChatReadStateTracker : MonoBehaviour
 
     private void PublishUnreadCount(int previousUnreadCount)
     {
+        if (chatEvents == null)
+        {
+            return;
+        }
+
         chatEvents.RaiseUnreadCountChanged(new ChatUnreadCountChangedEvent(
             previousUnreadCount,
             UnreadCount
