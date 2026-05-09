@@ -32,6 +32,14 @@ public static class ChatUiEventChannelBinder
             readStateTrackers[i].SetEventChannel(chatEvents);
         }
 
+        ChatMessageNotificationAudioController[] messageNotificationAudioControllers =
+            root.GetComponentsInChildren<ChatMessageNotificationAudioController>(true);
+
+        for (int i = 0; i < messageNotificationAudioControllers.Length; i++)
+        {
+            messageNotificationAudioControllers[i].SetEventChannel(chatEvents);
+        }
+
         ChatSendRejectedAudioController[] sendRejectedAudioControllers =
             root.GetComponentsInChildren<ChatSendRejectedAudioController>(true);
 

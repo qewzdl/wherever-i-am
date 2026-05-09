@@ -16,6 +16,19 @@ public class ChatMessageNotificationAudioController : MonoBehaviour
     private bool isChatOpen;
     private bool isSubscribed;
 
+    public void SetEventChannel(ChatEventChannel chatEvents)
+    {
+        bool shouldSubscribe = isActiveAndEnabled;
+        Unsubscribe();
+
+        this.chatEvents = chatEvents;
+
+        if (shouldSubscribe)
+        {
+            Subscribe();
+        }
+    }
+
     public void Configure(
         ChatEventChannel chatEvents,
         SoundEffect messageWhileChatClosedSound,
