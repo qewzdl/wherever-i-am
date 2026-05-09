@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class PhoneChatView : MonoBehaviour
 {
+    private const float HiddenPositionBottomPadding = 40f;
+
     [Header("Phone Root")]
     [SerializeField] private RectTransform phoneRoot;
     [SerializeField] private CanvasGroup phoneCanvasGroup;
@@ -26,7 +28,6 @@ public class PhoneChatView : MonoBehaviour
     [Header("Animation")]
     [SerializeField] private bool useCurrentPositionAsShownPosition = true;
     [SerializeField] private Vector2 shownAnchoredPosition = new Vector2(40f, 40f);
-    [SerializeField] private Vector2 hiddenOffset = new Vector2(0f, -900f);
     [SerializeField, Min(0f)] private float slideDuration = 0.25f;
     [SerializeField] private AnimationCurve slideCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
@@ -100,7 +101,7 @@ public class PhoneChatView : MonoBehaviour
             shownAnchoredPosition = phoneRoot.anchoredPosition;
         }
 
-        hiddenAnchoredPosition = shownAnchoredPosition + hiddenOffset;
+        hiddenAnchoredPosition = CalculateHiddenAnchoredPosition();
 
         SpawnChatWindow();
         SubscribeToChatWindow();
@@ -424,6 +425,7 @@ public class PhoneChatView : MonoBehaviour
     private void ForceClosed()
     {
         isOpen = false;
+        hiddenAnchoredPosition = CalculateHiddenAnchoredPosition();
         phoneRoot.anchoredPosition = hiddenAnchoredPosition;
 
         if (phoneCanvasGroup != null)
@@ -455,7 +457,13 @@ public class PhoneChatView : MonoBehaviour
 
         isOpen = false;
         PlayOneShot(closeSfx);
+        hiddenAnchoredPosition = CalculateHiddenAnchoredPosition();
         StartSlide(hiddenAnchoredPosition, false);
+    }
+
+    private Vector2 CalculateHiddenAnchoredPosition()
+    {
+        return shownAnchoredPosition + new Vector2(0f, -phoneRoot.rect.height - HiddenPositionBottomPadding);
     }
 
     private void StartSlide(Vector2 targetPosition, bool shouldInteractAfterSlide)
