@@ -305,19 +305,21 @@ public class ChatWindowUI : MonoBehaviour
 
     private void SubmitCurrentMessage()
     {
-        if (readService == null)
-            return;
-
-        if (!readService.CanSubmitMessages)
-            return;
-
         if (inputField == null)
             return;
 
         string text = inputField.text;
 
-        if (string.IsNullOrWhiteSpace(text))
+        if (readService == null)
         {
+            RaiseSendRejected(text, "Chat session is not ready.");
+            RefocusInputAfterRejectedSubmit();
+            return;
+        }
+
+        if (!readService.CanSubmitMessages)
+        {
+            RaiseSendRejected(text, "Chat is not available.");
             RefocusInputAfterRejectedSubmit();
             return;
         }
@@ -357,6 +359,22 @@ public class ChatWindowUI : MonoBehaviour
         }
 
         return chatEvents.RaiseSendRequested(request);
+    }
+
+    private void RaiseSendRejected(string text, string reason)
+    {
+        if (chatEvents == null)
+        {
+            Debug.LogError($"{nameof(ChatWindowUI)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            return;
+        }
+
+        ChatSendRequest request = new ChatSendRequest(
+            text,
+            readService != null ? readService.CurrentChannel.ToString() : string.Empty
+        );
+
+        chatEvents.RaiseSendRejected(new ChatSendRejectedEvent(request, reason));
     }
 
     private void RefocusInputAfterRejectedSubmit()
