@@ -51,6 +51,8 @@ public class PhoneChatView : MonoBehaviour
     private ChatWindowUI chatWindow;
     private Coroutine slideCoroutine;
     private Vector2 hiddenAnchoredPosition;
+    private Vector2 hiddenAnchoredPositionSize;
+    private bool hasHiddenAnchoredPosition;
     private bool isInitialized;
     private bool isOpen;
     private bool isSubscribedToChatWindow;
@@ -105,7 +107,7 @@ public class PhoneChatView : MonoBehaviour
             shownAnchoredPosition = phoneRoot.anchoredPosition;
         }
 
-        hiddenAnchoredPosition = CalculateHiddenAnchoredPosition();
+        ForceRefreshHiddenAnchoredPosition();
 
         if (!SpawnChatWindow())
         {
@@ -496,7 +498,7 @@ public class PhoneChatView : MonoBehaviour
     private void ForceClosed()
     {
         isOpen = false;
-        hiddenAnchoredPosition = CalculateHiddenAnchoredPosition();
+        RefreshHiddenAnchoredPositionIfSizeChanged();
         phoneRoot.anchoredPosition = hiddenAnchoredPosition;
 
         if (phoneCanvasGroup != null)
@@ -528,17 +530,33 @@ public class PhoneChatView : MonoBehaviour
 
         isOpen = false;
         PlayOneShot(closeSfx);
-        hiddenAnchoredPosition = CalculateHiddenAnchoredPosition();
+        RefreshHiddenAnchoredPositionIfSizeChanged();
         StartSlide(hiddenAnchoredPosition, false);
     }
 
-    private Vector2 CalculateHiddenAnchoredPosition()
+    private void ForceRefreshHiddenAnchoredPosition()
     {
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(phoneRoot);
 
-        float hiddenOffsetY = -phoneRoot.rect.height - HiddenPositionBottomPadding;
-        return shownAnchoredPosition + new Vector2(0f, hiddenOffsetY);
+        RefreshHiddenAnchoredPosition();
+    }
+
+    private void RefreshHiddenAnchoredPositionIfSizeChanged()
+    {
+        if (!hasHiddenAnchoredPosition || phoneRoot.rect.size != hiddenAnchoredPositionSize)
+        {
+            RefreshHiddenAnchoredPosition();
+        }
+    }
+
+    private void RefreshHiddenAnchoredPosition()
+    {
+        hiddenAnchoredPositionSize = phoneRoot.rect.size;
+        hasHiddenAnchoredPosition = true;
+
+        float hiddenOffsetY = -hiddenAnchoredPositionSize.y - HiddenPositionBottomPadding;
+        hiddenAnchoredPosition = shownAnchoredPosition + new Vector2(0f, hiddenOffsetY);
     }
 
     private void StartSlide(Vector2 targetPosition, bool shouldInteractAfterSlide)
