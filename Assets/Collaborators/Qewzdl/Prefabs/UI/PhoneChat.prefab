@@ -46,7 +46,7 @@ GameObject:
   - component: {fileID: 433544931794137408}
   - component: {fileID: 580301795716557312}
   m_Layer: 5
-  m_Name: PhoneChatRoot
+  m_Name: PhoneChat
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -69,6 +69,105 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &580301795716557312
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 523798539850030784}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 429e368cd8144b589854e5c7ed9f254e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  phoneRoot: {fileID: 742120991945375233}
+  phoneCanvasGroup: {fileID: 0}
+  phoneImage: {fileID: 348113182098396096}
+  screenRect: {fileID: 308102072240149056}
+  fitScreenRectToTexture: 1
+  screenPixelRectFromTopLeft:
+    serializedVersion: 2
+    x: 222
+    y: 740
+    width: 770
+    height: 540
+  chatContainerPadding: {x: 0, y: 0, z: 0, w: 0}
+  addScreenRectMask: 1
+  chatContainer: {fileID: 878130788754707584}
+  chatWindowPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
+  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
+  useCurrentPositionAsShownPosition: 1
+  shownAnchoredPosition: {x: 40, y: 0}
+  slideDuration: 0.25
+  slideCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  fallbackAudioSource: {fileID: 0}
+  openSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
+  closeSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
+  inputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
+  incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
+  incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
+  playIncomingSfxForOwnMessages: 0
+  playIncomingSfxForSystemMessages: 1
+--- !u!1 &623843110761046784
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 308102072240149056}
+  m_Layer: 5
+  m_Name: Screen
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &308102072240149056
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 623843110761046784}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 878130788754707584}
+  m_Father: {fileID: 742120991945375233}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.1816694, y: 0.375}
+  m_AnchorMax: {x: 0.81178397, y: 0.6386719}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -176,7 +275,7 @@ MonoBehaviour:
       m_Calls: []
   m_Sprite: {fileID: 21300000, guid: f4d969c040a91a347b006d2dd0e59abd, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -184,102 +283,3 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &580301795716557312
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 523798539850030784}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 429e368cd8144b589854e5c7ed9f254e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  phoneRoot: {fileID: 742120991945375233}
-  phoneCanvasGroup: {fileID: 0}
-  phoneImage: {fileID: 348113182098396096}
-  screenRect: {fileID: 308102072240149056}
-  fitScreenRectToTexture: 1
-  screenPixelRectFromTopLeft:
-    serializedVersion: 2
-    x: 222
-    y: 740
-    width: 770
-    height: 540
-  chatContainerPadding: {x: 0, y: 0, z: 0, w: 0}
-  addScreenRectMask: 1
-  chatContainer: {fileID: 878130788754707584}
-  chatWindowPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
-  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
-  useCurrentPositionAsShownPosition: 1
-  shownAnchoredPosition: {x: 40, y: 0}
-  slideDuration: 0.25
-  slideCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  fallbackAudioSource: {fileID: 0}
-  openSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
-  closeSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
-  inputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
-  incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
-  incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
-  playIncomingSfxForOwnMessages: 0
-  playIncomingSfxForSystemMessages: 1
---- !u!1 &623843110761046784
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 308102072240149056}
-  m_Layer: 5
-  m_Name: Screen
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &308102072240149056
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 623843110761046784}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 878130788754707584}
-  m_Father: {fileID: 742120991945375233}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.1816694, y: 0.375}
-  m_AnchorMax: {x: 0.81178397, y: 0.6386719}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
-  m_Pivot: {x: 0.5, y: 0.5}
