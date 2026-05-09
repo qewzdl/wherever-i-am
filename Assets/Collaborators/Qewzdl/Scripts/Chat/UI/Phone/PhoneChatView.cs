@@ -90,6 +90,7 @@ public class PhoneChatView : MonoBehaviour
         if (chatEvents == null)
         {
             Debug.LogError($"{nameof(PhoneChatView)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            return;
         }
 
         ApplyScreenLayout(true);
