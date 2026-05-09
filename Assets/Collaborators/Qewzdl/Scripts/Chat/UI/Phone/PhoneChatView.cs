@@ -157,8 +157,15 @@ public class PhoneChatView : MonoBehaviour
         this.openSfx = openSfx;
         this.closeSfx = closeSfx;
 
-        ApplyChatInputSfx();
-        ApplyChatEventChannel();
+        if (spawnedChatWindow != null)
+        {
+            ApplyChatEventChannel();
+        }
+
+        if (chatWindow != null)
+        {
+            ApplyChatInputSfx();
+        }
 
         if (shouldResubscribe)
         {
