@@ -87,6 +87,11 @@ public class PhoneChatView : MonoBehaviour
             return;
         }
 
+        if (chatEvents == null)
+        {
+            Debug.LogError($"{nameof(PhoneChatView)} requires an assigned {nameof(ChatEventChannel)}.", this);
+        }
+
         ApplyScreenLayout(true);
 
         if (useCurrentPositionAsShownPosition)
