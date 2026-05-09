@@ -34,23 +34,39 @@ public class ChatUiManager : MonoBehaviour
 
     private GameObject spawnedUi;
 
-    private ChatEventChannel ActiveChatEvents => profile != null ? profile.ChatEvents : chatEvents;
-    private SoundEffect ActiveLobbyInputSfx => profile != null ? profile.LobbyInputSfx : lobbyInputSfx;
+    private ChatEventChannel ActiveChatEvents =>
+        ResolveProfileValue(profile != null ? profile.ChatEvents : null, chatEvents);
+    private SoundEffect ActiveLobbyInputSfx =>
+        ResolveProfileValue(profile != null ? profile.LobbyInputSfx : null, lobbyInputSfx);
     private SoundEffect ActiveLobbyMessageWhileChatClosedSfx =>
-        profile != null ? profile.LobbyMessageWhileChatClosedSfx : lobbyMessageWhileChatClosedSfx;
+        ResolveProfileValue(
+            profile != null ? profile.LobbyMessageWhileChatClosedSfx : null,
+            lobbyMessageWhileChatClosedSfx
+        );
     private SoundEffect ActiveLobbyMessageWhileChatOpenSfx =>
-        profile != null ? profile.LobbyMessageWhileChatOpenSfx : lobbyMessageWhileChatOpenSfx;
-    private SoundEffect ActivePhoneInputSfx => profile != null ? profile.PhoneInputSfx : phoneInputSfx;
-    private SoundEffect ActivePhoneOpenSfx => profile != null ? profile.PhoneOpenSfx : phoneOpenSfx;
-    private SoundEffect ActivePhoneCloseSfx => profile != null ? profile.PhoneCloseSfx : phoneCloseSfx;
+        ResolveProfileValue(
+            profile != null ? profile.LobbyMessageWhileChatOpenSfx : null,
+            lobbyMessageWhileChatOpenSfx
+        );
+    private SoundEffect ActivePhoneInputSfx =>
+        ResolveProfileValue(profile != null ? profile.PhoneInputSfx : null, phoneInputSfx);
+    private SoundEffect ActivePhoneOpenSfx =>
+        ResolveProfileValue(profile != null ? profile.PhoneOpenSfx : null, phoneOpenSfx);
+    private SoundEffect ActivePhoneCloseSfx =>
+        ResolveProfileValue(profile != null ? profile.PhoneCloseSfx : null, phoneCloseSfx);
     private SoundEffect ActiveIncomingWhenClosedSfx =>
-        profile != null ? profile.IncomingWhenClosedSfx : incomingWhenClosedSfx;
+        ResolveProfileValue(profile != null ? profile.IncomingWhenClosedSfx : null, incomingWhenClosedSfx);
     private SoundEffect ActiveIncomingWhenOpenedSfx =>
-        profile != null ? profile.IncomingWhenOpenedSfx : incomingWhenOpenedSfx;
+        ResolveProfileValue(profile != null ? profile.IncomingWhenOpenedSfx : null, incomingWhenOpenedSfx);
 
     private void Awake()
     {
         SpawnChatUi();
+    }
+
+    private static T ResolveProfileValue<T>(T profileValue, T fallbackValue) where T : UnityEngine.Object
+    {
+        return profileValue != null ? profileValue : fallbackValue;
     }
 
     private void OnDestroy()
