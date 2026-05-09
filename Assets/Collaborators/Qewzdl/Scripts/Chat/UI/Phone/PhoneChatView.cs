@@ -107,7 +107,11 @@ public class PhoneChatView : MonoBehaviour
 
         hiddenAnchoredPosition = CalculateHiddenAnchoredPosition();
 
-        SpawnChatWindow();
+        if (!SpawnChatWindow())
+        {
+            return;
+        }
+
         SubscribeToChatWindow();
         SubscribeToChatEvents();
         ForceClosed();
@@ -337,23 +341,23 @@ public class PhoneChatView : MonoBehaviour
         chatContainer.localScale = Vector3.one;
     }
 
-    private void SpawnChatWindow()
+    private bool SpawnChatWindow()
     {
         if (spawnedChatWindow != null)
         {
-            return;
+            return chatWindow != null;
         }
 
         if (chatContainer == null)
         {
             Debug.LogError($"{nameof(PhoneChatView)}: Chat Container is not assigned.", this);
-            return;
+            return false;
         }
 
         if (chatWindowPrefab == null)
         {
             Debug.LogError($"{nameof(PhoneChatView)}: Chat Window Prefab is not assigned.", this);
-            return;
+            return false;
         }
 
         spawnedChatWindow = Instantiate(chatWindowPrefab, chatContainer);
@@ -363,6 +367,8 @@ public class PhoneChatView : MonoBehaviour
         ApplyChatEventChannel();
         DisableSpawnedChatMessageNotificationAudio();
         ApplyChatInputSfx();
+
+        return chatWindow != null;
     }
 
     private void ApplyChatEventChannel()
