@@ -544,10 +544,16 @@ public class PhoneChatView : MonoBehaviour
 
     private void RefreshHiddenAnchoredPositionIfSizeChanged()
     {
-        if (!hasHiddenAnchoredPosition || phoneRoot.rect.size != hiddenAnchoredPositionSize)
+        if (!hasHiddenAnchoredPosition || HasPhoneRootSizeChanged())
         {
             RefreshHiddenAnchoredPosition();
         }
+    }
+
+    private bool HasPhoneRootSizeChanged()
+    {
+        Vector2 currentSize = phoneRoot.rect.size;
+        return (currentSize - hiddenAnchoredPositionSize).sqrMagnitude > 0.01f;
     }
 
     private void RefreshHiddenAnchoredPosition()
