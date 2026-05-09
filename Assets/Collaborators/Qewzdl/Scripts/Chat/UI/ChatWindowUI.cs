@@ -324,6 +324,12 @@ public class ChatWindowUI : MonoBehaviour
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            RefocusInputAfterRejectedSubmit();
+            return;
+        }
+
         if (!SubmitSendRequest(text))
         {
             RefocusInputAfterRejectedSubmit();
