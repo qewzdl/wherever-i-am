@@ -85,7 +85,6 @@ public class ChatWindowUI : MonoBehaviour
 
     public void Construct(
         IChatReadService readService,
-        IChatCommandService commandService,
         GameStateMachine stateMachine)
     {
         UnsubscribeFromServices();

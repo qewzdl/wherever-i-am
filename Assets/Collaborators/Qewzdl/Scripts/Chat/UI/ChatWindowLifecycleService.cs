@@ -103,7 +103,7 @@ public sealed class ChatWindowLifecycleService : MonoBehaviour
 
         if (activeWindow != null)
         {
-            activeWindow.Construct(chatSession, chatSession, stateMachine);
+            activeWindow.Construct(chatSession, stateMachine);
             return;
         }
 
@@ -124,7 +124,7 @@ public sealed class ChatWindowLifecycleService : MonoBehaviour
         if (activeCanvasRoot == null && activeWindow.transform.parent == null)
             DontDestroyOnLoad(activeWindow.gameObject);
 
-        activeWindow.Construct(chatSession, chatSession, stateMachine);
+        activeWindow.Construct(chatSession, stateMachine);
     }
 
     private void DestroyWindow()

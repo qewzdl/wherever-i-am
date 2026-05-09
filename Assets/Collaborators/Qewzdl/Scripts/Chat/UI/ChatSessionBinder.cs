@@ -32,7 +32,7 @@ public class ChatSessionBinder : MonoBehaviour
         ResolveReferences();
 
         if (chatWindow != null)
-            chatWindow.Construct(session, session, stateMachine);
+            chatWindow.Construct(session, stateMachine);
 
         if (notificationController != null)
             notificationController.Construct(session, chatWindow);
@@ -43,7 +43,7 @@ public class ChatSessionBinder : MonoBehaviour
         ResolveReferences();
 
         if (chatWindow != null)
-            chatWindow.Construct(null, null, stateMachine);
+            chatWindow.Construct(null, stateMachine);
 
         if (notificationController != null)
             notificationController.Construct(null, chatWindow);
