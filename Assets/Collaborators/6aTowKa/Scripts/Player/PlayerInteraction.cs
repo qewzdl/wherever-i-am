@@ -19,6 +19,8 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     {
         signals.Interact.Listen(Interact);
         contactPoint = new GameObject();
+        contactPoint.transform.parent = this.transform;
+        contactPoint.name = "ContactPoint"; 
     }
 
     public void Cleanup()

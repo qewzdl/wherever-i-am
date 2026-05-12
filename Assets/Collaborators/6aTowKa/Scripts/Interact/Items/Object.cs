@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -17,6 +18,8 @@ public abstract class Object : InteractableObject
     {
         rb = GetComponent<Rigidbody>();
         holdPoint = new GameObject();
+        holdPoint.transform.parent = this.transform;
+        holdPoint.name = "HoldPoint";
         rb.mass = mass;
     }
 
@@ -52,6 +55,9 @@ public abstract class Object : InteractableObject
         lastSpeed = playerController.GetSpeed();
         playerController.SetSpeed(lastSpeed / (1 + mass));
 
+        StartCoroutine(ChangeValue(mass));
+        mass = 0.1f;
+
         isDragging = true;
         rb.useGravity = false;
     }
@@ -76,6 +82,24 @@ public abstract class Object : InteractableObject
         Gizmos.color = Color.red;
         if (holdPoint != null)
             Gizmos.DrawSphere(holdPoint.transform.position, 0.1f);
+       
+        if (rb != null)
+            Gizmos.DrawSphere(rb.position, 0.1f);
     }
 
+    IEnumerator ChangeValue(float targetValue)
+    {
+        float startValue = 0.1f;
+        float elapsed = 0f;
+        float duration = 0.4f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            mass = Mathf.Lerp(startValue, targetValue, elapsed / duration);
+            yield return null;
+        }
+
+        mass = targetValue;
+    }
 }
