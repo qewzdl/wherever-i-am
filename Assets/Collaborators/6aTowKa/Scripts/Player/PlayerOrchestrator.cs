@@ -3,6 +3,7 @@ using UnityEngine;
 public class PlayerOrchestrator : MonoBehaviour
 {
     public readonly PlayerSignals Signals = new PlayerSignals();
+    public readonly PlayerStates States = new PlayerStates();
 
     public void Setup(bool isMultiplayer, bool isOwner)
     {

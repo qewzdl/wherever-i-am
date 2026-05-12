@@ -1,4 +1,3 @@
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
@@ -9,6 +8,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     [SerializeField] private Sprite defualtCrosshair;
     [SerializeField] private Transform playerCameraTransform;
+    [SerializeField] private PlayerController playerController;
 
     private InteractableObject currentInteractable;
 
@@ -28,6 +28,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private void Raycast()
     {
+        if (states.IsInteracting) return;
 
         Debug.DrawRay(rayOrigin.position, rayOrigin.forward * interactionRange, Color.red);
         Ray ray = new Ray(rayOrigin.position, rayOrigin.forward);
@@ -65,10 +66,15 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
         {
             HoldPoint = contactPoint.transform,
             PlayerCameraTransform = this.playerCameraTransform,
+            PlayerController = this.playerController,
         };
 
         if (currentInteractable)
             currentInteractable.Interact(interactionContext);
+
+        currentInteractable = null;
+
+        signals.CrosshairSpriteSignal.Trigger(defualtCrosshair);
     }
 
     private void Update()

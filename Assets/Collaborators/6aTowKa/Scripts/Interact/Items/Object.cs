@@ -4,11 +4,14 @@ using UnityEngine.InputSystem;
 public abstract class Object : InteractableObject
 {
     [SerializeField] protected float mass;
-
+   
     protected GameObject holdPoint;
     protected bool isDragging;
     protected Rigidbody rb;
     private Vector3 previousPosition;
+
+    private PlayerController playerController;
+    private float lastSpeed;
 
     private void Awake()
     {
@@ -24,14 +27,15 @@ public abstract class Object : InteractableObject
         holdPoint.transform.position = context.HoldPoint.position;
         holdPoint.transform.parent = context.PlayerCameraTransform;
 
+        playerController = context.PlayerController;
+
         StartDragging();
-        print("Object interact!");
     }
 
     protected void Update()
     {
         //test
-        if (Keyboard.current.eKey.wasReleasedThisFrame)
+        if (Keyboard.current.eKey.wasReleasedThisFrame && isDragging)
         {
             StopDragging();
         }
@@ -45,6 +49,9 @@ public abstract class Object : InteractableObject
 
     protected void StartDragging()
     {
+        lastSpeed = playerController.GetSpeed();
+        playerController.SetSpeed(lastSpeed / (1 + mass));
+
         isDragging = true;
         rb.useGravity = false;
     }
@@ -55,6 +62,15 @@ public abstract class Object : InteractableObject
         rb.position = Vector3.Lerp(rb.position, holdPoint.transform.position, Time.fixedDeltaTime / mass);
     }
 
+    protected void StopDragging()
+    {
+        playerController.SetSpeed(lastSpeed);
+
+        isDragging = false;
+        rb.linearVelocity = (rb.position - previousPosition) / Time.fixedDeltaTime;
+        rb.useGravity = true;
+    }
+
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
@@ -62,10 +78,4 @@ public abstract class Object : InteractableObject
             Gizmos.DrawSphere(holdPoint.transform.position, 0.1f);
     }
 
-    protected void StopDragging()
-    {
-        isDragging = false;
-        rb.linearVelocity = (rb.position - previousPosition) / Time.fixedDeltaTime;
-        rb.useGravity = true;
-    }
 }

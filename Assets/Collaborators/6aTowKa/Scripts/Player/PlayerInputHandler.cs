@@ -48,8 +48,16 @@ public class PlayerInputHandler : PlayerComponent
     
     public void OnInteract(InputAction.CallbackContext context)
     {
-        if (inputActive && context.started)
+        if (!inputActive) return;
+
+        if (context.started)
+        {
             signals.Interact.Trigger();
+            states.IsInteracting = true;
+        }
+
+        if (context.canceled) 
+            states.IsInteracting = false;
     }
 
 

@@ -3,7 +3,7 @@ using UnityEngine;
 public class PlayerController : PlayerComponent, IPlayerSignalListener
 {
     [SerializeField] private float speed;
-    [SerializeField] private float speedToCrouch;
+    //[SerializeField] private float speedToCrouch;
 
     private Vector2 direction;
     private bool isCrouching = false;
@@ -39,5 +39,15 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     {
         isCrouching = !isCrouching;
         signals.CrouchUpdateSignal.Trigger(isCrouching);
+    }
+
+    public void SetSpeed(float newSpeed)
+    {
+        speed = newSpeed;
+    }
+
+    public float GetSpeed()
+    {
+        return speed;
     }
 }
