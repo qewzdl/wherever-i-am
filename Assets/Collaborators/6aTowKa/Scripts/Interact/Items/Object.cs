@@ -1,12 +1,14 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 
 public abstract class Object : InteractableObject
 {
     [SerializeField] protected float mass;
    
     protected GameObject holdPoint;
+    protected float maxDraggingDistance = 8f;
     protected bool isDragging;
     protected Rigidbody rb;
     private Vector3 previousPosition;
@@ -17,10 +19,11 @@ public abstract class Object : InteractableObject
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        rb.mass = mass;
+
         holdPoint = new GameObject();
         holdPoint.transform.parent = this.transform;
         holdPoint.name = "HoldPoint";
-        rb.mass = mass;
     }
 
     public override void Interact(InteractionContext context)
@@ -66,6 +69,10 @@ public abstract class Object : InteractableObject
     {
         previousPosition = rb.position;
         rb.position = Vector3.Lerp(rb.position, holdPoint.transform.position, Time.fixedDeltaTime / mass);
+        if (Vector3.Distance(rb.position, holdPoint.transform.position) > maxDraggingDistance)
+        {
+            StopDragging();
+        }
     }
 
     protected void StopDragging()
