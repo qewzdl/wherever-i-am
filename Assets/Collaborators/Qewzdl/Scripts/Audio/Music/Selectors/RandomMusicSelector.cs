@@ -2,7 +2,7 @@ using UnityEngine;
 
 [CreateAssetMenu(
     fileName = "RandomMusicSelector",
-    menuName = "Game Audio/Music Selectors/Random"
+    menuName = "Wherever I Am/Audio/Music/Selectors/Random"
 )]
 public class RandomMusicSelector : MusicTrackSelector
 {

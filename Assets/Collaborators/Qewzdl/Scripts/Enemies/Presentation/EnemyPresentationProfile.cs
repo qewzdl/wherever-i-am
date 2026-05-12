@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(
-    menuName = "Game/Enemies/Presentation/Enemy Presentation Profile",
+    menuName = "Wherever I Am/Enemies/Presentation/Enemy Presentation Profile",
     fileName = "EnemyPresentationProfile"
 )]
 public class EnemyPresentationProfile : ScriptableObject

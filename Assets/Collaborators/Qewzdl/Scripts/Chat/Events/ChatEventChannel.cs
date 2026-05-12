@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "ChatEventChannel", menuName = "Chat/Event Channel")]
+[CreateAssetMenu(fileName = "ChatEventChannel", menuName = "Wherever I Am/Chat/Event Channel")]
 public class ChatEventChannel : ScriptableObject
 {
     public event Action<ChatSendRequest> SendRequested;

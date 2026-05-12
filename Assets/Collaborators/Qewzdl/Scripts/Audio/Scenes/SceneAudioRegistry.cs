@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "SceneAudioRegistry", menuName = "Game Audio/Scene Audio Registry")]
+[CreateAssetMenu(fileName = "SceneAudioRegistry", menuName = "Wherever I Am/Audio/Scenes/Scene Audio Registry")]
 public class SceneAudioRegistry : ScriptableObject
 {
     [Header("Profiles")]

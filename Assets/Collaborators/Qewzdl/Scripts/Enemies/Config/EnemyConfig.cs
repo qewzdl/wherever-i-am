@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "Game/Enemies/Enemy Config", fileName = "EnemyConfig")]
+[CreateAssetMenu(menuName = "Wherever I Am/Enemies/Enemy Config", fileName = "EnemyConfig")]
 public class EnemyConfig : ScriptableObject
 {
     [Header("Movement")]

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "Sfx", menuName = "Game Audio/Sound Effect")]
+[CreateAssetMenu(fileName = "Sfx", menuName = "Wherever I Am/Audio/SFX/Sound Effect")]
 public class SoundEffect : ScriptableObject
 {
     [Header("Audio")]

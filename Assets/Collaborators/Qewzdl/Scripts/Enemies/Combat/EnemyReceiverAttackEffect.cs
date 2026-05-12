@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(
-    menuName = "Game/Enemies/Combat/Receiver Attack Effect",
+    menuName = "Wherever I Am/Enemies/Combat/Receiver Attack Effect",
     fileName = "EnemyReceiverAttackEffect"
 )]
 public sealed class EnemyReceiverAttackEffect : EnemyAttackEffect

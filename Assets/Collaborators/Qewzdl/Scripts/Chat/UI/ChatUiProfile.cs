@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "ChatUiProfile", menuName = "Chat/UI Profile")]
+[CreateAssetMenu(fileName = "ChatUiProfile", menuName = "Wherever I Am/Chat/UI Profile")]
 public class ChatUiProfile : ScriptableObject
 {
     [Header("Events")]

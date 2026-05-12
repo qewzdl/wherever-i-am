@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "SceneAudioProfile", menuName = "Game Audio/Scene Audio Profile")]
+[CreateAssetMenu(fileName = "SceneAudioProfile", menuName = "Wherever I Am/Audio/Scenes/Scene Audio Profile")]
 public class SceneAudioProfile : ScriptableObject
 {
     [Header("Scenes")]

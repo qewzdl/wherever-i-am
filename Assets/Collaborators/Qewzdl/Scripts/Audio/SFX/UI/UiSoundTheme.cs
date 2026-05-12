@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "UiSoundTheme", menuName = "Game Audio/UI Sound Theme")]
+[CreateAssetMenu(fileName = "UiSoundTheme", menuName = "Wherever I Am/Audio/SFX/UI Sound Theme")]
 public class UiSoundTheme : ScriptableObject
 {
     [SerializeField] private UiSoundBinding[] sounds;

@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(
-    menuName = "Game/Enemies/Combat/Debug Attack Effect",
+    menuName = "Wherever I Am/Enemies/Combat/Debug Attack Effect",
     fileName = "EnemyDebugAttackEffect"
 )]
 public sealed class EnemyDebugAttackEffect : EnemyAttackEffect
