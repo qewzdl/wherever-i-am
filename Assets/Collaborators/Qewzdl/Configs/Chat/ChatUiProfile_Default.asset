@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f056239f255a46c48642c03c3af8e1fd, type: 3}
+  m_Name: ChatUiProfile_Default
+  m_EditorClassIdentifier: 
+  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
+  lobbyInputSfx: {fileID: 11400000, guid: 82f493a9e71df5a4295a6b780335f041, type: 2}
+  lobbyMessageWhileChatClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
+  lobbyMessageWhileChatOpenSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
+  playLobbyMessageSfxForOwnMessages: 0
+  playLobbyMessageSfxForSystemMessages: 1
+  phoneInputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
+  phoneOpenSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
+  phoneCloseSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
+  incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
+  incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
+  playPhoneIncomingSfxForOwnMessages: 0
+  playPhoneIncomingSfxForSystemMessages: 1

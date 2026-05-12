@@ -11,80 +11,17 @@ public class ChatUiManager : MonoBehaviour
     [Header("Spawn Root")]
     [SerializeField] private Transform uiRoot;
 
-    [Header("Events")]
-    [SerializeField] private ChatEventChannel chatEvents;
-
     [Header("Lobby Chat")]
     [SerializeField] private GameObject lobbyChatPrefab;
 
     [Header("Phone Chat")]
     [SerializeField] private PhoneChatView phoneChatPrefab;
 
-    [Header("Audio")]
-    [SerializeField] private SoundEffect lobbyInputSfx;
-    [SerializeField] private SoundEffect lobbyMessageWhileChatClosedSfx;
-    [SerializeField] private SoundEffect lobbyMessageWhileChatOpenSfx;
-    [SerializeField] private bool playLobbyMessageSfxForOwnMessages;
-    [SerializeField] private bool playLobbyMessageSfxForSystemMessages = true;
-    [SerializeField] private SoundEffect phoneInputSfx;
-    [SerializeField] private SoundEffect phoneOpenSfx;
-    [SerializeField] private SoundEffect phoneCloseSfx;
-    [SerializeField] private SoundEffect incomingWhenClosedSfx;
-    [SerializeField] private SoundEffect incomingWhenOpenedSfx;
-    [SerializeField] private bool playPhoneIncomingSfxForOwnMessages;
-    [SerializeField] private bool playPhoneIncomingSfxForSystemMessages = true;
-
     private GameObject spawnedUi;
-
-    private ChatEventChannel ActiveChatEvents =>
-        ResolveProfileValue(profile != null ? profile.ChatEvents : null, chatEvents);
-    private SoundEffect ActiveLobbyInputSfx =>
-        ResolveProfileValue(profile != null ? profile.LobbyInputSfx : null, lobbyInputSfx);
-    private SoundEffect ActiveLobbyMessageWhileChatClosedSfx =>
-        ResolveProfileValue(
-            profile != null ? profile.LobbyMessageWhileChatClosedSfx : null,
-            lobbyMessageWhileChatClosedSfx
-        );
-    private SoundEffect ActiveLobbyMessageWhileChatOpenSfx =>
-        ResolveProfileValue(
-            profile != null ? profile.LobbyMessageWhileChatOpenSfx : null,
-            lobbyMessageWhileChatOpenSfx
-        );
-    private bool ActivePlayLobbyMessageSfxForOwnMessages =>
-        profile != null
-            ? profile.PlayLobbyMessageSfxForOwnMessages
-            : playLobbyMessageSfxForOwnMessages;
-    private bool ActivePlayLobbyMessageSfxForSystemMessages =>
-        profile != null
-            ? profile.PlayLobbyMessageSfxForSystemMessages
-            : playLobbyMessageSfxForSystemMessages;
-    private SoundEffect ActivePhoneInputSfx =>
-        ResolveProfileValue(profile != null ? profile.PhoneInputSfx : null, phoneInputSfx);
-    private SoundEffect ActivePhoneOpenSfx =>
-        ResolveProfileValue(profile != null ? profile.PhoneOpenSfx : null, phoneOpenSfx);
-    private SoundEffect ActivePhoneCloseSfx =>
-        ResolveProfileValue(profile != null ? profile.PhoneCloseSfx : null, phoneCloseSfx);
-    private SoundEffect ActiveIncomingWhenClosedSfx =>
-        ResolveProfileValue(profile != null ? profile.IncomingWhenClosedSfx : null, incomingWhenClosedSfx);
-    private SoundEffect ActiveIncomingWhenOpenedSfx =>
-        ResolveProfileValue(profile != null ? profile.IncomingWhenOpenedSfx : null, incomingWhenOpenedSfx);
-    private bool ActivePlayPhoneIncomingSfxForOwnMessages =>
-        profile != null
-            ? profile.PlayPhoneIncomingSfxForOwnMessages
-            : playPhoneIncomingSfxForOwnMessages;
-    private bool ActivePlayPhoneIncomingSfxForSystemMessages =>
-        profile != null
-            ? profile.PlayPhoneIncomingSfxForSystemMessages
-            : playPhoneIncomingSfxForSystemMessages;
 
     private void Awake()
     {
         SpawnChatUi();
-    }
-
-    private static T ResolveProfileValue<T>(T profileValue, T fallbackValue) where T : UnityEngine.Object
-    {
-        return profileValue != null ? profileValue : fallbackValue;
     }
 
     private void OnDestroy()
@@ -100,17 +37,23 @@ public class ChatUiManager : MonoBehaviour
 
     private void SpawnChatUi()
     {
+        if (profile == null)
+        {
+            Debug.LogError($"{nameof(ChatUiManager)} requires an assigned {nameof(ChatUiProfile)}.", this);
+            return;
+        }
+
         if (uiRoot == null)
         {
             Debug.LogError($"{nameof(ChatUiManager)}: UI Root is not assigned.", this);
             return;
         }
 
-        ChatEventChannel activeChatEvents = ActiveChatEvents;
+        ChatEventChannel activeChatEvents = profile.ChatEvents;
 
         if (activeChatEvents == null)
         {
-            Debug.LogError($"{nameof(ChatUiManager)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            Debug.LogError($"{nameof(ChatUiManager)} requires a {nameof(ChatUiProfile)} with an assigned {nameof(ChatEventChannel)}.", this);
             return;
         }
 
@@ -136,7 +79,7 @@ public class ChatUiManager : MonoBehaviour
 
         spawnedUi = Instantiate(lobbyChatPrefab, uiRoot);
         ChatUiEventChannelBinder.Apply(spawnedUi, activeChatEvents);
-        ApplyChatInputSfx(spawnedUi, ActiveLobbyInputSfx);
+        ApplyChatInputSfx(spawnedUi, profile.LobbyInputSfx);
         ApplyLobbyMessageNotificationSfx(spawnedUi, activeChatEvents);
     }
 
@@ -155,13 +98,13 @@ public class ChatUiManager : MonoBehaviour
 
         phoneView.Initialize(
             activeChatEvents,
-            ActivePhoneInputSfx,
-            ActiveIncomingWhenClosedSfx,
-            ActiveIncomingWhenOpenedSfx,
-            ActivePhoneOpenSfx,
-            ActivePhoneCloseSfx,
-            ActivePlayPhoneIncomingSfxForOwnMessages,
-            ActivePlayPhoneIncomingSfxForSystemMessages
+            profile.PhoneInputSfx,
+            profile.IncomingWhenClosedSfx,
+            profile.IncomingWhenOpenedSfx,
+            profile.PhoneOpenSfx,
+            profile.PhoneCloseSfx,
+            profile.PlayPhoneIncomingSfxForOwnMessages,
+            profile.PlayPhoneIncomingSfxForSystemMessages
         );
     }
 
@@ -189,8 +132,8 @@ public class ChatUiManager : MonoBehaviour
             return;
         }
 
-        SoundEffect messageWhileChatClosedSfx = ActiveLobbyMessageWhileChatClosedSfx;
-        SoundEffect messageWhileChatOpenSfx = ActiveLobbyMessageWhileChatOpenSfx;
+        SoundEffect messageWhileChatClosedSfx = profile.LobbyMessageWhileChatClosedSfx;
+        SoundEffect messageWhileChatOpenSfx = profile.LobbyMessageWhileChatOpenSfx;
 
         if (messageWhileChatClosedSfx == null && messageWhileChatOpenSfx == null)
         {
@@ -209,8 +152,8 @@ public class ChatUiManager : MonoBehaviour
             activeChatEvents,
             messageWhileChatClosedSfx,
             messageWhileChatOpenSfx,
-            ActivePlayLobbyMessageSfxForOwnMessages,
-            ActivePlayLobbyMessageSfxForSystemMessages
+            profile.PlayLobbyMessageSfxForOwnMessages,
+            profile.PlayLobbyMessageSfxForSystemMessages
         );
     }
 

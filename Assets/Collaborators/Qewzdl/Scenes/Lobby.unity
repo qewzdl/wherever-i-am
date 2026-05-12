@@ -1656,23 +1656,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   mode: 0
-  profile: {fileID: 0}
+  profile: {fileID: 11400000, guid: 741a50ced37236b428fe2a0f56b61645, type: 2}
   uiRoot: {fileID: 896598420}
-  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
   lobbyChatPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
   phoneChatPrefab: {fileID: 580301795716557312, guid: 531fc2ecdc954bbdbdc1cea9d3dcc24f, type: 3}
-  lobbyInputSfx: {fileID: 11400000, guid: 82f493a9e71df5a4295a6b780335f041, type: 2}
-  lobbyMessageWhileChatClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
-  lobbyMessageWhileChatOpenSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
-  playLobbyMessageSfxForOwnMessages: 0
-  playLobbyMessageSfxForSystemMessages: 1
-  phoneInputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
-  phoneOpenSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
-  phoneCloseSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
-  incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
-  incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
-  playPhoneIncomingSfxForOwnMessages: 0
-  playPhoneIncomingSfxForSystemMessages: 1
 --- !u!4 &250138345965943968
 Transform:
   m_ObjectHideFlags: 0
