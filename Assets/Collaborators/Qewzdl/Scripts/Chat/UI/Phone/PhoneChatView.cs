@@ -1,81 +1,34 @@
-using System;
-using System.Collections;
 using UnityEngine;
-using UnityEngine.UI;
 
+[DisallowMultipleComponent]
+[RequireComponent(typeof(PhoneScreenLayoutController))]
+[RequireComponent(typeof(PhoneChatWindowHost))]
+[RequireComponent(typeof(PhoneShellPresentationController))]
+[RequireComponent(typeof(PhoneChatNotificationAudioController))]
 public class PhoneChatView : MonoBehaviour
 {
-    private const float HiddenPositionBottomPadding = 40f;
-    private const string PhoneRootName = "PhoneRoot";
-    private const string PhoneImageName = "PhoneImage";
-    private const string ScreenName = "Screen";
-    private const string ChatContainerName = "ChatContainer";
-
-    [Header("Phone Root")]
-    [SerializeField] private RectTransform phoneRoot;
-    [SerializeField] private CanvasGroup phoneCanvasGroup;
-
-    [Header("Phone Screen Layout")]
-    [SerializeField] private Image phoneImage;
-    [SerializeField] private RectTransform screenRect;
-    [SerializeField] private bool fitScreenRectToTexture = true;
-    [SerializeField] private Rect screenPixelRectFromTopLeft = new Rect(310f, 1120f, 1278f, 920f);
-    [SerializeField] private Vector4 chatContainerPadding = new Vector4(8f, 8f, 8f, 8f);
-    [SerializeField] private bool addScreenRectMask = true;
-
-    [Header("Chat Window")]
-    [SerializeField] private RectTransform chatContainer;
-    [SerializeField] private GameObject chatWindowPrefab;
-
-    [Header("Events")]
-    [SerializeField] private ChatEventChannel chatEvents;
-
-    [Header("Animation")]
-    [SerializeField] private bool useCurrentPositionAsShownPosition = true;
-    [SerializeField] private Vector2 shownAnchoredPosition = new Vector2(40f, 40f);
-    [SerializeField, Min(0f)] private float slideDuration = 0.25f;
-    [SerializeField] private AnimationCurve slideCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
-
-    [Header("Phone Sprite Animation")]
-    [SerializeField] private PhoneSpriteAnimator spriteAnimator;
-    [SerializeField] private PhoneSpriteAnimationProfile spriteAnimationProfile;
-
-    [Header("Chat Content Gate")]
-    [SerializeField] private CanvasGroup chatContentCanvasGroup;
-    [SerializeField] private bool hideChatContentUntilPhoneOpened = true;
-
-    [Header("Audio")]
-    [SerializeField] private AudioSource fallbackAudioSource;
-    [SerializeField] private SoundEffect openSfx;
-    [SerializeField] private SoundEffect closeSfx;
-    [SerializeField] private SoundEffect inputSfx;
-    [SerializeField] private SoundEffect incomingWhenClosedSfx;
-    [SerializeField] private SoundEffect incomingWhenOpenedSfx;
+    [Header("Components")]
+    [SerializeField] private PhoneScreenLayoutController screenLayoutController;
+    [SerializeField] private PhoneChatWindowHost chatWindowHost;
+    [SerializeField] private PhoneShellPresentationController shellPresentationController;
+    [SerializeField] private PhoneChatNotificationAudioController notificationAudioController;
 
     [Header("Typography")]
     [SerializeField] private ChatTypographyProfile typographyProfile;
 
-    private GameObject spawnedChatWindow;
-    private ChatWindowUI chatWindow;
-    private Coroutine slideCoroutine;
-
-    private Vector2 hiddenAnchoredPosition;
-    private Vector2 hiddenAnchoredPositionSize;
-
-    private bool hasHiddenAnchoredPosition;
     private bool isInitialized;
-    private bool isOpen;
-    private bool isSubscribedToChatWindow;
-    private bool isSubscribedToChatEvents;
-    private bool playIncomingSfxForOwnMessages;
-    private bool playIncomingSfxForSystemMessages = true;
-    private bool waitingForOpeningSlide;
-    private bool waitingForOpeningSprite;
 
     private void OnValidate()
     {
-        ResolveScreenReferences();
-        ApplyScreenLayout(false);
+        EnsureControllers(false);
+
+        if (screenLayoutController == null)
+        {
+            return;
+        }
+
+        screenLayoutController.ResolveReferences();
+        screenLayoutController.Apply(false);
     }
 
     private void OnEnable()
@@ -85,21 +38,13 @@ public class PhoneChatView : MonoBehaviour
             return;
         }
 
-        ConfigureSpriteAnimator();
-        SubscribeToChatWindow();
-        SubscribeToChatEvents();
+        EnsureControllers();
+        Subscribe();
     }
 
     private void OnDisable()
     {
-        UnsubscribeFromChatWindow();
-        UnsubscribeFromChatEvents();
-
-        if (spriteAnimator != null)
-        {
-            spriteAnimator.FrameChanged -= HandlePhoneSpriteFrameChanged;
-            spriteAnimator.PlaybackCompleted -= HandlePhoneSpritePlaybackCompleted;
-        }
+        Unsubscribe();
     }
 
     public void Initialize()
@@ -109,39 +54,33 @@ public class PhoneChatView : MonoBehaviour
             return;
         }
 
-        ResolveReferences();
+        EnsureControllers();
+        ConfigurePresentationCallbacks();
 
-        if (phoneRoot == null)
+        if (screenLayoutController != null)
+        {
+            screenLayoutController.ResolveReferences();
+            screenLayoutController.Apply(true);
+        }
+
+        if (shellPresentationController == null || !shellPresentationController.HasPhoneRoot)
         {
             Debug.LogError($"{nameof(PhoneChatView)}: Phone Root is not assigned.", this);
             return;
         }
 
-        if (chatEvents == null)
-        {
-            Debug.LogError($"{nameof(PhoneChatView)} requires an assigned {nameof(ChatEventChannel)}.", this);
-            return;
-        }
+        shellPresentationController.PrepareClosedPosition();
 
-        ApplyScreenLayout(true);
-
-        if (useCurrentPositionAsShownPosition)
-        {
-            shownAnchoredPosition = phoneRoot.anchoredPosition;
-        }
-
-        ForceRefreshHiddenAnchoredPosition();
-
-        if (!SpawnChatWindow())
+        if (chatWindowHost == null || !chatWindowHost.Spawn())
         {
             return;
         }
 
         ApplyTypography();
+        Subscribe();
 
-        SubscribeToChatWindow();
-        SubscribeToChatEvents();
-        ForceClosed();
+        shellPresentationController.ForceClosed();
+        notificationAudioController?.SetOpenState(false);
 
         isInitialized = true;
     }
@@ -152,79 +91,6 @@ public class PhoneChatView : MonoBehaviour
         SoundEffect incomingWhenClosedSfx,
         SoundEffect incomingWhenOpenedSfx,
         SoundEffect openSfx,
-        SoundEffect closeSfx)
-    {
-        Configure(
-            chatEvents,
-            inputSfx,
-            incomingWhenClosedSfx,
-            incomingWhenOpenedSfx,
-            openSfx,
-            closeSfx
-        );
-
-        Initialize();
-    }
-
-    public void Initialize(
-        ChatEventChannel chatEvents,
-        SoundEffect inputSfx,
-        SoundEffect incomingWhenClosedSfx,
-        SoundEffect incomingWhenOpenedSfx,
-        SoundEffect openSfx,
-        SoundEffect closeSfx,
-        bool playIncomingSfxForOwnMessages,
-        bool playIncomingSfxForSystemMessages)
-    {
-        Configure(
-            chatEvents,
-            inputSfx,
-            incomingWhenClosedSfx,
-            incomingWhenOpenedSfx,
-            openSfx,
-            closeSfx,
-            playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages,
-            typographyProfile,
-            spriteAnimationProfile
-        );
-
-        Initialize();
-    }
-
-    public void Initialize(
-        ChatEventChannel chatEvents,
-        SoundEffect inputSfx,
-        SoundEffect incomingWhenClosedSfx,
-        SoundEffect incomingWhenOpenedSfx,
-        SoundEffect openSfx,
-        SoundEffect closeSfx,
-        bool playIncomingSfxForOwnMessages,
-        bool playIncomingSfxForSystemMessages,
-        ChatTypographyProfile typographyProfile)
-    {
-        Configure(
-            chatEvents,
-            inputSfx,
-            incomingWhenClosedSfx,
-            incomingWhenOpenedSfx,
-            openSfx,
-            closeSfx,
-            playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages,
-            typographyProfile,
-            spriteAnimationProfile
-        );
-
-        Initialize();
-    }
-
-    public void Initialize(
-        ChatEventChannel chatEvents,
-        SoundEffect inputSfx,
-        SoundEffect incomingWhenClosedSfx,
-        SoundEffect incomingWhenOpenedSfx,
-        SoundEffect openSfx,
         SoundEffect closeSfx,
         bool playIncomingSfxForOwnMessages,
         bool playIncomingSfxForSystemMessages,
@@ -241,81 +107,9 @@ public class PhoneChatView : MonoBehaviour
             playIncomingSfxForOwnMessages,
             playIncomingSfxForSystemMessages,
             typographyProfile,
-            spriteAnimationProfile
-        );
+            spriteAnimationProfile);
 
         Initialize();
-    }
-
-    public void Configure(
-        ChatEventChannel chatEvents,
-        SoundEffect inputSfx,
-        SoundEffect incomingWhenClosedSfx,
-        SoundEffect incomingWhenOpenedSfx,
-        SoundEffect openSfx,
-        SoundEffect closeSfx)
-    {
-        Configure(
-            chatEvents,
-            inputSfx,
-            incomingWhenClosedSfx,
-            incomingWhenOpenedSfx,
-            openSfx,
-            closeSfx,
-            playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages,
-            typographyProfile,
-            spriteAnimationProfile
-        );
-    }
-
-    public void Configure(
-        ChatEventChannel chatEvents,
-        SoundEffect inputSfx,
-        SoundEffect incomingWhenClosedSfx,
-        SoundEffect incomingWhenOpenedSfx,
-        SoundEffect openSfx,
-        SoundEffect closeSfx,
-        bool playIncomingSfxForOwnMessages,
-        bool playIncomingSfxForSystemMessages)
-    {
-        Configure(
-            chatEvents,
-            inputSfx,
-            incomingWhenClosedSfx,
-            incomingWhenOpenedSfx,
-            openSfx,
-            closeSfx,
-            playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages,
-            typographyProfile,
-            spriteAnimationProfile
-        );
-    }
-
-    public void Configure(
-        ChatEventChannel chatEvents,
-        SoundEffect inputSfx,
-        SoundEffect incomingWhenClosedSfx,
-        SoundEffect incomingWhenOpenedSfx,
-        SoundEffect openSfx,
-        SoundEffect closeSfx,
-        bool playIncomingSfxForOwnMessages,
-        bool playIncomingSfxForSystemMessages,
-        ChatTypographyProfile typographyProfile)
-    {
-        Configure(
-            chatEvents,
-            inputSfx,
-            incomingWhenClosedSfx,
-            incomingWhenOpenedSfx,
-            openSfx,
-            closeSfx,
-            playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages,
-            typographyProfile,
-            spriteAnimationProfile
-        );
     }
 
     public void Configure(
@@ -330,44 +124,27 @@ public class PhoneChatView : MonoBehaviour
         ChatTypographyProfile typographyProfile,
         PhoneSpriteAnimationProfile spriteAnimationProfile)
     {
-        bool shouldResubscribe = isSubscribedToChatEvents && isActiveAndEnabled;
-        UnsubscribeFromChatEvents();
+        EnsureControllers();
 
-        this.chatEvents = chatEvents;
-        this.inputSfx = inputSfx;
-        this.incomingWhenClosedSfx = incomingWhenClosedSfx;
-        this.incomingWhenOpenedSfx = incomingWhenOpenedSfx;
-        this.openSfx = openSfx;
-        this.closeSfx = closeSfx;
-        this.playIncomingSfxForOwnMessages = playIncomingSfxForOwnMessages;
-        this.playIncomingSfxForSystemMessages = playIncomingSfxForSystemMessages;
+        chatWindowHost?.Configure(chatEvents, inputSfx);
+        notificationAudioController?.Configure(
+            chatEvents,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx,
+            playIncomingSfxForOwnMessages,
+            playIncomingSfxForSystemMessages);
+        shellPresentationController?.SetSpriteAnimationProfile(spriteAnimationProfile);
+
         this.typographyProfile = typographyProfile;
-        this.spriteAnimationProfile = spriteAnimationProfile;
-
-        ConfigureSpriteAnimator();
-
-        if (spawnedChatWindow != null)
-        {
-            ApplyChatEventChannel();
-        }
-
-        if (chatWindow != null)
-        {
-            ApplyChatInputSfx();
-        }
-
         ApplyTypography();
-
-        if (shouldResubscribe)
-        {
-            SubscribeToChatEvents();
-        }
     }
 
     public void SetInputSfx(SoundEffect sound)
     {
-        inputSfx = sound;
-        ApplyChatInputSfx();
+        EnsureControllers();
+        chatWindowHost?.SetInputSfx(sound);
     }
 
     public void SetTypographyProfile(ChatTypographyProfile typographyProfile)
@@ -378,13 +155,61 @@ public class PhoneChatView : MonoBehaviour
 
     public void SetSpriteAnimationProfile(PhoneSpriteAnimationProfile spriteAnimationProfile)
     {
-        this.spriteAnimationProfile = spriteAnimationProfile;
-        ConfigureSpriteAnimator();
+        EnsureControllers();
+        shellPresentationController?.SetSpriteAnimationProfile(spriteAnimationProfile);
 
-        if (!isOpen)
+        if (shellPresentationController == null || !shellPresentationController.IsOpen)
         {
-            ForcePhoneClosedSprite();
+            shellPresentationController?.ForcePhoneClosedSprite();
         }
+    }
+
+    private void EnsureControllers(bool createMissing = true)
+    {
+        screenLayoutController = ResolveComponent(screenLayoutController, createMissing);
+        shellPresentationController = ResolveComponent(shellPresentationController, createMissing);
+        notificationAudioController = ResolveComponent(notificationAudioController, createMissing);
+
+        PhoneChatWindowHost resolvedChatWindowHost = ResolveComponent(chatWindowHost, createMissing);
+
+        if (chatWindowHost == resolvedChatWindowHost)
+        {
+            return;
+        }
+
+        if (chatWindowHost != null)
+        {
+            chatWindowHost.Opened -= HandleChatWindowOpened;
+            chatWindowHost.Closed -= HandleChatWindowClosed;
+        }
+
+        chatWindowHost = resolvedChatWindowHost;
+        SubscribeToChatWindow();
+    }
+
+    private T ResolveComponent<T>(T current, bool createMissing)
+        where T : Component
+    {
+        if (current != null)
+        {
+            return current;
+        }
+
+        T component = GetComponent<T>();
+
+        if (component != null || !createMissing)
+        {
+            return component;
+        }
+
+        return gameObject.AddComponent<T>();
+    }
+
+    private void ConfigurePresentationCallbacks()
+    {
+        shellPresentationController?.ConfigureCallbacks(
+            FocusChatInput,
+            RefreshScreenLayoutFromSpriteFrame);
     }
 
     private void ApplyTypography()
@@ -392,695 +217,68 @@ public class PhoneChatView : MonoBehaviour
         ChatTypographyApplier.Apply(gameObject, typographyProfile);
     }
 
-    private void ResolveReferences()
+    private void Subscribe()
     {
-        ResolveScreenReferences();
-        ResolveSpriteAnimator();
-        ResolveChatContentCanvasGroup();
-
-        if (phoneCanvasGroup == null && phoneRoot != null)
-        {
-            phoneCanvasGroup = phoneRoot.GetComponent<CanvasGroup>();
-        }
-
-        if (phoneCanvasGroup == null && phoneRoot != null)
-        {
-            phoneCanvasGroup = phoneRoot.gameObject.AddComponent<CanvasGroup>();
-        }
-
-        if (fallbackAudioSource == null)
-        {
-            fallbackAudioSource = GetComponent<AudioSource>();
-        }
-
-        if (fallbackAudioSource == null)
-        {
-            fallbackAudioSource = gameObject.AddComponent<AudioSource>();
-            fallbackAudioSource.playOnAwake = false;
-            fallbackAudioSource.spatialBlend = 0f;
-        }
+        SubscribeToChatWindow();
+        notificationAudioController?.Subscribe();
     }
 
-    private void ResolveScreenReferences()
+    private void Unsubscribe()
     {
-        if (phoneRoot == null)
+        if (chatWindowHost != null)
         {
-            phoneRoot = FindChildRectTransform(PhoneRootName);
+            chatWindowHost.Opened -= HandleChatWindowOpened;
+            chatWindowHost.Closed -= HandleChatWindowClosed;
+            chatWindowHost.Unsubscribe();
         }
 
-        if (phoneRoot == null)
-        {
-            phoneRoot = transform as RectTransform;
-        }
-
-        if (phoneImage == null && phoneRoot != null)
-        {
-            phoneImage = phoneRoot.GetComponent<Image>();
-        }
-
-        if (phoneImage == null)
-        {
-            phoneImage = FindChildImage(PhoneImageName);
-        }
-
-        if (screenRect == null)
-        {
-            screenRect = FindChildRectTransform(ScreenName);
-        }
-
-        if (screenRect == null && chatContainer != null)
-        {
-            screenRect = chatContainer.parent as RectTransform;
-        }
-
-        if (chatContainer == null)
-        {
-            chatContainer = FindChildRectTransform(ChatContainerName);
-        }
-    }
-
-    private void ResolveSpriteAnimator()
-    {
-        if (spriteAnimator == null)
-        {
-            spriteAnimator = GetComponent<PhoneSpriteAnimator>();
-        }
-
-        if (spriteAnimator == null && phoneRoot != null)
-        {
-            spriteAnimator = phoneRoot.GetComponent<PhoneSpriteAnimator>();
-        }
-
-        if (spriteAnimator == null)
-        {
-            spriteAnimator = gameObject.AddComponent<PhoneSpriteAnimator>();
-        }
-
-        ConfigureSpriteAnimator();
-    }
-
-    private void ConfigureSpriteAnimator()
-    {
-        if (spriteAnimator == null)
-        {
-            return;
-        }
-
-        spriteAnimator.FrameChanged -= HandlePhoneSpriteFrameChanged;
-        spriteAnimator.FrameChanged += HandlePhoneSpriteFrameChanged;
-
-        spriteAnimator.PlaybackCompleted -= HandlePhoneSpritePlaybackCompleted;
-        spriteAnimator.PlaybackCompleted += HandlePhoneSpritePlaybackCompleted;
-
-        spriteAnimator.Configure(phoneImage, spriteAnimationProfile);
-    }
-
-    private void ResolveChatContentCanvasGroup()
-    {
-        if (!hideChatContentUntilPhoneOpened)
-        {
-            return;
-        }
-
-        if (chatContentCanvasGroup != null)
-        {
-            return;
-        }
-
-        if (chatContainer == null)
-        {
-            return;
-        }
-
-        chatContentCanvasGroup = chatContainer.GetComponent<CanvasGroup>();
-
-        if (chatContentCanvasGroup == null)
-        {
-            chatContentCanvasGroup = chatContainer.gameObject.AddComponent<CanvasGroup>();
-        }
-    }
-
-    private RectTransform FindChildRectTransform(string childName)
-    {
-        RectTransform[] rectTransforms = GetComponentsInChildren<RectTransform>(true);
-
-        for (int i = 0; i < rectTransforms.Length; i++)
-        {
-            if (rectTransforms[i].name == childName)
-            {
-                return rectTransforms[i];
-            }
-        }
-
-        return null;
-    }
-
-    private Image FindChildImage(string childName)
-    {
-        Image[] images = GetComponentsInChildren<Image>(true);
-
-        for (int i = 0; i < images.Length; i++)
-        {
-            if (images[i].name == childName)
-            {
-                return images[i];
-            }
-        }
-
-        return null;
-    }
-
-    private void ApplyScreenLayout(bool ensureMask)
-    {
-        if (!fitScreenRectToTexture)
-        {
-            ApplyChatContainerPadding();
-            return;
-        }
-
-        ResolveScreenReferences();
-
-        if (phoneImage == null || screenRect == null)
-        {
-            ApplyChatContainerPadding();
-            return;
-        }
-
-        Rect textureRect;
-
-        if (phoneImage.sprite != null)
-        {
-            textureRect = phoneImage.sprite.rect;
-        }
-        else if (phoneImage.mainTexture != null)
-        {
-            textureRect = new Rect(0f, 0f, phoneImage.mainTexture.width, phoneImage.mainTexture.height);
-        }
-        else
-        {
-            ApplyChatContainerPadding();
-            return;
-        }
-
-        float textureWidth = Mathf.Max(1f, textureRect.width);
-        float textureHeight = Mathf.Max(1f, textureRect.height);
-        float left = Mathf.Clamp(screenPixelRectFromTopLeft.xMin, 0f, textureWidth);
-        float top = Mathf.Clamp(screenPixelRectFromTopLeft.yMin, 0f, textureHeight);
-        float right = Mathf.Clamp(screenPixelRectFromTopLeft.xMax, left, textureWidth);
-        float bottom = Mathf.Clamp(screenPixelRectFromTopLeft.yMax, top, textureHeight);
-
-        if (right <= left || bottom <= top)
-        {
-            ApplyChatContainerPadding();
-            return;
-        }
-
-        screenRect.anchorMin = new Vector2(left / textureWidth, 1f - bottom / textureHeight);
-        screenRect.anchorMax = new Vector2(right / textureWidth, 1f - top / textureHeight);
-        screenRect.anchoredPosition = Vector2.zero;
-        screenRect.offsetMin = Vector2.zero;
-        screenRect.offsetMax = Vector2.zero;
-        screenRect.localScale = Vector3.one;
-
-        ApplyChatContainerPadding();
-
-        if (ensureMask && addScreenRectMask && screenRect.GetComponent<RectMask2D>() == null)
-        {
-            screenRect.gameObject.AddComponent<RectMask2D>();
-        }
-    }
-
-    private void ApplyChatContainerPadding()
-    {
-        if (chatContainer == null)
-        {
-            return;
-        }
-
-        chatContainer.anchorMin = Vector2.zero;
-        chatContainer.anchorMax = Vector2.one;
-        chatContainer.offsetMin = new Vector2(chatContainerPadding.x, chatContainerPadding.w);
-        chatContainer.offsetMax = new Vector2(-chatContainerPadding.z, -chatContainerPadding.y);
-        chatContainer.localScale = Vector3.one;
-    }
-
-    private bool SpawnChatWindow()
-    {
-        if (spawnedChatWindow != null)
-        {
-            return chatWindow != null;
-        }
-
-        if (chatContainer == null)
-        {
-            Debug.LogError($"{nameof(PhoneChatView)}: Chat Container is not assigned.", this);
-            return false;
-        }
-
-        if (chatWindowPrefab == null)
-        {
-            Debug.LogError($"{nameof(PhoneChatView)}: Chat Window Prefab is not assigned.", this);
-            return false;
-        }
-
-        spawnedChatWindow = Instantiate(chatWindowPrefab, chatContainer);
-        StretchToParent(spawnedChatWindow);
-
-        chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
-
-        if (chatWindow == null)
-        {
-            Debug.LogError($"{nameof(PhoneChatView)}: Spawned Chat Window has no {nameof(ChatWindowUI)}.", this);
-            Destroy(spawnedChatWindow);
-            spawnedChatWindow = null;
-            return false;
-        }
-
-        ApplyChatEventChannel();
-        DisableSpawnedChatMessageNotificationAudio();
-        ApplyChatInputSfx();
-        ApplyTypography();
-
-        return true;
-    }
-
-    private void ApplyChatEventChannel()
-    {
-        ChatUiEventChannelBinder.Apply(spawnedChatWindow, chatEvents);
-    }
-
-    private void DisableSpawnedChatMessageNotificationAudio()
-    {
-        if (spawnedChatWindow == null)
-        {
-            return;
-        }
-
-        ChatMessageNotificationAudioController[] messageNotificationAudioControllers =
-            spawnedChatWindow.GetComponentsInChildren<ChatMessageNotificationAudioController>(true);
-
-        for (int i = 0; i < messageNotificationAudioControllers.Length; i++)
-        {
-            messageNotificationAudioControllers[i].enabled = false;
-        }
-    }
-
-    private void ApplyChatInputSfx()
-    {
-        if (chatWindow == null)
-        {
-            return;
-        }
-
-        chatWindow.SetInputSoundOverride(inputSfx);
+        notificationAudioController?.Unsubscribe();
+        shellPresentationController?.Dispose();
     }
 
     private void SubscribeToChatWindow()
     {
-        if (chatWindow == null || isSubscribedToChatWindow)
+        if (chatWindowHost == null)
         {
             return;
         }
 
-        chatWindow.Opened += HandleChatWindowOpened;
-        chatWindow.Closed += HandleChatWindowClosed;
-        isSubscribedToChatWindow = true;
-    }
-
-    private void UnsubscribeFromChatWindow()
-    {
-        if (chatWindow == null || !isSubscribedToChatWindow)
-        {
-            return;
-        }
-
-        chatWindow.Opened -= HandleChatWindowOpened;
-        chatWindow.Closed -= HandleChatWindowClosed;
-        isSubscribedToChatWindow = false;
-    }
-
-    private void SubscribeToChatEvents()
-    {
-        if (chatEvents == null || isSubscribedToChatEvents)
-        {
-            return;
-        }
-
-        chatEvents.MessageReceived += HandleMessageReceived;
-        isSubscribedToChatEvents = true;
-    }
-
-    private void UnsubscribeFromChatEvents()
-    {
-        if (chatEvents == null || !isSubscribedToChatEvents)
-        {
-            return;
-        }
-
-        chatEvents.MessageReceived -= HandleMessageReceived;
-        isSubscribedToChatEvents = false;
+        chatWindowHost.Opened -= HandleChatWindowOpened;
+        chatWindowHost.Closed -= HandleChatWindowClosed;
+        chatWindowHost.Opened += HandleChatWindowOpened;
+        chatWindowHost.Closed += HandleChatWindowClosed;
+        chatWindowHost.Subscribe();
     }
 
     private void HandleChatWindowOpened()
     {
-        OpenShell();
+        if (shellPresentationController == null || !shellPresentationController.Open())
+        {
+            return;
+        }
+
+        notificationAudioController?.SetOpenState(true);
+        notificationAudioController?.PlayOpen();
     }
 
     private void HandleChatWindowClosed()
     {
-        CloseShell();
-    }
-
-    private void HandleMessageReceived(ChatMessageReceivedEvent messageEvent)
-    {
-        if (messageEvent.IsLocalSender && !playIncomingSfxForOwnMessages)
+        if (shellPresentationController == null || !shellPresentationController.Close())
         {
             return;
         }
 
-        if (messageEvent.IsSystemMessage && !playIncomingSfxForSystemMessages)
-        {
-            return;
-        }
-
-        SoundEffect incomingSfx = isOpen
-            ? incomingWhenOpenedSfx
-            : incomingWhenClosedSfx;
-
-        PlayOneShot(incomingSfx);
+        notificationAudioController?.SetOpenState(false);
+        notificationAudioController?.PlayClose();
     }
 
-    private void HandlePhoneSpriteFrameChanged()
+    private void FocusChatInput()
     {
-        if (spriteAnimationProfile == null)
-        {
-            return;
-        }
-
-        if (!spriteAnimationProfile.RefreshScreenLayoutOnFrameChange)
-        {
-            return;
-        }
-
-        ApplyScreenLayout(false);
+        chatWindowHost?.ChatWindow?.FocusInput();
     }
 
-    private void HandlePhoneSpritePlaybackCompleted(PhoneSpriteAnimationDirection direction)
+    private void RefreshScreenLayoutFromSpriteFrame()
     {
-        if (direction != PhoneSpriteAnimationDirection.Opening)
-        {
-            return;
-        }
-
-        waitingForOpeningSprite = false;
-        TryCompletePhoneOpeningPresentation();
-    }
-
-    private void ForceClosed()
-    {
-        isOpen = false;
-        ResetOpeningGate();
-        RefreshHiddenAnchoredPositionIfSizeChanged();
-        phoneRoot.anchoredPosition = hiddenAnchoredPosition;
-        ForcePhoneClosedSprite();
-        SetChatContentVisible(false);
-
-        if (phoneCanvasGroup != null)
-        {
-            phoneCanvasGroup.alpha = 1f;
-            phoneCanvasGroup.interactable = false;
-            phoneCanvasGroup.blocksRaycasts = false;
-        }
-    }
-
-    private void OpenShell()
-    {
-        if (isOpen)
-        {
-            return;
-        }
-
-        isOpen = true;
-
-        SetChatContentVisible(false);
-
-        if (phoneCanvasGroup != null)
-        {
-            phoneCanvasGroup.interactable = false;
-            phoneCanvasGroup.blocksRaycasts = false;
-        }
-
-        PlayOneShot(openSfx);
-
-        waitingForOpeningSlide = true;
-        waitingForOpeningSprite = PlayPhoneOpeningAnimation();
-
-        StartSlide(shownAnchoredPosition, false, HandleOpeningSlideCompleted);
-        TryCompletePhoneOpeningPresentation();
-    }
-
-    private void CloseShell()
-    {
-        if (!isOpen)
-        {
-            return;
-        }
-
-        isOpen = false;
-        ResetOpeningGate();
-        SetChatContentVisible(false);
-
-        PlayOneShot(closeSfx);
-        PlayPhoneClosingAnimation();
-
-        RefreshHiddenAnchoredPositionIfSizeChanged();
-        StartSlide(hiddenAnchoredPosition, false);
-    }
-
-    private void SetChatContentVisible(bool visible)
-    {
-        if (!hideChatContentUntilPhoneOpened)
-        {
-            return;
-        }
-
-        ResolveChatContentCanvasGroup();
-
-        if (chatContentCanvasGroup == null)
-        {
-            return;
-        }
-
-        chatContentCanvasGroup.alpha = visible ? 1f : 0f;
-        chatContentCanvasGroup.interactable = visible;
-        chatContentCanvasGroup.blocksRaycasts = visible;
-    }
-
-    private void ResetOpeningGate()
-    {
-        waitingForOpeningSlide = false;
-        waitingForOpeningSprite = false;
-    }
-
-    private void HandleOpeningSlideCompleted()
-    {
-        waitingForOpeningSlide = false;
-        TryCompletePhoneOpeningPresentation();
-    }
-
-    private void TryCompletePhoneOpeningPresentation()
-    {
-        if (!isOpen)
-        {
-            return;
-        }
-
-        if (waitingForOpeningSlide || waitingForOpeningSprite)
-        {
-            return;
-        }
-
-        SetChatContentVisible(true);
-
-        if (phoneCanvasGroup != null)
-        {
-            phoneCanvasGroup.interactable = true;
-            phoneCanvasGroup.blocksRaycasts = true;
-        }
-
-        if (chatWindow != null)
-        {
-            chatWindow.FocusInput();
-        }
-    }
-
-    private bool PlayPhoneOpeningAnimation()
-    {
-        if (spriteAnimator == null)
-        {
-            return false;
-        }
-
-        return spriteAnimator.PlayOpening();
-    }
-
-    private bool PlayPhoneClosingAnimation()
-    {
-        if (spriteAnimator == null)
-        {
-            return false;
-        }
-
-        return spriteAnimator.PlayClosing();
-    }
-
-    private void ForcePhoneClosedSprite()
-    {
-        if (spriteAnimator == null)
-        {
-            return;
-        }
-
-        spriteAnimator.ForceClosedSprite();
-    }
-
-    private void ForceRefreshHiddenAnchoredPosition()
-    {
-        Canvas.ForceUpdateCanvases();
-        LayoutRebuilder.ForceRebuildLayoutImmediate(phoneRoot);
-
-        RefreshHiddenAnchoredPosition();
-    }
-
-    private void RefreshHiddenAnchoredPositionIfSizeChanged()
-    {
-        if (!hasHiddenAnchoredPosition || HasPhoneRootSizeChanged())
-        {
-            RefreshHiddenAnchoredPosition();
-        }
-    }
-
-    private bool HasPhoneRootSizeChanged()
-    {
-        Vector2 currentSize = phoneRoot.rect.size;
-        return (currentSize - hiddenAnchoredPositionSize).sqrMagnitude > 0.01f;
-    }
-
-    private void RefreshHiddenAnchoredPosition()
-    {
-        hiddenAnchoredPositionSize = phoneRoot.rect.size;
-        hasHiddenAnchoredPosition = true;
-
-        float hiddenOffsetY = -hiddenAnchoredPositionSize.y - HiddenPositionBottomPadding;
-        hiddenAnchoredPosition = shownAnchoredPosition + new Vector2(0f, hiddenOffsetY);
-    }
-
-    private void StartSlide(
-        Vector2 targetPosition,
-        bool shouldInteractAfterSlide,
-        Action completed = null)
-    {
-        if (slideCoroutine != null)
-        {
-            StopCoroutine(slideCoroutine);
-        }
-
-        slideCoroutine = StartCoroutine(SlideRoutine(
-            targetPosition,
-            shouldInteractAfterSlide,
-            completed));
-    }
-
-    private IEnumerator SlideRoutine(
-        Vector2 targetPosition,
-        bool shouldInteractAfterSlide,
-        Action completed)
-    {
-        if (phoneCanvasGroup != null)
-        {
-            phoneCanvasGroup.interactable = false;
-            phoneCanvasGroup.blocksRaycasts = false;
-        }
-
-        Vector2 startPosition = phoneRoot.anchoredPosition;
-        float elapsed = 0f;
-
-        if (slideDuration <= 0f)
-        {
-            phoneRoot.anchoredPosition = targetPosition;
-        }
-        else
-        {
-            while (elapsed < slideDuration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-
-                float normalizedTime = Mathf.Clamp01(elapsed / slideDuration);
-                float curveValue = slideCurve.Evaluate(normalizedTime);
-
-                phoneRoot.anchoredPosition = Vector2.LerpUnclamped(
-                    startPosition,
-                    targetPosition,
-                    curveValue);
-
-                yield return null;
-            }
-        }
-
-        phoneRoot.anchoredPosition = targetPosition;
-
-        if (phoneCanvasGroup != null)
-        {
-            phoneCanvasGroup.interactable = shouldInteractAfterSlide;
-            phoneCanvasGroup.blocksRaycasts = shouldInteractAfterSlide;
-        }
-
-        slideCoroutine = null;
-        completed?.Invoke();
-    }
-
-    private void PlayOneShot(SoundEffect sound)
-    {
-        if (sound == null)
-        {
-            return;
-        }
-
-        if (AudioManager.Instance != null && AudioManager.Instance.UI != null)
-        {
-            AudioManager.Instance.UI.Play(sound);
-            return;
-        }
-
-        if (fallbackAudioSource == null)
-        {
-            ResolveReferences();
-        }
-
-        AudioClip clip = sound.GetClip();
-
-        if (fallbackAudioSource == null || clip == null)
-        {
-            return;
-        }
-
-        fallbackAudioSource.pitch = sound.GetPitch();
-        fallbackAudioSource.PlayOneShot(clip, sound.GetVolume());
-    }
-
-    private void StretchToParent(GameObject target)
-    {
-        RectTransform rectTransform = target.transform as RectTransform;
-
-        if (rectTransform == null)
-        {
-            return;
-        }
-
-        rectTransform.anchorMin = Vector2.zero;
-        rectTransform.anchorMax = Vector2.one;
-        rectTransform.offsetMin = Vector2.zero;
-        rectTransform.offsetMax = Vector2.zero;
-        rectTransform.localScale = Vector3.one;
+        screenLayoutController?.Apply(false);
     }
 }

@@ -1,12 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum PhoneSpriteAnimationDirection
-{
-    Opening,
-    Closing
-}
-
 [CreateAssetMenu(
     fileName = "PhoneSpriteAnimationProfile",
     menuName = "Wherever I Am/Chat/Phone Sprite Animation Profile")]

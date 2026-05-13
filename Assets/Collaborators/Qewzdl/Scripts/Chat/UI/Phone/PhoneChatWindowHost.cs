@@ -1,0 +1,176 @@
+using System;
+using UnityEngine;
+
+[DisallowMultipleComponent]
+public sealed class PhoneChatWindowHost : MonoBehaviour
+{
+    [Header("Chat Window")]
+    [SerializeField] private RectTransform chatContainer;
+    [SerializeField] private GameObject chatWindowPrefab;
+
+    [Header("Events")]
+    [SerializeField] private ChatEventChannel chatEvents;
+
+    [Header("Audio")]
+    [SerializeField] private SoundEffect inputSfx;
+
+    private GameObject spawnedChatWindow;
+    private ChatWindowUI chatWindow;
+    private bool isSubscribed;
+
+    public event Action Opened;
+    public event Action Closed;
+
+    public GameObject SpawnedChatWindow => spawnedChatWindow;
+    public ChatWindowUI ChatWindow => chatWindow;
+
+    public void Configure(ChatEventChannel chatEvents, SoundEffect inputSfx)
+    {
+        this.chatEvents = chatEvents;
+        this.inputSfx = inputSfx;
+
+        ApplyEventChannel();
+        ApplyInputSfx();
+    }
+
+    public void SetInputSfx(SoundEffect inputSfx)
+    {
+        this.inputSfx = inputSfx;
+        ApplyInputSfx();
+    }
+
+    public bool Spawn()
+    {
+        if (spawnedChatWindow != null)
+        {
+            return chatWindow != null;
+        }
+
+        if (chatContainer == null)
+        {
+            Debug.LogError($"{nameof(PhoneChatView)}: Chat Container is not assigned.", this);
+            return false;
+        }
+
+        if (chatWindowPrefab == null)
+        {
+            Debug.LogError($"{nameof(PhoneChatView)}: Chat Window Prefab is not assigned.", this);
+            return false;
+        }
+
+        spawnedChatWindow = Instantiate(chatWindowPrefab, chatContainer);
+        StretchToParent(spawnedChatWindow);
+
+        chatWindow = spawnedChatWindow.GetComponentInChildren<ChatWindowUI>(true);
+
+        if (chatWindow == null)
+        {
+            Debug.LogError($"{nameof(PhoneChatView)}: Spawned Chat Window has no {nameof(ChatWindowUI)}.", this);
+            Destroy(spawnedChatWindow);
+            spawnedChatWindow = null;
+            return false;
+        }
+
+        ApplyEventChannel(chatEvents);
+        DisableSpawnedChatMessageNotificationAudio();
+        ApplyInputSfx();
+
+        return true;
+    }
+
+    public void ApplyEventChannel()
+    {
+        ApplyEventChannel(chatEvents);
+    }
+
+    public void ApplyEventChannel(ChatEventChannel chatEvents)
+    {
+        if (spawnedChatWindow == null)
+        {
+            return;
+        }
+
+        ChatUiEventChannelBinder.Apply(spawnedChatWindow, chatEvents);
+    }
+
+    private void ApplyInputSfx()
+    {
+        if (chatWindow == null)
+        {
+            return;
+        }
+
+        chatWindow.SetInputSoundOverride(inputSfx);
+    }
+
+    public void Subscribe()
+    {
+        if (chatWindow == null || isSubscribed)
+        {
+            return;
+        }
+
+        chatWindow.Opened += HandleChatWindowOpened;
+        chatWindow.Closed += HandleChatWindowClosed;
+        isSubscribed = true;
+    }
+
+    public void Unsubscribe()
+    {
+        if (chatWindow == null || !isSubscribed)
+        {
+            return;
+        }
+
+        chatWindow.Opened -= HandleChatWindowOpened;
+        chatWindow.Closed -= HandleChatWindowClosed;
+        isSubscribed = false;
+    }
+
+    private void OnDisable()
+    {
+        Unsubscribe();
+    }
+
+    private void HandleChatWindowOpened()
+    {
+        Opened?.Invoke();
+    }
+
+    private void HandleChatWindowClosed()
+    {
+        Closed?.Invoke();
+    }
+
+    private void DisableSpawnedChatMessageNotificationAudio()
+    {
+        if (spawnedChatWindow == null)
+        {
+            return;
+        }
+
+        ChatMessageNotificationAudioController[] messageNotificationAudioControllers =
+            spawnedChatWindow.GetComponentsInChildren<ChatMessageNotificationAudioController>(true);
+
+        for (int i = 0; i < messageNotificationAudioControllers.Length; i++)
+        {
+            messageNotificationAudioControllers[i].enabled = false;
+        }
+    }
+
+    private static void StretchToParent(GameObject target)
+    {
+        RectTransform rectTransform = target.transform as RectTransform;
+
+        if (rectTransform == null)
+        {
+            return;
+        }
+
+        rectTransform.anchorMin = Vector2.zero;
+        rectTransform.anchorMax = Vector2.one;
+        rectTransform.offsetMin = Vector2.zero;
+        rectTransform.offsetMax = Vector2.zero;
+        rectTransform.localScale = Vector3.one;
+    }
+}
