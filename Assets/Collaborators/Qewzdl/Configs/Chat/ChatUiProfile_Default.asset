@@ -25,5 +25,6 @@ MonoBehaviour:
   incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
   incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
   phoneTypography: {fileID: 11400000, guid: 75ab4a2037f31344784a71960867288b, type: 2}
+  phoneAnimation: {fileID: 11400000, guid: f2e091f48362083458d5b05a9ed3a171, type: 2}
   playPhoneIncomingSfxForOwnMessages: 0
   playPhoneIncomingSfxForSystemMessages: 1

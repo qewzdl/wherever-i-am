@@ -21,6 +21,7 @@ public class ChatUiProfile : ScriptableObject
     [SerializeField] private SoundEffect incomingWhenClosedSfx;
     [SerializeField] private SoundEffect incomingWhenOpenedSfx;
     [SerializeField] private ChatTypographyProfile phoneTypography;
+    [SerializeField] private PhoneSpriteAnimationProfile phoneAnimation;
     [SerializeField] private bool playPhoneIncomingSfxForOwnMessages;
     [SerializeField] private bool playPhoneIncomingSfxForSystemMessages = true;
 
@@ -31,6 +32,7 @@ public class ChatUiProfile : ScriptableObject
     public ChatTypographyProfile LobbyTypography => lobbyTypography;
     public bool PlayLobbyMessageSfxForOwnMessages => playLobbyMessageSfxForOwnMessages;
     public bool PlayLobbyMessageSfxForSystemMessages => playLobbyMessageSfxForSystemMessages;
+    public PhoneSpriteAnimationProfile PhoneAnimation => phoneAnimation;
     public SoundEffect PhoneInputSfx => phoneInputSfx;
     public SoundEffect PhoneOpenSfx => phoneOpenSfx;
     public SoundEffect PhoneCloseSfx => phoneCloseSfx;

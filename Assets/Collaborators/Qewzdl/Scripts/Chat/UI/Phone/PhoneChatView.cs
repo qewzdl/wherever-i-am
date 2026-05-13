@@ -35,6 +35,10 @@ public class PhoneChatView : MonoBehaviour
     [SerializeField, Min(0f)] private float slideDuration = 0.25f;
     [SerializeField] private AnimationCurve slideCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
+    [Header("Phone Sprite Animation")]
+    [SerializeField] private PhoneSpriteAnimator spriteAnimator;
+    [SerializeField] private PhoneSpriteAnimationProfile spriteAnimationProfile;
+
     [Header("Audio")]
     [SerializeField] private AudioSource fallbackAudioSource;
     [SerializeField] private SoundEffect openSfx;
@@ -69,6 +73,7 @@ public class PhoneChatView : MonoBehaviour
     {
         if (isInitialized)
         {
+            ConfigureSpriteAnimator();
             SubscribeToChatWindow();
             SubscribeToChatEvents();
         }
@@ -78,6 +83,11 @@ public class PhoneChatView : MonoBehaviour
     {
         UnsubscribeFromChatWindow();
         UnsubscribeFromChatEvents();
+
+        if (spriteAnimator != null)
+        {
+            spriteAnimator.FrameChanged -= HandlePhoneSpriteFrameChanged;
+        }
     }
 
     public void Initialize()
@@ -163,7 +173,8 @@ public class PhoneChatView : MonoBehaviour
             closeSfx,
             playIncomingSfxForOwnMessages,
             playIncomingSfxForSystemMessages,
-            typographyProfile
+            typographyProfile,
+            spriteAnimationProfile
         );
 
         Initialize();
@@ -189,7 +200,36 @@ public class PhoneChatView : MonoBehaviour
             closeSfx,
             playIncomingSfxForOwnMessages,
             playIncomingSfxForSystemMessages,
-            typographyProfile
+            typographyProfile,
+            spriteAnimationProfile
+        );
+
+        Initialize();
+    }
+
+    public void Initialize(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx,
+        bool playIncomingSfxForOwnMessages,
+        bool playIncomingSfxForSystemMessages,
+        ChatTypographyProfile typographyProfile,
+        PhoneSpriteAnimationProfile spriteAnimationProfile)
+    {
+        Configure(
+            chatEvents,
+            inputSfx,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx,
+            playIncomingSfxForOwnMessages,
+            playIncomingSfxForSystemMessages,
+            typographyProfile,
+            spriteAnimationProfile
         );
 
         Initialize();
@@ -212,7 +252,8 @@ public class PhoneChatView : MonoBehaviour
             closeSfx,
             playIncomingSfxForOwnMessages,
             playIncomingSfxForSystemMessages,
-            typographyProfile
+            typographyProfile,
+            spriteAnimationProfile
         );
     }
 
@@ -235,7 +276,8 @@ public class PhoneChatView : MonoBehaviour
             closeSfx,
             playIncomingSfxForOwnMessages,
             playIncomingSfxForSystemMessages,
-            typographyProfile
+            typographyProfile,
+            spriteAnimationProfile
         );
     }
 
@@ -250,6 +292,32 @@ public class PhoneChatView : MonoBehaviour
         bool playIncomingSfxForSystemMessages,
         ChatTypographyProfile typographyProfile)
     {
+        Configure(
+            chatEvents,
+            inputSfx,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx,
+            playIncomingSfxForOwnMessages,
+            playIncomingSfxForSystemMessages,
+            typographyProfile,
+            spriteAnimationProfile
+        );
+    }
+
+    public void Configure(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx,
+        bool playIncomingSfxForOwnMessages,
+        bool playIncomingSfxForSystemMessages,
+        ChatTypographyProfile typographyProfile,
+        PhoneSpriteAnimationProfile spriteAnimationProfile)
+    {
         bool shouldResubscribe = isSubscribedToChatEvents && isActiveAndEnabled;
         UnsubscribeFromChatEvents();
 
@@ -262,6 +330,9 @@ public class PhoneChatView : MonoBehaviour
         this.playIncomingSfxForOwnMessages = playIncomingSfxForOwnMessages;
         this.playIncomingSfxForSystemMessages = playIncomingSfxForSystemMessages;
         this.typographyProfile = typographyProfile;
+        this.spriteAnimationProfile = spriteAnimationProfile;
+
+        ConfigureSpriteAnimator();
 
         if (spawnedChatWindow != null)
         {
@@ -293,6 +364,21 @@ public class PhoneChatView : MonoBehaviour
         ApplyTypography();
     }
 
+    public void SetSpriteAnimationProfile(PhoneSpriteAnimationProfile spriteAnimationProfile)
+    {
+        this.spriteAnimationProfile = spriteAnimationProfile;
+        ConfigureSpriteAnimator();
+
+        if (isOpen)
+        {
+            ForcePhoneOpenedSprite();
+        }
+        else
+        {
+            ForcePhoneClosedSprite();
+        }
+    }
+
     private void ApplyTypography()
     {
         ChatTypographyApplier.Apply(gameObject, typographyProfile);
@@ -301,6 +387,7 @@ public class PhoneChatView : MonoBehaviour
     private void ResolveReferences()
     {
         ResolveScreenReferences();
+        ResolveSpriteAnimator();
 
         if (phoneCanvasGroup == null && phoneRoot != null)
         {
@@ -361,6 +448,39 @@ public class PhoneChatView : MonoBehaviour
         {
             chatContainer = FindChildRectTransform(ChatContainerName);
         }
+    }
+
+    private void ResolveSpriteAnimator()
+    {
+        if (spriteAnimator == null)
+        {
+            spriteAnimator = GetComponent<PhoneSpriteAnimator>();
+        }
+
+        if (spriteAnimator == null && phoneRoot != null)
+        {
+            spriteAnimator = phoneRoot.GetComponent<PhoneSpriteAnimator>();
+        }
+
+        if (spriteAnimator == null)
+        {
+            spriteAnimator = gameObject.AddComponent<PhoneSpriteAnimator>();
+        }
+
+        ConfigureSpriteAnimator();
+    }
+
+    private void ConfigureSpriteAnimator()
+    {
+        if (spriteAnimator == null)
+        {
+            return;
+        }
+
+        spriteAnimator.FrameChanged -= HandlePhoneSpriteFrameChanged;
+        spriteAnimator.FrameChanged += HandlePhoneSpriteFrameChanged;
+
+        spriteAnimator.Configure(phoneImage, spriteAnimationProfile);
     }
 
     private RectTransform FindChildRectTransform(string childName)
@@ -618,6 +738,7 @@ public class PhoneChatView : MonoBehaviour
         isOpen = false;
         RefreshHiddenAnchoredPositionIfSizeChanged();
         phoneRoot.anchoredPosition = hiddenAnchoredPosition;
+        ForcePhoneClosedSprite();
 
         if (phoneCanvasGroup != null)
         {
@@ -636,6 +757,7 @@ public class PhoneChatView : MonoBehaviour
 
         isOpen = true;
         PlayOneShot(openSfx);
+        PlayPhoneOpeningAnimation();
         StartSlide(shownAnchoredPosition, true);
     }
 
@@ -648,8 +770,64 @@ public class PhoneChatView : MonoBehaviour
 
         isOpen = false;
         PlayOneShot(closeSfx);
+        PlayPhoneClosingAnimation();
         RefreshHiddenAnchoredPositionIfSizeChanged();
         StartSlide(hiddenAnchoredPosition, false);
+    }
+
+    private void PlayPhoneOpeningAnimation()
+    {
+        if (spriteAnimator == null)
+        {
+            return;
+        }
+
+        spriteAnimator.PlayOpening();
+    }
+
+    private void PlayPhoneClosingAnimation()
+    {
+        if (spriteAnimator == null)
+        {
+            return;
+        }
+
+        spriteAnimator.PlayClosing();
+    }
+
+    private void ForcePhoneClosedSprite()
+    {
+        if (spriteAnimator == null)
+        {
+            return;
+        }
+
+        spriteAnimator.ForceClosedSprite();
+    }
+
+    private void ForcePhoneOpenedSprite()
+    {
+        if (spriteAnimator == null)
+        {
+            return;
+        }
+
+        spriteAnimator.ForceOpenedSprite();
+    }
+
+    private void HandlePhoneSpriteFrameChanged()
+    {
+        if (spriteAnimationProfile == null)
+        {
+            return;
+        }
+
+        if (!spriteAnimationProfile.RefreshScreenLayoutOnFrameChange)
+        {
+            return;
+        }
+
+        ApplyScreenLayout(false);
     }
 
     private void ForceRefreshHiddenAnchoredPosition()
