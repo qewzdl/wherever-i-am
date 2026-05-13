@@ -11,6 +11,13 @@ public class ChatMessageListView : MonoBehaviour
 
     private readonly Dictionary<uint, ChatMessageItemView> itemsById = new Dictionary<uint, ChatMessageItemView>();
     private readonly List<uint> idsToRemove = new List<uint>();
+    private ChatTypographyProfile typographyProfile;
+
+    public void SetTypographyProfile(ChatTypographyProfile typographyProfile)
+    {
+        this.typographyProfile = typographyProfile;
+        ChatTypographyApplier.ApplyToTexts(gameObject, typographyProfile);
+    }
 
     public void Render(IChatReadService readService)
     {
@@ -107,7 +114,10 @@ public class ChatMessageListView : MonoBehaviour
             return null;
         }
 
-        return Instantiate(itemPrefab, contentRoot);
+        ChatMessageItemView item = Instantiate(itemPrefab, contentRoot);
+        ChatTypographyApplier.ApplyToTexts(item.gameObject, typographyProfile);
+
+        return item;
     }
 
     private void RemoveHiddenItems(HashSet<uint> visibleMessageIds)

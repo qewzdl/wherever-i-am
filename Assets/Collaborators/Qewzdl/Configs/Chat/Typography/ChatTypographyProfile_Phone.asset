@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11b3cab73ab8d444da2541edaf07adcf, type: 3}
+  m_Name: ChatTypographyProfile_Phone
+  m_EditorClassIdentifier: 
+  fontAsset: {fileID: 11400000, guid: 19d958ec4845fc140b3a9d1aedc1a4de, type: 2}
+  fontSharedMaterial: {fileID: 0}
+  includeInactiveText: 1

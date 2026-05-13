@@ -80,6 +80,7 @@ public class ChatUiManager : MonoBehaviour
         spawnedUi = Instantiate(lobbyChatPrefab, uiRoot);
         ChatUiEventChannelBinder.Apply(spawnedUi, activeChatEvents);
         ApplyChatInputSfx(spawnedUi, profile.LobbyInputSfx);
+        ChatTypographyApplier.Apply(spawnedUi, profile.LobbyTypography);
         ApplyLobbyMessageNotificationSfx(spawnedUi, activeChatEvents);
     }
 
@@ -104,7 +105,8 @@ public class ChatUiManager : MonoBehaviour
             profile.PhoneOpenSfx,
             profile.PhoneCloseSfx,
             profile.PlayPhoneIncomingSfxForOwnMessages,
-            profile.PlayPhoneIncomingSfxForSystemMessages
+            profile.PlayPhoneIncomingSfxForSystemMessages,
+            profile.PhoneTypography
         );
     }
 

@@ -10,6 +10,7 @@ public class ChatUiProfile : ScriptableObject
     [SerializeField] private SoundEffect lobbyInputSfx;
     [SerializeField] private SoundEffect lobbyMessageWhileChatClosedSfx;
     [SerializeField] private SoundEffect lobbyMessageWhileChatOpenSfx;
+    [SerializeField] private ChatTypographyProfile lobbyTypography;
     [SerializeField] private bool playLobbyMessageSfxForOwnMessages;
     [SerializeField] private bool playLobbyMessageSfxForSystemMessages = true;
 
@@ -19,6 +20,7 @@ public class ChatUiProfile : ScriptableObject
     [SerializeField] private SoundEffect phoneCloseSfx;
     [SerializeField] private SoundEffect incomingWhenClosedSfx;
     [SerializeField] private SoundEffect incomingWhenOpenedSfx;
+    [SerializeField] private ChatTypographyProfile phoneTypography;
     [SerializeField] private bool playPhoneIncomingSfxForOwnMessages;
     [SerializeField] private bool playPhoneIncomingSfxForSystemMessages = true;
 
@@ -26,6 +28,7 @@ public class ChatUiProfile : ScriptableObject
     public SoundEffect LobbyInputSfx => lobbyInputSfx;
     public SoundEffect LobbyMessageWhileChatClosedSfx => lobbyMessageWhileChatClosedSfx;
     public SoundEffect LobbyMessageWhileChatOpenSfx => lobbyMessageWhileChatOpenSfx;
+    public ChatTypographyProfile LobbyTypography => lobbyTypography;
     public bool PlayLobbyMessageSfxForOwnMessages => playLobbyMessageSfxForOwnMessages;
     public bool PlayLobbyMessageSfxForSystemMessages => playLobbyMessageSfxForSystemMessages;
     public SoundEffect PhoneInputSfx => phoneInputSfx;
@@ -33,6 +36,7 @@ public class ChatUiProfile : ScriptableObject
     public SoundEffect PhoneCloseSfx => phoneCloseSfx;
     public SoundEffect IncomingWhenClosedSfx => incomingWhenClosedSfx;
     public SoundEffect IncomingWhenOpenedSfx => incomingWhenOpenedSfx;
+    public ChatTypographyProfile PhoneTypography => phoneTypography;
     public bool PlayPhoneIncomingSfxForOwnMessages => playPhoneIncomingSfxForOwnMessages;
     public bool PlayPhoneIncomingSfxForSystemMessages => playPhoneIncomingSfxForSystemMessages;
 }

@@ -43,6 +43,9 @@ public class PhoneChatView : MonoBehaviour
     [SerializeField] private SoundEffect incomingWhenClosedSfx;
     [SerializeField] private SoundEffect incomingWhenOpenedSfx;
 
+    [Header("Typography")]
+    [SerializeField] private ChatTypographyProfile typographyProfile;
+
     private GameObject spawnedChatWindow;
     private ChatWindowUI chatWindow;
     private Coroutine slideCoroutine;
@@ -112,6 +115,8 @@ public class PhoneChatView : MonoBehaviour
             return;
         }
 
+        ApplyTypography();
+
         SubscribeToChatWindow();
         SubscribeToChatEvents();
         ForceClosed();
@@ -157,7 +162,34 @@ public class PhoneChatView : MonoBehaviour
             openSfx,
             closeSfx,
             playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages
+            playIncomingSfxForSystemMessages,
+            typographyProfile
+        );
+
+        Initialize();
+    }
+
+    public void Initialize(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx,
+        bool playIncomingSfxForOwnMessages,
+        bool playIncomingSfxForSystemMessages,
+        ChatTypographyProfile typographyProfile)
+    {
+        Configure(
+            chatEvents,
+            inputSfx,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx,
+            playIncomingSfxForOwnMessages,
+            playIncomingSfxForSystemMessages,
+            typographyProfile
         );
 
         Initialize();
@@ -179,7 +211,8 @@ public class PhoneChatView : MonoBehaviour
             openSfx,
             closeSfx,
             playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages
+            playIncomingSfxForSystemMessages,
+            typographyProfile
         );
     }
 
@@ -193,6 +226,30 @@ public class PhoneChatView : MonoBehaviour
         bool playIncomingSfxForOwnMessages,
         bool playIncomingSfxForSystemMessages)
     {
+        Configure(
+            chatEvents,
+            inputSfx,
+            incomingWhenClosedSfx,
+            incomingWhenOpenedSfx,
+            openSfx,
+            closeSfx,
+            playIncomingSfxForOwnMessages,
+            playIncomingSfxForSystemMessages,
+            typographyProfile
+        );
+    }
+
+    public void Configure(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        SoundEffect incomingWhenClosedSfx,
+        SoundEffect incomingWhenOpenedSfx,
+        SoundEffect openSfx,
+        SoundEffect closeSfx,
+        bool playIncomingSfxForOwnMessages,
+        bool playIncomingSfxForSystemMessages,
+        ChatTypographyProfile typographyProfile)
+    {
         bool shouldResubscribe = isSubscribedToChatEvents && isActiveAndEnabled;
         UnsubscribeFromChatEvents();
 
@@ -204,6 +261,7 @@ public class PhoneChatView : MonoBehaviour
         this.closeSfx = closeSfx;
         this.playIncomingSfxForOwnMessages = playIncomingSfxForOwnMessages;
         this.playIncomingSfxForSystemMessages = playIncomingSfxForSystemMessages;
+        this.typographyProfile = typographyProfile;
 
         if (spawnedChatWindow != null)
         {
@@ -215,6 +273,8 @@ public class PhoneChatView : MonoBehaviour
             ApplyChatInputSfx();
         }
 
+        ApplyTypography();
+
         if (shouldResubscribe)
         {
             SubscribeToChatEvents();
@@ -225,6 +285,17 @@ public class PhoneChatView : MonoBehaviour
     {
         inputSfx = sound;
         ApplyChatInputSfx();
+    }
+
+    public void SetTypographyProfile(ChatTypographyProfile typographyProfile)
+    {
+        this.typographyProfile = typographyProfile;
+        ApplyTypography();
+    }
+
+    private void ApplyTypography()
+    {
+        ChatTypographyApplier.Apply(gameObject, typographyProfile);
     }
 
     private void ResolveReferences()
@@ -431,6 +502,7 @@ public class PhoneChatView : MonoBehaviour
         ApplyChatEventChannel();
         DisableSpawnedChatMessageNotificationAudio();
         ApplyChatInputSfx();
+        ApplyTypography();
 
         return true;
     }
