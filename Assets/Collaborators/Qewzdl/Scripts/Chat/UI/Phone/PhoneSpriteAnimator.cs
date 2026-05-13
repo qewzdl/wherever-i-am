@@ -11,8 +11,10 @@ public class PhoneSpriteAnimator : MonoBehaviour
     private Coroutine animationCoroutine;
 
     public event Action FrameChanged;
+    public event Action<PhoneSpriteAnimationDirection> PlaybackCompleted;
 
     public PhoneSpriteAnimationProfile Profile => profile;
+    public bool IsPlaying => animationCoroutine != null;
 
     public void Configure(Image targetImage, PhoneSpriteAnimationProfile profile)
     {
@@ -53,14 +55,14 @@ public class PhoneSpriteAnimator : MonoBehaviour
         SetSprite(profile.OpenedSprite);
     }
 
-    public void PlayOpening()
+    public bool PlayOpening()
     {
-        Play(PhoneSpriteAnimationDirection.Opening);
+        return Play(PhoneSpriteAnimationDirection.Opening);
     }
 
-    public void PlayClosing()
+    public bool PlayClosing()
     {
-        Play(PhoneSpriteAnimationDirection.Closing);
+        return Play(PhoneSpriteAnimationDirection.Closing);
     }
 
     public void Stop()
@@ -79,16 +81,17 @@ public class PhoneSpriteAnimator : MonoBehaviour
         Stop();
     }
 
-    private void Play(PhoneSpriteAnimationDirection direction)
+    private bool Play(PhoneSpriteAnimationDirection direction)
     {
         Stop();
 
         if (targetImage == null || profile == null || !profile.HasFrames)
         {
-            return;
+            return false;
         }
 
         animationCoroutine = StartCoroutine(PlayRoutine(direction, profile));
+        return true;
     }
 
     private IEnumerator PlayRoutine(
@@ -106,6 +109,7 @@ public class PhoneSpriteAnimator : MonoBehaviour
             : activeProfile.ClosedSprite);
 
         animationCoroutine = null;
+        PlaybackCompleted?.Invoke(direction);
     }
 
     private IEnumerator WaitFrameDuration(PhoneSpriteAnimationProfile activeProfile)

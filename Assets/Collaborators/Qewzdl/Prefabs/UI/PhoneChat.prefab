@@ -127,12 +127,17 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  spriteAnimator: {fileID: 0}
+  spriteAnimationProfile: {fileID: 11400000, guid: f2e091f48362083458d5b05a9ed3a171, type: 2}
+  chatContentCanvasGroup: {fileID: 0}
+  hideChatContentUntilPhoneOpened: 1
   fallbackAudioSource: {fileID: 0}
   openSfx: {fileID: 11400000, guid: 1eef85d6687020148a4efa8dc44bd21b, type: 2}
   closeSfx: {fileID: 11400000, guid: 52df5320cd938284a83a96f21120cb1c, type: 2}
   inputSfx: {fileID: 11400000, guid: e77916d51474d7f4eb53ed5b215810f4, type: 2}
   incomingWhenClosedSfx: {fileID: 11400000, guid: 046510d0803802444b9f3ed1b92494cc, type: 2}
   incomingWhenOpenedSfx: {fileID: 11400000, guid: 00257d04775641647bcc3ec3cf2fd9e0, type: 2}
+  typographyProfile: {fileID: 11400000, guid: 75ab4a2037f31344784a71960867288b, type: 2}
 --- !u!1 &623843110761046784
 GameObject:
   m_ObjectHideFlags: 0

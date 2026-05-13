@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -39,6 +40,10 @@ public class PhoneChatView : MonoBehaviour
     [SerializeField] private PhoneSpriteAnimator spriteAnimator;
     [SerializeField] private PhoneSpriteAnimationProfile spriteAnimationProfile;
 
+    [Header("Chat Content Gate")]
+    [SerializeField] private CanvasGroup chatContentCanvasGroup;
+    [SerializeField] private bool hideChatContentUntilPhoneOpened = true;
+
     [Header("Audio")]
     [SerializeField] private AudioSource fallbackAudioSource;
     [SerializeField] private SoundEffect openSfx;
@@ -53,8 +58,10 @@ public class PhoneChatView : MonoBehaviour
     private GameObject spawnedChatWindow;
     private ChatWindowUI chatWindow;
     private Coroutine slideCoroutine;
+
     private Vector2 hiddenAnchoredPosition;
     private Vector2 hiddenAnchoredPositionSize;
+
     private bool hasHiddenAnchoredPosition;
     private bool isInitialized;
     private bool isOpen;
@@ -62,6 +69,8 @@ public class PhoneChatView : MonoBehaviour
     private bool isSubscribedToChatEvents;
     private bool playIncomingSfxForOwnMessages;
     private bool playIncomingSfxForSystemMessages = true;
+    private bool waitingForOpeningSlide;
+    private bool waitingForOpeningSprite;
 
     private void OnValidate()
     {
@@ -71,12 +80,14 @@ public class PhoneChatView : MonoBehaviour
 
     private void OnEnable()
     {
-        if (isInitialized)
+        if (!isInitialized)
         {
-            ConfigureSpriteAnimator();
-            SubscribeToChatWindow();
-            SubscribeToChatEvents();
+            return;
         }
+
+        ConfigureSpriteAnimator();
+        SubscribeToChatWindow();
+        SubscribeToChatEvents();
     }
 
     private void OnDisable()
@@ -87,6 +98,7 @@ public class PhoneChatView : MonoBehaviour
         if (spriteAnimator != null)
         {
             spriteAnimator.FrameChanged -= HandlePhoneSpriteFrameChanged;
+            spriteAnimator.PlaybackCompleted -= HandlePhoneSpritePlaybackCompleted;
         }
     }
 
@@ -369,11 +381,7 @@ public class PhoneChatView : MonoBehaviour
         this.spriteAnimationProfile = spriteAnimationProfile;
         ConfigureSpriteAnimator();
 
-        if (isOpen)
-        {
-            ForcePhoneOpenedSprite();
-        }
-        else
+        if (!isOpen)
         {
             ForcePhoneClosedSprite();
         }
@@ -388,6 +396,7 @@ public class PhoneChatView : MonoBehaviour
     {
         ResolveScreenReferences();
         ResolveSpriteAnimator();
+        ResolveChatContentCanvasGroup();
 
         if (phoneCanvasGroup == null && phoneRoot != null)
         {
@@ -480,7 +489,35 @@ public class PhoneChatView : MonoBehaviour
         spriteAnimator.FrameChanged -= HandlePhoneSpriteFrameChanged;
         spriteAnimator.FrameChanged += HandlePhoneSpriteFrameChanged;
 
+        spriteAnimator.PlaybackCompleted -= HandlePhoneSpritePlaybackCompleted;
+        spriteAnimator.PlaybackCompleted += HandlePhoneSpritePlaybackCompleted;
+
         spriteAnimator.Configure(phoneImage, spriteAnimationProfile);
+    }
+
+    private void ResolveChatContentCanvasGroup()
+    {
+        if (!hideChatContentUntilPhoneOpened)
+        {
+            return;
+        }
+
+        if (chatContentCanvasGroup != null)
+        {
+            return;
+        }
+
+        if (chatContainer == null)
+        {
+            return;
+        }
+
+        chatContentCanvasGroup = chatContainer.GetComponent<CanvasGroup>();
+
+        if (chatContentCanvasGroup == null)
+        {
+            chatContentCanvasGroup = chatContainer.gameObject.AddComponent<CanvasGroup>();
+        }
     }
 
     private RectTransform FindChildRectTransform(string childName)
@@ -733,12 +770,40 @@ public class PhoneChatView : MonoBehaviour
         PlayOneShot(incomingSfx);
     }
 
+    private void HandlePhoneSpriteFrameChanged()
+    {
+        if (spriteAnimationProfile == null)
+        {
+            return;
+        }
+
+        if (!spriteAnimationProfile.RefreshScreenLayoutOnFrameChange)
+        {
+            return;
+        }
+
+        ApplyScreenLayout(false);
+    }
+
+    private void HandlePhoneSpritePlaybackCompleted(PhoneSpriteAnimationDirection direction)
+    {
+        if (direction != PhoneSpriteAnimationDirection.Opening)
+        {
+            return;
+        }
+
+        waitingForOpeningSprite = false;
+        TryCompletePhoneOpeningPresentation();
+    }
+
     private void ForceClosed()
     {
         isOpen = false;
+        ResetOpeningGate();
         RefreshHiddenAnchoredPositionIfSizeChanged();
         phoneRoot.anchoredPosition = hiddenAnchoredPosition;
         ForcePhoneClosedSprite();
+        SetChatContentVisible(false);
 
         if (phoneCanvasGroup != null)
         {
@@ -756,9 +821,22 @@ public class PhoneChatView : MonoBehaviour
         }
 
         isOpen = true;
+
+        SetChatContentVisible(false);
+
+        if (phoneCanvasGroup != null)
+        {
+            phoneCanvasGroup.interactable = false;
+            phoneCanvasGroup.blocksRaycasts = false;
+        }
+
         PlayOneShot(openSfx);
-        PlayPhoneOpeningAnimation();
-        StartSlide(shownAnchoredPosition, true);
+
+        waitingForOpeningSlide = true;
+        waitingForOpeningSprite = PlayPhoneOpeningAnimation();
+
+        StartSlide(shownAnchoredPosition, false, HandleOpeningSlideCompleted);
+        TryCompletePhoneOpeningPresentation();
     }
 
     private void CloseShell()
@@ -769,30 +847,91 @@ public class PhoneChatView : MonoBehaviour
         }
 
         isOpen = false;
+        ResetOpeningGate();
+        SetChatContentVisible(false);
+
         PlayOneShot(closeSfx);
         PlayPhoneClosingAnimation();
+
         RefreshHiddenAnchoredPositionIfSizeChanged();
         StartSlide(hiddenAnchoredPosition, false);
     }
 
-    private void PlayPhoneOpeningAnimation()
+    private void SetChatContentVisible(bool visible)
     {
-        if (spriteAnimator == null)
+        if (!hideChatContentUntilPhoneOpened)
         {
             return;
         }
 
-        spriteAnimator.PlayOpening();
+        ResolveChatContentCanvasGroup();
+
+        if (chatContentCanvasGroup == null)
+        {
+            return;
+        }
+
+        chatContentCanvasGroup.alpha = visible ? 1f : 0f;
+        chatContentCanvasGroup.interactable = visible;
+        chatContentCanvasGroup.blocksRaycasts = visible;
     }
 
-    private void PlayPhoneClosingAnimation()
+    private void ResetOpeningGate()
     {
-        if (spriteAnimator == null)
+        waitingForOpeningSlide = false;
+        waitingForOpeningSprite = false;
+    }
+
+    private void HandleOpeningSlideCompleted()
+    {
+        waitingForOpeningSlide = false;
+        TryCompletePhoneOpeningPresentation();
+    }
+
+    private void TryCompletePhoneOpeningPresentation()
+    {
+        if (!isOpen)
         {
             return;
         }
 
-        spriteAnimator.PlayClosing();
+        if (waitingForOpeningSlide || waitingForOpeningSprite)
+        {
+            return;
+        }
+
+        SetChatContentVisible(true);
+
+        if (phoneCanvasGroup != null)
+        {
+            phoneCanvasGroup.interactable = true;
+            phoneCanvasGroup.blocksRaycasts = true;
+        }
+
+        if (chatWindow != null)
+        {
+            chatWindow.FocusInput();
+        }
+    }
+
+    private bool PlayPhoneOpeningAnimation()
+    {
+        if (spriteAnimator == null)
+        {
+            return false;
+        }
+
+        return spriteAnimator.PlayOpening();
+    }
+
+    private bool PlayPhoneClosingAnimation()
+    {
+        if (spriteAnimator == null)
+        {
+            return false;
+        }
+
+        return spriteAnimator.PlayClosing();
     }
 
     private void ForcePhoneClosedSprite()
@@ -803,31 +942,6 @@ public class PhoneChatView : MonoBehaviour
         }
 
         spriteAnimator.ForceClosedSprite();
-    }
-
-    private void ForcePhoneOpenedSprite()
-    {
-        if (spriteAnimator == null)
-        {
-            return;
-        }
-
-        spriteAnimator.ForceOpenedSprite();
-    }
-
-    private void HandlePhoneSpriteFrameChanged()
-    {
-        if (spriteAnimationProfile == null)
-        {
-            return;
-        }
-
-        if (!spriteAnimationProfile.RefreshScreenLayoutOnFrameChange)
-        {
-            return;
-        }
-
-        ApplyScreenLayout(false);
     }
 
     private void ForceRefreshHiddenAnchoredPosition()
@@ -861,21 +975,30 @@ public class PhoneChatView : MonoBehaviour
         hiddenAnchoredPosition = shownAnchoredPosition + new Vector2(0f, hiddenOffsetY);
     }
 
-    private void StartSlide(Vector2 targetPosition, bool shouldInteractAfterSlide)
+    private void StartSlide(
+        Vector2 targetPosition,
+        bool shouldInteractAfterSlide,
+        Action completed = null)
     {
         if (slideCoroutine != null)
         {
             StopCoroutine(slideCoroutine);
         }
 
-        slideCoroutine = StartCoroutine(SlideRoutine(targetPosition, shouldInteractAfterSlide));
+        slideCoroutine = StartCoroutine(SlideRoutine(
+            targetPosition,
+            shouldInteractAfterSlide,
+            completed));
     }
 
-    private IEnumerator SlideRoutine(Vector2 targetPosition, bool shouldInteractAfterSlide)
+    private IEnumerator SlideRoutine(
+        Vector2 targetPosition,
+        bool shouldInteractAfterSlide,
+        Action completed)
     {
         if (phoneCanvasGroup != null)
         {
-            phoneCanvasGroup.interactable = true;
+            phoneCanvasGroup.interactable = false;
             phoneCanvasGroup.blocksRaycasts = false;
         }
 
@@ -895,7 +1018,10 @@ public class PhoneChatView : MonoBehaviour
                 float normalizedTime = Mathf.Clamp01(elapsed / slideDuration);
                 float curveValue = slideCurve.Evaluate(normalizedTime);
 
-                phoneRoot.anchoredPosition = Vector2.LerpUnclamped(startPosition, targetPosition, curveValue);
+                phoneRoot.anchoredPosition = Vector2.LerpUnclamped(
+                    startPosition,
+                    targetPosition,
+                    curveValue);
 
                 yield return null;
             }
@@ -905,11 +1031,12 @@ public class PhoneChatView : MonoBehaviour
 
         if (phoneCanvasGroup != null)
         {
-            phoneCanvasGroup.interactable = true;
+            phoneCanvasGroup.interactable = shouldInteractAfterSlide;
             phoneCanvasGroup.blocksRaycasts = shouldInteractAfterSlide;
         }
 
         slideCoroutine = null;
+        completed?.Invoke();
     }
 
     private void PlayOneShot(SoundEffect sound)
