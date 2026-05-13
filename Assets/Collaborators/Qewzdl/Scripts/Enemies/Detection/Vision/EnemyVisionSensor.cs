@@ -15,9 +15,13 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     [SerializeField, Min(1)] private int maxDetectionResults = 16;
     [SerializeField, Min(0.1f)] private float overflowWarningCooldown = 2f;
 
+    [Header("Visibility")]
+    [SerializeField, Min(1)] private int maxVisibilityPoints = 4;
+
     private Collider[] detectionResults;
     private EnemyTarget[] processedTargets;
     private float nextOverflowWarningTime;
+    private Vector3[] visibilityPointResults;
 
     private void Awake()
     {
@@ -115,7 +119,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
                 continue;
             }
 
-            if (!CanSeeTarget(enemyTarget, config))
+            if (!CanSeeTarget(enemyTarget, config, out _))
             {
                 continue;
             }
@@ -139,14 +143,48 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     private bool CanSeeTarget(EnemyTarget target, EnemyConfig config)
     {
+        return CanSeeTarget(target, config, out _);
+    }
+
+    private bool CanSeeTarget(EnemyTarget target, EnemyConfig config, out Vector3 visiblePoint)
+    {
+        visiblePoint = Vector3.zero;
+
         if (target == null || config == null)
+        {
+            return false;
+        }
+
+        EnsureDetectionBuffers();
+
+        int pointCount = target.GetVisibilityPointsNonAlloc(
+            visibilityPointResults,
+            config.targetHeightOffset
+        );
+
+        if (pointCount <= 0)
         {
             return false;
         }
 
         Transform origin = GetOrigin();
 
-        Vector3 targetPoint = target.AimPosition;
+        for (int i = 0; i < pointCount; i++)
+        {
+            Vector3 targetPoint = visibilityPointResults[i];
+
+            if (CanSeePoint(origin, targetPoint, config))
+            {
+                visiblePoint = targetPoint;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool CanSeePoint(Transform origin, Vector3 targetPoint, EnemyConfig config)
+    {
         Vector3 directionToTarget = targetPoint - origin.position;
         float distanceToTarget = directionToTarget.magnitude;
 
@@ -195,6 +233,13 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         if (processedTargets == null || processedTargets.Length != safeSize)
         {
             processedTargets = new EnemyTarget[safeSize];
+        }
+
+        int safeVisibilityPointCount = Mathf.Max(1, maxVisibilityPoints);
+
+        if (visibilityPointResults == null || visibilityPointResults.Length != safeVisibilityPointCount)
+        {
+            visibilityPointResults = new Vector3[safeVisibilityPointCount];
         }
     }
 
@@ -255,6 +300,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     {
         maxDetectionResults = Mathf.Max(1, maxDetectionResults);
         overflowWarningCooldown = Mathf.Max(0.1f, overflowWarningCooldown);
+        maxVisibilityPoints = Mathf.Max(1, maxVisibilityPoints);
         EnsureDetectionBuffers();
     }
 
