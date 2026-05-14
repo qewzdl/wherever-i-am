@@ -13,7 +13,12 @@ public class EnemyConfig : ScriptableObject
 
     [Header("Detection")]
     [Min(0f)] public float detectionRadius = 12f;
-    [Range(1f, 360f)] public float viewAngle = 110f;
+
+    [FormerlySerializedAs("viewAngle")]
+    [Range(1f, 360f)] public float horizontalViewAngle = 110f;
+
+    [Range(1f, 180f)] public float verticalViewAngle = 80f;
+
     [Min(0f)] public float loseTargetDistance = 16f;
     [Min(0f)] public float targetHeightOffset = 1.2f;
     [Min(0.05f)] public float targetRefreshInterval = 0.25f;
@@ -59,6 +64,9 @@ public class EnemyConfig : ScriptableObject
         attackDistance = Mathf.Max(attackDistance, stoppingDistance);
         targetRefreshInterval = Mathf.Max(0.05f, targetRefreshInterval);
         visualTargetMemoryDuration = Mathf.Max(0f, visualTargetMemoryDuration);
+
+        horizontalViewAngle = Mathf.Clamp(horizontalViewAngle, 1f, 360f);
+        verticalViewAngle = Mathf.Clamp(verticalViewAngle, 1f, 180f);
 
         investigationReachDistance = Mathf.Max(investigationReachDistance, stoppingDistance);
         investigationRepathInterval = Mathf.Max(0.05f, investigationRepathInterval);

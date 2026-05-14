@@ -204,9 +204,12 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        float angle = Vector3.Angle(origin.forward, directionToTarget);
+        if (!IsInsideHorizontalView(origin, directionToTarget, config.horizontalViewAngle))
+        {
+            return false;
+        }
 
-        if (angle > config.viewAngle * 0.5f)
+        if (!IsInsideVerticalView(origin, directionToTarget, config.verticalViewAngle))
         {
             return false;
         }
@@ -221,8 +224,6 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return true;
         }
 
-        Vector3 direction = directionToTarget / distanceToTarget;
-
         bool blocked = Physics.Linecast(
             originPosition,
             targetPoint,
@@ -231,6 +232,46 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         );
 
         return !blocked;
+    }
+
+    private bool IsInsideHorizontalView(
+        Transform origin,
+        Vector3 directionToTarget,
+        float horizontalViewAngle
+    )
+    {
+        Vector3 flatForward = Vector3.ProjectOnPlane(origin.forward, Vector3.up);
+        Vector3 flatDirectionToTarget = Vector3.ProjectOnPlane(directionToTarget, Vector3.up);
+
+        if (flatForward.sqrMagnitude <= 0.001f || flatDirectionToTarget.sqrMagnitude <= 0.001f)
+        {
+            return true;
+        }
+
+        float horizontalAngle = Vector3.Angle(flatForward, flatDirectionToTarget);
+        return horizontalAngle <= horizontalViewAngle * 0.5f;
+    }
+
+    private bool IsInsideVerticalView(
+        Transform origin,
+        Vector3 directionToTarget,
+        float verticalViewAngle
+    )
+    {
+        Vector3 flatDirectionToTarget = Vector3.ProjectOnPlane(directionToTarget, Vector3.up);
+        float horizontalDistance = flatDirectionToTarget.magnitude;
+        float verticalDistance = directionToTarget.y;
+
+        if (horizontalDistance <= 0.001f)
+        {
+            return Mathf.Abs(verticalDistance) <= 0.001f;
+        }
+
+        float verticalAngle = Mathf.Abs(
+            Mathf.Atan2(verticalDistance, horizontalDistance) * Mathf.Rad2Deg
+        );
+
+        return verticalAngle <= verticalViewAngle * 0.5f;
     }
 
     private void EnsureDetectionBuffers()
@@ -332,17 +373,73 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, config.detectionRadius);
 
-        Vector3 forward = origin.forward;
-        Vector3 leftDirection = Quaternion.AngleAxis(-config.viewAngle * 0.5f, Vector3.up) * forward;
-        Vector3 rightDirection = Quaternion.AngleAxis(config.viewAngle * 0.5f, Vector3.up) * forward;
+        DrawHorizontalViewGizmos(origin, config);
+        DrawVerticalViewGizmos(origin, config);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawSphere(origin.position, 0.08f);
+    }
+
+    private void DrawHorizontalViewGizmos(Transform origin, EnemyConfig config)
+    {
+        Vector3 forward = Vector3.ProjectOnPlane(origin.forward, Vector3.up);
+
+        if (forward.sqrMagnitude <= 0.001f)
+        {
+            forward = transform.forward;
+        }
+
+        forward.Normalize();
+
+        Vector3 leftDirection = Quaternion.AngleAxis(
+            -config.horizontalViewAngle * 0.5f,
+            Vector3.up
+        ) * forward;
+
+        Vector3 rightDirection = Quaternion.AngleAxis(
+            config.horizontalViewAngle * 0.5f,
+            Vector3.up
+        ) * forward;
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawLine(origin.position, origin.position + forward * config.detectionRadius);
         Gizmos.DrawLine(origin.position, origin.position + leftDirection * config.detectionRadius);
         Gizmos.DrawLine(origin.position, origin.position + rightDirection * config.detectionRadius);
+    }
 
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawSphere(origin.position, 0.08f);
+    private void DrawVerticalViewGizmos(Transform origin, EnemyConfig config)
+    {
+        Vector3 forward = Vector3.ProjectOnPlane(origin.forward, Vector3.up);
+
+        if (forward.sqrMagnitude <= 0.001f)
+        {
+            forward = transform.forward;
+        }
+
+        forward.Normalize();
+
+        Vector3 right = Vector3.Cross(Vector3.up, forward);
+
+        if (right.sqrMagnitude <= 0.001f)
+        {
+            right = origin.right;
+        }
+
+        right.Normalize();
+
+        Vector3 upDirection = Quaternion.AngleAxis(
+            -config.verticalViewAngle * 0.5f,
+            right
+        ) * forward;
+
+        Vector3 downDirection = Quaternion.AngleAxis(
+            config.verticalViewAngle * 0.5f,
+            right
+        ) * forward;
+
+        Gizmos.color = new Color(1f, 0.5f, 0f, 1f);
+        Gizmos.DrawLine(origin.position, origin.position + upDirection * config.detectionRadius);
+        Gizmos.DrawLine(origin.position, origin.position + downDirection * config.detectionRadius);
     }
 #endif
 }
