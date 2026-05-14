@@ -2,33 +2,51 @@ using UnityEngine;
 
 public sealed class EnemyInvestigateState : IEnemyStateHandler
 {
-    private readonly EnemyBrainContext context;
+    private enum InvestigationPhase
+    {
+        MovingToLastKnownPosition,
+        SearchingArea
+    }
 
-    private Vector3 currentInvestigationPosition;
-    private bool hasInvestigationPosition;
-    private bool isWaitingAtInvestigationPoint;
-    private float waitTimer;
+    private readonly EnemyBrainContext context;
+    private readonly EnemyInvestigationSearchPlanner searchPlanner;
+
+    private InvestigationPhase phase;
+
+    private Vector3 investigationOrigin;
+    private Vector3 currentDestination;
+
+    private int currentSearchPointIndex;
+    private float searchTimer;
     private float repathTimer;
+
+    private bool hasDestination;
 
     public EnemyState State => EnemyState.Investigate;
 
     public EnemyInvestigateState(EnemyBrainContext context)
     {
         this.context = context;
+
+        int maxSearchPoints = context != null && context.Config != null
+            ? context.Config.investigationSearchPointCount
+            : 0;
+
+        searchPlanner = new EnemyInvestigationSearchPlanner(maxSearchPoints);
     }
 
     public void Enter()
     {
         ResetRuntimeState();
 
-        if (!TryResolveInvestigationPosition(out currentInvestigationPosition))
+        if (!TryResolveInvestigationOrigin(out investigationOrigin))
         {
             FinishInvestigation();
             return;
         }
 
-        hasInvestigationPosition = true;
-        MoveToInvestigationPosition(forceRepath: true);
+        phase = InvestigationPhase.MovingToLastKnownPosition;
+        SetDestination(investigationOrigin, context.Config.chaseSpeed);
     }
 
     public void Tick(float deltaTime)
@@ -39,25 +57,15 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        if (!hasInvestigationPosition)
-        {
-            if (!TryResolveInvestigationPosition(out currentInvestigationPosition))
-            {
-                FinishInvestigation();
-                return;
-            }
+        repathTimer -= deltaTime;
 
-            hasInvestigationPosition = true;
-            MoveToInvestigationPosition(forceRepath: true);
-        }
-
-        if (isWaitingAtInvestigationPoint)
+        if (phase == InvestigationPhase.MovingToLastKnownPosition)
         {
-            TickWaiting(deltaTime);
+            TickMovingToLastKnownPosition();
             return;
         }
 
-        TickMoving(deltaTime);
+        TickSearchingArea(deltaTime);
     }
 
     public void Exit()
@@ -65,43 +73,94 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         ResetRuntimeState();
     }
 
-    private void TickMoving(float deltaTime)
+    private void TickMovingToLastKnownPosition()
     {
-        repathTimer -= deltaTime;
-
-        if (repathTimer <= 0f)
+        if (!hasDestination)
         {
-            MoveToInvestigationPosition(forceRepath: true);
+            SetDestination(investigationOrigin, context.Config.chaseSpeed);
+            return;
         }
+
+        RepathIfNeeded(context.Config.chaseSpeed);
 
         if (!context.Navigator.HasReached(context.Config.investigationReachDistance))
         {
             return;
         }
 
-        StartWaitingAtInvestigationPoint();
+        StartAreaSearch();
     }
 
-    private void TickWaiting(float deltaTime)
+    private void StartAreaSearch()
     {
-        waitTimer -= deltaTime;
+        phase = InvestigationPhase.SearchingArea;
+        searchTimer = context.Config.investigationSearchDuration;
+        currentSearchPointIndex = 0;
 
-        context.Navigator.Stop();
+        context.TargetMemory.ClearPrimaryInvestigationPosition();
 
-        if (waitTimer > 0f)
+        searchPlanner.BuildSearchPoints(
+            investigationOrigin,
+            context.Navigator.Position,
+            context.Config.investigationSearchRadius,
+            context.Config.investigationSearchPointCount
+        );
+
+        if (searchTimer <= 0f || searchPlanner.PointCount == 0)
+        {
+            TryMoveToSecondaryOrFinish();
+            return;
+        }
+
+        MoveToNextSearchPointOrFinish();
+    }
+
+    private void TickSearchingArea(float deltaTime)
+    {
+        searchTimer -= deltaTime;
+
+        if (searchTimer <= 0f)
+        {
+            TryMoveToSecondaryOrFinish();
+            return;
+        }
+
+        if (!hasDestination)
+        {
+            MoveToNextSearchPointOrFinish();
+            return;
+        }
+
+        RepathIfNeeded(context.Config.investigationSearchSpeed);
+
+        if (!context.Navigator.HasReached(context.Config.investigationReachDistance))
         {
             return;
         }
 
-        context.TargetMemory.ClearPrimaryInvestigationPosition();
+        MoveToNextSearchPointOrFinish();
+    }
 
+    private void MoveToNextSearchPointOrFinish()
+    {
+        if (!searchPlanner.TryGetPoint(currentSearchPointIndex, out Vector3 nextPoint))
+        {
+            TryMoveToSecondaryOrFinish();
+            return;
+        }
+
+        currentSearchPointIndex++;
+        SetDestination(nextPoint, context.Config.investigationSearchSpeed);
+    }
+
+    private void TryMoveToSecondaryOrFinish()
+    {
         if (context.TargetMemory.PromoteSecondarySuspiciousPositionToLastKnown())
         {
-            if (context.TargetMemory.TryGetLastKnownTargetPosition(out currentInvestigationPosition))
+            if (TryResolveInvestigationOrigin(out investigationOrigin))
             {
-                hasInvestigationPosition = true;
-                isWaitingAtInvestigationPoint = false;
-                MoveToInvestigationPosition(forceRepath: true);
+                phase = InvestigationPhase.MovingToLastKnownPosition;
+                SetDestination(investigationOrigin, context.Config.chaseSpeed);
                 return;
             }
         }
@@ -109,7 +168,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         FinishInvestigation();
     }
 
-    private bool TryResolveInvestigationPosition(out Vector3 position)
+    private bool TryResolveInvestigationOrigin(out Vector3 position)
     {
         if (context.TargetMemory.TryGetLastKnownTargetPosition(out position))
         {
@@ -125,40 +184,31 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         return false;
     }
 
-    private void MoveToInvestigationPosition(bool forceRepath)
+    private void SetDestination(Vector3 destination, float speed)
     {
-        if (!hasInvestigationPosition)
-        {
-            return;
-        }
-
-        if (!forceRepath && repathTimer > 0f)
-        {
-            return;
-        }
-
+        currentDestination = destination;
+        hasDestination = context.Navigator.TryMoveTo(destination, speed);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
-        if (!context.Navigator.TryMoveTo(
-            currentInvestigationPosition,
-            context.Config.chaseSpeed
-        ))
+        if (!hasDestination)
         {
-            FinishInvestigation();
+            TryMoveToSecondaryOrFinish();
         }
     }
 
-    private void StartWaitingAtInvestigationPoint()
+    private void RepathIfNeeded(float speed)
     {
-        isWaitingAtInvestigationPoint = true;
-        waitTimer = context.Config.investigationWaitDuration;
-
-        context.Navigator.ResetPath();
-        context.Navigator.Stop();
-
-        if (waitTimer <= 0f)
+        if (!hasDestination || repathTimer > 0f)
         {
-            TickWaiting(0f);
+            return;
+        }
+
+        hasDestination = context.Navigator.TryMoveTo(currentDestination, speed);
+        repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
+
+        if (!hasDestination)
+        {
+            TryMoveToSecondaryOrFinish();
         }
     }
 
@@ -170,10 +220,15 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private void ResetRuntimeState()
     {
-        currentInvestigationPosition = default;
-        hasInvestigationPosition = false;
-        isWaitingAtInvestigationPoint = false;
-        waitTimer = 0f;
+        phase = InvestigationPhase.MovingToLastKnownPosition;
+
+        investigationOrigin = default;
+        currentDestination = default;
+
+        currentSearchPointIndex = 0;
+        searchTimer = 0f;
         repathTimer = 0f;
+
+        hasDestination = false;
     }
 }

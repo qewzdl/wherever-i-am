@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [CreateAssetMenu(menuName = "Wherever I Am/Enemies/Enemy Config", fileName = "EnemyConfig")]
 public class EnemyConfig : ScriptableObject
@@ -19,8 +20,14 @@ public class EnemyConfig : ScriptableObject
 
     [Header("Investigation")]
     [Min(0f)] public float investigationReachDistance = 0.75f;
-    [Min(0f)] public float investigationWaitDuration = 3f;
+
+    [FormerlySerializedAs("investigationWaitDuration")]
+    [Min(0f)] public float investigationSearchDuration = 4f;
+
     [Min(0.05f)] public float investigationRepathInterval = 0.25f;
+    [Min(0f)] public float investigationSearchRadius = 3f;
+    [Min(0)] public int investigationSearchPointCount = 4;
+    [Min(0f)] public float investigationSearchSpeed = 2.2f;
 
     [Header("Hearing")]
     public bool hearingEnabled = true;
@@ -42,8 +49,11 @@ public class EnemyConfig : ScriptableObject
         targetRefreshInterval = Mathf.Max(0.05f, targetRefreshInterval);
 
         investigationReachDistance = Mathf.Max(investigationReachDistance, stoppingDistance);
-        investigationWaitDuration = Mathf.Max(0f, investigationWaitDuration);
+        investigationSearchDuration = Mathf.Max(0f, investigationSearchDuration);
         investigationRepathInterval = Mathf.Max(0.05f, investigationRepathInterval);
+        investigationSearchRadius = Mathf.Max(0f, investigationSearchRadius);
+        investigationSearchPointCount = Mathf.Max(0, investigationSearchPointCount);
+        investigationSearchSpeed = Mathf.Max(0f, investigationSearchSpeed);
 
         hearingRadius = Mathf.Max(0f, hearingRadius);
         hearingMemoryDuration = Mathf.Max(0f, hearingMemoryDuration);
