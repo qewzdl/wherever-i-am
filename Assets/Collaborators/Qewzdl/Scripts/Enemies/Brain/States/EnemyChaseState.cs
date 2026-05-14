@@ -30,7 +30,10 @@ public sealed class EnemyChaseState : IEnemyStateHandler
             return;
         }
 
-        Vector3 targetPosition = context.GetTargetNavigationPosition(context.TargetMemory.CurrentTarget);
+        Vector3 targetPosition = context.TargetMemory.IsUsingVisualMemory
+            ? context.TargetMemory.GetCurrentTargetPosition()
+            : context.GetTargetNavigationPosition(context.TargetMemory.CurrentTarget);
+
         context.TargetMemory.RememberPosition(targetPosition);
 
         float distanceToTarget = Vector3.Distance(context.Navigator.Position, targetPosition);
@@ -42,7 +45,8 @@ public sealed class EnemyChaseState : IEnemyStateHandler
             return;
         }
 
-        if (distanceToTarget <= context.Config.attackDistance)
+        if (!context.TargetMemory.IsUsingVisualMemory &&
+            distanceToTarget <= context.Config.attackDistance)
         {
             context.ChangeState(EnemyState.Attack);
             return;

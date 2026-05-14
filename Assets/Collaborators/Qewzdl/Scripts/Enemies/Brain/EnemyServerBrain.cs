@@ -94,6 +94,7 @@ public sealed class EnemyServerBrain
         }
 
         attackController.Tick(deltaTime);
+        TickVisualTargetMemory(deltaTime);
         TickTargetRefresh(deltaTime);
         currentHandler?.Tick(deltaTime);
     }
@@ -151,6 +152,26 @@ public sealed class EnemyServerBrain
         currentHandler.Enter();
     }
 
+    private void TickVisualTargetMemory(float deltaTime)
+    {
+        if (!targetMemory.IsUsingVisualMemory)
+        {
+            return;
+        }
+
+        bool stillHasTarget = targetMemory.TickVisualMemory(deltaTime);
+
+        if (!stillHasTarget)
+        {
+            SyncTarget();
+
+            if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
+            {
+                ChangeState(EnemyState.Investigate);
+            }
+        }
+    }
+
     private void TickTargetRefresh(float deltaTime)
     {
         targetRefreshTimer -= deltaTime;
@@ -189,7 +210,15 @@ public sealed class EnemyServerBrain
 
     private void ApplyConfirmedTargetStimulus(EnemyPerceptionStimulus stimulus)
     {
-        targetMemory.SetTarget(stimulus.Target, stimulus.Position);
+        if (targetMemory.HasTarget && targetMemory.CurrentTarget == stimulus.Target)
+        {
+            targetMemory.RefreshConfirmedTarget(stimulus.Position);
+        }
+        else
+        {
+            targetMemory.SetTarget(stimulus.Target, stimulus.Position);
+        }
+
         targetMemory.ClearSecondarySuspiciousPosition();
         SyncTarget();
 
@@ -214,8 +243,8 @@ public sealed class EnemyServerBrain
 
         if (targetMemory.HasTarget)
         {
-            targetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
-            SyncTarget();
+            targetMemory.StartVisualMemoryGracePeriod(config.visualTargetMemoryDuration);
+            return;
         }
 
         targetMemory.RememberPosition(stimulus.Position);
@@ -239,8 +268,7 @@ public sealed class EnemyServerBrain
         {
             if (targetMemory.HasTarget)
             {
-                targetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
-                SyncTarget();
+                targetMemory.StartVisualMemoryGracePeriod(config.visualTargetMemoryDuration);
             }
 
             return;

@@ -13,6 +13,9 @@ public sealed class EnemyTargetMemory
     public Vector3 SecondarySuspiciousPosition { get; private set; }
     public bool HasSecondarySuspiciousPosition { get; private set; }
 
+    public bool IsUsingVisualMemory { get; private set; }
+    public float VisualMemoryTimeRemaining { get; private set; }
+
     public bool HasTarget => CurrentTarget != null;
     public ulong CurrentTargetClientId => CurrentTargetIdentity.OwnerClientId;
 
@@ -31,6 +34,13 @@ public sealed class EnemyTargetMemory
         CurrentTarget = target;
         CurrentTargetIdentity = EnemyTargetIdentity.FromTarget(target);
         RememberPosition(position);
+        CancelVisualMemory();
+    }
+
+    public void RefreshConfirmedTarget(Vector3 position)
+    {
+        RememberPosition(position);
+        CancelVisualMemory();
     }
 
     public void RememberPosition(Vector3 position)
@@ -57,6 +67,59 @@ public sealed class EnemyTargetMemory
         return HasSecondarySuspiciousPosition;
     }
 
+    public void StartVisualMemoryGracePeriod(float duration)
+    {
+        if (!HasTarget || duration <= 0f)
+        {
+            return;
+        }
+
+        IsUsingVisualMemory = true;
+        VisualMemoryTimeRemaining = Mathf.Max(VisualMemoryTimeRemaining, duration);
+    }
+
+    public bool TickVisualMemory(float deltaTime)
+    {
+        if (!IsUsingVisualMemory)
+        {
+            return HasTarget;
+        }
+
+        if (!IsCurrentTargetValid)
+        {
+            ForgetCurrentTargetButKeepLastKnownPosition();
+            return false;
+        }
+
+        VisualMemoryTimeRemaining -= deltaTime;
+
+        Vector3 targetPosition = GetCurrentTargetPosition();
+        RememberPosition(targetPosition);
+
+        if (VisualMemoryTimeRemaining > 0f)
+        {
+            return true;
+        }
+
+        ForgetCurrentTargetButKeepLastKnownPosition();
+        return false;
+    }
+
+    public Vector3 GetCurrentTargetPosition()
+    {
+        if (CurrentTarget == null)
+        {
+            return LastKnownTargetPosition;
+        }
+
+        if (CurrentTarget.NetworkObject != null && CurrentTarget.NetworkObject.IsSpawned)
+        {
+            return CurrentTarget.NetworkObject.transform.position;
+        }
+
+        return CurrentTarget.transform.position;
+    }
+
     public bool PromoteSecondarySuspiciousPositionToLastKnown()
     {
         if (!HasSecondarySuspiciousPosition)
@@ -81,11 +144,18 @@ public sealed class EnemyTargetMemory
     {
         CurrentTarget = null;
         CurrentTargetIdentity = EnemyTargetIdentity.None;
+        CancelVisualMemory();
     }
 
     public void ForgetCurrentTargetButKeepLastKnownPosition()
     {
         ClearTargetOnly();
+    }
+
+    public void CancelVisualMemory()
+    {
+        IsUsingVisualMemory = false;
+        VisualMemoryTimeRemaining = 0f;
     }
 
     public void ClearPrimaryInvestigationPosition()

@@ -22,6 +22,7 @@ MonoBehaviour:
   loseTargetDistance: 24
   targetHeightOffset: 1.2
   targetRefreshInterval: 0.25
+  visualTargetMemoryDuration: 1
   investigationReachDistance: 0.75
   investigationRepathInterval: 0.25
   investigationBranchRadius: 2.5

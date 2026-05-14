@@ -17,6 +17,7 @@ public class EnemyConfig : ScriptableObject
     [Min(0f)] public float loseTargetDistance = 16f;
     [Min(0f)] public float targetHeightOffset = 1.2f;
     [Min(0.05f)] public float targetRefreshInterval = 0.25f;
+    [Min(0f)] public float visualTargetMemoryDuration = 2f;
 
     [Header("Investigation")]
     [Min(0f)] public float investigationReachDistance = 0.75f;
@@ -57,6 +58,7 @@ public class EnemyConfig : ScriptableObject
         loseTargetDistance = Mathf.Max(loseTargetDistance, detectionRadius);
         attackDistance = Mathf.Max(attackDistance, stoppingDistance);
         targetRefreshInterval = Mathf.Max(0.05f, targetRefreshInterval);
+        visualTargetMemoryDuration = Mathf.Max(0f, visualTargetMemoryDuration);
 
         investigationReachDistance = Mathf.Max(investigationReachDistance, stoppingDistance);
         investigationRepathInterval = Mathf.Max(0.05f, investigationRepathInterval);
