@@ -209,7 +209,7 @@ public sealed class EnemyServerBrain
 
         if (targetMemory.HasTarget)
         {
-            targetMemory.ClearTargetOnly();
+            targetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
             SyncTarget();
         }
 
@@ -234,7 +234,7 @@ public sealed class EnemyServerBrain
         {
             if (targetMemory.HasTarget)
             {
-                targetMemory.ClearTargetOnly();
+                targetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
                 SyncTarget();
             }
 

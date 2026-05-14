@@ -52,6 +52,12 @@ public sealed class EnemyBrainContext
         SyncTarget();
     }
 
+    public void ForgetCurrentTargetButKeepLastKnownPosition()
+    {
+        TargetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
+        SyncTarget();
+    }
+
     public void ClearAllTargetMemory()
     {
         TargetMemory.ClearAll();

@@ -17,6 +17,11 @@ public class EnemyConfig : ScriptableObject
     [Min(0f)] public float targetHeightOffset = 1.2f;
     [Min(0.05f)] public float targetRefreshInterval = 0.25f;
 
+    [Header("Investigation")]
+    [Min(0f)] public float investigationReachDistance = 0.75f;
+    [Min(0f)] public float investigationWaitDuration = 3f;
+    [Min(0.05f)] public float investigationRepathInterval = 0.25f;
+
     [Header("Hearing")]
     public bool hearingEnabled = true;
     [Min(0f)] public float hearingRadius = 10f;
@@ -35,6 +40,10 @@ public class EnemyConfig : ScriptableObject
         loseTargetDistance = Mathf.Max(loseTargetDistance, detectionRadius);
         attackDistance = Mathf.Max(attackDistance, stoppingDistance);
         targetRefreshInterval = Mathf.Max(0.05f, targetRefreshInterval);
+
+        investigationReachDistance = Mathf.Max(investigationReachDistance, stoppingDistance);
+        investigationWaitDuration = Mathf.Max(0f, investigationWaitDuration);
+        investigationRepathInterval = Mathf.Max(0.05f, investigationRepathInterval);
 
         hearingRadius = Mathf.Max(0f, hearingRadius);
         hearingMemoryDuration = Mathf.Max(0f, hearingMemoryDuration);

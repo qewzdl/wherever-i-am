@@ -45,6 +45,18 @@ public sealed class EnemyTargetMemory
         HasSecondarySuspiciousPosition = true;
     }
 
+    public bool TryGetLastKnownTargetPosition(out Vector3 position)
+    {
+        position = LastKnownTargetPosition;
+        return HasLastKnownTargetPosition;
+    }
+
+    public bool TryGetSecondarySuspiciousPosition(out Vector3 position)
+    {
+        position = SecondarySuspiciousPosition;
+        return HasSecondarySuspiciousPosition;
+    }
+
     public bool PromoteSecondarySuspiciousPositionToLastKnown()
     {
         if (!HasSecondarySuspiciousPosition)
@@ -69,6 +81,11 @@ public sealed class EnemyTargetMemory
     {
         CurrentTarget = null;
         CurrentTargetIdentity = EnemyTargetIdentity.None;
+    }
+
+    public void ForgetCurrentTargetButKeepLastKnownPosition()
+    {
+        ClearTargetOnly();
     }
 
     public void ClearPrimaryInvestigationPosition()

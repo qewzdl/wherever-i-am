@@ -22,6 +22,9 @@ MonoBehaviour:
   loseTargetDistance: 24
   targetHeightOffset: 1.2
   targetRefreshInterval: 0.25
+  investigationReachDistance: 0.75
+  investigationWaitDuration: 10
+  investigationRepathInterval: 0.25
   hearingEnabled: 1
   hearingRadius: 10
   hearingMemoryDuration: 3

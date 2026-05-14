@@ -19,41 +19,26 @@ public sealed class EnemyChaseState : IEnemyStateHandler
     {
         if (!context.TargetMemory.HasTarget)
         {
-            if (context.TargetMemory.HasLastKnownTargetPosition)
-            {
-                context.ChangeState(EnemyState.Investigate);
-            }
-            else
-            {
-                context.ReturnToDefaultBehaviour();
-            }
-
+            MoveToInvestigationOrReturn();
             return;
         }
 
         if (!context.TargetMemory.IsCurrentTargetValid)
         {
-            context.ClearAllTargetMemory();
-            context.ReturnToDefaultBehaviour();
+            context.ForgetCurrentTargetButKeepLastKnownPosition();
+            MoveToInvestigationOrReturn();
             return;
         }
 
         Vector3 targetPosition = context.GetTargetNavigationPosition(context.TargetMemory.CurrentTarget);
+        context.TargetMemory.RememberPosition(targetPosition);
+
         float distanceToTarget = Vector3.Distance(context.Navigator.Position, targetPosition);
 
         if (distanceToTarget > context.Config.loseTargetDistance)
         {
-            context.ClearTargetOnly();
-
-            if (context.TargetMemory.HasLastKnownTargetPosition)
-            {
-                context.ChangeState(EnemyState.Investigate);
-            }
-            else
-            {
-                context.ReturnToDefaultBehaviour();
-            }
-
+            context.ForgetCurrentTargetButKeepLastKnownPosition();
+            MoveToInvestigationOrReturn();
             return;
         }
 
@@ -68,5 +53,17 @@ public sealed class EnemyChaseState : IEnemyStateHandler
 
     public void Exit()
     {
+    }
+
+    private void MoveToInvestigationOrReturn()
+    {
+        if (context.TargetMemory.HasLastKnownTargetPosition)
+        {
+            context.ChangeState(EnemyState.Investigate);
+            return;
+        }
+
+        context.ClearAllTargetMemory();
+        context.ReturnToDefaultBehaviour();
     }
 }
