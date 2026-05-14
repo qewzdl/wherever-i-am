@@ -5,11 +5,11 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private enum InvestigationPhase
     {
         MovingToLastKnownPosition,
-        SearchingArea
+        FollowingSearchRoute
     }
 
     private readonly EnemyBrainContext context;
-    private readonly EnemyInvestigationSearchPlanner searchPlanner;
+    private readonly EnemyInvestigationSearchPlanner searchPlanner = new();
 
     private InvestigationPhase phase;
 
@@ -17,7 +17,6 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private Vector3 currentDestination;
 
     private int currentSearchPointIndex;
-    private float searchTimer;
     private float repathTimer;
 
     private bool hasDestination;
@@ -27,12 +26,6 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     public EnemyInvestigateState(EnemyBrainContext context)
     {
         this.context = context;
-
-        int maxSearchPoints = context != null && context.Config != null
-            ? context.Config.investigationSearchPointCount
-            : 0;
-
-        searchPlanner = new EnemyInvestigationSearchPlanner(maxSearchPoints);
     }
 
     public void Enter()
@@ -45,8 +38,14 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
+        context.InvestigationDebugData?.Begin(investigationOrigin);
+
         phase = InvestigationPhase.MovingToLastKnownPosition;
-        SetDestination(investigationOrigin, context.Config.chaseSpeed);
+
+        if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
+        {
+            TryMoveToSecondaryOrFinish();
+        }
     }
 
     public void Tick(float deltaTime)
@@ -65,11 +64,12 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        TickSearchingArea(deltaTime);
+        TickFollowingSearchRoute();
     }
 
     public void Exit()
     {
+        context.InvestigationDebugData?.Finish();
         ResetRuntimeState();
     }
 
@@ -77,36 +77,43 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     {
         if (!hasDestination)
         {
-            SetDestination(investigationOrigin, context.Config.chaseSpeed);
+            if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
+            {
+                TryMoveToSecondaryOrFinish();
+            }
+
             return;
         }
 
-        RepathIfNeeded(context.Config.chaseSpeed);
+        RepathToCurrentDestination(context.Config.chaseSpeed);
 
         if (!context.Navigator.HasReached(context.Config.investigationReachDistance))
         {
             return;
         }
 
-        StartAreaSearch();
+        StartHierarchicalSearch();
     }
 
-    private void StartAreaSearch()
+    private void StartHierarchicalSearch()
     {
-        phase = InvestigationPhase.SearchingArea;
-        searchTimer = context.Config.investigationSearchDuration;
+        phase = InvestigationPhase.FollowingSearchRoute;
         currentSearchPointIndex = 0;
 
         context.TargetMemory.ClearPrimaryInvestigationPosition();
 
-        searchPlanner.BuildSearchPoints(
+        searchPlanner.BuildHierarchicalSearchPlan(
             investigationOrigin,
             context.Navigator.Position,
-            context.Config.investigationSearchRadius,
-            context.Config.investigationSearchPointCount
+            context.Config.investigationBranchRadius,
+            context.Config.investigationBranchPointCount,
+            context.Config.investigationLeafRadius,
+            context.Config.investigationLeafPointCountPerBranch
         );
 
-        if (searchTimer <= 0f || searchPlanner.PointCount == 0)
+        context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
+
+        if (searchPlanner.PointCount == 0)
         {
             TryMoveToSecondaryOrFinish();
             return;
@@ -115,23 +122,15 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         MoveToNextSearchPointOrFinish();
     }
 
-    private void TickSearchingArea(float deltaTime)
+    private void TickFollowingSearchRoute()
     {
-        searchTimer -= deltaTime;
-
-        if (searchTimer <= 0f)
-        {
-            TryMoveToSecondaryOrFinish();
-            return;
-        }
-
         if (!hasDestination)
         {
             MoveToNextSearchPointOrFinish();
             return;
         }
 
-        RepathIfNeeded(context.Config.investigationSearchSpeed);
+        RepathToCurrentDestination(context.Config.investigationSearchSpeed);
 
         if (!context.Navigator.HasReached(context.Config.investigationReachDistance))
         {
@@ -143,14 +142,26 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private void MoveToNextSearchPointOrFinish()
     {
-        if (!searchPlanner.TryGetPoint(currentSearchPointIndex, out Vector3 nextPoint))
+        while (currentSearchPointIndex < searchPlanner.PointCount)
         {
-            TryMoveToSecondaryOrFinish();
+            int routeIndex = currentSearchPointIndex;
+            currentSearchPointIndex++;
+
+            if (!searchPlanner.TryGetPoint(routeIndex, out Vector3 nextPoint))
+            {
+                continue;
+            }
+
+            if (!TrySetDestination(nextPoint, context.Config.investigationSearchSpeed))
+            {
+                continue;
+            }
+
+            context.InvestigationDebugData?.SetActiveRouteIndex(routeIndex);
             return;
         }
 
-        currentSearchPointIndex++;
-        SetDestination(nextPoint, context.Config.investigationSearchSpeed);
+        TryMoveToSecondaryOrFinish();
     }
 
     private void TryMoveToSecondaryOrFinish()
@@ -159,8 +170,24 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         {
             if (TryResolveInvestigationOrigin(out investigationOrigin))
             {
+                context.InvestigationDebugData?.Begin(investigationOrigin);
+
                 phase = InvestigationPhase.MovingToLastKnownPosition;
-                SetDestination(investigationOrigin, context.Config.chaseSpeed);
+                currentSearchPointIndex = 0;
+                searchPlanner.BuildHierarchicalSearchPlan(
+                    investigationOrigin,
+                    context.Navigator.Position,
+                    context.Config.investigationBranchRadius,
+                    context.Config.investigationBranchPointCount,
+                    context.Config.investigationLeafRadius,
+                    context.Config.investigationLeafPointCountPerBranch
+                );
+
+                if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
+                {
+                    FinishInvestigation();
+                }
+
                 return;
             }
         }
@@ -184,19 +211,25 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         return false;
     }
 
-    private void SetDestination(Vector3 destination, float speed)
+    private bool TrySetDestination(Vector3 destination, float speed)
     {
         currentDestination = destination;
         hasDestination = context.Navigator.TryMoveTo(destination, speed);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
-        if (!hasDestination)
+        if (hasDestination)
         {
-            TryMoveToSecondaryOrFinish();
+            context.InvestigationDebugData?.SetCurrentDestination(destination);
         }
+        else
+        {
+            context.InvestigationDebugData?.ClearCurrentDestination();
+        }
+
+        return hasDestination;
     }
 
-    private void RepathIfNeeded(float speed)
+    private void RepathToCurrentDestination(float speed)
     {
         if (!hasDestination || repathTimer > 0f)
         {
@@ -206,14 +239,19 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         hasDestination = context.Navigator.TryMoveTo(currentDestination, speed);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
-        if (!hasDestination)
+        if (hasDestination)
         {
-            TryMoveToSecondaryOrFinish();
+            context.InvestigationDebugData?.SetCurrentDestination(currentDestination);
+        }
+        else
+        {
+            context.InvestigationDebugData?.ClearCurrentDestination();
         }
     }
 
     private void FinishInvestigation()
     {
+        context.InvestigationDebugData?.Finish();
         context.ClearAllTargetMemory();
         context.ReturnToDefaultBehaviour();
     }
@@ -226,7 +264,6 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         currentDestination = default;
 
         currentSearchPointIndex = 0;
-        searchTimer = 0f;
         repathTimer = 0f;
 
         hasDestination = false;

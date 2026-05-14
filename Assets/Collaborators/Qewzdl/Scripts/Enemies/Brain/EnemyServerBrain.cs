@@ -10,6 +10,7 @@ public sealed class EnemyServerBrain
     private readonly EnemyAttackController attackController;
     private readonly Action<EnemyState> setState;
     private readonly Action<EnemyTargetIdentity> setTargetIdentity;
+    private readonly EnemyInvestigationDebugData investigationDebugData;
 
     private readonly EnemyTargetMemory targetMemory = new();
     private readonly Dictionary<EnemyState, IEnemyStateHandler> stateHandlers = new();
@@ -27,6 +28,7 @@ public sealed class EnemyServerBrain
         EnemyTargetDetector targetDetector,
         EnemyPatrolController patrolController,
         EnemyAttackController attackController,
+        EnemyInvestigationDebugData investigationDebugData,
         Action<EnemyState> setState,
         Action<EnemyTargetIdentity> setTargetIdentity
     )
@@ -35,6 +37,7 @@ public sealed class EnemyServerBrain
         this.navigator = navigator;
         this.targetDetector = targetDetector;
         this.attackController = attackController;
+        this.investigationDebugData = investigationDebugData;
         this.setState = setState;
         this.setTargetIdentity = setTargetIdentity;
 
@@ -45,6 +48,7 @@ public sealed class EnemyServerBrain
             patrolController,
             attackController,
             targetMemory,
+            investigationDebugData,
             ChangeState,
             SyncTarget
         );
@@ -100,6 +104,7 @@ public sealed class EnemyServerBrain
         currentHandler = null;
 
         targetMemory.ClearAll();
+        investigationDebugData?.Clear();
         SyncTarget();
 
         HasStarted = false;

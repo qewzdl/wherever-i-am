@@ -20,14 +20,18 @@ public class EnemyConfig : ScriptableObject
 
     [Header("Investigation")]
     [Min(0f)] public float investigationReachDistance = 0.75f;
-
-    [FormerlySerializedAs("investigationWaitDuration")]
-    [Min(0f)] public float investigationSearchDuration = 4f;
-
     [Min(0.05f)] public float investigationRepathInterval = 0.25f;
-    [Min(0f)] public float investigationSearchRadius = 3f;
-    [Min(0)] public int investigationSearchPointCount = 4;
-    [Min(0f)] public float investigationSearchSpeed = 2.2f;
+
+    [FormerlySerializedAs("investigationSearchRadius")]
+    [Min(0f)] public float investigationBranchRadius = 2.5f;
+
+    [FormerlySerializedAs("investigationSearchPointCount")]
+    [Min(0)] public int investigationBranchPointCount = 3;
+
+    [Min(0f)] public float investigationLeafRadius = 1.5f;
+    [Min(0)] public int investigationLeafPointCountPerBranch = 3;
+
+    [Min(0f)] public float investigationSearchSpeed = 1.7f;
 
     [Header("Hearing")]
     public bool hearingEnabled = true;
@@ -49,10 +53,11 @@ public class EnemyConfig : ScriptableObject
         targetRefreshInterval = Mathf.Max(0.05f, targetRefreshInterval);
 
         investigationReachDistance = Mathf.Max(investigationReachDistance, stoppingDistance);
-        investigationSearchDuration = Mathf.Max(0f, investigationSearchDuration);
         investigationRepathInterval = Mathf.Max(0.05f, investigationRepathInterval);
-        investigationSearchRadius = Mathf.Max(0f, investigationSearchRadius);
-        investigationSearchPointCount = Mathf.Max(0, investigationSearchPointCount);
+        investigationBranchRadius = Mathf.Max(0f, investigationBranchRadius);
+        investigationBranchPointCount = Mathf.Max(0, investigationBranchPointCount);
+        investigationLeafRadius = Mathf.Max(0f, investigationLeafRadius);
+        investigationLeafPointCountPerBranch = Mathf.Max(0, investigationLeafPointCountPerBranch);
         investigationSearchSpeed = Mathf.Max(0f, investigationSearchSpeed);
 
         hearingRadius = Mathf.Max(0f, hearingRadius);

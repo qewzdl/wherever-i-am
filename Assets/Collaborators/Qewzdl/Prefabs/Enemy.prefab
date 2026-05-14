@@ -339,6 +339,7 @@ GameObject:
   - component: {fileID: 6370502762402772414}
   - component: {fileID: 799151811322310901}
   - component: {fileID: 1081402138771381397}
+  - component: {fileID: -6226172478825787547}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -549,6 +550,7 @@ MonoBehaviour:
     m_Bits: 897
   maxDetectionResults: 16
   overflowWarningCooldown: 2
+  maxVisibilityPoints: 4
 --- !u!114 &7002212260278922464
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -620,6 +622,31 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   presentationController: {fileID: 799151811322310901}
+--- !u!114 &-6226172478825787547
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50ae4c129927c3f4eb3d46888c9d49ea, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enemyController: {fileID: 3244720467120631997}
+  serverRuntime: {fileID: 6370502762402772414}
+  previewConfig: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
+  drawOnlyWhenSelected: 0
+  drawRuntimePlan: 1
+  drawEditorPreview: 1
+  drawLabels: 1
+  editorPreviewOriginDistance: 4
+  originRadius: 0.25
+  branchPointRadius: 0.18
+  leafPointRadius: 0.13
+  activePointRadius: 0.28
+  lineHeightOffset: 0.05
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

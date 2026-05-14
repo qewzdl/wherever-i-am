@@ -12,6 +12,7 @@ public sealed class EnemyBrainContext
     public EnemyPatrolController PatrolController { get; }
     public EnemyAttackController AttackController { get; }
     public EnemyTargetMemory TargetMemory { get; }
+    public EnemyInvestigationDebugData InvestigationDebugData { get; }
 
     public bool HasPatrolRoute => PatrolController != null && PatrolController.HasRoute;
 
@@ -22,6 +23,7 @@ public sealed class EnemyBrainContext
         EnemyPatrolController patrolController,
         EnemyAttackController attackController,
         EnemyTargetMemory targetMemory,
+        EnemyInvestigationDebugData investigationDebugData,
         Action<EnemyState> changeState,
         Action syncTarget
     )
@@ -32,6 +34,7 @@ public sealed class EnemyBrainContext
         PatrolController = patrolController;
         AttackController = attackController;
         TargetMemory = targetMemory;
+        InvestigationDebugData = investigationDebugData;
         this.changeState = changeState;
         this.syncTarget = syncTarget;
     }
