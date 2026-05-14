@@ -23,8 +23,12 @@ MonoBehaviour:
   targetHeightOffset: 1.2
   targetRefreshInterval: 0.25
   investigationReachDistance: 0.75
-  investigationWaitDuration: 10
   investigationRepathInterval: 0.25
+  investigationBranchRadius: 2.5
+  investigationBranchPointCount: 3
+  investigationLeafRadius: 1.5
+  investigationLeafPointCountPerBranch: 3
+  investigationSearchSpeed: 1.7
   hearingEnabled: 1
   hearingRadius: 10
   hearingMemoryDuration: 3
@@ -32,3 +36,9 @@ MonoBehaviour:
   attackDistance: 1.6
   attackCooldown: 1.5
   patrolPointReachDistance: 0.4
+  patrolStopDuration: 20
+  patrolStopWanderRadius: 10
+  patrolStopWanderSpeed: 1.2
+  patrolStopWanderPointReachDistance: 0.35
+  patrolStopWanderSampleAttempts: 12
+  patrolStopWanderMinDistanceFromEnemy: 0.75

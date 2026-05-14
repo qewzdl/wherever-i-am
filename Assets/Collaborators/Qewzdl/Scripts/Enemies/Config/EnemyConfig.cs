@@ -45,6 +45,12 @@ public class EnemyConfig : ScriptableObject
 
     [Header("Patrol")]
     [Min(0f)] public float patrolPointReachDistance = 0.4f;
+    [Min(0f)] public float patrolStopDuration = 4f;
+    [Min(0f)] public float patrolStopWanderRadius = 2f;
+    [Min(0f)] public float patrolStopWanderSpeed = 1.2f;
+    [Min(0f)] public float patrolStopWanderPointReachDistance = 0.35f;
+    [Min(1)] public int patrolStopWanderSampleAttempts = 12;
+    [Min(0f)] public float patrolStopWanderMinDistanceFromEnemy = 0.75f;
 
     private void OnValidate()
     {
@@ -59,6 +65,14 @@ public class EnemyConfig : ScriptableObject
         investigationLeafRadius = Mathf.Max(0f, investigationLeafRadius);
         investigationLeafPointCountPerBranch = Mathf.Max(0, investigationLeafPointCountPerBranch);
         investigationSearchSpeed = Mathf.Max(0f, investigationSearchSpeed);
+
+        patrolPointReachDistance = Mathf.Max(0f, patrolPointReachDistance);
+        patrolStopDuration = Mathf.Max(0f, patrolStopDuration);
+        patrolStopWanderRadius = Mathf.Max(0f, patrolStopWanderRadius);
+        patrolStopWanderSpeed = Mathf.Max(0f, patrolStopWanderSpeed);
+        patrolStopWanderPointReachDistance = Mathf.Max(0f, patrolStopWanderPointReachDistance);
+        patrolStopWanderSampleAttempts = Mathf.Max(1, patrolStopWanderSampleAttempts);
+        patrolStopWanderMinDistanceFromEnemy = Mathf.Max(0f, patrolStopWanderMinDistanceFromEnemy);
 
         hearingRadius = Mathf.Max(0f, hearingRadius);
         hearingMemoryDuration = Mathf.Max(0f, hearingMemoryDuration);
