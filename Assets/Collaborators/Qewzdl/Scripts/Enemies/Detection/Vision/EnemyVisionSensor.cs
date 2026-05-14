@@ -16,7 +16,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     [SerializeField, Min(0.1f)] private float overflowWarningCooldown = 2f;
 
     [Header("Visibility")]
-    [SerializeField, Min(1)] private int maxVisibilityPoints = 4;
+    [SerializeField, Min(1)] private int maxVisibilityPoints = 8;
 
     private Collider[] detectionResults;
     private EnemyTarget[] processedTargets;
@@ -32,7 +32,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     {
         stimulus = EnemyPerceptionStimulus.None;
 
-        EnemyTarget bestTarget = FindBestVisibleTarget(config, out float bestScore);
+        EnemyTarget bestTarget = FindBestVisibleTarget(config, out float bestScore, out Vector3 visiblePoint);
 
         if (bestTarget == null)
         {
@@ -41,7 +41,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
         stimulus = EnemyPerceptionStimulus.ForConfirmedTarget(
             bestTarget,
-            bestTarget.AimPosition,
+            visiblePoint,
             bestScore,
             EnemyPerceptionSource.Vision
         );
@@ -51,12 +51,17 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     public EnemyTarget FindBestVisibleTarget(EnemyConfig config)
     {
-        return FindBestVisibleTarget(config, out _);
+        return FindBestVisibleTarget(config, out _, out _);
     }
 
-    private EnemyTarget FindBestVisibleTarget(EnemyConfig config, out float bestScore)
+    private EnemyTarget FindBestVisibleTarget(
+        EnemyConfig config,
+        out float bestScore,
+        out Vector3 bestVisiblePoint
+    )
     {
         bestScore = 0f;
+        bestVisiblePoint = Vector3.zero;
 
         if (config == null)
         {
@@ -110,8 +115,12 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             processedTargets[processedTargetCount] = enemyTarget;
             processedTargetCount++;
 
-            Vector3 targetPoint = enemyTarget.AimPosition;
-            Vector3 toCandidate = targetPoint - origin.position;
+            if (!CanSeeTarget(enemyTarget, config, out Vector3 visiblePoint))
+            {
+                continue;
+            }
+
+            Vector3 toCandidate = visiblePoint - origin.position;
             float distanceSqr = toCandidate.sqrMagnitude;
 
             if (distanceSqr >= bestDistanceSqr)
@@ -119,13 +128,9 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
                 continue;
             }
 
-            if (!CanSeeTarget(enemyTarget, config, out _))
-            {
-                continue;
-            }
-
             bestTarget = enemyTarget;
             bestDistanceSqr = distanceSqr;
+            bestVisiblePoint = visiblePoint;
         }
 
         ClearProcessedTargets(processedTargetCount);
@@ -185,7 +190,8 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     private bool CanSeePoint(Transform origin, Vector3 targetPoint, EnemyConfig config)
     {
-        Vector3 directionToTarget = targetPoint - origin.position;
+        Vector3 originPosition = origin.position;
+        Vector3 directionToTarget = targetPoint - originPosition;
         float distanceToTarget = directionToTarget.magnitude;
 
         if (distanceToTarget <= 0.001f)
@@ -207,13 +213,19 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
         if (obstructionMask.value == 0)
         {
+            Debug.LogWarning(
+                $"{nameof(EnemyVisionSensor)} has empty obstruction mask. Enemy vision will ignore walls and cover.",
+                this
+            );
+
             return true;
         }
 
-        bool blocked = Physics.Raycast(
-            origin.position,
-            directionToTarget.normalized,
-            distanceToTarget,
+        Vector3 direction = directionToTarget / distanceToTarget;
+
+        bool blocked = Physics.Linecast(
+            originPosition,
+            targetPoint,
             obstructionMask,
             QueryTriggerInteraction.Ignore
         );
@@ -293,6 +305,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 #if UNITY_EDITOR
     private void Reset()
     {
+        maxVisibilityPoints = Mathf.Max(maxVisibilityPoints, 8);
         EnsureDetectionBuffers();
     }
 
