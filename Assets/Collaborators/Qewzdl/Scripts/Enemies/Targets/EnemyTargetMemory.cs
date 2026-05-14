@@ -67,15 +67,21 @@ public sealed class EnemyTargetMemory
         return HasSecondarySuspiciousPosition;
     }
 
-    public void StartVisualMemoryGracePeriod(float duration)
+    public bool TryStartVisualMemoryGracePeriod(float duration)
     {
         if (!HasTarget || duration <= 0f)
         {
-            return;
+            return false;
+        }
+
+        if (IsUsingVisualMemory)
+        {
+            return true;
         }
 
         IsUsingVisualMemory = true;
-        VisualMemoryTimeRemaining = Mathf.Max(VisualMemoryTimeRemaining, duration);
+        VisualMemoryTimeRemaining = duration;
+        return true;
     }
 
     public bool TickVisualMemory(float deltaTime)
