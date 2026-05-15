@@ -18,6 +18,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     [SerializeField] private LayerMask includedLayers = Physics.DefaultRaycastLayers;
     [SerializeField] private NavMeshCollectGeometry geometry = NavMeshCollectGeometry.PhysicsColliders;
 
+    private NavMeshSurface[] surfaces;
     private bool hasBuilt;
     private Coroutine buildWhenServerReadyCoroutine;
 
@@ -164,17 +165,16 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
             return true;
         }
 
-        if (!TryGetSurface(out NavMeshSurface navMeshSurface))
+        if (!TryGetSurfaces(out NavMeshSurface[] navMeshSurfaces))
         {
             return false;
         }
 
-        navMeshSurface.collectObjects = CollectObjects.All;
-        navMeshSurface.layerMask = includedLayers;
-        navMeshSurface.useGeometry = geometry;
-        navMeshSurface.ignoreNavMeshAgent = true;
-        navMeshSurface.ignoreNavMeshObstacle = true;
-        navMeshSurface.BuildNavMesh();
+        foreach (NavMeshSurface navMeshSurface in navMeshSurfaces)
+        {
+            ConfigureSurface(navMeshSurface);
+            navMeshSurface.BuildNavMesh();
+        }
 
         hasBuilt = true;
         Built?.Invoke(this);
@@ -182,19 +182,28 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         return true;
     }
 
-    private bool TryGetSurface(out NavMeshSurface navMeshSurface)
+    private void ConfigureSurface(NavMeshSurface navMeshSurface)
+    {
+        navMeshSurface.collectObjects = CollectObjects.All;
+        navMeshSurface.layerMask = includedLayers;
+        navMeshSurface.useGeometry = geometry;
+        navMeshSurface.ignoreNavMeshAgent = true;
+        navMeshSurface.ignoreNavMeshObstacle = true;
+    }
+
+    private bool TryGetSurfaces(out NavMeshSurface[] navMeshSurfaces)
     {
         CacheSurface();
 
-        navMeshSurface = surface;
+        navMeshSurfaces = surfaces;
 
-        if (navMeshSurface != null)
+        if (navMeshSurfaces != null && navMeshSurfaces.Length > 0)
         {
             return true;
         }
 
         Debug.LogError(
-            $"{nameof(RuntimeNavMeshBuilder)} requires {nameof(NavMeshSurface)} on the same GameObject.",
+            $"{nameof(RuntimeNavMeshBuilder)} requires at least one {nameof(NavMeshSurface)}.",
             this
         );
 
@@ -203,10 +212,39 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
 
     private void CacheSurface()
     {
-        if (surface == null)
+        NavMeshSurface[] localSurfaces = GetComponents<NavMeshSurface>();
+
+        if (surface == null && localSurfaces.Length > 0)
         {
-            surface = GetComponent<NavMeshSurface>();
+            surface = localSurfaces[0];
         }
+
+        if (surface == null || ContainsSurface(localSurfaces, surface))
+        {
+            surfaces = localSurfaces;
+            return;
+        }
+
+        surfaces = new NavMeshSurface[localSurfaces.Length + 1];
+        surfaces[0] = surface;
+
+        for (int i = 0; i < localSurfaces.Length; i++)
+        {
+            surfaces[i + 1] = localSurfaces[i];
+        }
+    }
+
+    private static bool ContainsSurface(NavMeshSurface[] navMeshSurfaces, NavMeshSurface target)
+    {
+        for (int i = 0; i < navMeshSurfaces.Length; i++)
+        {
+            if (navMeshSurfaces[i] == target)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 #if UNITY_EDITOR

@@ -340,6 +340,7 @@ GameObject:
   - component: {fileID: 799151811322310901}
   - component: {fileID: 1081402138771381397}
   - component: {fileID: -6226172478825787547}
+  - component: {fileID: 1705734711893662682}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -442,7 +443,7 @@ NavMeshAgent:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5706861626712077370}
   m_Enabled: 1
-  m_AgentTypeID: 0
+  m_AgentTypeID: 1479372276
   m_Radius: 0.5
   m_Speed: 3.5
   m_Acceleration: 8
@@ -501,6 +502,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 7505417439924373614}
+  postureController: {fileID: 1705734711893662682}
 --- !u!114 &7387159276498090581
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -551,6 +553,7 @@ MonoBehaviour:
   maxDetectionResults: 16
   overflowWarningCooldown: 2
   maxVisibilityPoints: 4
+  drawLastTargetedVerticalView: 1
 --- !u!114 &7002212260278922464
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -647,6 +650,25 @@ MonoBehaviour:
   leafPointRadius: 0.13
   activePointRadius: 0.28
   lineHeightOffset: 0.05
+--- !u!114 &1705734711893662682
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ffd5a56dd1697d04bb9d8e7ca8e74190, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  ShowTopMostFoldoutHeaderGroup: 1
+  agent: {fileID: 7505417439924373614}
+  bodyCollider: {fileID: 305319650020945663}
+  animator: {fileID: 0}
+  standingAgentTypeId: 1479372276
+  crawlingAgentTypeId: -1923039037
+  crawlingAnimatorBool: IsCrawling
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

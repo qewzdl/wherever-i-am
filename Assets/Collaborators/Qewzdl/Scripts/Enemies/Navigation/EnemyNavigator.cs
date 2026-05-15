@@ -8,24 +8,33 @@ public class EnemyNavigator : MonoBehaviour
     private const float NavMeshSampleRadius = 2f;
 
     [SerializeField] private NavMeshAgent agent;
+    [SerializeField] private EnemyPostureController postureController;
 
+    private NavMeshPath pathBuffer;
+
+    private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
 
     public Vector3 Position => transform.position;
 
     private void Awake()
     {
-        CacheAgent();
+        CacheComponents();
+        pathBuffer = new NavMeshPath();
     }
 
     public void Configure(EnemyConfig config)
     {
+        this.config = config;
+
+        CacheComponents();
+
         if (config == null)
         {
             return;
         }
 
-        CacheAgent();
+        postureController?.Configure(config);
 
         if (agent == null)
         {
@@ -36,11 +45,16 @@ public class EnemyNavigator : MonoBehaviour
         agent.acceleration = config.acceleration;
         agent.angularSpeed = config.angularSpeed;
         agent.stoppingDistance = config.stoppingDistance;
+
+        if (postureController != null)
+        {
+            postureController.TrySetServerPosture(EnemyPosture.Standing);
+        }
     }
 
     public void DisableAgent()
     {
-        CacheAgent();
+        CacheComponents();
 
         if (agent != null)
         {
@@ -50,15 +64,22 @@ public class EnemyNavigator : MonoBehaviour
 
     public bool TryMoveTo(Vector3 destination, float speed)
     {
-        if (!TryEnsureOnNavMesh())
+        if (config != null && config.crawlingEnabled && postureController != null)
         {
+            if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
+            {
+                return true;
+            }
+
+            if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
+            {
+                return true;
+            }
+
             return false;
         }
 
-        agent.isStopped = false;
-        agent.speed = speed;
-
-        return TrySetDestination(destination);
+        return TryMoveToWithCurrentPosture(destination, speed);
     }
 
     public void Stop()
@@ -93,7 +114,7 @@ public class EnemyNavigator : MonoBehaviour
 
     public bool TryEnsureOnNavMesh()
     {
-        CacheAgent();
+        CacheComponents();
 
         if (agent == null || !agent.enabled || !agent.gameObject.activeInHierarchy)
         {
@@ -106,7 +127,7 @@ public class EnemyNavigator : MonoBehaviour
             return true;
         }
 
-        if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, NavMeshSampleRadius, NavMesh.AllAreas)
+        if (TrySamplePositionForCurrentAgent(transform.position, out NavMeshHit hit)
             && agent.Warp(hit.position))
         {
             warnedAboutMissingNavMesh = false;
@@ -126,38 +147,147 @@ public class EnemyNavigator : MonoBehaviour
         return false;
     }
 
-    private bool TrySetDestination(Vector3 destination)
+    private bool TryMoveToWithPosture(
+        Vector3 destination,
+        float baseSpeed,
+        EnemyPosture posture
+    )
+    {
+        if (postureController == null)
+        {
+            return false;
+        }
+
+        if (!TryBuildCompletePathForPosture(destination, posture))
+        {
+            return false;
+        }
+
+        if (!postureController.TrySetServerPosture(posture))
+        {
+            return false;
+        }
+
+        float postureSpeed = postureController.GetSpeedForPosture(baseSpeed, posture);
+        return TryMoveToWithCurrentPosture(destination, postureSpeed);
+    }
+
+    private bool TryMoveToWithCurrentPosture(Vector3 destination, float speed)
     {
         if (!TryEnsureOnNavMesh())
         {
             return false;
         }
 
-        if (NavMesh.SamplePosition(destination, out NavMeshHit hit, NavMeshSampleRadius, NavMesh.AllAreas))
+        if (!TryBuildCompletePath(destination, out Vector3 sampledDestination))
         {
-            return agent.SetDestination(hit.position);
+            return false;
         }
 
-        return agent.SetDestination(destination);
+        agent.isStopped = false;
+        agent.speed = speed;
+
+        return agent.SetDestination(sampledDestination);
     }
 
-    private void CacheAgent()
+    private bool TryBuildCompletePath(Vector3 destination, out Vector3 sampledDestination)
+    {
+        sampledDestination = destination;
+
+        if (agent == null)
+        {
+            return false;
+        }
+
+        pathBuffer ??= new NavMeshPath();
+
+        if (!TrySamplePositionForCurrentAgent(destination, out NavMeshHit hit))
+        {
+            return false;
+        }
+
+        sampledDestination = hit.position;
+
+        if (!agent.CalculatePath(sampledDestination, pathBuffer))
+        {
+            return false;
+        }
+
+        return pathBuffer.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private bool TrySamplePositionForCurrentAgent(Vector3 sourcePosition, out NavMeshHit hit)
+    {
+        if (agent == null)
+        {
+            hit = default;
+            return false;
+        }
+
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = agent.agentTypeID,
+            areaMask = agent.areaMask
+        };
+
+        return NavMesh.SamplePosition(sourcePosition, out hit, NavMeshSampleRadius, filter);
+    }
+
+    private bool TryBuildCompletePathForPosture(Vector3 destination, EnemyPosture posture)
+    {
+        if (agent == null || postureController == null)
+        {
+            return false;
+        }
+
+        pathBuffer ??= new NavMeshPath();
+
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = postureController.GetAgentTypeIdForPosture(posture),
+            areaMask = agent.areaMask
+        };
+
+        if (!NavMesh.SamplePosition(transform.position, out NavMeshHit sourceHit, NavMeshSampleRadius, filter))
+        {
+            return false;
+        }
+
+        if (!NavMesh.SamplePosition(destination, out NavMeshHit destinationHit, NavMeshSampleRadius, filter))
+        {
+            return false;
+        }
+
+        if (!NavMesh.CalculatePath(sourceHit.position, destinationHit.position, filter, pathBuffer))
+        {
+            return false;
+        }
+
+        return pathBuffer.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private void CacheComponents()
     {
         if (agent == null)
         {
             agent = GetComponent<NavMeshAgent>();
+        }
+
+        if (postureController == null)
+        {
+            postureController = GetComponent<EnemyPostureController>();
         }
     }
 
 #if UNITY_EDITOR
     private void Reset()
     {
-        CacheAgent();
+        CacheComponents();
     }
 
     private void OnValidate()
     {
-        CacheAgent();
+        CacheComponents();
     }
 #endif
 }
