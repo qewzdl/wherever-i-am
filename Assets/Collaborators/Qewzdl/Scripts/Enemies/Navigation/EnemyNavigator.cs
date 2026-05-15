@@ -66,6 +66,21 @@ public class EnemyNavigator : MonoBehaviour
     {
         if (config != null && config.crawlingEnabled && postureController != null)
         {
+            if (postureController.IsCrawling)
+            {
+                if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
+                {
+                    return true;
+                }
+
+                if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
             if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
             {
                 return true;
@@ -253,7 +268,11 @@ public class EnemyNavigator : MonoBehaviour
             areaMask = agent.areaMask
         };
 
-        if (!NavMesh.SamplePosition(transform.position, out NavMeshHit sourceHit, NavMeshSampleRadius, filter))
+        float sourceSampleRadius = config != null
+            ? Mathf.Max(0.05f, config.postureSwitchSampleRadius)
+            : 0.25f;
+
+        if (!NavMesh.SamplePosition(transform.position, out NavMeshHit sourceHit, sourceSampleRadius, filter))
         {
             return false;
         }

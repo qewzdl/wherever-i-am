@@ -72,6 +72,11 @@ public class EnemyPostureController : NetworkBehaviour
             return false;
         }
 
+        if (CurrentPosture == posture)
+        {
+            return true;
+        }
+
         if (!TryApplyNavigationPosture(posture))
         {
             return false;
