@@ -341,6 +341,7 @@ GameObject:
   - component: {fileID: 1081402138771381397}
   - component: {fileID: -6226172478825787547}
   - component: {fileID: 1705734711893662682}
+  - component: {fileID: 53960682953409355}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -595,6 +596,7 @@ MonoBehaviour:
   navigator: {fileID: 3485127563032254563}
   attackController: {fileID: 7387159276498090581}
   navMeshStartupGate: {fileID: 4840997165000147843}
+  postureController: {fileID: 1705734711893662682}
 --- !u!114 &799151811322310901
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -660,8 +662,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ffd5a56dd1697d04bb9d8e7ca8e74190, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   agent: {fileID: 7505417439924373614}
   bodyCollider: {fileID: 305319650020945663}
@@ -669,6 +671,30 @@ MonoBehaviour:
   standingAgentTypeId: 1479372276
   crawlingAgentTypeId: -1923039037
   crawlingAnimatorBool: IsCrawling
+--- !u!114 &53960682953409355
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b85ba43aab7d5464081be2f12869b9ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enemyController: {fileID: 3244720467120631997}
+  networkState: {fileID: 5660041982996278054}
+  drawOnlyWhenSelected: 0
+  drawTargetInfo: 1
+  worldOffset: {x: 0, y: 2.4, z: 0}
+  fontSize: 13
+  textColor: {r: 1, g: 1, b: 1, a: 1}
+  idleColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  patrolColor: {r: 0, g: 1, b: 0, a: 1}
+  investigateColor: {r: 1, g: 0.7, b: 0.1, a: 1}
+  chaseColor: {r: 1, g: 0, b: 0, a: 1}
+  attackColor: {r: 1, g: 0, b: 0, a: 1}
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0
