@@ -129,7 +129,22 @@ public class EnemyPostureController : NetworkBehaviour
 
         int targetAgentTypeId = GetAgentTypeId(posture);
 
-        if (!TrySamplePositionForAgentType(transform.position, targetAgentTypeId, out NavMeshHit postureHit))
+        float switchSampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
+
+        if (!TrySamplePositionForAgentType(
+            transform.position,
+            targetAgentTypeId,
+            switchSampleRadius,
+            out NavMeshHit postureHit
+        ))
+        {
+            return false;
+        }
+
+        Vector3 flatDelta = postureHit.position - transform.position;
+        flatDelta.y = 0f;
+
+        if (flatDelta.sqrMagnitude > switchSampleRadius * switchSampleRadius)
         {
             return false;
         }
@@ -252,7 +267,16 @@ public class EnemyPostureController : NetworkBehaviour
             return true;
         }
 
-        if (!TrySamplePositionForAgentType(transform.position, agent.agentTypeID, out NavMeshHit hit))
+        float sampleRadius = config != null
+            ? Mathf.Max(0.05f, config.postureSwitchSampleRadius)
+            : 0.25f;
+
+        if (!TrySamplePositionForAgentType(
+            transform.position,
+            agent.agentTypeID,
+            sampleRadius,
+            out NavMeshHit hit
+        ))
         {
             return false;
         }
@@ -263,20 +287,22 @@ public class EnemyPostureController : NetworkBehaviour
     private bool TrySamplePositionForAgentType(
         Vector3 sourcePosition,
         int agentTypeId,
+        float sampleRadius,
         out NavMeshHit hit
     )
     {
-        float sampleRadius = config != null
-            ? Mathf.Max(0.1f, config.postureNavMeshSampleRadius)
-            : 1f;
-
         NavMeshQueryFilter filter = new()
         {
             agentTypeID = agentTypeId,
             areaMask = agent != null ? agent.areaMask : NavMesh.AllAreas
         };
 
-        return NavMesh.SamplePosition(sourcePosition, out hit, sampleRadius, filter);
+        return NavMesh.SamplePosition(
+            sourcePosition,
+            out hit,
+            Mathf.Max(0.05f, sampleRadius),
+            filter
+        );
     }
 
     private int GetAgentTypeId(EnemyPosture posture)
@@ -363,6 +389,32 @@ public class EnemyPostureController : NetworkBehaviour
     {
         CurrentPosture = nextPosture;
         ApplyVisualPosture(nextPosture);
+    }
+
+    public bool CanUsePostureAtCurrentPosition(EnemyPosture posture)
+    {
+        if (config == null)
+        {
+            return false;
+        }
+
+        int agentTypeId = GetAgentTypeId(posture);
+        float sampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
+
+        if (!TrySamplePositionForAgentType(
+            transform.position,
+            agentTypeId,
+            sampleRadius,
+            out NavMeshHit hit
+        ))
+        {
+            return false;
+        }
+
+        Vector3 flatDelta = hit.position - transform.position;
+        flatDelta.y = 0f;
+
+        return flatDelta.sqrMagnitude <= sampleRadius * sampleRadius;
     }
 
     private void CacheComponents()

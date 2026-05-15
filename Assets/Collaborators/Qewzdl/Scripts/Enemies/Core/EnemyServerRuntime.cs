@@ -11,6 +11,7 @@ public class EnemyServerRuntime : MonoBehaviour
     [SerializeField] private EnemyNavigator navigator;
     [SerializeField] private EnemyAttackController attackController;
     [SerializeField] private EnemyNavMeshStartupGate navMeshStartupGate;
+    [SerializeField] private EnemyPostureController postureController;
 
     private readonly EnemyInvestigationDebugData investigationDebugData = new();
 
@@ -91,9 +92,17 @@ public class EnemyServerRuntime : MonoBehaviour
         networkState = null;
     }
 
-    public void DisableClientSimulation()
+    public void DisableClientSimulation(EnemyConfig enemyConfig)
     {
         CacheComponents();
+
+        config = enemyConfig;
+
+        if (postureController != null)
+        {
+            postureController.Configure(config);
+        }
+
         navigator?.DisableAgent();
     }
 
@@ -117,6 +126,11 @@ public class EnemyServerRuntime : MonoBehaviour
         if (navMeshStartupGate == null)
         {
             navMeshStartupGate = GetComponent<EnemyNavMeshStartupGate>();
+        }
+
+        if (postureController == null)
+        {
+            postureController = GetComponent<EnemyPostureController>();
         }
     }
 
@@ -149,6 +163,16 @@ public class EnemyServerRuntime : MonoBehaviour
         if (navMeshStartupGate == null)
         {
             Debug.LogError($"{nameof(EnemyServerRuntime)} requires {nameof(EnemyNavMeshStartupGate)}.", this);
+            return false;
+        }
+
+        if (config != null && config.crawlingEnabled && postureController == null)
+        {
+            Debug.LogError(
+                $"{nameof(EnemyServerRuntime)} requires {nameof(EnemyPostureController)} when crawling is enabled.",
+                this
+            );
+
             return false;
         }
 

@@ -71,6 +71,7 @@ public class EnemyConfig : ScriptableObject
 
     [Min(0.05f)] public float crawlingSpeedMultiplier = 0.55f;
     [Min(0.1f)] public float postureNavMeshSampleRadius = 1.25f;
+    [Min(0.05f)] public float postureSwitchSampleRadius = 0.25f;
 
     [Min(0.1f)] public float standingBodyColliderHeight = 2f;
     [Min(0.05f)] public float standingBodyColliderRadius = 0.35f;

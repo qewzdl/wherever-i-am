@@ -46,7 +46,7 @@ public class NetworkEnemyController : NetworkBehaviour
 
         if (!IsServer)
         {
-            serverRuntime.DisableClientSimulation();
+            serverRuntime.DisableClientSimulation(config);
             return;
         }
 

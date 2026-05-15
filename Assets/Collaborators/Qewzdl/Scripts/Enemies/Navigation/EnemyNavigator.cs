@@ -239,6 +239,11 @@ public class EnemyNavigator : MonoBehaviour
         {
             return false;
         }
+        
+        if (!postureController.CanUsePostureAtCurrentPosition(posture))
+        {
+            return false;
+        }
 
         pathBuffer ??= new NavMeshPath();
 
