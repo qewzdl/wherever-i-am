@@ -78,6 +78,47 @@ public class EnemyTarget : MonoBehaviour
         return AddFallbackVisibilityPoints(results, targetHeightOffset);
     }
 
+    public bool TryGetVisibilityBounds(out Bounds bounds)
+    {
+        if (useColliderBoundsVisibility && TryGetCombinedVisibilityBounds(out bounds))
+        {
+            return true;
+        }
+
+        if (visibilityPoints != null)
+        {
+            bool hasPoint = false;
+            bounds = default;
+
+            for (int i = 0; i < visibilityPoints.Length; i++)
+            {
+                Transform point = visibilityPoints[i];
+
+                if (point == null)
+                {
+                    continue;
+                }
+
+                if (!hasPoint)
+                {
+                    bounds = new Bounds(point.position, Vector3.zero);
+                    hasPoint = true;
+                    continue;
+                }
+
+                bounds.Encapsulate(point.position);
+            }
+
+            if (hasPoint)
+            {
+                return true;
+            }
+        }
+
+        bounds = new Bounds(AimPosition, Vector3.one * 0.2f);
+        return true;
+    }
+
     private int AddExplicitVisibilityPoints(Vector3[] results)
     {
         int count = 0;
@@ -256,7 +297,7 @@ public class EnemyTarget : MonoBehaviour
             Gizmos.DrawSphere(previewPoints[i], 0.06f);
         }
 
-        if (TryGetCombinedVisibilityBounds(out Bounds bounds))
+        if (TryGetVisibilityBounds(out Bounds bounds))
         {
             Gizmos.color = new Color(0f, 1f, 1f, 0.25f);
             Gizmos.DrawWireCube(bounds.center, bounds.size);
