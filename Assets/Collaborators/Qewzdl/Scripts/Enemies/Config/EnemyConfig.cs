@@ -1,143 +1,168 @@
+using System.Text;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 [CreateAssetMenu(menuName = "Wherever I Am/Enemies/Enemy Config", fileName = "EnemyConfig")]
 public class EnemyConfig : ScriptableObject
 {
-    [Header("Movement")]
-    [Min(0f)] public float patrolSpeed = 1.6f;
-    [Min(0f)] public float chaseSpeed = 2.8f;
-    [Min(0f)] public float acceleration = 12f;
-    [Min(0f)] public float angularSpeed = 360f;
-    [Min(0f)] public float stoppingDistance = 0.2f;
+    [Header("Profiles")]
+    [SerializeField] private EnemyMovementConfig movementProfile;
+    [SerializeField] private EnemyVisionConfig visionProfile;
+    [SerializeField] private EnemyHearingConfig hearingProfile;
+    [SerializeField] private EnemyInvestigationConfig investigationProfile;
+    [SerializeField] private EnemyPatrolConfig patrolProfile;
+    [SerializeField] private EnemyPostureConfig postureProfile;
+    [SerializeField] private EnemyAttackConfig attackProfile;
 
-    [Header("Detection")]
-    [Min(0f)] public float detectionRadius = 12f;
+    public EnemyMovementConfig MovementProfile => movementProfile;
+    public EnemyVisionConfig VisionProfile => visionProfile;
+    public EnemyHearingConfig HearingProfile => hearingProfile;
+    public EnemyInvestigationConfig InvestigationProfile => investigationProfile;
+    public EnemyPatrolConfig PatrolProfile => patrolProfile;
+    public EnemyPostureConfig PostureProfile => postureProfile;
+    public EnemyAttackConfig AttackProfile => attackProfile;
 
-    [FormerlySerializedAs("viewAngle")]
-    [Range(1f, 360f)] public float horizontalViewAngle = 110f;
+    public bool HasAllProfiles =>
+        movementProfile != null &&
+        visionProfile != null &&
+        hearingProfile != null &&
+        investigationProfile != null &&
+        patrolProfile != null &&
+        postureProfile != null &&
+        attackProfile != null;
 
-    [Range(1f, 180f)] public float verticalViewAngle = 80f;
+    public float patrolSpeed => movementProfile.patrolSpeed;
+    public float chaseSpeed => movementProfile.chaseSpeed;
+    public float acceleration => movementProfile.acceleration;
+    public float angularSpeed => movementProfile.angularSpeed;
+    public float stoppingDistance => movementProfile.stoppingDistance;
 
-    [Min(0f)] public float loseTargetDistance = 16f;
-    [Min(0f)] public float targetHeightOffset = 1.2f;
-    [Min(0.05f)] public float targetRefreshInterval = 0.25f;
-    [Min(0f)] public float visualTargetMemoryDuration = 2f;
+    public float detectionRadius => visionProfile.detectionRadius;
+    public float horizontalViewAngle => visionProfile.horizontalViewAngle;
+    public float verticalViewAngle => visionProfile.verticalViewAngle;
+    public float loseTargetDistance => Mathf.Max(visionProfile.loseTargetDistance, detectionRadius);
+    public float targetHeightOffset => visionProfile.targetHeightOffset;
+    public float targetRefreshInterval => visionProfile.targetRefreshInterval;
+    public float visualTargetMemoryDuration => visionProfile.visualTargetMemoryDuration;
 
-    [Header("Investigation")]
-    [Min(0f)] public float investigationReachDistance = 0.75f;
-    [Min(0.05f)] public float investigationRepathInterval = 0.25f;
+    public float investigationReachDistance => Mathf.Max(
+        investigationProfile.investigationReachDistance,
+        stoppingDistance
+    );
 
-    [FormerlySerializedAs("investigationSearchRadius")]
-    [Min(0f)] public float investigationBranchRadius = 2.5f;
+    public float investigationRepathInterval => investigationProfile.investigationRepathInterval;
+    public float investigationBranchRadius => investigationProfile.investigationBranchRadius;
+    public int investigationBranchPointCount => investigationProfile.investigationBranchPointCount;
+    public float investigationLeafRadius => investigationProfile.investigationLeafRadius;
+    public int investigationLeafPointCountPerBranch => investigationProfile.investigationLeafPointCountPerBranch;
+    public float investigationSearchSpeed => investigationProfile.investigationSearchSpeed;
 
-    [FormerlySerializedAs("investigationSearchPointCount")]
-    [Min(0)] public int investigationBranchPointCount = 3;
+    public bool hearingEnabled => hearingProfile.hearingEnabled;
+    public float hearingRadius => hearingProfile.hearingRadius;
+    public float hearingMemoryDuration => hearingProfile.hearingMemoryDuration;
+    public float minimumNoiseLoudness => hearingProfile.minimumNoiseLoudness;
 
-    [Min(0f)] public float investigationLeafRadius = 1.5f;
-    [Min(0)] public int investigationLeafPointCountPerBranch = 3;
+    public float attackDistance => Mathf.Max(
+        attackProfile.attackDistance,
+        stoppingDistance
+    );
 
-    [Min(0f)] public float investigationSearchSpeed = 1.7f;
+    public float attackCooldown => attackProfile.attackCooldown;
 
-    [Header("Hearing")]
-    public bool hearingEnabled = true;
-    [Min(0f)] public float hearingRadius = 10f;
-    [Min(0f)] public float hearingMemoryDuration = 3f;
-    [Min(0f)] public float minimumNoiseLoudness = 0.1f;
+    public float patrolPointReachDistance => patrolProfile.patrolPointReachDistance;
+    public float patrolStopDuration => patrolProfile.patrolStopDuration;
+    public float patrolStopWanderRadius => patrolProfile.patrolStopWanderRadius;
+    public float patrolStopWanderSpeed => patrolProfile.patrolStopWanderSpeed;
+    public float patrolStopWanderPointReachDistance => patrolProfile.patrolStopWanderPointReachDistance;
+    public int patrolStopWanderSampleAttempts => patrolProfile.patrolStopWanderSampleAttempts;
+    public float patrolStopWanderMinDistanceFromEnemy => patrolProfile.patrolStopWanderMinDistanceFromEnemy;
 
-    [Header("Attack")]
-    [Min(0f)] public float attackDistance = 1.6f;
-    [Min(0f)] public float attackCooldown = 1.5f;
+    public bool crawlingEnabled => postureProfile.crawlingEnabled;
 
-    [Header("Patrol")]
-    [Min(0f)] public float patrolPointReachDistance = 0.4f;
-    [Min(0f)] public float patrolStopDuration = 4f;
-    [Min(0f)] public float patrolStopWanderRadius = 2f;
-    [Min(0f)] public float patrolStopWanderSpeed = 1.2f;
-    [Min(0f)] public float patrolStopWanderPointReachDistance = 0.35f;
-    [Min(1)] public int patrolStopWanderSampleAttempts = 12;
-    [Min(0f)] public float patrolStopWanderMinDistanceFromEnemy = 0.75f;
+    public float standingAgentHeight => postureProfile.standingAgentHeight;
+    public float standingAgentRadius => postureProfile.standingAgentRadius;
+    public float standingAgentBaseOffset => postureProfile.standingAgentBaseOffset;
 
-    [Header("Posture")]
-    public bool crawlingEnabled = true;
+    public float crawlingAgentHeight => postureProfile.crawlingAgentHeight;
+    public float crawlingAgentRadius => postureProfile.crawlingAgentRadius;
+    public float crawlingAgentBaseOffset => postureProfile.crawlingAgentBaseOffset;
 
-    [Min(0.1f)] public float standingAgentHeight = 2f;
-    [Min(0.05f)] public float standingAgentRadius = 0.35f;
-    public float standingAgentBaseOffset = 0f;
+    public float crawlingSpeedMultiplier => postureProfile.crawlingSpeedMultiplier;
+    public float postureNavMeshSampleRadius => postureProfile.postureNavMeshSampleRadius;
+    public float postureSwitchSampleRadius => postureProfile.postureSwitchSampleRadius;
 
-    [Min(0.1f)] public float crawlingAgentHeight = 0.75f;
-    [Min(0.05f)] public float crawlingAgentRadius = 0.35f;
-    public float crawlingAgentBaseOffset = 0f;
+    public float minPostureDuration => postureProfile.minPostureDuration;
+    public float standingRecoveryCheckInterval => postureProfile.standingRecoveryCheckInterval;
 
-    [Min(0.05f)] public float crawlingSpeedMultiplier = 0.55f;
-    [Min(0.1f)] public float postureNavMeshSampleRadius = 1.25f;
-    [Min(0.05f)] public float postureSwitchSampleRadius = 0.25f;
+    public LayerMask standingClearanceMask => postureProfile.standingClearanceMask;
+    public float standingClearanceSkin => postureProfile.standingClearanceSkin;
+    public QueryTriggerInteraction standingClearanceTriggerInteraction =>
+        postureProfile.standingClearanceTriggerInteraction;
 
-    [Min(0f)] public float minPostureDuration = 0.75f;
-    [Min(0.05f)] public float standingRecoveryCheckInterval = 0.5f;
+    public float standingBodyColliderHeight => postureProfile.standingBodyColliderHeight;
+    public float standingBodyColliderRadius => postureProfile.standingBodyColliderRadius;
+    public Vector3 standingBodyColliderCenter => postureProfile.standingBodyColliderCenter;
 
-    [Header("Posture Physics Clearance")]
-    public LayerMask standingClearanceMask = ~0;
-    [Min(0f)] public float standingClearanceSkin = 0.02f;
-    public QueryTriggerInteraction standingClearanceTriggerInteraction = QueryTriggerInteraction.Ignore;
+    public float crawlingBodyColliderHeight => postureProfile.crawlingBodyColliderHeight;
+    public float crawlingBodyColliderRadius => postureProfile.crawlingBodyColliderRadius;
+    public Vector3 crawlingBodyColliderCenter => postureProfile.crawlingBodyColliderCenter;
 
-    [Header("Body Collider")]
-    [Min(0.1f)] public float standingBodyColliderHeight = 2f;
-    [Min(0.05f)] public float standingBodyColliderRadius = 0.35f;
-    public Vector3 standingBodyColliderCenter = new(0f, 1f, 0f);
+    public bool TryGetValidationError(out string error)
+    {
+        if (HasAllProfiles)
+        {
+            error = string.Empty;
+            return false;
+        }
 
-    [Min(0.1f)] public float crawlingBodyColliderHeight = 0.75f;
-    [Min(0.05f)] public float crawlingBodyColliderRadius = 0.35f;
-    public Vector3 crawlingBodyColliderCenter = new(0f, 0.375f, 0f);
+        StringBuilder builder = new();
+
+        builder.AppendLine($"{nameof(EnemyConfig)} '{name}' has missing profiles:");
+
+        AppendMissingProfile(builder, movementProfile, nameof(movementProfile));
+        AppendMissingProfile(builder, visionProfile, nameof(visionProfile));
+        AppendMissingProfile(builder, hearingProfile, nameof(hearingProfile));
+        AppendMissingProfile(builder, investigationProfile, nameof(investigationProfile));
+        AppendMissingProfile(builder, patrolProfile, nameof(patrolProfile));
+        AppendMissingProfile(builder, postureProfile, nameof(postureProfile));
+        AppendMissingProfile(builder, attackProfile, nameof(attackProfile));
+
+        error = builder.ToString();
+        return true;
+    }
+
+    public void ValidateProfiles()
+    {
+        movementProfile?.Validate();
+        visionProfile?.Validate();
+        hearingProfile?.Validate();
+        investigationProfile?.Validate(stoppingDistance);
+        patrolProfile?.Validate();
+        postureProfile?.Validate();
+        attackProfile?.Validate(stoppingDistance);
+    }
+
+    private static void AppendMissingProfile(
+        StringBuilder builder,
+        ScriptableObject profile,
+        string fieldName
+    )
+    {
+        if (profile != null)
+        {
+            return;
+        }
+
+        builder.Append("- ");
+        builder.AppendLine(fieldName);
+    }
 
     private void OnValidate()
     {
-        loseTargetDistance = Mathf.Max(loseTargetDistance, detectionRadius);
-        attackDistance = Mathf.Max(attackDistance, stoppingDistance);
-        targetRefreshInterval = Mathf.Max(0.05f, targetRefreshInterval);
-        visualTargetMemoryDuration = Mathf.Max(0f, visualTargetMemoryDuration);
+        if (!HasAllProfiles)
+        {
+            return;
+        }
 
-        horizontalViewAngle = Mathf.Clamp(horizontalViewAngle, 1f, 360f);
-        verticalViewAngle = Mathf.Clamp(verticalViewAngle, 1f, 180f);
-
-        investigationReachDistance = Mathf.Max(investigationReachDistance, stoppingDistance);
-        investigationRepathInterval = Mathf.Max(0.05f, investigationRepathInterval);
-        investigationBranchRadius = Mathf.Max(0f, investigationBranchRadius);
-        investigationBranchPointCount = Mathf.Max(0, investigationBranchPointCount);
-        investigationLeafRadius = Mathf.Max(0f, investigationLeafRadius);
-        investigationLeafPointCountPerBranch = Mathf.Max(0, investigationLeafPointCountPerBranch);
-        investigationSearchSpeed = Mathf.Max(0f, investigationSearchSpeed);
-
-        patrolPointReachDistance = Mathf.Max(0f, patrolPointReachDistance);
-        patrolStopDuration = Mathf.Max(0f, patrolStopDuration);
-        patrolStopWanderRadius = Mathf.Max(0f, patrolStopWanderRadius);
-        patrolStopWanderSpeed = Mathf.Max(0f, patrolStopWanderSpeed);
-        patrolStopWanderPointReachDistance = Mathf.Max(0f, patrolStopWanderPointReachDistance);
-        patrolStopWanderSampleAttempts = Mathf.Max(1, patrolStopWanderSampleAttempts);
-        patrolStopWanderMinDistanceFromEnemy = Mathf.Max(0f, patrolStopWanderMinDistanceFromEnemy);
-
-        hearingRadius = Mathf.Max(0f, hearingRadius);
-        hearingMemoryDuration = Mathf.Max(0f, hearingMemoryDuration);
-        minimumNoiseLoudness = Mathf.Max(0f, minimumNoiseLoudness);
-
-        standingAgentHeight = Mathf.Max(0.1f, standingAgentHeight);
-        standingAgentRadius = Mathf.Max(0.05f, standingAgentRadius);
-
-        crawlingAgentHeight = Mathf.Max(0.1f, crawlingAgentHeight);
-        crawlingAgentRadius = Mathf.Max(0.05f, crawlingAgentRadius);
-
-        crawlingSpeedMultiplier = Mathf.Max(0.05f, crawlingSpeedMultiplier);
-        postureNavMeshSampleRadius = Mathf.Max(0.1f, postureNavMeshSampleRadius);
-        postureSwitchSampleRadius = Mathf.Max(0.05f, postureSwitchSampleRadius);
-
-        minPostureDuration = Mathf.Max(0f, minPostureDuration);
-        standingRecoveryCheckInterval = Mathf.Max(0.05f, standingRecoveryCheckInterval);
-        standingClearanceSkin = Mathf.Max(0f, standingClearanceSkin);
-
-        standingBodyColliderHeight = Mathf.Max(0.1f, standingBodyColliderHeight);
-        standingBodyColliderRadius = Mathf.Max(0.05f, standingBodyColliderRadius);
-
-        crawlingBodyColliderHeight = Mathf.Max(0.1f, crawlingBodyColliderHeight);
-        crawlingBodyColliderRadius = Mathf.Max(0.05f, crawlingBodyColliderRadius);
+        ValidateProfiles();
     }
 }

@@ -102,6 +102,12 @@ public class NetworkEnemyController : NetworkBehaviour
             return false;
         }
 
+        if (config.TryGetValidationError(out string configError))
+        {
+            Debug.LogError(configError, this);
+            return false;
+        }
+
         if (networkState == null)
         {
             Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNetworkState)}.", this);

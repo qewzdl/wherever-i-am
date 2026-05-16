@@ -9,41 +9,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5839c61074e2e8a469e774a5fc68f51e, type: 3}
-  m_Name: GrannyEnemyConfig
+  m_Script: {fileID: 11500000, guid: 4fac038a194f5124e940a12184539f65, type: 3}
+  m_Name: EnemyPostureConfig
   m_EditorClassIdentifier: 
-  patrolSpeed: 1.5
-  chaseSpeed: 3.5
-  acceleration: 12
-  angularSpeed: 360
-  stoppingDistance: 0.2
-  detectionRadius: 24
-  horizontalViewAngle: 180
-  verticalViewAngle: 80
-  loseTargetDistance: 24
-  targetHeightOffset: 1.2
-  targetRefreshInterval: 0.25
-  visualTargetMemoryDuration: 1
-  investigationReachDistance: 0.75
-  investigationRepathInterval: 0.25
-  investigationBranchRadius: 2.5
-  investigationBranchPointCount: 3
-  investigationLeafRadius: 1.5
-  investigationLeafPointCountPerBranch: 3
-  investigationSearchSpeed: 1.7
-  hearingEnabled: 1
-  hearingRadius: 10
-  hearingMemoryDuration: 3
-  minimumNoiseLoudness: 0.1
-  attackDistance: 1.6
-  attackCooldown: 1.5
-  patrolPointReachDistance: 0.4
-  patrolStopDuration: 20
-  patrolStopWanderRadius: 10
-  patrolStopWanderSpeed: 1.2
-  patrolStopWanderPointReachDistance: 0.35
-  patrolStopWanderSampleAttempts: 12
-  patrolStopWanderMinDistanceFromEnemy: 0.75
   crawlingEnabled: 1
   standingAgentHeight: 2
   standingAgentRadius: 0.35
