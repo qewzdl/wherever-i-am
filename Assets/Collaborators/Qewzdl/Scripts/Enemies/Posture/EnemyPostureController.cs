@@ -27,6 +27,7 @@ public class EnemyPostureController : NetworkBehaviour
     private EnemyConfig config;
 
     public EnemyPosture CurrentPosture { get; private set; } = EnemyPosture.Standing;
+    public float LastPostureChangedTime { get; private set; } = float.NegativeInfinity;
     public bool IsCrawling => CurrentPosture == EnemyPosture.Crawling;
 
     private void Awake()
@@ -83,6 +84,8 @@ public class EnemyPostureController : NetworkBehaviour
         }
 
         CurrentPosture = posture;
+        LastPostureChangedTime = Time.time;
+
         ApplyVisualPosture(posture);
 
         if (IsSpawned && IsServer && networkPosture.Value != posture)
@@ -111,6 +114,32 @@ public class EnemyPostureController : NetworkBehaviour
     public int GetAgentTypeIdForPosture(EnemyPosture posture)
     {
         return GetAgentTypeId(posture);
+    }
+
+    public bool CanUsePostureAtCurrentPosition(EnemyPosture posture)
+    {
+        if (config == null)
+        {
+            return false;
+        }
+
+        int agentTypeId = GetAgentTypeId(posture);
+        float sampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
+
+        if (!TrySamplePositionForAgentType(
+            transform.position,
+            agentTypeId,
+            sampleRadius,
+            out NavMeshHit hit
+        ))
+        {
+            return false;
+        }
+
+        Vector3 flatDelta = hit.position - transform.position;
+        flatDelta.y = 0f;
+
+        return flatDelta.sqrMagnitude <= sampleRadius * sampleRadius;
     }
 
     private bool TryApplyNavigationPosture(EnemyPosture posture)
@@ -393,33 +422,9 @@ public class EnemyPostureController : NetworkBehaviour
     private void HandleNetworkPostureChanged(EnemyPosture previousPosture, EnemyPosture nextPosture)
     {
         CurrentPosture = nextPosture;
+        LastPostureChangedTime = Time.time;
+
         ApplyVisualPosture(nextPosture);
-    }
-
-    public bool CanUsePostureAtCurrentPosition(EnemyPosture posture)
-    {
-        if (config == null)
-        {
-            return false;
-        }
-
-        int agentTypeId = GetAgentTypeId(posture);
-        float sampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
-
-        if (!TrySamplePositionForAgentType(
-            transform.position,
-            agentTypeId,
-            sampleRadius,
-            out NavMeshHit hit
-        ))
-        {
-            return false;
-        }
-
-        Vector3 flatDelta = hit.position - transform.position;
-        flatDelta.y = 0f;
-
-        return flatDelta.sqrMagnitude <= sampleRadius * sampleRadius;
     }
 
     private void CacheComponents()

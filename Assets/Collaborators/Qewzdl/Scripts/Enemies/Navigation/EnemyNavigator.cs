@@ -15,6 +15,8 @@ public class EnemyNavigator : MonoBehaviour
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
 
+    private float nextStandingRecoveryCheckTime;
+
     public Vector3 Position => transform.position;
 
     private void Awake()
@@ -28,6 +30,8 @@ public class EnemyNavigator : MonoBehaviour
         this.config = config;
 
         CacheComponents();
+
+        nextStandingRecoveryCheckTime = 0f;
 
         if (config == null)
         {
@@ -49,6 +53,7 @@ public class EnemyNavigator : MonoBehaviour
         if (postureController != null)
         {
             postureController.TrySetServerPosture(EnemyPosture.Standing);
+            nextStandingRecoveryCheckTime = 0f;
         }
     }
 
@@ -68,12 +73,13 @@ public class EnemyNavigator : MonoBehaviour
         {
             if (postureController.IsCrawling)
             {
-                if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
+                if (CanAttemptStandingRecovery() &&
+                    TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
                 {
                     return true;
                 }
 
-                if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
+                if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
                 {
                     return true;
                 }
@@ -178,9 +184,16 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
+        EnemyPosture previousPosture = postureController.CurrentPosture;
+
         if (!postureController.TrySetServerPosture(posture))
         {
             return false;
+        }
+
+        if (previousPosture != postureController.CurrentPosture)
+        {
+            HandlePostureChanged(postureController.CurrentPosture);
         }
 
         float postureSpeed = postureController.GetSpeedForPosture(baseSpeed, posture);
@@ -254,7 +267,7 @@ public class EnemyNavigator : MonoBehaviour
         {
             return false;
         }
-        
+
         if (!postureController.CanUsePostureAtCurrentPosition(posture))
         {
             return false;
@@ -288,6 +301,64 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         return pathBuffer.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private bool CanAttemptStandingRecovery()
+    {
+        if (config == null || postureController == null)
+        {
+            return false;
+        }
+
+        if (!postureController.IsCrawling)
+        {
+            return true;
+        }
+
+        float now = Time.time;
+        float minPostureDuration = Mathf.Max(0f, config.minPostureDuration);
+        float nextAllowedByDuration = postureController.LastPostureChangedTime + minPostureDuration;
+
+        if (now < nextAllowedByDuration)
+        {
+            nextStandingRecoveryCheckTime = Mathf.Max(
+                nextStandingRecoveryCheckTime,
+                nextAllowedByDuration
+            );
+
+            return false;
+        }
+
+        if (now < nextStandingRecoveryCheckTime)
+        {
+            return false;
+        }
+
+        nextStandingRecoveryCheckTime = now + Mathf.Max(
+            0.05f,
+            config.standingRecoveryCheckInterval
+        );
+
+        return true;
+    }
+
+    private void HandlePostureChanged(EnemyPosture posture)
+    {
+        if (config == null)
+        {
+            nextStandingRecoveryCheckTime = 0f;
+            return;
+        }
+
+        float now = Time.time;
+
+        if (posture == EnemyPosture.Crawling)
+        {
+            nextStandingRecoveryCheckTime = now + Mathf.Max(0f, config.minPostureDuration);
+            return;
+        }
+
+        nextStandingRecoveryCheckTime = 0f;
     }
 
     private void CacheComponents()
