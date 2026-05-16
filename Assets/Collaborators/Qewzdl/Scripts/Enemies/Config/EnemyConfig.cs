@@ -76,6 +76,12 @@ public class EnemyConfig : ScriptableObject
     [Min(0f)] public float minPostureDuration = 0.75f;
     [Min(0.05f)] public float standingRecoveryCheckInterval = 0.5f;
 
+    [Header("Posture Physics Clearance")]
+    public LayerMask standingClearanceMask = ~0;
+    [Min(0f)] public float standingClearanceSkin = 0.02f;
+    public QueryTriggerInteraction standingClearanceTriggerInteraction = QueryTriggerInteraction.Ignore;
+
+    [Header("Body Collider")]
     [Min(0.1f)] public float standingBodyColliderHeight = 2f;
     [Min(0.05f)] public float standingBodyColliderRadius = 0.35f;
     public Vector3 standingBodyColliderCenter = new(0f, 1f, 0f);
@@ -126,6 +132,7 @@ public class EnemyConfig : ScriptableObject
 
         minPostureDuration = Mathf.Max(0f, minPostureDuration);
         standingRecoveryCheckInterval = Mathf.Max(0.05f, standingRecoveryCheckInterval);
+        standingClearanceSkin = Mathf.Max(0f, standingClearanceSkin);
 
         standingBodyColliderHeight = Mathf.Max(0.1f, standingBodyColliderHeight);
         standingBodyColliderRadius = Mathf.Max(0.05f, standingBodyColliderRadius);

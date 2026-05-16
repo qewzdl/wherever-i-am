@@ -6,11 +6,15 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyPostureController : NetworkBehaviour
 {
+    private const int StandingClearanceBufferSize = 32;
+
     private readonly NetworkVariable<EnemyPosture> networkPosture = new(
         EnemyPosture.Standing,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
+
+    private readonly Collider[] standingClearanceHits = new Collider[StandingClearanceBufferSize];
 
     [Header("References")]
     [SerializeField] private NavMeshAgent agent;
@@ -123,6 +127,13 @@ public class EnemyPostureController : NetworkBehaviour
             return false;
         }
 
+        if (posture == EnemyPosture.Standing &&
+            CurrentPosture != EnemyPosture.Standing &&
+            !HasStandingPhysicalClearance(transform.position))
+        {
+            return false;
+        }
+
         int agentTypeId = GetAgentTypeId(posture);
         float sampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
 
@@ -183,6 +194,13 @@ public class EnemyPostureController : NetworkBehaviour
             return false;
         }
 
+        if (posture == EnemyPosture.Standing &&
+            CurrentPosture != EnemyPosture.Standing &&
+            !HasStandingPhysicalClearance(postureHit.position))
+        {
+            return false;
+        }
+
         int previousAgentTypeId = agent.agentTypeID;
         float previousHeight = agent.height;
         float previousRadius = agent.radius;
@@ -219,6 +237,133 @@ public class EnemyPostureController : NetworkBehaviour
         TryEnsureAgentOnCurrentNavMesh();
 
         return false;
+    }
+
+    private bool HasStandingPhysicalClearance(Vector3 rootPosition)
+    {
+        if (config == null)
+        {
+            return false;
+        }
+
+        int capsuleDirection = bodyCollider != null ? bodyCollider.direction : 1;
+
+        Vector3 worldCenter = GetScaledWorldPoint(
+            rootPosition,
+            config.standingBodyColliderCenter
+        );
+
+        Vector3 capsuleAxis = transform.TransformDirection(GetCapsuleLocalAxis(capsuleDirection));
+
+        if (capsuleAxis.sqrMagnitude <= 0.001f)
+        {
+            capsuleAxis = Vector3.up;
+        }
+
+        capsuleAxis.Normalize();
+
+        float heightScale = GetCapsuleHeightScale(capsuleDirection);
+        float radiusScale = GetCapsuleRadiusScale(capsuleDirection);
+
+        float worldRadius = Mathf.Max(
+            0.01f,
+            config.standingBodyColliderRadius * radiusScale
+        );
+
+        float worldHeight = Mathf.Max(
+            worldRadius * 2f,
+            config.standingBodyColliderHeight * heightScale
+        );
+
+        float skin = Mathf.Max(0f, config.standingClearanceSkin);
+
+        worldRadius = Mathf.Max(0.01f, worldRadius - skin);
+        worldHeight = Mathf.Max(worldRadius * 2f, worldHeight - skin * 2f);
+
+        float halfSegmentLength = Mathf.Max(0f, worldHeight * 0.5f - worldRadius);
+
+        Vector3 pointA = worldCenter + capsuleAxis * halfSegmentLength;
+        Vector3 pointB = worldCenter - capsuleAxis * halfSegmentLength;
+
+        int hitCount = Physics.OverlapCapsuleNonAlloc(
+            pointA,
+            pointB,
+            worldRadius,
+            standingClearanceHits,
+            config.standingClearanceMask,
+            config.standingClearanceTriggerInteraction
+        );
+
+        bool bufferWasFull = hitCount >= standingClearanceHits.Length;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hit = standingClearanceHits[i];
+
+            if (hit == null)
+            {
+                continue;
+            }
+
+            if (IsSelfCollider(hit))
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return !bufferWasFull;
+    }
+
+    private Vector3 GetScaledWorldPoint(Vector3 rootPosition, Vector3 localPoint)
+    {
+        Vector3 scaledLocalPoint = Vector3.Scale(localPoint, transform.lossyScale);
+        return rootPosition + transform.rotation * scaledLocalPoint;
+    }
+
+    private bool IsSelfCollider(Collider hit)
+    {
+        Transform hitTransform = hit.transform;
+
+        return hitTransform == transform || hitTransform.IsChildOf(transform);
+    }
+
+    private Vector3 GetCapsuleLocalAxis(int capsuleDirection)
+    {
+        return capsuleDirection switch
+        {
+            0 => Vector3.right,
+            1 => Vector3.up,
+            2 => Vector3.forward,
+            _ => Vector3.up
+        };
+    }
+
+    private float GetCapsuleHeightScale(int capsuleDirection)
+    {
+        Vector3 scale = transform.lossyScale;
+
+        return capsuleDirection switch
+        {
+            0 => Mathf.Abs(scale.x),
+            1 => Mathf.Abs(scale.y),
+            2 => Mathf.Abs(scale.z),
+            _ => Mathf.Abs(scale.y)
+        };
+    }
+
+    private float GetCapsuleRadiusScale(int capsuleDirection)
+    {
+        Vector3 scale = transform.lossyScale;
+
+        return capsuleDirection switch
+        {
+            0 => Mathf.Max(Mathf.Abs(scale.y), Mathf.Abs(scale.z)),
+            1 => Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z)),
+            2 => Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y)),
+            _ => Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z))
+        };
     }
 
     private void ApplyAgentProfile(EnemyPosture posture)
