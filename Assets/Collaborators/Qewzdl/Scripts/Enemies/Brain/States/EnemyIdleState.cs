@@ -11,7 +11,7 @@ public sealed class EnemyIdleState : IEnemyStateHandler
 
     public void Enter()
     {
-        context.Navigator.ResetPath();
+        context.ResetNavigationPath();
     }
 
     public void Tick(float deltaTime)

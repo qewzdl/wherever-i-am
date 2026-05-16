@@ -13,7 +13,7 @@ public class EnemyServerRuntime : MonoBehaviour
     [SerializeField] private EnemyNavMeshStartupGate navMeshStartupGate;
     [SerializeField] private EnemyPostureController postureController;
 
-    private readonly EnemyInvestigationDebugData investigationDebugData = new();
+    private readonly EnemyBlackboard blackboard = new();
 
     private EnemyConfig config;
     private EnemyPatrolRoute patrolRoute;
@@ -23,7 +23,7 @@ public class EnemyServerRuntime : MonoBehaviour
     private bool initializedServer;
 
     public bool IsRunning => brain != null && brain.HasStarted;
-    public EnemyInvestigationDebugData InvestigationDebugData => investigationDebugData;
+    public EnemyInvestigationDebugData InvestigationDebugData => blackboard.InvestigationDebugData;
 
     private void Awake()
     {
@@ -84,7 +84,7 @@ public class EnemyServerRuntime : MonoBehaviour
         brain?.Dispose();
         brain = null;
 
-        investigationDebugData.Clear();
+        blackboard.ClearAll();
 
         initializedServer = false;
         config = null;
@@ -192,7 +192,8 @@ public class EnemyServerRuntime : MonoBehaviour
         EnemyPatrolController patrolController = new EnemyPatrolController(
             patrolRoute,
             navigator,
-            config
+            config,
+            blackboard
         );
 
         brain = new EnemyServerBrain(
@@ -201,7 +202,8 @@ public class EnemyServerRuntime : MonoBehaviour
             targetDetector,
             patrolController,
             attackController,
-            investigationDebugData,
+            postureController,
+            blackboard,
             networkState.SetStateServer,
             networkState.SetTargetIdentityServer
         );

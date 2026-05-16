@@ -11,8 +11,11 @@ public sealed class EnemyBrainContext
     public EnemyTargetDetector TargetDetector { get; }
     public EnemyPatrolController PatrolController { get; }
     public EnemyAttackController AttackController { get; }
-    public EnemyTargetMemory TargetMemory { get; }
-    public EnemyInvestigationDebugData InvestigationDebugData { get; }
+    public EnemyPostureController PostureController { get; }
+    public EnemyBlackboard Blackboard { get; }
+
+    public EnemyTargetMemory TargetMemory => Blackboard.TargetMemory;
+    public EnemyInvestigationDebugData InvestigationDebugData => Blackboard.InvestigationDebugData;
 
     public bool HasPatrolRoute => PatrolController != null && PatrolController.HasRoute;
 
@@ -22,8 +25,8 @@ public sealed class EnemyBrainContext
         EnemyTargetDetector targetDetector,
         EnemyPatrolController patrolController,
         EnemyAttackController attackController,
-        EnemyTargetMemory targetMemory,
-        EnemyInvestigationDebugData investigationDebugData,
+        EnemyPostureController postureController,
+        EnemyBlackboard blackboard,
         Action<EnemyState> changeState,
         Action syncTarget
     )
@@ -33,8 +36,9 @@ public sealed class EnemyBrainContext
         TargetDetector = targetDetector;
         PatrolController = patrolController;
         AttackController = attackController;
-        TargetMemory = targetMemory;
-        InvestigationDebugData = investigationDebugData;
+        PostureController = postureController;
+        Blackboard = blackboard ?? new EnemyBlackboard();
+
         this.changeState = changeState;
         this.syncTarget = syncTarget;
     }
@@ -47,6 +51,52 @@ public sealed class EnemyBrainContext
     public void SyncTarget()
     {
         syncTarget?.Invoke();
+    }
+
+    public bool TryMoveTo(Vector3 destination, float speed)
+    {
+        if (Navigator == null)
+        {
+            Blackboard.ClearCurrentDestination();
+            return false;
+        }
+
+        bool moved = Navigator.TryMoveTo(destination, speed);
+
+        if (moved)
+        {
+            Blackboard.SetCurrentDestination(destination);
+        }
+        else
+        {
+            Blackboard.ClearCurrentDestination();
+        }
+
+        RefreshPosture();
+        return moved;
+    }
+
+    public void StopNavigation()
+    {
+        Navigator?.Stop();
+        RefreshPosture();
+    }
+
+    public void ResetNavigationPath()
+    {
+        Navigator?.ResetPath();
+        Blackboard.ClearCurrentDestination();
+        RefreshPosture();
+    }
+
+    public void RefreshPosture()
+    {
+        if (PostureController == null)
+        {
+            return;
+        }
+
+        Blackboard.SetCurrentPosture(PostureController.CurrentPosture);
     }
 
     public void ClearTargetOnly()
@@ -69,6 +119,8 @@ public sealed class EnemyBrainContext
 
     public void ReturnToDefaultBehaviour()
     {
+        Blackboard.ClearCurrentInvestigationRoute();
+
         if (HasPatrolRoute)
         {
             ChangeState(EnemyState.Patrol);
@@ -76,7 +128,7 @@ public sealed class EnemyBrainContext
         }
 
         ChangeState(EnemyState.Idle);
-        Navigator.ResetPath();
+        ResetNavigationPath();
     }
 
     public Vector3 GetTargetNavigationPosition(EnemyTarget target)

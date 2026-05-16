@@ -112,6 +112,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         );
 
         context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
+        context.Blackboard.SetCurrentInvestigationRoute(searchPlanner.Points);
 
         if (searchPlanner.PointCount == 0)
         {
@@ -174,6 +175,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
                 phase = InvestigationPhase.MovingToLastKnownPosition;
                 currentSearchPointIndex = 0;
+
                 searchPlanner.BuildHierarchicalSearchPlan(
                     investigationOrigin,
                     context.Navigator.Position,
@@ -182,6 +184,9 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
                     context.Config.investigationLeafRadius,
                     context.Config.investigationLeafPointCountPerBranch
                 );
+
+                context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
+                context.Blackboard.SetCurrentInvestigationRoute(searchPlanner.Points);
 
                 if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
                 {
@@ -214,7 +219,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private bool TrySetDestination(Vector3 destination, float speed)
     {
         currentDestination = destination;
-        hasDestination = context.Navigator.TryMoveTo(destination, speed);
+        hasDestination = context.TryMoveTo(destination, speed);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
         if (hasDestination)
@@ -236,7 +241,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        hasDestination = context.Navigator.TryMoveTo(currentDestination, speed);
+        hasDestination = context.TryMoveTo(currentDestination, speed);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
         if (hasDestination)
@@ -252,6 +257,9 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private void FinishInvestigation()
     {
         context.InvestigationDebugData?.Finish();
+        context.Blackboard.ClearCurrentInvestigationRoute();
+        context.Blackboard.ClearCurrentDestination();
+
         context.ClearAllTargetMemory();
         context.ReturnToDefaultBehaviour();
     }
@@ -267,5 +275,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         repathTimer = 0f;
 
         hasDestination = false;
+
+        context.Blackboard.ClearCurrentDestination();
+        context.Blackboard.ClearCurrentInvestigationRoute();
     }
 }

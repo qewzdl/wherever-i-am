@@ -52,7 +52,7 @@ public sealed class EnemyChaseState : IEnemyStateHandler
             return;
         }
 
-        context.Navigator.TryMoveTo(targetPosition, context.Config.chaseSpeed);
+        context.TryMoveTo(targetPosition, context.Config.chaseSpeed);
     }
 
     public void Exit()

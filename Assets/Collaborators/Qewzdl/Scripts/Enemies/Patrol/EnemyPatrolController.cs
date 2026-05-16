@@ -5,6 +5,7 @@ public sealed class EnemyPatrolController
     private readonly EnemyPatrolRoute patrolRoute;
     private readonly EnemyNavigator navigator;
     private readonly EnemyConfig config;
+    private readonly EnemyBlackboard blackboard;
     private readonly EnemyPatrolStopWanderPlanner stopWanderPlanner = new();
 
     private int patrolPointIndex;
@@ -21,12 +22,14 @@ public sealed class EnemyPatrolController
     public EnemyPatrolController(
         EnemyPatrolRoute patrolRoute,
         EnemyNavigator navigator,
-        EnemyConfig config
+        EnemyConfig config,
+        EnemyBlackboard blackboard = null
     )
     {
         this.patrolRoute = patrolRoute;
         this.navigator = navigator;
         this.config = config;
+        this.blackboard = blackboard;
     }
 
     public bool MoveToNextRoutePoint()
@@ -36,6 +39,7 @@ public sealed class EnemyPatrolController
         if (!HasRoute || navigator == null || config == null)
         {
             currentRoutePoint = null;
+            blackboard?.ClearCurrentDestination();
             return false;
         }
 
@@ -44,10 +48,22 @@ public sealed class EnemyPatrolController
 
         if (currentRoutePoint == null)
         {
+            blackboard?.ClearCurrentDestination();
             return false;
         }
 
-        return navigator.TryMoveTo(currentRoutePoint.position, config.patrolSpeed);
+        bool moved = navigator.TryMoveTo(currentRoutePoint.position, config.patrolSpeed);
+
+        if (moved)
+        {
+            blackboard?.SetCurrentDestination(currentRoutePoint.position);
+        }
+        else
+        {
+            blackboard?.ClearCurrentDestination();
+        }
+
+        return moved;
     }
 
     public bool HasReachedCurrentRoutePoint()
@@ -73,6 +89,7 @@ public sealed class EnemyPatrolController
 
         if (navigator == null || config == null || currentRoutePoint == null)
         {
+            blackboard?.ClearCurrentDestination();
             return false;
         }
 
@@ -85,6 +102,7 @@ public sealed class EnemyPatrolController
             out Vector3 wanderPoint
         ))
         {
+            blackboard?.ClearCurrentDestination();
             return false;
         }
 
@@ -92,6 +110,15 @@ public sealed class EnemyPatrolController
             wanderPoint,
             config.patrolStopWanderSpeed
         );
+
+        if (hasActiveWanderDestination)
+        {
+            blackboard?.SetCurrentDestination(wanderPoint);
+        }
+        else
+        {
+            blackboard?.ClearCurrentDestination();
+        }
 
         return hasActiveWanderDestination;
     }
@@ -116,5 +143,6 @@ public sealed class EnemyPatrolController
         patrolPointIndex = 0;
         currentRoutePoint = null;
         hasActiveWanderDestination = false;
+        blackboard?.ClearCurrentDestination();
     }
 }

@@ -8,11 +8,11 @@ public sealed class EnemyServerBrain
     private readonly EnemyNavigator navigator;
     private readonly EnemyTargetDetector targetDetector;
     private readonly EnemyAttackController attackController;
+    private readonly EnemyPostureController postureController;
+    private readonly EnemyBlackboard blackboard;
     private readonly Action<EnemyState> setState;
     private readonly Action<EnemyTargetIdentity> setTargetIdentity;
-    private readonly EnemyInvestigationDebugData investigationDebugData;
 
-    private readonly EnemyTargetMemory targetMemory = new();
     private readonly Dictionary<EnemyState, IEnemyStateHandler> stateHandlers = new();
 
     private EnemyBrainContext context;
@@ -28,7 +28,8 @@ public sealed class EnemyServerBrain
         EnemyTargetDetector targetDetector,
         EnemyPatrolController patrolController,
         EnemyAttackController attackController,
-        EnemyInvestigationDebugData investigationDebugData,
+        EnemyPostureController postureController,
+        EnemyBlackboard blackboard,
         Action<EnemyState> setState,
         Action<EnemyTargetIdentity> setTargetIdentity
     )
@@ -37,7 +38,8 @@ public sealed class EnemyServerBrain
         this.navigator = navigator;
         this.targetDetector = targetDetector;
         this.attackController = attackController;
-        this.investigationDebugData = investigationDebugData;
+        this.postureController = postureController;
+        this.blackboard = blackboard ?? new EnemyBlackboard();
         this.setState = setState;
         this.setTargetIdentity = setTargetIdentity;
 
@@ -47,8 +49,8 @@ public sealed class EnemyServerBrain
             targetDetector,
             patrolController,
             attackController,
-            targetMemory,
-            investigationDebugData,
+            postureController,
+            this.blackboard,
             ChangeState,
             SyncTarget
         );
@@ -70,6 +72,7 @@ public sealed class EnemyServerBrain
         }
 
         HasStarted = true;
+        context.RefreshPosture();
 
         if (context.HasPatrolRoute)
         {
@@ -93,6 +96,8 @@ public sealed class EnemyServerBrain
             return;
         }
 
+        context.RefreshPosture();
+
         attackController.Tick(deltaTime);
 
         if (TickVisualTargetMemory(deltaTime))
@@ -110,8 +115,7 @@ public sealed class EnemyServerBrain
         currentHandler?.Exit();
         currentHandler = null;
 
-        targetMemory.ClearAll();
-        investigationDebugData?.Clear();
+        blackboard.ClearAll();
         SyncTarget();
 
         HasStarted = false;
@@ -160,6 +164,8 @@ public sealed class EnemyServerBrain
 
     private bool TickVisualTargetMemory(float deltaTime)
     {
+        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+
         if (!targetMemory.IsUsingVisualMemory)
         {
             return false;
@@ -169,9 +175,20 @@ public sealed class EnemyServerBrain
 
         if (stillHasTarget)
         {
+            blackboard.SetCurrentStimulus(
+                EnemyPerceptionStimulus.ForConfirmedTarget(
+                    targetMemory.CurrentTarget,
+                    targetMemory.GetCurrentTargetPosition(),
+                    1f,
+                    EnemyPerceptionSource.Vision
+                ),
+                Time.time
+            );
+
             return false;
         }
 
+        blackboard.ClearCurrentStimulus();
         SyncTarget();
 
         if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
@@ -210,6 +227,8 @@ public sealed class EnemyServerBrain
             return;
         }
 
+        blackboard.SetCurrentStimulus(stimulus, Time.time);
+
         if (stimulus.IsConfirmedTarget && stimulus.HasTarget)
         {
             ApplyConfirmedTargetStimulus(stimulus);
@@ -221,6 +240,8 @@ public sealed class EnemyServerBrain
 
     private void ApplyConfirmedTargetStimulus(EnemyPerceptionStimulus stimulus)
     {
+        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+
         if (targetMemory.HasTarget && targetMemory.CurrentTarget == stimulus.Target)
         {
             targetMemory.RefreshConfirmedTarget(stimulus.Position);
@@ -246,6 +267,8 @@ public sealed class EnemyServerBrain
             return;
         }
 
+        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+
         if (IsPursuingConfirmedTarget())
         {
             targetMemory.RememberSecondarySuspiciousPosition(stimulus.Position);
@@ -268,6 +291,8 @@ public sealed class EnemyServerBrain
 
     private bool IsPursuingConfirmedTarget()
     {
+        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+
         return targetMemory.HasTarget &&
                targetMemory.IsCurrentTargetValid &&
                (currentState == EnemyState.Chase || currentState == EnemyState.Attack);
@@ -275,6 +300,10 @@ public sealed class EnemyServerBrain
 
     private void HandleNoStimulus()
     {
+        blackboard.ClearCurrentStimulus();
+
+        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+
         if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
         {
             if (targetMemory.HasTarget)
@@ -299,6 +328,6 @@ public sealed class EnemyServerBrain
 
     private void SyncTarget()
     {
-        setTargetIdentity?.Invoke(targetMemory.CurrentTargetIdentity);
+        setTargetIdentity?.Invoke(blackboard.TargetMemory.CurrentTargetIdentity);
     }
 }

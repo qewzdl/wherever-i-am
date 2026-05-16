@@ -13,8 +13,8 @@ public sealed class EnemyAttackState : IEnemyStateHandler
 
     public void Enter()
     {
-        context.Navigator.ResetPath();
-        context.Navigator.Stop();
+        context.ResetNavigationPath();
+        context.StopNavigation();
     }
 
     public void Tick(float deltaTime)
@@ -52,7 +52,7 @@ public sealed class EnemyAttackState : IEnemyStateHandler
             return;
         }
 
-        context.Navigator.Stop();
+        context.StopNavigation();
 
         context.AttackController.TryAttack(
             context.TargetMemory.CurrentTarget,
