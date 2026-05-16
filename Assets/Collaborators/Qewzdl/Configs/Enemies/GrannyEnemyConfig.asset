@@ -18,7 +18,8 @@ MonoBehaviour:
   angularSpeed: 360
   stoppingDistance: 0.2
   detectionRadius: 24
-  viewAngle: 180
+  horizontalViewAngle: 180
+  verticalViewAngle: 80
   loseTargetDistance: 24
   targetHeightOffset: 1.2
   targetRefreshInterval: 0.25
@@ -43,3 +44,26 @@ MonoBehaviour:
   patrolStopWanderPointReachDistance: 0.35
   patrolStopWanderSampleAttempts: 12
   patrolStopWanderMinDistanceFromEnemy: 0.75
+  crawlingEnabled: 1
+  standingAgentHeight: 2
+  standingAgentRadius: 0.35
+  standingAgentBaseOffset: 0
+  crawlingAgentHeight: 0.75
+  crawlingAgentRadius: 0.35
+  crawlingAgentBaseOffset: 0
+  crawlingSpeedMultiplier: 0.55
+  postureNavMeshSampleRadius: 1.25
+  postureSwitchSampleRadius: 0.25
+  minPostureDuration: 0.75
+  standingRecoveryCheckInterval: 0.5
+  standingClearanceMask:
+    serializedVersion: 2
+    m_Bits: 897
+  standingClearanceSkin: 0.02
+  standingClearanceTriggerInteraction: 1
+  standingBodyColliderHeight: 2
+  standingBodyColliderRadius: 0.35
+  standingBodyColliderCenter: {x: 0, y: 1, z: 0}
+  crawlingBodyColliderHeight: 0.75
+  crawlingBodyColliderRadius: 0.35
+  crawlingBodyColliderCenter: {x: 0, y: 0.375, z: 0}
