@@ -342,6 +342,10 @@ GameObject:
   - component: {fileID: -6226172478825787547}
   - component: {fileID: 1705734711893662682}
   - component: {fileID: 53960682953409355}
+  - component: {fileID: 5421604093297213535}
+  - component: {fileID: 2340993436687518200}
+  - component: {fileID: 8430466429122627016}
+  - component: {fileID: 2915486393420281245}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -554,7 +558,6 @@ MonoBehaviour:
   maxDetectionResults: 16
   overflowWarningCooldown: 2
   maxVisibilityPoints: 4
-  drawLastTargetedVerticalView: 1
 --- !u!114 &7002212260278922464
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -695,6 +698,93 @@ MonoBehaviour:
   investigateColor: {r: 1, g: 0.7, b: 0.1, a: 1}
   chaseColor: {r: 1, g: 0, b: 0, a: 1}
   attackColor: {r: 1, g: 0, b: 0, a: 1}
+--- !u!114 &5421604093297213535
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fde705937b7f62b44a1c9666980924fe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enemyController: {fileID: 3244720467120631997}
+  drawOnlyWhenSelected: 1
+  attackDistanceColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &2340993436687518200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b7b024f80dcfa54c87da3e5ca22b307, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  serverRuntime: {fileID: 6370502762402772414}
+  drawOnlyWhenSelected: 1
+  drawInactiveOrigin: 0
+  originRadius: 0.18
+  routePointRadius: 0.12
+  activePointRadius: 0.28
+  destinationRadius: 0.2
+  lineHeightOffset: 0.05
+  originColor: {r: 0, g: 1, b: 1, a: 1}
+  branchPointColor: {r: 1, g: 0.75, b: 0, a: 1}
+  leafPointColor: {r: 1, g: 0.45, b: 0, a: 1}
+  activePointColor: {r: 0, g: 1, b: 0, a: 1}
+  destinationColor: {r: 1, g: 0, b: 1, a: 1}
+  routeLineColor: {r: 1, g: 0.7, b: 0, a: 0.8}
+--- !u!114 &8430466429122627016
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b9fcfc46d46d4f40a6c02dd2c30cdff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enemyController: {fileID: 3244720467120631997}
+  postureController: {fileID: 1705734711893662682}
+  drawOnlyWhenSelected: 1
+  drawStandingCapsule: 1
+  drawCrawlingCapsule: 1
+  highlightCurrentPosture: 1
+  standingColor: {r: 0.2, g: 0.8, b: 1, a: 0.9}
+  crawlingColor: {r: 0.8, g: 0.5, b: 1, a: 0.9}
+  currentPostureColor: {r: 0, g: 1, b: 0, a: 1}
+--- !u!114 &2915486393420281245
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78add1a2accc26045a343cb65202714d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visionSensor: {fileID: 3681341265359804249}
+  enemyController: {fileID: 3244720467120631997}
+  drawOnlyWhenSelected: 1
+  drawDetectionRadius: 1
+  drawHorizontalView: 1
+  drawForwardVerticalViewPreview: 1
+  drawLastTargetedVerticalView: 1
+  originRadius: 0.08
+  detectionRadiusColor: {r: 1, g: 0, b: 0, a: 1}
+  horizontalViewColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  forwardVerticalViewColor: {r: 1, g: 0.5, b: 0, a: 0.9}
+  targetedVerticalViewColor: {r: 1, g: 0, b: 1, a: 1}
+  originColor: {r: 0, g: 1, b: 1, a: 1}
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

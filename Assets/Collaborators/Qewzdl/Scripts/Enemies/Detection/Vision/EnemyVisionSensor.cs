@@ -18,22 +18,17 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     [Header("Visibility")]
     [SerializeField, Min(1)] private int maxVisibilityPoints = 8;
 
-#if UNITY_EDITOR
-    [Header("Debug")]
-    [SerializeField] private bool drawLastTargetedVerticalView = true;
-#endif
-
     private Collider[] detectionResults;
     private EnemyTarget[] processedTargets;
     private float nextOverflowWarningTime;
     private Vector3[] visibilityPointResults;
 
-#if UNITY_EDITOR
-    private bool hasLastVerticalViewDebug;
-    private Vector3 lastVerticalViewOrigin;
-    private Vector3 lastVerticalViewCenterDirection;
-    private float lastVerticalViewDistance;
-#endif
+    public Transform OriginTransform => GetOrigin();
+
+    public bool HasLastTargetedVerticalView { get; private set; }
+    public Vector3 LastTargetedVerticalViewOrigin { get; private set; }
+    public Vector3 LastTargetedVerticalViewCenterDirection { get; private set; }
+    public float LastTargetedVerticalViewDistance { get; private set; }
 
     private void Awake()
     {
@@ -74,10 +69,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     {
         bestScore = 0f;
         bestVisiblePoint = Vector3.zero;
-
-#if UNITY_EDITOR
-        hasLastVerticalViewDebug = false;
-#endif
+        HasLastTargetedVerticalView = false;
 
         if (config == null)
         {
@@ -196,9 +188,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-#if UNITY_EDITOR
-        RememberVerticalViewDebug(originPosition, targetCenter, config.detectionRadius);
-#endif
+        RememberLastTargetedVerticalView(originPosition, targetCenter, config.detectionRadius);
 
         EnsureDetectionBuffers();
 
@@ -314,6 +304,25 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         return !blocked;
     }
 
+    private void RememberLastTargetedVerticalView(
+        Vector3 originPosition,
+        Vector3 targetCenter,
+        float detectionRadius
+    )
+    {
+        Vector3 direction = targetCenter - originPosition;
+
+        if (direction.sqrMagnitude <= 0.001f)
+        {
+            return;
+        }
+
+        HasLastTargetedVerticalView = true;
+        LastTargetedVerticalViewOrigin = originPosition;
+        LastTargetedVerticalViewCenterDirection = direction.normalized;
+        LastTargetedVerticalViewDistance = Mathf.Min(direction.magnitude, detectionRadius);
+    }
+
     private void EnsureDetectionBuffers()
     {
         int safeSize = Mathf.Max(1, maxDetectionResults);
@@ -383,26 +392,6 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         return eyes != null ? eyes : transform;
     }
 
-#if UNITY_EDITOR
-    private void RememberVerticalViewDebug(
-        Vector3 originPosition,
-        Vector3 targetCenter,
-        float detectionRadius
-    )
-    {
-        Vector3 direction = targetCenter - originPosition;
-
-        if (direction.sqrMagnitude <= 0.001f)
-        {
-            return;
-        }
-
-        hasLastVerticalViewDebug = true;
-        lastVerticalViewOrigin = originPosition;
-        lastVerticalViewCenterDirection = direction.normalized;
-        lastVerticalViewDistance = Mathf.Min(direction.magnitude, detectionRadius);
-    }
-
     private void Reset()
     {
         maxVisibilityPoints = Mathf.Max(maxVisibilityPoints, 8);
@@ -416,151 +405,4 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         maxVisibilityPoints = Mathf.Max(1, maxVisibilityPoints);
         EnsureDetectionBuffers();
     }
-
-    private void OnDrawGizmosSelected()
-    {
-        NetworkEnemyController controller = GetComponent<NetworkEnemyController>();
-        EnemyConfig config = controller != null ? controller.Config : null;
-
-        if (config == null)
-        {
-            return;
-        }
-
-        Transform origin = GetOrigin();
-
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, config.detectionRadius);
-
-        DrawHorizontalViewGizmos(origin, config);
-        DrawForwardVerticalViewPreview(origin, config);
-
-        if (drawLastTargetedVerticalView && hasLastVerticalViewDebug)
-        {
-            DrawTargetedVerticalViewGizmos(config);
-        }
-
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawSphere(origin.position, 0.08f);
-    }
-
-    private void DrawHorizontalViewGizmos(Transform origin, EnemyConfig config)
-    {
-        Vector3 forward = Vector3.ProjectOnPlane(origin.forward, Vector3.up);
-
-        if (forward.sqrMagnitude <= 0.001f)
-        {
-            forward = transform.forward;
-        }
-
-        forward.Normalize();
-
-        Vector3 leftDirection = Quaternion.AngleAxis(
-            -config.horizontalViewAngle * 0.5f,
-            Vector3.up
-        ) * forward;
-
-        Vector3 rightDirection = Quaternion.AngleAxis(
-            config.horizontalViewAngle * 0.5f,
-            Vector3.up
-        ) * forward;
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawLine(origin.position, origin.position + forward * config.detectionRadius);
-        Gizmos.DrawLine(origin.position, origin.position + leftDirection * config.detectionRadius);
-        Gizmos.DrawLine(origin.position, origin.position + rightDirection * config.detectionRadius);
-    }
-
-    private void DrawForwardVerticalViewPreview(Transform origin, EnemyConfig config)
-    {
-        Vector3 forward = Vector3.ProjectOnPlane(origin.forward, Vector3.up);
-
-        if (forward.sqrMagnitude <= 0.001f)
-        {
-            forward = transform.forward;
-        }
-
-        forward.Normalize();
-
-        Vector3 right = Vector3.Cross(Vector3.up, forward);
-
-        if (right.sqrMagnitude <= 0.001f)
-        {
-            right = origin.right;
-        }
-
-        right.Normalize();
-
-        DrawVerticalSlice(
-            origin.position,
-            forward,
-            right,
-            config.verticalViewAngle,
-            config.detectionRadius,
-            new Color(1f, 0.5f, 0f, 0.9f)
-        );
-    }
-
-    private void DrawTargetedVerticalViewGizmos(EnemyConfig config)
-    {
-        Vector3 flatCenterDirection = Vector3.ProjectOnPlane(lastVerticalViewCenterDirection, Vector3.up);
-
-        if (flatCenterDirection.sqrMagnitude <= 0.001f)
-        {
-            flatCenterDirection = transform.forward;
-        }
-
-        flatCenterDirection.Normalize();
-
-        Vector3 right = Vector3.Cross(Vector3.up, flatCenterDirection);
-
-        if (right.sqrMagnitude <= 0.001f)
-        {
-            right = transform.right;
-        }
-
-        right.Normalize();
-
-        DrawVerticalSlice(
-            lastVerticalViewOrigin,
-            lastVerticalViewCenterDirection,
-            right,
-            config.verticalViewAngle,
-            lastVerticalViewDistance,
-            Color.magenta
-        );
-    }
-
-    private void DrawVerticalSlice(
-        Vector3 originPosition,
-        Vector3 centerDirection,
-        Vector3 rightAxis,
-        float verticalViewAngle,
-        float distance,
-        Color color
-    )
-    {
-        if (centerDirection.sqrMagnitude <= 0.001f)
-        {
-            return;
-        }
-
-        centerDirection.Normalize();
-
-        Vector3 upDirection = Quaternion.AngleAxis(
-            -verticalViewAngle * 0.5f,
-            rightAxis
-        ) * centerDirection;
-
-        Vector3 downDirection = Quaternion.AngleAxis(
-            verticalViewAngle * 0.5f,
-            rightAxis
-        ) * centerDirection;
-
-        Gizmos.color = color;
-        Gizmos.DrawLine(originPosition, originPosition + centerDirection * distance);
-        Gizmos.DrawLine(originPosition, originPosition + upDirection * distance);
-        Gizmos.DrawLine(originPosition, originPosition + downDirection * distance);
-    }
-#endif
 }

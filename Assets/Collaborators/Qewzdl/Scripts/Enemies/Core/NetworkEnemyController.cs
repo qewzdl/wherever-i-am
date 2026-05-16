@@ -118,17 +118,6 @@ public class NetworkEnemyController : NetworkBehaviour
     }
 
 #if UNITY_EDITOR
-    private void OnDrawGizmosSelected()
-    {
-        if (config == null)
-        {
-            return;
-        }
-
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawWireSphere(transform.position, config.attackDistance);
-    }
-
     private void Reset()
     {
         CacheComponents();
