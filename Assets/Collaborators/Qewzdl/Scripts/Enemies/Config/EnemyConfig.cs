@@ -68,6 +68,15 @@ public class EnemyConfig : ScriptableObject
 
     public float attackCooldown => attackProfile.attackCooldown;
 
+    public float attackWindupDuration => attackProfile.attackWindupDuration;
+    public float attackCommitDuration => attackProfile.attackCommitDuration;
+    public float attackRecoveryDuration => attackProfile.attackRecoveryDuration;
+    public float attackInterruptedDuration => attackProfile.attackInterruptedDuration;
+    public float attackCommitMaxDistance => Mathf.Max(
+        attackProfile.CommitMaxDistance,
+        attackDistance
+    );
+
     public float patrolPointReachDistance => patrolProfile.patrolPointReachDistance;
     public float patrolStopDuration => patrolProfile.patrolStopDuration;
     public float patrolStopWanderRadius => patrolProfile.patrolStopWanderRadius;

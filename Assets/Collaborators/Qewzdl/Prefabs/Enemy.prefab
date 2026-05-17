@@ -346,6 +346,8 @@ GameObject:
   - component: {fileID: 2340993436687518200}
   - component: {fileID: 8430466429122627016}
   - component: {fileID: 2915486393420281245}
+  - component: {fileID: 5748802255991143052}
+  - component: {fileID: 732498019463342965}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -493,7 +495,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   visionSensor: {fileID: 3681341265359804249}
   hearingSensor: {fileID: 7002212260278922464}
-  preferVisionOverHearing: 1
+  stimulusResolverPolicy:
+    visionAlwaysOverridesHearing: 1
+    allowSwitchToNewVisibleTarget: 1
+    allowHearingToInterruptConfirmedTarget: 0
+    minimumHearingInterruptScore: 2
+    hearingInterruptScoreMultiplier: 2
+    visualTargetTrustDuration: 1.25
+    rememberHearingWhileChasingVisibleTarget: 1
+    rememberHearingWhileUsingVisualMemory: 1
+    confirmedHearingCanStartChase: 0
 --- !u!114 &3485127563032254563
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -570,6 +581,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6bfd1c18b62f42040a9895dd4bb949b5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  noiseWorldService: {fileID: 0}
 --- !u!114 &5660041982996278054
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -785,6 +797,51 @@ MonoBehaviour:
   forwardVerticalViewColor: {r: 1, g: 0.5, b: 0, a: 0.9}
   targetedVerticalViewColor: {r: 1, g: 0, b: 1, a: 1}
   originColor: {r: 0, g: 1, b: 1, a: 1}
+--- !u!114 &5748802255991143052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2bfac8592a000044280d4add463f72cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  attackController: {fileID: 7387159276498090581}
+--- !u!114 &732498019463342965
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 333353f40db7f3a409aaf8d767d8c6a6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkPresenter: {fileID: 5748802255991143052}
+  animator: {fileID: 0}
+  audioSource: {fileID: 0}
+  windupTrigger: AttackWindup
+  commitTrigger: AttackCommit
+  recoveryTrigger: AttackRecovery
+  interruptedTrigger: AttackInterrupted
+  hitTrigger: AttackHit
+  missTrigger: AttackMiss
+  windupSfx: {fileID: 0}
+  commitSfx: {fileID: 0}
+  recoverySfx: {fileID: 0}
+  interruptedSfx: {fileID: 0}
+  hitSfx: {fileID: 0}
+  missSfx: {fileID: 0}
+  commitVfx: {fileID: 0}
+  hitVfx: {fileID: 0}
+  missVfx: {fileID: 0}
+  interruptedVfx: {fileID: 0}
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

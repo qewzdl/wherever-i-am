@@ -21,12 +21,22 @@ public sealed class EnemyAttackState : IEnemyStateHandler
     {
         if (!context.TargetMemory.HasTarget)
         {
+            context.AttackController?.Interrupt(
+                EnemyAttackResultType.InvalidTarget,
+                context.Navigator.Position
+            );
+
             MoveToInvestigationOrReturn();
             return;
         }
 
         if (!context.TargetMemory.IsCurrentTargetValid)
         {
+            context.AttackController?.Interrupt(
+                EnemyAttackResultType.InvalidTarget,
+                context.Navigator.Position
+            );
+
             context.ForgetCurrentTargetButKeepLastKnownPosition();
             MoveToInvestigationOrReturn();
             return;
@@ -38,13 +48,25 @@ public sealed class EnemyAttackState : IEnemyStateHandler
 
         context.InvestigationMemory.RememberLastKnownTargetPosition(targetPosition);
 
-        float distanceToTarget = Vector3.Distance(context.Navigator.Position, targetPosition);
-
         if (context.PerceptionMemory.IsUsingVisualMemory)
         {
+            context.AttackController?.Interrupt(
+                EnemyAttackResultType.Interrupted,
+                context.Navigator.Position
+            );
+
             context.ChangeState(EnemyState.Chase);
             return;
         }
+
+        context.StopNavigation();
+
+        if (context.AttackController != null && context.AttackController.IsBusy)
+        {
+            return;
+        }
+
+        float distanceToTarget = Vector3.Distance(context.Navigator.Position, targetPosition);
 
         if (distanceToTarget > context.Config.attackDistance)
         {
@@ -52,18 +74,32 @@ public sealed class EnemyAttackState : IEnemyStateHandler
             return;
         }
 
-        context.StopNavigation();
-
-        context.AttackController.TryAttack(
+        EnemyAttackResult result = context.AttackController.TryStartAttack(
             context.TargetMemory.CurrentTarget,
             context.Config,
             context.Navigator.Position,
             context.AttackController
         );
+
+        if (result.Type == EnemyAttackResultType.InvalidTarget)
+        {
+            context.ForgetCurrentTargetButKeepLastKnownPosition();
+            MoveToInvestigationOrReturn();
+            return;
+        }
+
+        if (result.Type == EnemyAttackResultType.OutOfRange)
+        {
+            context.ChangeState(EnemyState.Chase);
+        }
     }
 
     public void Exit()
     {
+        context.AttackController?.Interrupt(
+            EnemyAttackResultType.Interrupted,
+            context.Navigator.Position
+        );
     }
 
     private void MoveToInvestigationOrReturn()

@@ -98,7 +98,7 @@ public sealed class EnemyServerBrain
 
         context.RefreshPosture();
 
-        attackController.Tick(deltaTime);
+        attackController?.Tick(deltaTime, navigator.Position);
 
         if (TickVisualTargetMemory(deltaTime))
         {
@@ -112,6 +112,8 @@ public sealed class EnemyServerBrain
 
     public void Dispose()
     {
+        attackController?.Interrupt();
+        
         currentHandler?.Exit();
         currentHandler = null;
 
