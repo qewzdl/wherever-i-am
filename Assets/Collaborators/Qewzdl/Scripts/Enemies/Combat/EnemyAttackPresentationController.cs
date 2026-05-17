@@ -30,17 +30,16 @@ public sealed class EnemyAttackPresentationController : MonoBehaviour
     [SerializeField] private ParticleSystem missVfx;
     [SerializeField] private ParticleSystem interruptedVfx;
 
+    private bool isConfigured;
+
     private void Awake()
     {
-        if (networkPresenter == null)
-        {
-            networkPresenter = GetComponent<EnemyAttackNetworkPresenter>();
-        }
+        isConfigured = ValidateReferences();
     }
 
     private void OnEnable()
     {
-        if (networkPresenter == null)
+        if (!isConfigured)
         {
             return;
         }
@@ -51,13 +50,29 @@ public sealed class EnemyAttackPresentationController : MonoBehaviour
 
     private void OnDisable()
     {
-        if (networkPresenter == null)
+        if (!isConfigured)
         {
             return;
         }
 
         networkPresenter.PhaseReceived -= HandlePhaseReceived;
         networkPresenter.ResultReceived -= HandleResultReceived;
+    }
+
+    private bool ValidateReferences()
+    {
+        if (networkPresenter != null)
+        {
+            return true;
+        }
+
+        Debug.LogError(
+            $"{nameof(EnemyAttackPresentationController)} requires explicit {nameof(EnemyAttackNetworkPresenter)} reference.",
+            this
+        );
+
+        enabled = false;
+        return false;
     }
 
     private void HandlePhaseReceived(EnemyAttackPhaseEvent phaseEvent)
