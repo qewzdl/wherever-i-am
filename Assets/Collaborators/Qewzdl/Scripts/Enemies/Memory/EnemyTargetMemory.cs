@@ -1,6 +1,6 @@
 public sealed class EnemyTargetMemory
 {
-    public const ulong NoTargetClientId = ulong.MaxValue;
+    public const ulong NoTargetClientId = EnemyTargetIdentity.NoTargetClientId;
 
     public EnemyTarget CurrentTarget { get; private set; }
     public EnemyTargetIdentity CurrentTargetIdentity { get; private set; } = EnemyTargetIdentity.None;

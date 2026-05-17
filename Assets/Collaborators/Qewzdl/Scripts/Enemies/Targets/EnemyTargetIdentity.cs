@@ -3,10 +3,12 @@ using Unity.Netcode;
 
 public struct EnemyTargetIdentity : INetworkSerializable, IEquatable<EnemyTargetIdentity>
 {
+    public const ulong NoTargetClientId = ulong.MaxValue;
+
     public static readonly EnemyTargetIdentity None = new(
         false,
         default,
-        EnemyTargetMemory.NoTargetClientId
+        NoTargetClientId
     );
 
     private bool hasTarget;

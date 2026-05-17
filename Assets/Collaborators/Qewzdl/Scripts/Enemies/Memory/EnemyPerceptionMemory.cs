@@ -45,6 +45,11 @@ public sealed class EnemyPerceptionMemory
             return false;
         }
 
+        if (IsUsingVisualMemory && visualMemoryTarget == target)
+        {
+            return true;
+        }
+
         visualMemoryTarget = target;
         IsUsingVisualMemory = true;
         VisualMemoryTimeRemaining = duration;
