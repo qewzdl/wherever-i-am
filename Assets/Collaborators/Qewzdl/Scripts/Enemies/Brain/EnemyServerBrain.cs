@@ -164,21 +164,31 @@ public sealed class EnemyServerBrain
 
     private bool TickVisualTargetMemory(float deltaTime)
     {
-        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
 
-        if (!targetMemory.IsUsingVisualMemory)
+        if (!perceptionMemory.IsUsingVisualMemory)
         {
             return false;
         }
 
-        bool stillHasTarget = targetMemory.TickVisualMemory(deltaTime);
+        bool stillHasTarget = perceptionMemory.TickVisualMemory(
+            deltaTime,
+            out EnemyTarget rememberedTarget,
+            out Vector3 rememberedPosition,
+            out bool hasRememberedPosition
+        );
 
-        if (stillHasTarget)
+        if (hasRememberedPosition)
+        {
+            blackboard.InvestigationMemory.RememberLastKnownTargetPosition(rememberedPosition);
+        }
+
+        if (stillHasTarget && rememberedTarget != null)
         {
             blackboard.SetCurrentStimulus(
                 EnemyPerceptionStimulus.ForConfirmedTarget(
-                    targetMemory.CurrentTarget,
-                    targetMemory.GetCurrentTargetPosition(),
+                    rememberedTarget,
+                    rememberedPosition,
                     1f,
                     EnemyPerceptionSource.Vision
                 ),
@@ -188,6 +198,7 @@ public sealed class EnemyServerBrain
             return false;
         }
 
+        blackboard.TargetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
         blackboard.ClearCurrentStimulus();
         SyncTarget();
 
@@ -241,17 +252,23 @@ public sealed class EnemyServerBrain
     private void ApplyConfirmedTargetStimulus(EnemyPerceptionStimulus stimulus)
     {
         EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
+        EnemyInvestigationMemory investigationMemory = blackboard.InvestigationMemory;
 
         if (targetMemory.HasTarget && targetMemory.CurrentTarget == stimulus.Target)
         {
-            targetMemory.RefreshConfirmedTarget(stimulus.Position);
+            targetMemory.RefreshConfirmedTarget(stimulus.Target);
         }
         else
         {
-            targetMemory.SetTarget(stimulus.Target, stimulus.Position);
+            targetMemory.SetTarget(stimulus.Target);
         }
 
-        targetMemory.ClearSecondarySuspiciousPosition();
+        investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
+        investigationMemory.ClearSuspiciousPosition();
+
+        perceptionMemory.CancelVisualMemory();
+
         SyncTarget();
 
         if (currentState != EnemyState.Chase && currentState != EnemyState.Attack)
@@ -268,20 +285,26 @@ public sealed class EnemyServerBrain
         }
 
         EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
+        EnemyInvestigationMemory investigationMemory = blackboard.InvestigationMemory;
 
         if (IsPursuingConfirmedTarget())
         {
-            targetMemory.RememberSecondarySuspiciousPosition(stimulus.Position);
+            investigationMemory.RememberSuspiciousPosition(stimulus.Position);
             return;
         }
 
         if (targetMemory.HasTarget)
         {
-            targetMemory.TryStartVisualMemoryGracePeriod(config.visualTargetMemoryDuration);
+            perceptionMemory.TryStartVisualMemoryGracePeriod(
+                targetMemory.CurrentTarget,
+                config.visualTargetMemoryDuration
+            );
+
             return;
         }
 
-        targetMemory.RememberPosition(stimulus.Position);
+        investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
 
         if (currentState != EnemyState.Investigate)
         {
@@ -303,12 +326,16 @@ public sealed class EnemyServerBrain
         blackboard.ClearCurrentStimulus();
 
         EnemyTargetMemory targetMemory = blackboard.TargetMemory;
+        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
 
         if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
         {
             if (targetMemory.HasTarget)
             {
-                targetMemory.TryStartVisualMemoryGracePeriod(config.visualTargetMemoryDuration);
+                perceptionMemory.TryStartVisualMemoryGracePeriod(
+                    targetMemory.CurrentTarget,
+                    config.visualTargetMemoryDuration
+                );
             }
 
             return;
@@ -322,6 +349,9 @@ public sealed class EnemyServerBrain
         if (targetMemory.HasTarget || targetMemory.CurrentTargetIdentity.HasTarget)
         {
             targetMemory.ClearAll();
+            perceptionMemory.ClearAll();
+            blackboard.InvestigationMemory.ClearAll();
+
             SyncTarget();
         }
     }

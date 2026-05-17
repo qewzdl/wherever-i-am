@@ -15,6 +15,8 @@ public sealed class EnemyBrainContext
     public EnemyBlackboard Blackboard { get; }
 
     public EnemyTargetMemory TargetMemory => Blackboard.TargetMemory;
+    public EnemyPerceptionMemory PerceptionMemory => Blackboard.PerceptionMemory;
+    public EnemyInvestigationMemory InvestigationMemory => Blackboard.InvestigationMemory;
     public EnemyInvestigationDebugData InvestigationDebugData => Blackboard.InvestigationDebugData;
 
     public bool HasPatrolRoute => PatrolController != null && PatrolController.HasRoute;
@@ -102,18 +104,22 @@ public sealed class EnemyBrainContext
     public void ClearTargetOnly()
     {
         TargetMemory.ClearTargetOnly();
+        PerceptionMemory.CancelVisualMemory();
         SyncTarget();
     }
 
     public void ForgetCurrentTargetButKeepLastKnownPosition()
     {
         TargetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
+        PerceptionMemory.CancelVisualMemory();
         SyncTarget();
     }
 
     public void ClearAllTargetMemory()
     {
         TargetMemory.ClearAll();
+        PerceptionMemory.ClearAll();
+        InvestigationMemory.ClearAll();
         SyncTarget();
     }
 

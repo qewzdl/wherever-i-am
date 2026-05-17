@@ -3,55 +3,41 @@ using UnityEngine;
 
 public sealed class EnemyBlackboard
 {
-    private readonly List<EnemyInvestigationSearchPoint> currentInvestigationRoute = new();
-
     public EnemyTargetMemory TargetMemory { get; } = new();
+    public EnemyPerceptionMemory PerceptionMemory { get; } = new();
+    public EnemyInvestigationMemory InvestigationMemory { get; } = new();
+
     public EnemyInvestigationDebugData InvestigationDebugData { get; } = new();
 
     public EnemyTarget CurrentTarget => TargetMemory.CurrentTarget;
 
-    public EnemyPerceptionStimulus CurrentStimulus { get; private set; } = EnemyPerceptionStimulus.None;
+    public EnemyPerceptionStimulus CurrentStimulus => PerceptionMemory.CurrentStimulus;
 
     public EnemyPosture CurrentPosture { get; private set; } = EnemyPosture.Standing;
 
     public Vector3 CurrentDestination { get; private set; }
     public bool HasCurrentDestination { get; private set; }
 
-    public Vector3 SuspiciousPosition => TargetMemory.SecondarySuspiciousPosition;
-    public bool HasSuspiciousPosition => TargetMemory.HasSecondarySuspiciousPosition;
+    public Vector3 SuspiciousPosition => InvestigationMemory.SuspiciousPosition;
+    public bool HasSuspiciousPosition => InvestigationMemory.HasSuspiciousPosition;
 
-    public Vector3 LastKnownTargetPosition => TargetMemory.LastKnownTargetPosition;
-    public bool HasLastKnownTargetPosition => TargetMemory.HasLastKnownTargetPosition;
+    public Vector3 LastKnownTargetPosition => InvestigationMemory.LastKnownTargetPosition;
+    public bool HasLastKnownTargetPosition => InvestigationMemory.HasLastKnownTargetPosition;
 
-    public float LastVisibleTime { get; private set; } = -1f;
-    public float LastHeardTime { get; private set; } = -1f;
+    public float LastVisibleTime => PerceptionMemory.LastVisibleTime;
+    public float LastHeardTime => PerceptionMemory.LastHeardTime;
 
-    public IReadOnlyList<EnemyInvestigationSearchPoint> CurrentInvestigationRoute => currentInvestigationRoute;
+    public IReadOnlyList<EnemyInvestigationSearchPoint> CurrentInvestigationRoute =>
+        InvestigationMemory.CurrentInvestigationRoute;
 
     public void SetCurrentStimulus(EnemyPerceptionStimulus stimulus, float serverTime)
     {
-        CurrentStimulus = stimulus;
-
-        if (!stimulus.HasStimulus)
-        {
-            return;
-        }
-
-        if (stimulus.Source == EnemyPerceptionSource.Vision)
-        {
-            LastVisibleTime = serverTime;
-            return;
-        }
-
-        if (stimulus.Source == EnemyPerceptionSource.Hearing)
-        {
-            LastHeardTime = serverTime;
-        }
+        PerceptionMemory.SetCurrentStimulus(stimulus, serverTime);
     }
 
     public void ClearCurrentStimulus()
     {
-        CurrentStimulus = EnemyPerceptionStimulus.None;
+        PerceptionMemory.ClearCurrentStimulus();
     }
 
     public void SetCurrentPosture(EnemyPosture posture)
@@ -73,22 +59,17 @@ public sealed class EnemyBlackboard
 
     public void SetCurrentInvestigationRoute(IReadOnlyList<EnemyInvestigationSearchPoint> route)
     {
-        currentInvestigationRoute.Clear();
+        InvestigationMemory.SetCurrentInvestigationRoute(route);
+    }
 
-        if (route == null)
-        {
-            return;
-        }
-
-        for (int i = 0; i < route.Count; i++)
-        {
-            currentInvestigationRoute.Add(route[i]);
-        }
+    public void SetActiveInvestigationRouteIndex(int routeIndex)
+    {
+        InvestigationMemory.SetActiveSearchRouteIndex(routeIndex);
     }
 
     public void ClearCurrentInvestigationRoute()
     {
-        currentInvestigationRoute.Clear();
+        InvestigationMemory.ClearCurrentInvestigationRoute();
     }
 
     public void ClearTargetMemory()
@@ -98,15 +79,13 @@ public sealed class EnemyBlackboard
 
     public void ClearAll()
     {
-        ClearCurrentStimulus();
         ClearCurrentDestination();
-        ClearCurrentInvestigationRoute();
 
-        LastVisibleTime = -1f;
-        LastHeardTime = -1f;
         CurrentPosture = EnemyPosture.Standing;
 
         TargetMemory.ClearAll();
+        PerceptionMemory.ClearAll();
+        InvestigationMemory.ClearAll();
         InvestigationDebugData.Clear();
     }
 }

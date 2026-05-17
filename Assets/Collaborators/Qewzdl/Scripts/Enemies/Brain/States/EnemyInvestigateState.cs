@@ -100,7 +100,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         phase = InvestigationPhase.FollowingSearchRoute;
         currentSearchPointIndex = 0;
 
-        context.TargetMemory.ClearPrimaryInvestigationPosition();
+        context.InvestigationMemory.ClearLastKnownTargetPosition();
 
         searchPlanner.BuildHierarchicalSearchPlan(
             investigationOrigin,
@@ -159,6 +159,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             }
 
             context.InvestigationDebugData?.SetActiveRouteIndex(routeIndex);
+            context.Blackboard.SetActiveInvestigationRouteIndex(routeIndex);
+
             return;
         }
 
@@ -167,7 +169,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private void TryMoveToSecondaryOrFinish()
     {
-        if (context.TargetMemory.PromoteSecondarySuspiciousPositionToLastKnown())
+        if (context.InvestigationMemory.PromoteSuspiciousPositionToLastKnown())
         {
             if (TryResolveInvestigationOrigin(out investigationOrigin))
             {
@@ -202,14 +204,14 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private bool TryResolveInvestigationOrigin(out Vector3 position)
     {
-        if (context.TargetMemory.TryGetLastKnownTargetPosition(out position))
+        if (context.InvestigationMemory.TryGetLastKnownTargetPosition(out position))
         {
             return true;
         }
 
-        if (context.TargetMemory.PromoteSecondarySuspiciousPositionToLastKnown())
+        if (context.InvestigationMemory.PromoteSuspiciousPositionToLastKnown())
         {
-            return context.TargetMemory.TryGetLastKnownTargetPosition(out position);
+            return context.InvestigationMemory.TryGetLastKnownTargetPosition(out position);
         }
 
         position = default;

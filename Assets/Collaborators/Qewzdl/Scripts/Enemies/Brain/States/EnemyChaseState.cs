@@ -30,11 +30,11 @@ public sealed class EnemyChaseState : IEnemyStateHandler
             return;
         }
 
-        Vector3 targetPosition = context.TargetMemory.IsUsingVisualMemory
-            ? context.TargetMemory.GetCurrentTargetPosition()
+        Vector3 targetPosition = context.PerceptionMemory.IsUsingVisualMemory
+            ? context.PerceptionMemory.GetVisualMemoryTargetPosition()
             : context.GetTargetNavigationPosition(context.TargetMemory.CurrentTarget);
 
-        context.TargetMemory.RememberPosition(targetPosition);
+        context.InvestigationMemory.RememberLastKnownTargetPosition(targetPosition);
 
         float distanceToTarget = Vector3.Distance(context.Navigator.Position, targetPosition);
 
@@ -45,7 +45,7 @@ public sealed class EnemyChaseState : IEnemyStateHandler
             return;
         }
 
-        if (!context.TargetMemory.IsUsingVisualMemory &&
+        if (!context.PerceptionMemory.IsUsingVisualMemory &&
             distanceToTarget <= context.Config.attackDistance)
         {
             context.ChangeState(EnemyState.Attack);
@@ -61,7 +61,7 @@ public sealed class EnemyChaseState : IEnemyStateHandler
 
     private void MoveToInvestigationOrReturn()
     {
-        if (context.TargetMemory.HasLastKnownTargetPosition)
+        if (context.InvestigationMemory.HasLastKnownTargetPosition)
         {
             context.ChangeState(EnemyState.Investigate);
             return;
