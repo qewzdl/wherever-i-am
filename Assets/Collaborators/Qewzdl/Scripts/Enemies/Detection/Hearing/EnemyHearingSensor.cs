@@ -3,13 +3,37 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
 {
+    [SerializeField] private EnemyNoiseWorldService noiseWorldService;
+
+    public void Construct(EnemyNoiseWorldService service)
+    {
+        noiseWorldService = service;
+    }
+
     public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
     {
-        return EnemyNoiseSystem.TryFindBestNoise(
+        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        {
+            stimulus = EnemyPerceptionStimulus.None;
+            return false;
+        }
+
+        return service.TryFindBestNoise(
             transform.position,
             config,
             out stimulus
         );
+    }
+
+    private bool TryGetNoiseWorldService(out EnemyNoiseWorldService service)
+    {
+        if (noiseWorldService == null)
+        {
+            noiseWorldService = FindFirstObjectByType<EnemyNoiseWorldService>();
+        }
+
+        service = noiseWorldService;
+        return service != null;
     }
 
 #if UNITY_EDITOR

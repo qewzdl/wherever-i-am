@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public sealed class GameCompositionRoot : CompositionRoot
 {
@@ -7,7 +8,8 @@ public sealed class GameCompositionRoot : CompositionRoot
     [SerializeField] private NetworkSessionOrchestrator sessionService;
 
     [Header("Enemies")]
-    [SerializeField] private EnemyNoiseLifecycle enemyNoiseLifecycle;
+    [FormerlySerializedAs("enemyNoiseLifecycle")]
+    [SerializeField] private EnemyNoiseWorldService enemyNoiseWorldService;
 
     [Header("Pause")]
     [SerializeField] private GamePauseService pauseService;
@@ -28,8 +30,8 @@ public sealed class GameCompositionRoot : CompositionRoot
                 ? NetworkSessionOrchestrator.Instance
                 : FindFirstObjectByType<NetworkSessionOrchestrator>();
 
-        if (enemyNoiseLifecycle == null)
-            enemyNoiseLifecycle = FindFirstObjectByType<EnemyNoiseLifecycle>();
+        if (enemyNoiseWorldService == null)
+            enemyNoiseWorldService = FindFirstObjectByType<EnemyNoiseWorldService>();
 
         if (pauseService == null)
             pauseService = FindFirstObjectByType<GamePauseService>();
@@ -49,10 +51,13 @@ public sealed class GameCompositionRoot : CompositionRoot
 
     protected override void Compose()
     {
-        if (enemyNoiseLifecycle != null)
-            enemyNoiseLifecycle.Initialize();
+        if (enemyNoiseWorldService != null)
+        {
+            enemyNoiseWorldService.Initialize();
+            ConstructEnemyNoiseUsers();
+        }
         else
-            Debug.LogWarning($"{nameof(EnemyNoiseLifecycle)} was not found. Enemy noise events will not be cleared by gameplay lifecycle.");
+            Debug.LogWarning($"{nameof(EnemyNoiseWorldService)} was not found. Enemy hearing will not receive noise events.");
 
         if (pauseService == null)
         {
@@ -73,5 +78,28 @@ public sealed class GameCompositionRoot : CompositionRoot
 
         if (mouseLook != null)
             mouseLook.Construct(pauseService);
+    }
+
+    private void ConstructEnemyNoiseUsers()
+    {
+        EnemyNoiseEmitter[] emitters = FindObjectsByType<EnemyNoiseEmitter>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+
+        foreach (EnemyNoiseEmitter emitter in emitters)
+        {
+            emitter.Construct(enemyNoiseWorldService);
+        }
+
+        EnemyHearingSensor[] hearingSensors = FindObjectsByType<EnemyHearingSensor>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+
+        foreach (EnemyHearingSensor hearingSensor in hearingSensors)
+        {
+            hearingSensor.Construct(enemyNoiseWorldService);
+        }
     }
 }

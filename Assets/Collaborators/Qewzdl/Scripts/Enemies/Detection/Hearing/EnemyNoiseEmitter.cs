@@ -6,10 +6,21 @@ public class EnemyNoiseEmitter : MonoBehaviour
     [SerializeField, Min(0f)] private float radius = 8f;
     [SerializeField, Min(0f)] private float loudness = 1f;
     [SerializeField] private EnemyTarget sourceTarget;
+    [SerializeField] private EnemyNoiseWorldService noiseWorldService;
+
+    public void Construct(EnemyNoiseWorldService service)
+    {
+        noiseWorldService = service;
+    }
 
     public bool RaiseNoiseServer()
     {
-        return EnemyNoiseSystem.TryRaiseNoiseServer(
+        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        {
+            return false;
+        }
+
+        return service.TryRaiseNoiseServer(
             transform.position,
             radius,
             loudness,
@@ -20,7 +31,12 @@ public class EnemyNoiseEmitter : MonoBehaviour
 
     public bool RaiseNoiseServer(Vector3 position)
     {
-        return EnemyNoiseSystem.TryRaiseNoiseServer(
+        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        {
+            return false;
+        }
+
+        return service.TryRaiseNoiseServer(
             position,
             radius,
             loudness,
@@ -31,13 +47,29 @@ public class EnemyNoiseEmitter : MonoBehaviour
 
     public bool RaiseNoiseServer(float customRadius, float customLoudness)
     {
-        return EnemyNoiseSystem.TryRaiseNoiseServer(
+        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        {
+            return false;
+        }
+
+        return service.TryRaiseNoiseServer(
             transform.position,
             customRadius,
             customLoudness,
             sourceTarget,
             this
         );
+    }
+
+    private bool TryGetNoiseWorldService(out EnemyNoiseWorldService service)
+    {
+        if (noiseWorldService == null)
+        {
+            noiseWorldService = FindFirstObjectByType<EnemyNoiseWorldService>();
+        }
+
+        service = noiseWorldService;
+        return service != null;
     }
 
 #if UNITY_EDITOR

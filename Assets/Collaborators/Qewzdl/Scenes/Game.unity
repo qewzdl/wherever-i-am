@@ -284,7 +284,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   stateMachine: {fileID: 0}
   sessionService: {fileID: 0}
-  enemyNoiseLifecycle: {fileID: 212283891}
+  enemyNoiseWorldService: {fileID: 212283891}
   pauseService: {fileID: 212283889}
   pauseMenuInput: {fileID: 212283888}
   pauseMenuUI: {fileID: 367437486}
@@ -302,6 +302,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eba7002d86c8b36488e0a1c30f4866d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  maxStoredNoises: 128
+  networkManager: {fileID: 0}
   clearOnInitialize: 1
   clearOnDestroy: 1
   clearWithoutActiveNetworkSession: 1
