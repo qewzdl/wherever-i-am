@@ -3,37 +3,51 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
 {
-    [SerializeField] private EnemyNoiseWorldService noiseWorldService;
+    private EnemyNoiseWorldService noiseWorldService;
+    private bool missingNoiseWorldServiceLogged;
 
     public void Construct(EnemyNoiseWorldService service)
     {
         noiseWorldService = service;
+        missingNoiseWorldServiceLogged = false;
+
+        if (noiseWorldService == null)
+        {
+            LogMissingNoiseWorldService();
+        }
     }
 
     public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
     {
-        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        stimulus = EnemyPerceptionStimulus.None;
+
+        if (noiseWorldService == null)
         {
-            stimulus = EnemyPerceptionStimulus.None;
+            LogMissingNoiseWorldService();
             return false;
         }
 
-        return service.TryFindBestNoise(
+        return noiseWorldService.TryFindBestNoise(
             transform.position,
             config,
             out stimulus
         );
     }
 
-    private bool TryGetNoiseWorldService(out EnemyNoiseWorldService service)
+    private void LogMissingNoiseWorldService()
     {
-        if (noiseWorldService == null)
+        if (missingNoiseWorldServiceLogged)
         {
-            noiseWorldService = FindFirstObjectByType<EnemyNoiseWorldService>();
+            return;
         }
 
-        service = noiseWorldService;
-        return service != null;
+        missingNoiseWorldServiceLogged = true;
+
+        Debug.LogError(
+            $"{nameof(EnemyHearingSensor)} requires {nameof(EnemyNoiseWorldService)}. " +
+            "Assign it through scene composition before perception ticks.",
+            this
+        );
     }
 
 #if UNITY_EDITOR
