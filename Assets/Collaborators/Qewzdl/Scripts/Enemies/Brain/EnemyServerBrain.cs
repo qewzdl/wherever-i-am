@@ -232,21 +232,68 @@ public sealed class EnemyServerBrain
             return;
         }
 
-        if (!targetDetector.TryFindBestStimulus(config, out EnemyPerceptionStimulus stimulus))
+        if (!targetDetector.TryResolveBestStimulus(
+                config,
+                blackboard,
+                currentState,
+                out EnemyStimulusResolution resolution
+            ))
         {
             HandleNoStimulus();
             return;
         }
 
-        blackboard.SetCurrentStimulus(stimulus, Time.time);
+        ApplyStimulusResolution(resolution);
+    }
 
-        if (stimulus.IsConfirmedTarget && stimulus.HasTarget)
+    private void ApplyStimulusResolution(EnemyStimulusResolution resolution)
+    {
+        if (!resolution.HasResolution)
         {
-            ApplyConfirmedTargetStimulus(stimulus);
+            HandleNoStimulus();
             return;
         }
 
-        ApplySuspiciousStimulus(stimulus);
+        blackboard.SetCurrentStimulus(resolution.PrimaryStimulus, Time.time);
+
+        switch (resolution.Action)
+        {
+            case EnemyStimulusResolutionAction.ChaseConfirmedTarget:
+                ApplyConfirmedTargetStimulus(resolution.PrimaryStimulus);
+
+                if (resolution.HasSecondaryStimulus)
+                {
+                    RememberSecondarySuspiciousStimulus(resolution.SecondaryStimulus);
+                }
+
+                break;
+
+            case EnemyStimulusResolutionAction.InvestigateSuspiciousPosition:
+                ApplySuspiciousStimulus(
+                    resolution.PrimaryStimulus,
+                    resolution.ShouldClearCurrentTarget
+                );
+
+                break;
+
+            case EnemyStimulusResolutionAction.RememberSecondarySuspicion:
+                RememberSecondarySuspiciousStimulus(resolution.PrimaryStimulus);
+                break;
+
+            default:
+                HandleNoStimulus();
+                break;
+        }
+    }
+
+    private void RememberSecondarySuspiciousStimulus(EnemyPerceptionStimulus stimulus)
+    {
+        if (!stimulus.HasStimulus)
+        {
+            return;
+        }
+
+        blackboard.InvestigationMemory.RememberSuspiciousPosition(stimulus.Position);
     }
 
     private void ApplyConfirmedTargetStimulus(EnemyPerceptionStimulus stimulus)
@@ -277,7 +324,10 @@ public sealed class EnemyServerBrain
         }
     }
 
-    private void ApplySuspiciousStimulus(EnemyPerceptionStimulus stimulus)
+    private void ApplySuspiciousStimulus(
+        EnemyPerceptionStimulus stimulus,
+        bool forceInvestigate = false
+    )
     {
         if (!stimulus.HasStimulus)
         {
@@ -288,13 +338,13 @@ public sealed class EnemyServerBrain
         EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
         EnemyInvestigationMemory investigationMemory = blackboard.InvestigationMemory;
 
-        if (IsPursuingConfirmedTarget())
+        if (!forceInvestigate && IsPursuingConfirmedTarget())
         {
             investigationMemory.RememberSuspiciousPosition(stimulus.Position);
             return;
         }
 
-        if (targetMemory.HasTarget)
+        if (!forceInvestigate && targetMemory.HasTarget)
         {
             perceptionMemory.TryStartVisualMemoryGracePeriod(
                 targetMemory.CurrentTarget,
@@ -302,6 +352,13 @@ public sealed class EnemyServerBrain
             );
 
             return;
+        }
+
+        if (forceInvestigate && targetMemory.HasTarget)
+        {
+            targetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
+            perceptionMemory.CancelVisualMemory();
+            SyncTarget();
         }
 
         investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);

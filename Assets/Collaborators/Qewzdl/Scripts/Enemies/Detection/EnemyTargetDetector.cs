@@ -7,17 +7,24 @@ public class EnemyTargetDetector : MonoBehaviour
     [SerializeField] private EnemyVisionSensor visionSensor;
     [SerializeField] private EnemyHearingSensor hearingSensor;
 
-    [Header("Priority")]
-    [SerializeField] private bool preferVisionOverHearing = true;
+    [Header("Stimulus Resolution")]
+    [SerializeField] private EnemyStimulusResolverPolicy stimulusResolverPolicy = new();
+
+    private readonly EnemyStimulusResolver stimulusResolver = new();
 
     private void Awake()
     {
         CacheSensors();
     }
 
-    public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
+    public bool TryResolveBestStimulus(
+        EnemyConfig config,
+        EnemyBlackboard blackboard,
+        EnemyState currentState,
+        out EnemyStimulusResolution resolution
+    )
     {
-        stimulus = EnemyPerceptionStimulus.None;
+        resolution = EnemyStimulusResolution.None;
 
         CacheSensors();
 
@@ -25,38 +32,41 @@ public class EnemyTargetDetector : MonoBehaviour
         bool hasVisionStimulus = visionSensor != null &&
                                  visionSensor.TryFindBestStimulus(config, out visionStimulus);
 
-        if (preferVisionOverHearing && hasVisionStimulus)
-        {
-            stimulus = visionStimulus;
-            return true;
-        }
-
         EnemyPerceptionStimulus hearingStimulus = EnemyPerceptionStimulus.None;
         bool hasHearingStimulus = hearingSensor != null &&
                                   hearingSensor.TryFindBestStimulus(config, out hearingStimulus);
 
-        if (!hasVisionStimulus && !hasHearingStimulus)
+        EnemyStimulusResolveContext resolveContext = new(
+            config,
+            blackboard,
+            currentState,
+            visionStimulus,
+            hasVisionStimulus,
+            hearingStimulus,
+            hasHearingStimulus,
+            Time.time
+        );
+
+        resolution = stimulusResolver.Resolve(resolveContext, stimulusResolverPolicy);
+        return resolution.HasResolution;
+    }
+
+    public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
+    {
+        stimulus = EnemyPerceptionStimulus.None;
+
+        if (!TryResolveBestStimulus(
+                config,
+                null,
+                EnemyState.Idle,
+                out EnemyStimulusResolution resolution
+            ))
         {
             return false;
         }
 
-        if (hasVisionStimulus && !hasHearingStimulus)
-        {
-            stimulus = visionStimulus;
-            return true;
-        }
-
-        if (!hasVisionStimulus)
-        {
-            stimulus = hearingStimulus;
-            return true;
-        }
-
-        stimulus = visionStimulus.Score >= hearingStimulus.Score
-            ? visionStimulus
-            : hearingStimulus;
-
-        return true;
+        stimulus = resolution.PrimaryStimulus;
+        return stimulus.HasStimulus;
     }
 
     public EnemyTarget FindBestVisibleTarget(EnemyConfig config)
@@ -87,6 +97,11 @@ public class EnemyTargetDetector : MonoBehaviour
     private void OnValidate()
     {
         CacheSensors();
+
+        if (stimulusResolverPolicy == null)
+        {
+            stimulusResolverPolicy = new EnemyStimulusResolverPolicy();
+        }
     }
 #endif
 }
