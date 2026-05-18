@@ -15,8 +15,10 @@ public class PlayerSetup : NetworkBehaviour
 
     public void SetupPlayer()
     {
+        NetworkManager networkManager = NetworkManager.Singleton;
+        bool isMultiplayer = networkManager != null && networkManager.IsListening;
 
-        if (NetworkManager.Singleton) // Multiplayer
+        if (isMultiplayer)
         {
             GetComponent<NetworkObject>().enabled = true;
             GetComponent<NetworkTransform>().enabled = true;
@@ -65,7 +67,7 @@ public class PlayerSetup : NetworkBehaviour
             Destroy(component);
         }
 
-        GetComponent<PlayerOrchestrator>().Setup(NetworkManager.Singleton, IsOwner);
+        GetComponent<PlayerOrchestrator>().Setup(isMultiplayer, isMultiplayer && IsOwner);
 
         Destroy(this);
     }

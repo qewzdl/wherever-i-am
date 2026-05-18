@@ -130,7 +130,8 @@ GameObject:
   - component: {fileID: 481142976}
   - component: {fileID: 481142983}
   - component: {fileID: 481142982}
-  - component: {fileID: 481142977}
+  - component: {fileID: 481142986}
+  - component: {fileID: 481142987}
   - component: {fileID: 481142978}
   - component: {fileID: 481142980}
   - component: {fileID: 481142979}
@@ -159,7 +160,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &481142977
+--- !u!114 &481142986
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -168,11 +169,30 @@ MonoBehaviour:
   m_GameObject: {fileID: 481142975}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: acc6efdbc70efc14d8789df6662d7bc4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  mainMenuSceneName: Main Menu
+  m_Script: {fileID: 11500000, guid: 76352c58339f47129d0f8dadbeea0a72, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  settings: {fileID: 11400000, guid: a7ef7d2849b642b4a65225007f1fe78e, type: 2}
   stateMachine: {fileID: 481142978}
+  sessionOrchestrator: {fileID: 481142980}
+  connectionService: {fileID: 481142981}
+  sceneLoader: {fileID: 481142979}
+  uiErrorManager: {fileID: 1020719287}
+  audioManager: {fileID: 1269671436}
+--- !u!114 &481142987
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebb0b9325411473d9a48332dc4a94e33, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  loadStartupScene: 1
+  context: {fileID: 481142986}
 --- !u!114 &481142978
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -197,9 +217,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c7e9e285ac228a24996fe9455c5797a1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mainMenuSceneName: Main Menu
-  lobbySceneName: Lobby
-  gameSceneName: Game
+  projectContext: {fileID: 481142986}
 --- !u!114 &481142980
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -217,6 +235,7 @@ MonoBehaviour:
   connectionService: {fileID: 481142981}
   sceneLoader: {fileID: 481142979}
   chatSessionSpawner: {fileID: 481142984}
+  projectContext: {fileID: 481142986}
   playerPrefab: {fileID: 5710508612914273328, guid: a6b1763c8abbebe4989088f71540c4bc, type: 3}
 --- !u!114 &481142981
 MonoBehaviour:

@@ -1055,8 +1055,9 @@ GameObject:
   m_Component:
   - component: {fileID: 918273642}
   - component: {fileID: 918273643}
+  - component: {fileID: 918273644}
   m_Layer: 0
-  m_Name: MainMenuCompositionRoot
+  m_Name: SceneRuntime
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1086,11 +1087,26 @@ MonoBehaviour:
   m_GameObject: {fileID: 918273640}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e16364b7d3d9c3f4abe91d2c33cd3c6c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sessionService: {fileID: 0}
-  mainMenuUI: {fileID: 111286751}
+  m_Script: {fileID: 11500000, guid: e37cd7a3fb1e417f95d27af86a8ba1af, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sceneKind: 2
+  installOnAwake: 1
+  features:
+  - {fileID: 918273644}
+--- !u!114 &918273644
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 918273640}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fda1e80604e5457da651fb43249572d8, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  mainMenu: {fileID: 111286751}
 --- !u!1 &925394044
 GameObject:
   m_ObjectHideFlags: 0

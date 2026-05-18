@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public sealed class PauseMenuUI : MonoBehaviour
+public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
 {
     [Header("Root")]
     [SerializeField] private GameObject root;
@@ -26,6 +26,11 @@ public sealed class PauseMenuUI : MonoBehaviour
 
         Subscribe();
         HandlePauseStateChanged(this.pauseService != null && this.pauseService.IsPaused);
+    }
+
+    public void BindPauseService(IPauseService pauseService)
+    {
+        Construct(pauseService, sessionService);
     }
 
     private void OnDestroy()

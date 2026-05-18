@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class MouseLook : MonoBehaviour
+public class MouseLook : MonoBehaviour, IPauseServiceConsumer
 {
     [SerializeField] private Transform playerTransform;
     [SerializeField] private float sensitivity = 100f;
@@ -14,6 +14,11 @@ public class MouseLook : MonoBehaviour
     public void Construct(IPauseService pauseService)
     {
         this.pauseService = pauseService;
+    }
+
+    public void BindPauseService(IPauseService pauseService)
+    {
+        Construct(pauseService);
     }
 
     private void Update()

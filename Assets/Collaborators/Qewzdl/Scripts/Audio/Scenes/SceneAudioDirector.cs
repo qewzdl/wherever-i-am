@@ -77,7 +77,7 @@ public class SceneAudioDirector : MonoBehaviour
 
         if (profile == null)
         {
-            if (logMissingProfile)
+            if (ShouldLogMissingProfile(sceneName))
             {
                 Debug.LogWarning($"SceneAudioDirector: No audio profile found for scene '{sceneName}'.");
             }
@@ -127,5 +127,15 @@ public class SceneAudioDirector : MonoBehaviour
         {
             audioManager.UI.ClearTheme();
         }
+    }
+
+    private bool ShouldLogMissingProfile(string sceneName)
+    {
+        if (!logMissingProfile)
+            return false;
+
+        ProjectContext context = ProjectContext.Instance;
+
+        return context == null || !context.IsScene(context.GetBootstrapSceneKind(), sceneName);
     }
 }

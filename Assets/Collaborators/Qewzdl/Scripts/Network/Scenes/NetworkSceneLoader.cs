@@ -4,24 +4,31 @@ using UnityEngine.SceneManagement;
 
 public class NetworkSceneLoader : MonoBehaviour
 {
-    [SerializeField] private string mainMenuSceneName = "Main Menu";
-    [SerializeField] private string lobbySceneName = "Lobby";
-    [SerializeField] private string gameSceneName = "Game";
+    private const string FallbackMainMenuSceneName = "Main Menu";
+    private const string FallbackLobbySceneName = "Lobby";
+    private const string FallbackGameSceneName = "Game";
 
-    public string MainMenuSceneName => mainMenuSceneName;
-    public string LobbySceneName => lobbySceneName;
-    public string GameSceneName => gameSceneName;
+    [SerializeField] private ProjectContext projectContext;
+
+    public string MainMenuSceneName => GetSceneName(ProjectSceneKind.MainMenu, FallbackMainMenuSceneName);
+    public string LobbySceneName => GetSceneName(ProjectSceneKind.Lobby, FallbackLobbySceneName);
+    public string GameSceneName => GetSceneName(ProjectSceneKind.Game, FallbackGameSceneName);
+
+    private void Awake()
+    {
+        ResolveProjectContext();
+    }
 
     public void LoadMainMenu()
     {
-        SceneManager.LoadScene(mainMenuSceneName, LoadSceneMode.Single);
+        SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
     }
 
     public bool LoadLobby()
     {
         if (!CanLoadNetworkScene()) return false;
 
-        NetworkManager.Singleton.SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
+        NetworkManager.Singleton.SceneManager.LoadScene(LobbySceneName, LoadSceneMode.Single);
         return true;
     }
 
@@ -29,8 +36,31 @@ public class NetworkSceneLoader : MonoBehaviour
     {
         if (!CanLoadNetworkScene()) return false;
 
-        NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+        NetworkManager.Singleton.SceneManager.LoadScene(GameSceneName, LoadSceneMode.Single);
         return true;
+    }
+
+    private void ResolveProjectContext()
+    {
+        if (projectContext == null)
+            projectContext = GetComponent<ProjectContext>();
+
+        if (projectContext == null)
+            projectContext = ProjectContext.Instance;
+    }
+
+    private string GetSceneName(ProjectSceneKind sceneKind, string fallbackSceneName)
+    {
+        ResolveProjectContext();
+
+        if (projectContext == null)
+            return fallbackSceneName;
+
+        string sceneName = projectContext.GetSceneName(sceneKind);
+
+        return string.IsNullOrWhiteSpace(sceneName)
+            ? fallbackSceneName
+            : sceneName;
     }
 
     private bool CanLoadNetworkScene()

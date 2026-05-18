@@ -266,8 +266,9 @@ GameObject:
   m_Component:
   - component: {fileID: 96767718}
   - component: {fileID: 96767719}
+  - component: {fileID: 96767720}
   m_Layer: 0
-  m_Name: LobbyCompositionRoot
+  m_Name: SceneRuntime
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -297,14 +298,29 @@ MonoBehaviour:
   m_GameObject: {fileID: 96767716}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43d3a97213b6f484889f07f5d8969bd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sessionService: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: e37cd7a3fb1e417f95d27af86a8ba1af, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sceneKind: 3
+  installOnAwake: 1
+  features:
+  - {fileID: 96767720}
+--- !u!114 &96767720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 96767716}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ca352e1975c454a9b54c97f1483727b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
   lobbyState: {fileID: 707815387}
   lobbyController: {fileID: 707815386}
   lobbyService: {fileID: 707815385}
-  lobbyUI: {fileID: 896598416}
+  lobbyUi: {fileID: 896598416}
 --- !u!1 &142239125
 GameObject:
   m_ObjectHideFlags: 0

@@ -210,8 +210,9 @@ GameObject:
   - component: {fileID: 212283889}
   - component: {fileID: 212283888}
   - component: {fileID: 212283887}
+  - component: {fileID: 212283891}
   m_Layer: 0
-  m_Name: GameCompositionRoot
+  m_Name: SceneRuntime
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -278,16 +279,33 @@ MonoBehaviour:
   m_GameObject: {fileID: 212283884}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e13ebd9ce46acfa4abbeaaba9069ba5d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  stateMachine: {fileID: 0}
-  sessionService: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: e37cd7a3fb1e417f95d27af86a8ba1af, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sceneKind: 100
+  installOnAwake: 1
+  features:
+  - {fileID: 212283891}
+--- !u!114 &212283891
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 212283884}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 57a5a24a50bb47e1a15c64c93ef70896, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
   pauseService: {fileID: 212283889}
-  pauseMenuInput: {fileID: 212283888}
-  pauseMenuUI: {fileID: 367437486}
-  pauseCursorController: {fileID: 212283887}
-  mouseLook: {fileID: 0}
+  pauseMenu: {fileID: 367437486}
+  pauseConsumers:
+  - {fileID: 212283887}
+  - {fileID: 212283888}
+  noiseWorldService: {fileID: 0}
+  noiseEmitters: []
+  hearingSensors: []
 --- !u!1 &213257118
 GameObject:
   m_ObjectHideFlags: 0

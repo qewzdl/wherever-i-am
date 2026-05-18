@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public sealed class PauseMenuInput : MonoBehaviour
+public sealed class PauseMenuInput : MonoBehaviour, IPauseServiceConsumer
 {
     private static int suppressToggleFrame = -1;
 
@@ -15,6 +15,11 @@ public sealed class PauseMenuInput : MonoBehaviour
     public void Construct(IPauseService pauseService)
     {
         this.pauseService = pauseService;
+    }
+
+    public void BindPauseService(IPauseService pauseService)
+    {
+        Construct(pauseService);
     }
 
     private void Update()

@@ -21,11 +21,16 @@ public class LobbyController : NetworkBehaviour
 
     public void Construct(INetworkSessionService sessionService)
     {
+        ResolveReferences();
+
         if (sessionService == null)
         {
             Debug.LogError("Network session service is missing.");
             return;
         }
+
+        if (this.sessionService == sessionService && IsConstructed(false))
+            return;
 
         this.sessionService = sessionService;
         CreateServices();
@@ -76,6 +81,11 @@ public class LobbyController : NetworkBehaviour
 
     private bool IsConstructed()
     {
+        return IsConstructed(true);
+    }
+
+    private bool IsConstructed(bool logMissing)
+    {
         if (ownershipService != null &&
             playerRegistry != null &&
             playerCustomizationService != null &&
@@ -85,7 +95,9 @@ public class LobbyController : NetworkBehaviour
             return true;
         }
 
-        Debug.LogError("LobbyController was not constructed.");
+        if (logMissing)
+            Debug.LogError("LobbyController was not constructed.");
+
         return false;
     }
 

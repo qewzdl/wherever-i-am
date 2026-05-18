@@ -9,21 +9,29 @@ public sealed class GamePauseService : MonoBehaviour, IPauseService
 
     public event Action<bool> PauseStateChanged;
 
+    private bool stateMachineSubscribed;
+
     public void Construct(GameStateMachine stateMachine)
     {
+        if (this.stateMachine == stateMachine)
+        {
+            SubscribeToStateMachine();
+            return;
+        }
+
+        UnsubscribeFromStateMachine();
         this.stateMachine = stateMachine;
+        SubscribeToStateMachine();
     }
 
     private void OnEnable()
     {
-        if (stateMachine != null)
-            stateMachine.StateChanged += HandleGameStateChanged;
+        SubscribeToStateMachine();
     }
 
     private void OnDisable()
     {
-        if (stateMachine != null)
-            stateMachine.StateChanged -= HandleGameStateChanged;
+        UnsubscribeFromStateMachine();
     }
 
     public void Pause()
@@ -64,6 +72,24 @@ public sealed class GamePauseService : MonoBehaviour, IPauseService
             return true;
 
         return stateMachine.CurrentState == GameState.InGame;
+    }
+
+    private void SubscribeToStateMachine()
+    {
+        if (stateMachineSubscribed || stateMachine == null)
+            return;
+
+        stateMachine.StateChanged += HandleGameStateChanged;
+        stateMachineSubscribed = true;
+    }
+
+    private void UnsubscribeFromStateMachine()
+    {
+        if (!stateMachineSubscribed || stateMachine == null)
+            return;
+
+        stateMachine.StateChanged -= HandleGameStateChanged;
+        stateMachineSubscribed = false;
     }
 
     private void HandleGameStateChanged(GameState previousState, GameState newState)
