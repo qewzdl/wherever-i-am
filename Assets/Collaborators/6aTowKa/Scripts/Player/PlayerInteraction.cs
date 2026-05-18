@@ -69,6 +69,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             HoldPoint = contactPoint.transform,
             PlayerCameraTransform = this.playerCameraTransform,
             PlayerController = this.playerController,
+            RayOriginPosition = rayOrigin.position
         };
 
         if (currentInteractable)

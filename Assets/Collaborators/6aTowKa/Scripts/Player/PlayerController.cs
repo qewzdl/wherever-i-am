@@ -1,8 +1,10 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody))]
 public class PlayerController : PlayerComponent, IPlayerSignalListener
 {
     [SerializeField] private float speed;
+    [SerializeField] private Rigidbody rb;
     //[SerializeField] private float speedToCrouch;
 
     private Vector2 direction;
@@ -10,6 +12,8 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
+        rb = GetComponent<Rigidbody>();
+
         signals.MoveSignal.Listen(SetDirection);
         signals.CrouchInputSignal.Listen(UpdateIsCrouching);
     }
@@ -20,14 +24,17 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         signals.CrouchInputSignal.Unlisten(UpdateIsCrouching);
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
         Move();
     }
 
     private void Move()
     {
-        gameObject.transform.Translate(new Vector3(direction.x, 0, direction.y) * speed * Time.deltaTime);
+        Vector3 localDirection = new Vector3(direction.x, 0, direction.y);
+        Vector3 worldDirection = rb.rotation * localDirection;
+        Vector3 newPos = rb.position + worldDirection * speed * Time.fixedDeltaTime;
+        rb.MovePosition(newPos);
     }
 
     public void SetDirection(Vector2 value)
