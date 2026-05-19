@@ -10,8 +10,3 @@ public interface IPauseService
     void Resume();
     void TogglePause();
 }
-
-public interface IPauseServiceConsumer
-{
-    void BindPauseService(IPauseService pauseService);
-}

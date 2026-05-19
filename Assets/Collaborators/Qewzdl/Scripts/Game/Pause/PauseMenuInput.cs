@@ -1,11 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public sealed class PauseMenuInput : MonoBehaviour, IPauseServiceConsumer
+public sealed class PauseMenuInput : PauseServiceConsumer
 {
     private static int suppressToggleFrame = -1;
-
-    private IPauseService pauseService;
 
     public static void SuppressToggleForCurrentFrame()
     {
@@ -14,17 +12,12 @@ public sealed class PauseMenuInput : MonoBehaviour, IPauseServiceConsumer
 
     public void Construct(IPauseService pauseService)
     {
-        this.pauseService = pauseService;
-    }
-
-    public void BindPauseService(IPauseService pauseService)
-    {
-        Construct(pauseService);
+        BindPauseService(pauseService);
     }
 
     private void Update()
     {
-        if (pauseService == null)
+        if (PauseService == null)
             return;
 
         if (Keyboard.current == null)
@@ -34,6 +27,6 @@ public sealed class PauseMenuInput : MonoBehaviour, IPauseServiceConsumer
             return;
 
         if (Keyboard.current.escapeKey.wasPressedThisFrame)
-            pauseService.TogglePause();
+            PauseService.TogglePause();
     }
 }

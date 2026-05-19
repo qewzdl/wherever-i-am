@@ -1,32 +1,38 @@
 using UnityEngine;
 
-public sealed class PauseCursorController : MonoBehaviour, IPauseServiceConsumer
+public sealed class PauseCursorController : PauseServiceConsumer
 {
-    private IPauseService pauseService;
-
     public void Construct(IPauseService pauseService)
     {
-        if (this.pauseService != null)
-            this.pauseService.PauseStateChanged -= HandlePauseStateChanged;
-
-        this.pauseService = pauseService;
-
-        if (this.pauseService != null)
-            this.pauseService.PauseStateChanged += HandlePauseStateChanged;
-
-        HandlePauseStateChanged(this.pauseService != null && this.pauseService.IsPaused);
+        BindPauseService(pauseService);
     }
 
-    public void BindPauseService(IPauseService pauseService)
+    private void Start()
     {
-        Construct(pauseService);
+        if (PauseService == null)
+            LockCursor();
+    }
+
+    protected override void OnAfterPauseServiceBound(IPauseService pauseService)
+    {
+        pauseService.PauseStateChanged += HandlePauseStateChanged;
+        HandlePauseStateChanged(pauseService.IsPaused);
+    }
+
+    protected override void OnBeforePauseServiceUnbound(IPauseService pauseService)
+    {
+        pauseService.PauseStateChanged -= HandlePauseStateChanged;
+    }
+
+    protected override void OnPauseServiceRebound(IPauseService pauseService)
+    {
+        if (pauseService != null)
+            HandlePauseStateChanged(pauseService.IsPaused);
     }
 
     private void OnDestroy()
     {
-        if (pauseService != null)
-            pauseService.PauseStateChanged -= HandlePauseStateChanged;
-
+        ClearPauseService();
         UnlockCursor();
     }
 
