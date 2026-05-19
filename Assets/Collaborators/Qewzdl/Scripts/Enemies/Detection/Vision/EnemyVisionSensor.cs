@@ -1,3 +1,4 @@
+using System.Text;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -22,9 +23,11 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     private EnemyTarget[] processedTargets;
     private float nextOverflowWarningTime;
     private Vector3[] visibilityPointResults;
-    private bool invalidObstructionMaskLogged;
+    private bool invalidConfigurationLogged;
+    private bool missingConfigLogged;
 
-    public Transform OriginTransform => GetOrigin();
+    public Transform OriginTransform => eyes;
+    public bool IsConfigured => ValidateDependencies(false);
 
     public bool HasLastTargetedVerticalView { get; private set; }
     public Vector3 LastTargetedVerticalViewOrigin { get; private set; }
@@ -39,6 +42,11 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         {
             enabled = false;
         }
+    }
+
+    public bool ValidateRuntimeDependencies()
+    {
+        return ValidateDependencies();
     }
 
     public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
@@ -82,14 +90,14 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return null;
         }
 
-        if (config == null)
+        if (!ValidateConfig(config))
         {
             return null;
         }
 
         EnsureDetectionBuffers();
 
-        Transform origin = GetOrigin();
+        Transform origin = eyes;
 
         int hitCount = Physics.OverlapSphereNonAlloc(
             transform.position,
@@ -174,7 +182,17 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     {
         visiblePoint = Vector3.zero;
 
-        if (target == null || config == null)
+        if (target == null)
+        {
+            return false;
+        }
+
+        if (!ValidateDependencies())
+        {
+            return false;
+        }
+
+        if (!ValidateConfig(config))
         {
             return false;
         }
@@ -184,7 +202,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        Transform origin = GetOrigin();
+        Transform origin = eyes;
         Vector3 originPosition = origin.position;
         Vector3 targetCenter = targetBounds.center;
         Vector3 directionToTargetCenter = targetCenter - originPosition;
@@ -220,11 +238,11 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             Vector3 targetPoint = visibilityPointResults[i];
 
             if (!IsInsideTargetedVerticalView(
-                originPosition,
-                targetPoint,
-                verticalCenterAngle,
-                config.verticalViewAngle
-            ))
+                    originPosition,
+                    targetPoint,
+                    verticalCenterAngle,
+                    config.verticalViewAngle
+                ))
             {
                 continue;
             }
@@ -329,30 +347,73 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         LastTargetedVerticalViewDistance = Mathf.Min(direction.magnitude, detectionRadius);
     }
 
-    private bool ValidateDependencies()
+    private bool ValidateConfig(EnemyConfig config)
     {
-        if (obstructionMask.value != 0)
+        if (config != null)
         {
-            invalidObstructionMaskLogged = false;
+            missingConfigLogged = false;
             return true;
         }
 
-        LogInvalidObstructionMask();
+        if (!missingConfigLogged)
+        {
+            missingConfigLogged = true;
+
+            Debug.LogError(
+                $"{nameof(EnemyVisionSensor)} requires non-null {nameof(EnemyConfig)}.",
+                this
+            );
+        }
+
         return false;
     }
 
-    private void LogInvalidObstructionMask()
+    private bool ValidateDependencies(bool logErrors = true)
     {
-        if (invalidObstructionMaskLogged)
+        StringBuilder builder = new();
+
+        if (eyes == null)
+        {
+            builder.AppendLine($"- {nameof(eyes)} is not assigned.");
+        }
+
+        if (targetMask.value == 0)
+        {
+            builder.AppendLine($"- {nameof(targetMask)} is empty.");
+        }
+
+        if (obstructionMask.value == 0)
+        {
+            builder.AppendLine($"- {nameof(obstructionMask)} is empty.");
+        }
+
+        if (builder.Length == 0)
+        {
+            invalidConfigurationLogged = false;
+            return true;
+        }
+
+        if (logErrors)
+        {
+            LogInvalidConfiguration(builder.ToString());
+        }
+
+        return false;
+    }
+
+    private void LogInvalidConfiguration(string details)
+    {
+        if (invalidConfigurationLogged)
         {
             return;
         }
 
-        invalidObstructionMaskLogged = true;
+        invalidConfigurationLogged = true;
 
         Debug.LogError(
-            $"{nameof(EnemyVisionSensor)} requires non-empty {nameof(obstructionMask)}. " +
-            "Assign wall/cover blocking layers. Vision sensor is disabled until configured.",
+            $"{nameof(EnemyVisionSensor)} has invalid configuration:\n" +
+            details +
+            "Vision sensor is disabled until configured.",
             this
         );
     }
@@ -419,11 +480,6 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             $"Increase {nameof(maxDetectionResults)} if targets can be missed.",
             this
         );
-    }
-
-    private Transform GetOrigin()
-    {
-        return eyes != null ? eyes : transform;
     }
 
     private void Reset()

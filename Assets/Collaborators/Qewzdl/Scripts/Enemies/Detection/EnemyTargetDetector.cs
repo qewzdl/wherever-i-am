@@ -12,9 +12,13 @@ public class EnemyTargetDetector : MonoBehaviour
 
     private readonly EnemyStimulusResolver stimulusResolver = new();
 
+    private bool missingConfigLogged;
+    private bool invalidStaticConfigurationLogged;
+    private bool missingHearingSensorLogged;
+
     private void Awake()
     {
-        CacheSensors();
+        ValidateStaticDependencies();
     }
 
     public bool TryResolveBestStimulus(
@@ -26,15 +30,26 @@ public class EnemyTargetDetector : MonoBehaviour
     {
         resolution = EnemyStimulusResolution.None;
 
-        CacheSensors();
+        if (!ValidateDependencies(config))
+        {
+            return false;
+        }
 
-        EnemyPerceptionStimulus visionStimulus = EnemyPerceptionStimulus.None;
-        bool hasVisionStimulus = visionSensor != null &&
-                                 visionSensor.TryFindBestStimulus(config, out visionStimulus);
+        bool hasVisionStimulus = visionSensor.TryFindBestStimulus(
+            config,
+            out EnemyPerceptionStimulus visionStimulus
+        );
 
+        bool hasHearingStimulus = false;
         EnemyPerceptionStimulus hearingStimulus = EnemyPerceptionStimulus.None;
-        bool hasHearingStimulus = hearingSensor != null &&
-                                  hearingSensor.TryFindBestStimulus(config, out hearingStimulus);
+
+        if (config.hearingEnabled)
+        {
+            hasHearingStimulus = hearingSensor.TryFindBestStimulus(
+                config,
+                out hearingStimulus
+            );
+        }
 
         EnemyStimulusResolveContext resolveContext = new(
             config,
@@ -71,37 +86,190 @@ public class EnemyTargetDetector : MonoBehaviour
 
     public EnemyTarget FindBestVisibleTarget(EnemyConfig config)
     {
-        CacheSensors();
-        return visionSensor != null ? visionSensor.FindBestVisibleTarget(config) : null;
+        if (!ValidateVisionDependencies(config))
+        {
+            return null;
+        }
+
+        return visionSensor.FindBestVisibleTarget(config);
     }
 
-    private void CacheSensors()
+    private bool ValidateDependencies(EnemyConfig config)
     {
+        if (!ValidateConfig(config))
+        {
+            return false;
+        }
+
+        if (!config.RequiresTargetDetector)
+        {
+            return false;
+        }
+
+        if (!ValidateStaticDependencies())
+        {
+            return false;
+        }
+
+        if (!visionSensor.ValidateRuntimeDependencies())
+        {
+            return false;
+        }
+
+        if (!ValidateHearingDependencies(config))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool ValidateVisionDependencies(EnemyConfig config)
+    {
+        if (!ValidateConfig(config))
+        {
+            return false;
+        }
+
+        if (!config.RequiresTargetDetector)
+        {
+            return false;
+        }
+
+        if (!ValidateStaticDependencies())
+        {
+            return false;
+        }
+
+        return visionSensor.ValidateRuntimeDependencies();
+    }
+
+    private bool ValidateConfig(EnemyConfig config)
+    {
+        if (config != null)
+        {
+            missingConfigLogged = false;
+            return true;
+        }
+
+        if (!missingConfigLogged)
+        {
+            missingConfigLogged = true;
+
+            Debug.LogError(
+                $"{nameof(EnemyTargetDetector)} requires non-null {nameof(EnemyConfig)}.",
+                this
+            );
+        }
+
+        return false;
+    }
+
+    private bool ValidateStaticDependencies(bool logErrors = true)
+    {
+        bool isValid = true;
+
+        if (stimulusResolverPolicy == null)
+        {
+            isValid = false;
+        }
+
         if (visionSensor == null)
         {
-            visionSensor = GetComponent<EnemyVisionSensor>();
+            isValid = false;
+        }
+
+        if (isValid)
+        {
+            invalidStaticConfigurationLogged = false;
+            return true;
+        }
+
+        if (logErrors)
+        {
+            LogInvalidStaticConfiguration();
+        }
+
+        return false;
+    }
+
+    private bool ValidateHearingDependencies(EnemyConfig config)
+    {
+        if (!config.hearingEnabled)
+        {
+            missingHearingSensorLogged = false;
+            return true;
         }
 
         if (hearingSensor == null)
         {
-            hearingSensor = GetComponent<EnemyHearingSensor>();
+            LogMissingHearingSensor();
+            return false;
         }
+
+        missingHearingSensorLogged = false;
+        return hearingSensor.ValidateRuntimeDependencies();
+    }
+
+    private void LogInvalidStaticConfiguration()
+    {
+        if (invalidStaticConfigurationLogged)
+        {
+            return;
+        }
+
+        invalidStaticConfigurationLogged = true;
+
+        string missingPolicy = stimulusResolverPolicy == null
+            ? $"- {nameof(stimulusResolverPolicy)} is not assigned.\n"
+            : string.Empty;
+
+        string missingVision = visionSensor == null
+            ? $"- {nameof(visionSensor)} is not assigned.\n"
+            : string.Empty;
+
+        Debug.LogError(
+            $"{nameof(EnemyTargetDetector)} has invalid configuration:\n" +
+            missingPolicy +
+            missingVision +
+            "Target detection is disabled until configured.",
+            this
+        );
+    }
+
+    private void LogMissingHearingSensor()
+    {
+        if (missingHearingSensorLogged)
+        {
+            return;
+        }
+
+        missingHearingSensorLogged = true;
+
+        Debug.LogError(
+            $"{nameof(EnemyTargetDetector)} requires {nameof(EnemyHearingSensor)} " +
+            "because hearing is enabled in enemy config.",
+            this
+        );
     }
 
 #if UNITY_EDITOR
     private void Reset()
     {
-        CacheSensors();
-    }
-
-    private void OnValidate()
-    {
-        CacheSensors();
-
         if (stimulusResolverPolicy == null)
         {
             stimulusResolverPolicy = new EnemyStimulusResolverPolicy();
         }
+    }
+
+    private void OnValidate()
+    {
+        if (stimulusResolverPolicy == null)
+        {
+            stimulusResolverPolicy = new EnemyStimulusResolverPolicy();
+        }
+
+        ValidateStaticDependencies();
     }
 #endif
 }
