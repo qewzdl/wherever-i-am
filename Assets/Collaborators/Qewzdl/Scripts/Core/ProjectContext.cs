@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -9,6 +10,9 @@ public sealed class ProjectContext : MonoBehaviour
 
     [Header("Project")]
     [SerializeField] private ProjectSettings settings;
+
+    [Header("Network")]
+    [SerializeField] private NetworkManager networkManager;
 
     [Header("Services")]
     [SerializeField] private GameStateMachine stateMachine;
@@ -25,6 +29,15 @@ public sealed class ProjectContext : MonoBehaviour
     public static ProjectContext Instance => instance;
 
     public ProjectSettings Settings => settings;
+
+    public NetworkManager NetworkManager
+    {
+        get
+        {
+            ResolveReferences();
+            return networkManager;
+        }
+    }
 
     public INetworkSessionService SessionService => SessionOrchestrator;
 
@@ -143,6 +156,7 @@ public sealed class ProjectContext : MonoBehaviour
         referencesValidated = true;
 
         ValidateRequiredReference(settings, nameof(settings));
+        ValidateRequiredReference(networkManager, nameof(networkManager));
         ValidateRequiredReference(stateMachine, nameof(stateMachine));
         ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator));
         ValidateRequiredReference(connectionService, nameof(connectionService));

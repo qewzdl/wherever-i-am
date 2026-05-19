@@ -28,6 +28,32 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private bool initialized;
     private bool networkCallbacksSubscribed;
+    private bool missingNetworkManagerLogged;
+
+    public bool IsInitialized => initialized;
+
+    public bool Construct(NetworkManager manager)
+    {
+        if (manager == null)
+        {
+            networkManager = null;
+            initialized = false;
+            LogMissingNetworkManager();
+            enabled = false;
+            return false;
+        }
+
+        networkManager = manager;
+        missingNetworkManagerLogged = false;
+
+        if (!enabled)
+        {
+            enabled = true;
+        }
+
+        Initialize();
+        return initialized;
+    }
 
     public void Initialize()
     {
@@ -36,7 +62,17 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
             return;
         }
 
+        if (!ValidateRequiredDependencies())
+        {
+            enabled = false;
+            return;
+        }
+
         initialized = true;
+
+        SceneManager.sceneUnloaded -= HandleSceneUnloaded;
+        SceneManager.sceneUnloaded += HandleSceneUnloaded;
+
         SubscribeToNetworkCallbacks();
 
         if (clearOnInitialize)
@@ -47,12 +83,39 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private void Awake()
     {
-        Initialize();
+        if (networkManager != null)
+        {
+            Initialize();
+        }
+    }
+
+    private void Start()
+    {
+        if (initialized)
+        {
+            return;
+        }
+
+        if (networkManager != null)
+        {
+            Initialize();
+            return;
+        }
+
+        LogMissingNetworkManager();
+        enabled = false;
     }
 
     private void OnEnable()
     {
+        if (!initialized)
+        {
+            return;
+        }
+
+        SceneManager.sceneUnloaded -= HandleSceneUnloaded;
         SceneManager.sceneUnloaded += HandleSceneUnloaded;
+
         SubscribeToNetworkCallbacks();
     }
 
@@ -68,6 +131,9 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
         {
             Clear("destroy");
         }
+
+        SceneManager.sceneUnloaded -= HandleSceneUnloaded;
+        UnsubscribeFromNetworkCallbacks();
 
         initialized = false;
     }
@@ -218,20 +284,24 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private bool CanUseServerWorld()
     {
+        if (!ValidateRequiredDependencies())
+        {
+            return false;
+        }
+
         SubscribeToNetworkCallbacks();
 
-        NetworkManager currentNetworkManager = ResolveNetworkManager();
-
-        return currentNetworkManager != null &&
-               currentNetworkManager.IsListening &&
-               currentNetworkManager.IsServer;
+        return networkManager.IsListening && networkManager.IsServer;
     }
 
     private bool CanClearForCurrentContext()
     {
-        NetworkManager currentNetworkManager = ResolveNetworkManager();
+        if (!ValidateRequiredDependencies())
+        {
+            return false;
+        }
 
-        if (currentNetworkManager == null || !currentNetworkManager.IsListening)
+        if (!networkManager.IsListening)
         {
             return clearWithoutActiveNetworkSession;
         }
@@ -239,24 +309,42 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
         return true;
     }
 
-    private NetworkManager ResolveNetworkManager()
+    private bool ValidateRequiredDependencies()
     {
-        if (networkManager == null)
+        if (networkManager != null)
         {
-            networkManager = NetworkManager.Singleton;
+            missingNetworkManagerLogged = false;
+            return true;
         }
 
-        return networkManager;
+        LogMissingNetworkManager();
+        return false;
+    }
+
+    private void LogMissingNetworkManager()
+    {
+        if (missingNetworkManagerLogged)
+        {
+            return;
+        }
+
+        missingNetworkManagerLogged = true;
+
+        Debug.LogError(
+            $"{nameof(EnemyNoiseWorldService)} requires an explicit {nameof(NetworkManager)} reference. " +
+            $"{nameof(NetworkManager)}.{nameof(NetworkManager.Singleton)} is intentionally not used as fallback.",
+            this
+        );
     }
 
     private void SubscribeToNetworkCallbacks()
     {
-        NetworkManager currentNetworkManager = ResolveNetworkManager();
-
-        if (currentNetworkManager == null)
+        if (!ValidateRequiredDependencies())
         {
             return;
         }
+
+        NetworkManager currentNetworkManager = networkManager;
 
         if (networkCallbacksSubscribed && subscribedNetworkManager == currentNetworkManager)
         {
@@ -313,9 +401,12 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private void HandleClientDisconnected(ulong clientId)
     {
-        NetworkManager currentNetworkManager = ResolveNetworkManager();
+        if (!ValidateRequiredDependencies())
+        {
+            return;
+        }
 
-        if (currentNetworkManager == null || clientId != currentNetworkManager.LocalClientId)
+        if (clientId != networkManager.LocalClientId)
         {
             return;
         }
