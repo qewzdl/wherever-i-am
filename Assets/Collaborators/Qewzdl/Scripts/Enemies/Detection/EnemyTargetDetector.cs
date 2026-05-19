@@ -8,7 +8,7 @@ public class EnemyTargetDetector : MonoBehaviour
     [SerializeField] private EnemyHearingSensor hearingSensor;
 
     [Header("Stimulus Resolution")]
-    [SerializeField] private EnemyStimulusResolverPolicy stimulusResolverPolicy = new();
+    [SerializeField] private EnemyStimulusResolverPolicy stimulusResolverPolicy;
 
     private readonly EnemyStimulusResolver stimulusResolver = new();
 
@@ -232,7 +232,7 @@ public class EnemyTargetDetector : MonoBehaviour
             $"{nameof(EnemyTargetDetector)} has invalid configuration:\n" +
             missingPolicy +
             missingVision +
-            "Target detection is disabled until configured.",
+            "Enemy perception is disabled until configured.",
             this
         );
     }
@@ -256,19 +256,11 @@ public class EnemyTargetDetector : MonoBehaviour
 #if UNITY_EDITOR
     private void Reset()
     {
-        if (stimulusResolverPolicy == null)
-        {
-            stimulusResolverPolicy = new EnemyStimulusResolverPolicy();
-        }
+        ValidateStaticDependencies();
     }
 
     private void OnValidate()
     {
-        if (stimulusResolverPolicy == null)
-        {
-            stimulusResolverPolicy = new EnemyStimulusResolverPolicy();
-        }
-
         ValidateStaticDependencies();
     }
 #endif

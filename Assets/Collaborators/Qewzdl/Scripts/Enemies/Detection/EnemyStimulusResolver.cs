@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public sealed class EnemyStimulusResolver
@@ -7,7 +8,13 @@ public sealed class EnemyStimulusResolver
         EnemyStimulusResolverPolicy policy
     )
     {
-        policy ??= new EnemyStimulusResolverPolicy();
+        if (policy == null)
+        {
+            throw new ArgumentNullException(
+                nameof(policy),
+                $"{nameof(EnemyStimulusResolver)} requires explicit {nameof(EnemyStimulusResolverPolicy)}."
+            );
+        }
 
         bool hasVision = context.HasVisionStimulus;
         bool hasHearing = context.HasHearingStimulus;
