@@ -10,6 +10,9 @@ public class EnemyPresentationProfile : ScriptableObject
     [SerializeField] private string stateIntegerParameter = "EnemyState";
     [SerializeField] private bool useStateIntegerParameter = true;
 
+    [SerializeField] private string attackPhaseIntegerParameter = "EnemyAttackPhase";
+    [SerializeField] private bool useAttackPhaseIntegerParameter = true;
+
     [Header("State Presentation")]
     [SerializeField] private EnemyStatePresentation[] states;
 
@@ -18,6 +21,9 @@ public class EnemyPresentationProfile : ScriptableObject
 
     public string StateIntegerParameter => stateIntegerParameter;
     public bool UseStateIntegerParameter => useStateIntegerParameter;
+
+    public string AttackPhaseIntegerParameter => attackPhaseIntegerParameter;
+    public bool UseAttackPhaseIntegerParameter => useAttackPhaseIntegerParameter;
 
     public bool TryGetPresentation(
         EnemyState state,

@@ -21,6 +21,7 @@ public class EnemyServerRuntime : MonoBehaviour
     private EnemyServerBrain brain;
 
     private bool initializedServer;
+    private bool subscribedToAttackPhase;
 
     public bool IsRunning => brain != null && brain.HasStarted;
     public EnemyInvestigationDebugData InvestigationDebugData => blackboard.InvestigationDebugData;
@@ -50,6 +51,13 @@ public class EnemyServerRuntime : MonoBehaviour
         }
 
         navigator.Configure(config);
+
+        if (networkState.IsSpawned)
+        {
+            networkState.ClearAttackPhaseServer();
+        }
+
+        SubscribeToAttackPhaseServer();
         CreateBrainServer();
 
         initializedServer = true;
@@ -83,6 +91,13 @@ public class EnemyServerRuntime : MonoBehaviour
 
         brain?.Dispose();
         brain = null;
+
+        UnsubscribeFromAttackPhaseServer();
+
+        if (networkState != null && networkState.IsSpawned)
+        {
+            networkState.ClearAttackPhaseServer();
+        }
 
         blackboard.ClearAll();
 
@@ -230,6 +245,39 @@ public class EnemyServerRuntime : MonoBehaviour
         }
 
         brain.Start();
+    }
+
+    private void SubscribeToAttackPhaseServer()
+    {
+        if (subscribedToAttackPhase || attackController == null)
+        {
+            return;
+        }
+
+        attackController.PhaseChanged += HandleAttackPhaseChangedServer;
+        subscribedToAttackPhase = true;
+    }
+
+    private void UnsubscribeFromAttackPhaseServer()
+    {
+        if (!subscribedToAttackPhase || attackController == null)
+        {
+            subscribedToAttackPhase = false;
+            return;
+        }
+
+        attackController.PhaseChanged -= HandleAttackPhaseChangedServer;
+        subscribedToAttackPhase = false;
+    }
+
+    private void HandleAttackPhaseChangedServer(EnemyAttackPhaseEvent phaseEvent)
+    {
+        if (!initializedServer || networkState == null || !networkState.IsSpawned)
+        {
+            return;
+        }
+
+        networkState.SetAttackPhaseServer(phaseEvent);
     }
 
     private void OnNavMeshReadyServer()

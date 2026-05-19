@@ -39,6 +39,7 @@ public class EnemyPresentationController : NetworkBehaviour
     private readonly List<LoopingSoundRuntime> activeLoopingSounds = new();
 
     private EnemyState currentPresentedState = EnemyState.Idle;
+    private EnemyAttackPhase currentPresentedAttackPhase = EnemyAttackPhase.Idle;
     private EnemyStatePresentation currentPresentation;
     private EnemyThreatLevel currentThreatLevel = EnemyThreatLevel.None;
 
@@ -46,6 +47,7 @@ public class EnemyPresentationController : NetworkBehaviour
     private bool subscribedToNetworkState;
 
     public EnemyThreatLevel CurrentThreatLevel => currentThreatLevel;
+    public EnemyAttackPhase CurrentAttackPhase => currentPresentedAttackPhase;
 
     private void Awake()
     {
@@ -71,6 +73,7 @@ public class EnemyPresentationController : NetworkBehaviour
         RegisterClientPresentation();
 
         ApplyState(networkState.CurrentState, force: true);
+        ApplyAttackPhase(networkState.CurrentAttackPhase, force: true);
     }
 
     public override void OnNetworkDespawn()
@@ -136,6 +139,14 @@ public class EnemyPresentationController : NetworkBehaviour
         ApplyState(nextState, force: false);
     }
 
+    private void HandleAttackPhaseChanged(
+        EnemyAttackPhaseSnapshot previousPhase,
+        EnemyAttackPhaseSnapshot nextPhase
+    )
+    {
+        ApplyAttackPhase(nextPhase, force: false);
+    }
+
     private void ApplyState(EnemyState nextState, bool force)
     {
         if (!force && currentPresentedState == nextState)
@@ -167,6 +178,22 @@ public class EnemyPresentationController : NetworkBehaviour
         SetThreatLevel(nextPresentation.ThreatLevel);
     }
 
+    private void ApplyAttackPhase(EnemyAttackPhaseSnapshot snapshot, bool force)
+    {
+        ApplyAttackPhase(snapshot.Phase, force);
+    }
+
+    private void ApplyAttackPhase(EnemyAttackPhase nextPhase, bool force)
+    {
+        if (!force && currentPresentedAttackPhase == nextPhase)
+        {
+            return;
+        }
+
+        currentPresentedAttackPhase = nextPhase;
+        ApplyAnimatorAttackPhase(nextPhase);
+    }
+
     private void ApplyAnimatorState(EnemyStatePresentation presentation)
     {
         if (animator == null || presentation == null || profile == null)
@@ -187,6 +214,25 @@ public class EnemyPresentationController : NetworkBehaviour
         {
             animator.SetTrigger(presentation.EnterTrigger);
         }
+    }
+
+    private void ApplyAnimatorAttackPhase(EnemyAttackPhase attackPhase)
+    {
+        if (animator == null || profile == null)
+        {
+            return;
+        }
+
+        if (!profile.UseAttackPhaseIntegerParameter ||
+            string.IsNullOrWhiteSpace(profile.AttackPhaseIntegerParameter))
+        {
+            return;
+        }
+
+        animator.SetInteger(
+            profile.AttackPhaseIntegerParameter,
+            (int)attackPhase
+        );
     }
 
     private void ResetPreviousTrigger(EnemyStatePresentation previousPresentation)
@@ -354,6 +400,8 @@ public class EnemyPresentationController : NetworkBehaviour
         }
 
         networkState.StateChanged += HandleStateChanged;
+        networkState.AttackPhaseChanged += HandleAttackPhaseChanged;
+
         subscribedToNetworkState = true;
     }
 
@@ -365,6 +413,8 @@ public class EnemyPresentationController : NetworkBehaviour
         }
 
         networkState.StateChanged -= HandleStateChanged;
+        networkState.AttackPhaseChanged -= HandleAttackPhaseChanged;
+
         subscribedToNetworkState = false;
     }
 
@@ -408,6 +458,7 @@ public class EnemyPresentationController : NetworkBehaviour
         StopLoopingSounds();
 
         currentPresentation = null;
+        currentPresentedAttackPhase = EnemyAttackPhase.Idle;
         currentThreatLevel = EnemyThreatLevel.None;
     }
 
