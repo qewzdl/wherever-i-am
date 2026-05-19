@@ -22,6 +22,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     private EnemyTarget[] processedTargets;
     private float nextOverflowWarningTime;
     private Vector3[] visibilityPointResults;
+    private bool invalidObstructionMaskLogged;
 
     public Transform OriginTransform => GetOrigin();
 
@@ -33,6 +34,11 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     private void Awake()
     {
         EnsureDetectionBuffers();
+
+        if (!ValidateDependencies())
+        {
+            enabled = false;
+        }
     }
 
     public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
@@ -70,6 +76,11 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         bestScore = 0f;
         bestVisiblePoint = Vector3.zero;
         HasLastTargetedVerticalView = false;
+
+        if (!ValidateDependencies())
+        {
+            return null;
+        }
 
         if (config == null)
         {
@@ -284,14 +295,9 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     private bool HasLineOfSight(Vector3 originPosition, Vector3 targetPoint)
     {
-        if (obstructionMask.value == 0)
+        if (!ValidateDependencies())
         {
-            Debug.LogWarning(
-                $"{nameof(EnemyVisionSensor)} has empty obstruction mask. Enemy vision will ignore walls and cover.",
-                this
-            );
-
-            return true;
+            return false;
         }
 
         bool blocked = Physics.Linecast(
@@ -321,6 +327,34 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         LastTargetedVerticalViewOrigin = originPosition;
         LastTargetedVerticalViewCenterDirection = direction.normalized;
         LastTargetedVerticalViewDistance = Mathf.Min(direction.magnitude, detectionRadius);
+    }
+
+    private bool ValidateDependencies()
+    {
+        if (obstructionMask.value != 0)
+        {
+            invalidObstructionMaskLogged = false;
+            return true;
+        }
+
+        LogInvalidObstructionMask();
+        return false;
+    }
+
+    private void LogInvalidObstructionMask()
+    {
+        if (invalidObstructionMaskLogged)
+        {
+            return;
+        }
+
+        invalidObstructionMaskLogged = true;
+
+        Debug.LogError(
+            $"{nameof(EnemyVisionSensor)} requires non-empty {nameof(obstructionMask)}. " +
+            "Assign wall/cover blocking layers. Vision sensor is disabled until configured.",
+            this
+        );
     }
 
     private void EnsureDetectionBuffers()
@@ -404,5 +438,6 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         overflowWarningCooldown = Mathf.Max(0.1f, overflowWarningCooldown);
         maxVisibilityPoints = Mathf.Max(1, maxVisibilityPoints);
         EnsureDetectionBuffers();
+        ValidateDependencies();
     }
 }
