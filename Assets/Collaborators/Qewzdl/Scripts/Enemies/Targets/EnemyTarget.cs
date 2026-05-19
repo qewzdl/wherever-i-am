@@ -1,3 +1,4 @@
+using System.Text;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -18,6 +19,7 @@ public class EnemyTarget : MonoBehaviour
     [SerializeField] private bool canBeDetected = true;
 
     private NetworkObject cachedNetworkObject;
+    private bool invalidVisibilityConfigurationLogged;
 
     public Transform AimPoint => aimPoint != null ? aimPoint : transform;
     public Vector3 AimPosition => AimPoint.position;
@@ -48,12 +50,17 @@ public class EnemyTarget : MonoBehaviour
     private void Awake()
     {
         CacheNetworkObject();
-        CacheVisibilityColliders();
+        ValidateVisibilityConfiguration();
     }
 
     public int GetVisibilityPointsNonAlloc(Vector3[] results, float targetHeightOffset)
     {
         if (results == null || results.Length == 0)
+        {
+            return 0;
+        }
+
+        if (!ValidateVisibilityConfiguration())
         {
             return 0;
         }
@@ -67,56 +74,53 @@ public class EnemyTarget : MonoBehaviour
 
         if (useColliderBoundsVisibility)
         {
-            count = AddColliderBoundsVisibilityPoints(results);
-
-            if (count > 0)
-            {
-                return count;
-            }
+            return AddColliderBoundsVisibilityPoints(results);
         }
 
-        return AddFallbackVisibilityPoints(results, targetHeightOffset);
+        return 0;
     }
 
     public bool TryGetVisibilityBounds(out Bounds bounds)
     {
+        bounds = default;
+
+        if (!ValidateVisibilityConfiguration())
+        {
+            return false;
+        }
+
         if (useColliderBoundsVisibility && TryGetCombinedVisibilityBounds(out bounds))
         {
             return true;
         }
 
-        if (visibilityPoints != null)
+        if (visibilityPoints == null)
         {
-            bool hasPoint = false;
-            bounds = default;
-
-            for (int i = 0; i < visibilityPoints.Length; i++)
-            {
-                Transform point = visibilityPoints[i];
-
-                if (point == null)
-                {
-                    continue;
-                }
-
-                if (!hasPoint)
-                {
-                    bounds = new Bounds(point.position, Vector3.zero);
-                    hasPoint = true;
-                    continue;
-                }
-
-                bounds.Encapsulate(point.position);
-            }
-
-            if (hasPoint)
-            {
-                return true;
-            }
+            return false;
         }
 
-        bounds = new Bounds(AimPosition, Vector3.one * 0.2f);
-        return true;
+        bool hasPoint = false;
+
+        for (int i = 0; i < visibilityPoints.Length; i++)
+        {
+            Transform point = visibilityPoints[i];
+
+            if (point == null)
+            {
+                continue;
+            }
+
+            if (!hasPoint)
+            {
+                bounds = new Bounds(point.position, Vector3.zero);
+                hasPoint = true;
+                continue;
+            }
+
+            bounds.Encapsulate(point.position);
+        }
+
+        return hasPoint;
     }
 
     private int AddExplicitVisibilityPoints(Vector3[] results)
@@ -137,8 +141,7 @@ public class EnemyTarget : MonoBehaviour
                 continue;
             }
 
-            results[count] = point.position;
-            count++;
+            AddPoint(results, ref count, point.position);
         }
 
         return count;
@@ -146,13 +149,6 @@ public class EnemyTarget : MonoBehaviour
 
     private int AddColliderBoundsVisibilityPoints(Vector3[] results)
     {
-        CacheVisibilityColliders();
-
-        if (visibilityColliders == null || visibilityColliders.Length == 0)
-        {
-            return 0;
-        }
-
         if (!TryGetCombinedVisibilityBounds(out Bounds bounds))
         {
             return 0;
@@ -185,21 +181,6 @@ public class EnemyTarget : MonoBehaviour
         return count;
     }
 
-    private int AddFallbackVisibilityPoints(Vector3[] results, float targetHeightOffset)
-    {
-        int count = 0;
-
-        AddPoint(results, ref count, AimPosition);
-
-        if (aimPoint == null && targetHeightOffset > 0f)
-        {
-            float safeHeightOffset = Mathf.Min(targetHeightOffset, 0.6f);
-            AddPoint(results, ref count, transform.position + Vector3.up * safeHeightOffset);
-        }
-
-        return count;
-    }
-
     private void AddPoint(Vector3[] results, ref int count, Vector3 point)
     {
         if (count >= results.Length)
@@ -214,18 +195,19 @@ public class EnemyTarget : MonoBehaviour
     private bool TryGetCombinedVisibilityBounds(out Bounds combinedBounds)
     {
         combinedBounds = default;
+
+        if (!useColliderBoundsVisibility || visibilityColliders == null)
+        {
+            return false;
+        }
+
         bool hasBounds = false;
 
         for (int i = 0; i < visibilityColliders.Length; i++)
         {
             Collider visibilityCollider = visibilityColliders[i];
 
-            if (visibilityCollider == null || !visibilityCollider.enabled)
-            {
-                continue;
-            }
-
-            if (!includeTriggerColliders && visibilityCollider.isTrigger)
+            if (!IsValidVisibilityCollider(visibilityCollider))
             {
                 continue;
             }
@@ -243,31 +225,106 @@ public class EnemyTarget : MonoBehaviour
         return hasBounds;
     }
 
+    private bool ValidateVisibilityConfiguration(bool logErrors = true)
+    {
+        bool hasVisibilityPoints = HasValidVisibilityPointSource();
+        bool hasVisibilityColliders = HasValidVisibilityColliderSource();
+
+        if (hasVisibilityPoints || hasVisibilityColliders)
+        {
+            invalidVisibilityConfigurationLogged = false;
+            return true;
+        }
+
+        if (logErrors)
+        {
+            LogInvalidVisibilityConfiguration();
+        }
+
+        return false;
+    }
+
+    private bool HasValidVisibilityPointSource()
+    {
+        if (visibilityPoints == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < visibilityPoints.Length; i++)
+        {
+            if (visibilityPoints[i] != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool HasValidVisibilityColliderSource()
+    {
+        if (!useColliderBoundsVisibility || visibilityColliders == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < visibilityColliders.Length; i++)
+        {
+            if (IsValidVisibilityCollider(visibilityColliders[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsValidVisibilityCollider(Collider visibilityCollider)
+    {
+        if (visibilityCollider == null || !visibilityCollider.enabled)
+        {
+            return false;
+        }
+
+        if (!includeTriggerColliders && visibilityCollider.isTrigger)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void LogInvalidVisibilityConfiguration()
+    {
+        if (invalidVisibilityConfigurationLogged)
+        {
+            return;
+        }
+
+        invalidVisibilityConfigurationLogged = true;
+
+        StringBuilder builder = new();
+
+        builder.AppendLine($"{nameof(EnemyTarget)} has invalid visibility configuration:");
+        builder.AppendLine($"- Assign at least one valid {nameof(visibilityPoints)} item.");
+        builder.AppendLine($"- Or enable {nameof(useColliderBoundsVisibility)} and assign at least one valid {nameof(visibilityColliders)} item.");
+        builder.AppendLine("Enemy vision will ignore this target until visibility sources are configured.");
+
+        Debug.LogError(builder.ToString(), this);
+    }
+
     private void CacheNetworkObject()
     {
         cachedNetworkObject = GetComponentInParent<NetworkObject>();
-    }
-
-    private void CacheVisibilityColliders()
-    {
-        if (!useColliderBoundsVisibility)
-        {
-            return;
-        }
-
-        if (visibilityColliders != null && visibilityColliders.Length > 0)
-        {
-            return;
-        }
-
-        visibilityColliders = GetComponentsInChildren<Collider>();
     }
 
 #if UNITY_EDITOR
     private void Reset()
     {
         CacheNetworkObject();
-        CacheVisibilityColliders();
+        boundsInset = Mathf.Max(0f, boundsInset);
+        ValidateVisibilityConfiguration();
     }
 
     private void OnValidate()
@@ -275,17 +332,13 @@ public class EnemyTarget : MonoBehaviour
         boundsInset = Mathf.Max(0f, boundsInset);
 
         CacheNetworkObject();
-
-        if (useColliderBoundsVisibility)
-        {
-            CacheVisibilityColliders();
-        }
+        ValidateVisibilityConfiguration();
     }
 
     private void OnDrawGizmosSelected()
     {
         Vector3[] previewPoints = new Vector3[8];
-        int pointCount = GetVisibilityPointsNonAlloc(previewPoints, 0.6f);
+        int pointCount = GetVisibilityPointsNonAlloc(previewPoints, 0f);
 
         Gizmos.color = Color.green;
         Gizmos.DrawSphere(AimPosition, 0.08f);

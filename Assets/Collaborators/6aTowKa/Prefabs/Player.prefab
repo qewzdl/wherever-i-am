@@ -873,6 +873,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   aimPoint: {fileID: 4359292692769392996}
+  visibilityPoints:
+  - {fileID: 4359292692769392996}
+  visibilityColliders:
+  - {fileID: 5517377447485859117}
+  useColliderBoundsVisibility: 1
+  includeTriggerColliders: 0
+  boundsInset: 0.08
   canBeDetected: 1
 --- !u!1 &8053868367940531848
 GameObject:
