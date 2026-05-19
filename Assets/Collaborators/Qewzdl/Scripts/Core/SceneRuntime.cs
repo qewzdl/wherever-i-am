@@ -9,6 +9,7 @@ public sealed class SceneRuntime : MonoBehaviour
     [SerializeField] private bool installOnAwake = true;
     [SerializeField] private SceneRuntimeFeature[] features;
 
+    private bool installAttempted;
     private bool installed;
 
     public ProjectSceneKind SceneKind => sceneKind;
@@ -19,32 +20,67 @@ public sealed class SceneRuntime : MonoBehaviour
             Install(ProjectContext.Instance);
     }
 
-    public void Install(ProjectContext context)
+    public bool Install(ProjectContext context)
     {
         if (installed)
-            return;
+            return true;
 
         if (context == null)
-            return;
+        {
+            Debug.LogError(
+                $"{nameof(SceneRuntime)} missing {nameof(ProjectContext)}. Scene '{GetSceneLabel(gameObject.scene)}' cannot install scene-level dependencies.",
+                this);
+
+            return false;
+        }
+
+        if (installAttempted)
+            return false;
+
+        installAttempted = true;
 
         context.ResolveReferences();
         ValidateSceneKind(context);
 
-        SceneRuntimeFeature[] sceneFeatures = features == null || features.Length == 0
-            ? GetComponents<SceneRuntimeFeature>()
-            : features;
-
-        for (int i = 0; i < sceneFeatures.Length; i++)
+        if (features == null || features.Length == 0)
         {
-            SceneRuntimeFeature feature = sceneFeatures[i];
+            Debug.LogError(
+                $"{nameof(SceneRuntime)} on scene '{GetSceneLabel(gameObject.scene)}' has no feature references.",
+                this);
 
-            if (feature == null)
-                continue;
-
-            feature.Install(context);
+            return false;
         }
 
-        installed = true;
+        bool allFeaturesInstalled = true;
+
+        for (int i = 0; i < features.Length; i++)
+        {
+            SceneRuntimeFeature feature = features[i];
+
+            if (feature == null)
+            {
+                Debug.LogError(
+                    $"Feature reference is null in {nameof(SceneRuntime)} on scene '{GetSceneLabel(gameObject.scene)}' at index {i}.",
+                    this);
+
+                allFeaturesInstalled = false;
+                continue;
+            }
+
+            bool featureInstalled = feature.Install(context);
+
+            if (!featureInstalled)
+            {
+                Debug.LogError(
+                    $"{nameof(SceneRuntimeFeature)} failed install: {feature.GetType().Name} on scene '{GetSceneLabel(gameObject.scene)}'.",
+                    feature);
+
+                allFeaturesInstalled = false;
+            }
+        }
+
+        installed = allFeaturesInstalled;
+        return installed;
     }
 
     public static bool InstallActiveScene(ProjectContext context)
@@ -54,9 +90,18 @@ public sealed class SceneRuntime : MonoBehaviour
 
     public static bool InstallScene(Scene scene, ProjectContext context)
     {
-        if (!scene.IsValid() || !scene.isLoaded || context == null)
+        if (!scene.IsValid() || !scene.isLoaded)
             return false;
 
+        if (context == null)
+        {
+            Debug.LogError(
+                $"{nameof(SceneRuntime)} missing {nameof(ProjectContext)} while installing scene '{GetSceneLabel(scene)}'.");
+
+            return false;
+        }
+
+        bool foundRuntime = false;
         bool installedRuntime = false;
         GameObject[] roots = scene.GetRootGameObjects();
 
@@ -66,19 +111,24 @@ public sealed class SceneRuntime : MonoBehaviour
 
             for (int runtimeIndex = 0; runtimeIndex < runtimes.Length; runtimeIndex++)
             {
-                runtimes[runtimeIndex].Install(context);
-                installedRuntime = true;
+                foundRuntime = true;
+
+                if (runtimes[runtimeIndex].Install(context))
+                    installedRuntime = true;
             }
         }
 
         ProjectSceneKind sceneKind = context.GetSceneKind(scene.name, scene.path);
 
-        if (!installedRuntime &&
+        if (!foundRuntime &&
             sceneKind != ProjectSceneKind.Unknown &&
             sceneKind != context.GetBootstrapSceneKind())
         {
             Debug.LogWarning($"Scene '{scene.name}' has no {nameof(SceneRuntime)}. Scene-level dependencies were not installed.");
         }
+
+        if (foundRuntime && !installedRuntime)
+            Debug.LogError($"Scene '{scene.name}' has {nameof(SceneRuntime)}, but scene-level dependencies were not installed successfully.");
 
         return installedRuntime;
     }
@@ -106,6 +156,17 @@ public sealed class SceneRuntime : MonoBehaviour
             $"{nameof(SceneRuntime)} on scene '{gameObject.scene.name}' is marked as {sceneKind}, " +
             $"but project settings identify it as {configuredKind}.",
             this);
+    }
+
+    private static string GetSceneLabel(Scene scene)
+    {
+        if (!string.IsNullOrWhiteSpace(scene.path))
+            return scene.path;
+
+        if (!string.IsNullOrWhiteSpace(scene.name))
+            return scene.name;
+
+        return "Unknown";
     }
 
 #if UNITY_EDITOR

@@ -7,18 +7,24 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
     [SerializeField] private NetworkLobbyService lobbyService;
     [SerializeField] private LobbyUI lobbyUi;
 
-    public override void Install(ProjectContext context)
+    protected override bool InstallFeature(ProjectContext context)
     {
-        if (context == null)
-            return;
+        INetworkSessionService sessionService = context.SessionService;
 
-        if (lobbyController != null)
-            lobbyController.Construct(context.SessionService);
+        bool valid = true;
+        valid &= RequireReference(lobbyState, nameof(lobbyState));
+        valid &= RequireReference(lobbyController, nameof(lobbyController));
+        valid &= RequireReference(lobbyService, nameof(lobbyService));
+        valid &= RequireReference(lobbyUi, nameof(lobbyUi));
+        valid &= RequireService(sessionService, nameof(ProjectContext.SessionService));
 
-        if (lobbyService != null)
-            lobbyService.Construct(lobbyState, lobbyController, context.SessionService);
+        if (!valid)
+            return false;
 
-        if (lobbyUi != null && lobbyService != null)
-            lobbyUi.Construct(lobbyService, lobbyService);
+        lobbyController.Construct(sessionService);
+        lobbyService.Construct(lobbyState, lobbyController, sessionService);
+        lobbyUi.Construct(lobbyService, lobbyService);
+
+        return true;
     }
 }

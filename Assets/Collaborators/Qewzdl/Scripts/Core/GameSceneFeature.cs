@@ -12,56 +12,118 @@ public sealed class GameSceneFeature : SceneRuntimeFeature
     [SerializeField] private EnemyNoiseEmitter[] noiseEmitters;
     [SerializeField] private EnemyHearingSensor[] hearingSensors;
 
-    public override void Install(ProjectContext context)
+    protected override bool InstallFeature(ProjectContext context)
     {
-        if (context == null)
-            return;
+        bool pauseInstalled = InstallPause(context);
+        bool hearingInstalled = InstallEnemyHearing();
 
-        InstallPause(context);
-        InstallEnemyHearing();
+        return pauseInstalled && hearingInstalled;
     }
 
-    private void InstallPause(ProjectContext context)
+    private bool InstallPause(ProjectContext context)
     {
-        if (pauseService == null)
-            return;
+        GameStateMachine stateMachine = context.StateMachine;
+        INetworkSessionService sessionService = context.SessionService;
 
-        pauseService.Construct(context.StateMachine);
+        bool valid = true;
+        valid &= RequireReference(pauseService, nameof(pauseService));
+        valid &= RequireReference(pauseMenu, nameof(pauseMenu));
+        valid &= RequireReference(stateMachine, nameof(ProjectContext.StateMachine));
+        valid &= RequireService(sessionService, nameof(ProjectContext.SessionService));
 
-        if (pauseMenu != null)
-            pauseMenu.Construct(pauseService, context.SessionService);
+        if (!valid)
+            return false;
 
+        pauseService.Construct(stateMachine);
+        pauseMenu.Construct(pauseService, sessionService);
+
+        return InstallPauseConsumers();
+    }
+
+    private bool InstallPauseConsumers()
+    {
         if (pauseConsumers == null)
-            return;
+            return true;
+
+        bool valid = true;
 
         for (int i = 0; i < pauseConsumers.Length; i++)
         {
             IPauseServiceConsumer consumer = RequireInterface<IPauseServiceConsumer>(
                 pauseConsumers[i],
                 this,
-                nameof(pauseConsumers));
+                $"{nameof(pauseConsumers)}[{i}]");
 
-            consumer?.BindPauseService(pauseService);
+            if (consumer == null)
+            {
+                valid = false;
+                continue;
+            }
+
+            consumer.BindPauseService(pauseService);
         }
+
+        return valid;
     }
 
-    private void InstallEnemyHearing()
+    private bool InstallEnemyHearing()
     {
-        if (noiseWorldService == null)
-            return;
+        if (!RequireReference(noiseWorldService, nameof(noiseWorldService)))
+            return false;
 
         noiseWorldService.Initialize();
 
-        if (noiseEmitters != null)
+        bool emittersInstalled = InstallNoiseEmitters();
+        bool sensorsInstalled = InstallHearingSensors();
+
+        return emittersInstalled && sensorsInstalled;
+    }
+
+    private bool InstallNoiseEmitters()
+    {
+        if (noiseEmitters == null)
+            return true;
+
+        bool valid = true;
+
+        for (int i = 0; i < noiseEmitters.Length; i++)
         {
-            for (int i = 0; i < noiseEmitters.Length; i++)
-                noiseEmitters[i]?.Construct(noiseWorldService);
+            EnemyNoiseEmitter emitter = noiseEmitters[i];
+
+            if (emitter == null)
+            {
+                LogMissingReference($"{nameof(noiseEmitters)}[{i}]");
+                valid = false;
+                continue;
+            }
+
+            emitter.Construct(noiseWorldService);
         }
 
-        if (hearingSensors != null)
+        return valid;
+    }
+
+    private bool InstallHearingSensors()
+    {
+        if (hearingSensors == null)
+            return true;
+
+        bool valid = true;
+
+        for (int i = 0; i < hearingSensors.Length; i++)
         {
-            for (int i = 0; i < hearingSensors.Length; i++)
-                hearingSensors[i]?.Construct(noiseWorldService);
+            EnemyHearingSensor sensor = hearingSensors[i];
+
+            if (sensor == null)
+            {
+                LogMissingReference($"{nameof(hearingSensors)}[{i}]");
+                valid = false;
+                continue;
+            }
+
+            sensor.Construct(noiseWorldService);
         }
+
+        return valid;
     }
 }
