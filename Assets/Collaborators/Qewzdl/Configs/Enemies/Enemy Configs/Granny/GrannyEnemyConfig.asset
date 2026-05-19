@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5839c61074e2e8a469e774a5fc68f51e, type: 3}
   m_Name: GrannyEnemyConfig
   m_EditorClassIdentifier: 
+  behaviorMode: 1
   movementProfile: {fileID: 11400000, guid: 6f99476c13b6ade46bfe2993f8e280d6, type: 2}
   visionProfile: {fileID: 11400000, guid: bcbded8c22ee45a4e875f723753d083f, type: 2}
   hearingProfile: {fileID: 11400000, guid: a2d93308a73276548adedc078c7bcd1f, type: 2}

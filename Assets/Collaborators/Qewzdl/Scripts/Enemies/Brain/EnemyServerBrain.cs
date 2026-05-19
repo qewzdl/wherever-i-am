@@ -7,6 +7,7 @@ public sealed class EnemyServerBrain
     private readonly EnemyConfig config;
     private readonly EnemyNavigator navigator;
     private readonly EnemyTargetDetector targetDetector;
+    private readonly bool usesTargetDetection;
     private readonly EnemyAttackController attackController;
     private readonly EnemyPostureController postureController;
     private readonly EnemyBlackboard blackboard;
@@ -26,6 +27,7 @@ public sealed class EnemyServerBrain
         EnemyConfig config,
         EnemyNavigator navigator,
         EnemyTargetDetector targetDetector,
+        bool usesTargetDetection,
         EnemyPatrolController patrolController,
         EnemyAttackController attackController,
         EnemyPostureController postureController,
@@ -34,9 +36,18 @@ public sealed class EnemyServerBrain
         Action<EnemyTargetIdentity> setTargetIdentity
     )
     {
+        if (usesTargetDetection && targetDetector == null)
+        {
+            throw new ArgumentNullException(
+                nameof(targetDetector),
+                $"{nameof(EnemyServerBrain)} requires {nameof(EnemyTargetDetector)} when target detection is enabled."
+            );
+        }
+
         this.config = config;
         this.navigator = navigator;
         this.targetDetector = targetDetector;
+        this.usesTargetDetection = usesTargetDetection;
         this.attackController = attackController;
         this.postureController = postureController;
         this.blackboard = blackboard ?? new EnemyBlackboard();
@@ -106,14 +117,18 @@ public sealed class EnemyServerBrain
             return;
         }
 
-        TickTargetRefresh(deltaTime);
+        if (usesTargetDetection)
+        {
+            TickTargetRefresh(deltaTime);
+        }
+
         currentHandler?.Tick(deltaTime);
     }
 
     public void Dispose()
     {
         attackController?.Interrupt();
-        
+
         currentHandler?.Exit();
         currentHandler = null;
 
@@ -228,12 +243,6 @@ public sealed class EnemyServerBrain
 
     private void RefreshTarget()
     {
-        if (targetDetector == null)
-        {
-            HandleNoStimulus();
-            return;
-        }
-
         if (!targetDetector.TryResolveBestStimulus(
                 config,
                 blackboard,

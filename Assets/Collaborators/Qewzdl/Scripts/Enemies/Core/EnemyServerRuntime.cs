@@ -166,7 +166,7 @@ public class EnemyServerRuntime : MonoBehaviour
             return false;
         }
 
-        if (config != null && config.crawlingEnabled && postureController == null)
+        if (config.crawlingEnabled && postureController == null)
         {
             Debug.LogError(
                 $"{nameof(EnemyServerRuntime)} requires {nameof(EnemyPostureController)} when crawling is enabled.",
@@ -176,12 +176,15 @@ public class EnemyServerRuntime : MonoBehaviour
             return false;
         }
 
-        if (targetDetector == null)
+        if (config.RequiresTargetDetector && targetDetector == null)
         {
-            Debug.LogWarning(
-                $"{nameof(EnemyServerRuntime)} has no {nameof(EnemyTargetDetector)}. Enemy will patrol but will not detect players.",
+            Debug.LogError(
+                $"{nameof(EnemyServerRuntime)} requires {nameof(EnemyTargetDetector)} " +
+                $"because {nameof(EnemyConfig)} '{config.name}' uses {config.BehaviorMode} behavior.",
                 this
             );
+
+            return false;
         }
 
         return true;
@@ -196,10 +199,13 @@ public class EnemyServerRuntime : MonoBehaviour
             blackboard
         );
 
+        bool usesTargetDetection = config.RequiresTargetDetector;
+
         brain = new EnemyServerBrain(
             config,
             navigator,
-            targetDetector,
+            usesTargetDetection ? targetDetector : null,
+            usesTargetDetection,
             patrolController,
             attackController,
             postureController,

@@ -13,6 +13,7 @@ public class NetworkEnemyController : NetworkBehaviour
     [Header("Runtime")]
     [SerializeField] private EnemyNetworkState networkState;
     [SerializeField] private EnemyServerRuntime serverRuntime;
+    [SerializeField] private EnemyTargetDetector targetDetector;
 
     private bool shouldStartServerRuntime;
 
@@ -40,9 +41,11 @@ public class NetworkEnemyController : NetworkBehaviour
 
         if (!ValidateDependencies())
         {
-            enabled = false;
+            DisableRuntimeAfterInvalidConfiguration();
             return;
         }
+
+        serverRuntime.enabled = true;
 
         if (!IsServer)
         {
@@ -61,7 +64,7 @@ public class NetworkEnemyController : NetworkBehaviour
 
     private void Update()
     {
-        if (!IsServer || serverRuntime == null)
+        if (!IsServer || serverRuntime == null || !serverRuntime.enabled)
         {
             return;
         }
@@ -72,7 +75,7 @@ public class NetworkEnemyController : NetworkBehaviour
 
             if (!serverRuntime.TryInitializeServer(config, patrolRoute, networkState))
             {
-                enabled = false;
+                DisableRuntimeAfterInvalidConfiguration();
             }
 
             return;
@@ -91,6 +94,11 @@ public class NetworkEnemyController : NetworkBehaviour
         if (serverRuntime == null)
         {
             serverRuntime = GetComponent<EnemyServerRuntime>();
+        }
+
+        if (targetDetector == null)
+        {
+            targetDetector = GetComponent<EnemyTargetDetector>();
         }
     }
 
@@ -120,7 +128,31 @@ public class NetworkEnemyController : NetworkBehaviour
             return false;
         }
 
+        if (config.RequiresTargetDetector && targetDetector == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires {nameof(EnemyTargetDetector)} " +
+                $"because {nameof(EnemyConfig)} '{config.name}' uses {config.BehaviorMode} behavior.",
+                this
+            );
+
+            return false;
+        }
+
         return true;
+    }
+
+    private void DisableRuntimeAfterInvalidConfiguration()
+    {
+        shouldStartServerRuntime = false;
+
+        if (serverRuntime != null)
+        {
+            serverRuntime.ShutdownServer();
+            serverRuntime.enabled = false;
+        }
+
+        enabled = false;
     }
 
 #if UNITY_EDITOR
@@ -132,6 +164,20 @@ public class NetworkEnemyController : NetworkBehaviour
     private void OnValidate()
     {
         CacheComponents();
+
+        if (config == null)
+        {
+            return;
+        }
+
+        if (config.RequiresTargetDetector && targetDetector == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires {nameof(EnemyTargetDetector)} " +
+                $"because {nameof(EnemyConfig)} '{config.name}' uses {config.BehaviorMode} behavior.",
+                this
+            );
+        }
     }
 #endif
 }

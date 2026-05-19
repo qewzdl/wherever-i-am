@@ -4,6 +4,9 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "Wherever I Am/Enemies/Enemy Config", fileName = "EnemyConfig")]
 public class EnemyConfig : ScriptableObject
 {
+    [Header("Behavior")]
+    [SerializeField] private EnemyBehaviorMode behaviorMode = EnemyBehaviorMode.Standard;
+
     [Header("Profiles")]
     [SerializeField] private EnemyMovementConfig movementProfile;
     [SerializeField] private EnemyVisionConfig visionProfile;
@@ -12,6 +15,10 @@ public class EnemyConfig : ScriptableObject
     [SerializeField] private EnemyPatrolConfig patrolProfile;
     [SerializeField] private EnemyPostureConfig postureProfile;
     [SerializeField] private EnemyAttackConfig attackProfile;
+
+    public EnemyBehaviorMode BehaviorMode => behaviorMode;
+    public bool IsPatrolOnlyEnemy => behaviorMode == EnemyBehaviorMode.PatrolOnly;
+    public bool RequiresTargetDetector => !IsPatrolOnlyEnemy;
 
     public EnemyMovementConfig MovementProfile => movementProfile;
     public EnemyVisionConfig VisionProfile => visionProfile;
@@ -29,6 +36,20 @@ public class EnemyConfig : ScriptableObject
         patrolProfile != null &&
         postureProfile != null &&
         attackProfile != null;
+
+    public bool HasRequiredProfiles =>
+        movementProfile != null &&
+        patrolProfile != null &&
+        postureProfile != null &&
+        (
+            IsPatrolOnlyEnemy ||
+            (
+                visionProfile != null &&
+                hearingProfile != null &&
+                investigationProfile != null &&
+                attackProfile != null
+            )
+        );
 
     public float patrolSpeed => movementProfile.patrolSpeed;
     public float chaseSpeed => movementProfile.chaseSpeed;
@@ -117,7 +138,7 @@ public class EnemyConfig : ScriptableObject
 
     public bool TryGetValidationError(out string error)
     {
-        if (HasAllProfiles)
+        if (HasRequiredProfiles)
         {
             error = string.Empty;
             return false;
@@ -125,15 +146,21 @@ public class EnemyConfig : ScriptableObject
 
         StringBuilder builder = new();
 
-        builder.AppendLine($"{nameof(EnemyConfig)} '{name}' has missing profiles:");
+        builder.AppendLine(
+            $"{nameof(EnemyConfig)} '{name}' has missing profiles for {behaviorMode} behavior:"
+        );
 
         AppendMissingProfile(builder, movementProfile, nameof(movementProfile));
-        AppendMissingProfile(builder, visionProfile, nameof(visionProfile));
-        AppendMissingProfile(builder, hearingProfile, nameof(hearingProfile));
-        AppendMissingProfile(builder, investigationProfile, nameof(investigationProfile));
         AppendMissingProfile(builder, patrolProfile, nameof(patrolProfile));
         AppendMissingProfile(builder, postureProfile, nameof(postureProfile));
-        AppendMissingProfile(builder, attackProfile, nameof(attackProfile));
+
+        if (RequiresTargetDetector)
+        {
+            AppendMissingProfile(builder, visionProfile, nameof(visionProfile));
+            AppendMissingProfile(builder, hearingProfile, nameof(hearingProfile));
+            AppendMissingProfile(builder, investigationProfile, nameof(investigationProfile));
+            AppendMissingProfile(builder, attackProfile, nameof(attackProfile));
+        }
 
         error = builder.ToString();
         return true;
@@ -167,7 +194,7 @@ public class EnemyConfig : ScriptableObject
 
     private void OnValidate()
     {
-        if (!HasAllProfiles)
+        if (!HasRequiredProfiles)
         {
             return;
         }
