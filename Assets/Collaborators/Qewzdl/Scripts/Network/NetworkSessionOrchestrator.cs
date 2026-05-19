@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -15,7 +15,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkConnectionService connectionService;
-    [SerializeField] private NetworkSceneLoader sceneLoader;
+    [SerializeField] private ProjectSceneNavigator sceneNavigator;
     [SerializeField] private NetworkChatSessionSpawner chatSessionSpawner;
     [SerializeField] private ProjectContext projectContext;
 
@@ -68,7 +68,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     public async Task HostLanAsync()
     {
-        if (!HasRequiredReferences()) return;
+        if (!HasRequiredReferences())
+            return;
 
         if (TryGetErrorService(out IUiErrorService service))
             service.HideError();
@@ -100,7 +101,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             Debug.LogWarning("NetworkChatSessionSpawner is missing. Chat will be disabled.");
         }
 
-        if (!sceneLoader.LoadLobby())
+        if (!sceneNavigator.LoadLobby())
         {
             FailAndReturnToMainMenu(ConnectionResult.Fail(
                 ConnectionErrorCode.LobbySceneLoadFailed,
@@ -113,7 +114,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     public async Task JoinLanAsync(string ip)
     {
-        if (!HasRequiredReferences()) return;
+        if (!HasRequiredReferences())
+            return;
 
         if (TryGetErrorService(out IUiErrorService service))
             service.HideError();
@@ -135,7 +137,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     public void StartGame()
     {
-        if (!HasRequiredReferences()) return;
+        if (!HasRequiredReferences())
+            return;
 
         if (NetworkManager.Singleton == null)
         {
@@ -149,15 +152,14 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return;
         }
 
-        if (sceneLoader.LoadGame())
-        {
+        if (sceneNavigator.LoadGame())
             stateMachine.ChangeState(GameState.LoadingGame);
-        }
     }
 
     public void ShutdownToMainMenu()
     {
-        if (!HasRequiredReferences()) return;
+        if (!HasRequiredReferences())
+            return;
 
         if (shutdownRoutine != null)
             return;
@@ -178,8 +180,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         yield return null;
 
-        if (sceneLoader != null)
-            sceneLoader.LoadMainMenu();
+        if (sceneNavigator != null)
+            sceneNavigator.LoadMainMenu();
 
         shutdownRoutine = null;
     }
@@ -203,9 +205,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     private void ResolveReferences()
     {
         if (projectContext == null)
-            projectContext = GetComponent<ProjectContext>();
-
-        if (projectContext == null)
             projectContext = ProjectContext.Instance;
 
         if (networkManager == null)
@@ -214,23 +213,14 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (networkManager == null)
             networkManager = NetworkManager.Singleton;
 
-        if (stateMachine == null)
-            stateMachine = GetComponent<GameStateMachine>();
-
         if (stateMachine == null && projectContext != null)
             stateMachine = projectContext.StateMachine;
-
-        if (connectionService == null)
-            connectionService = GetComponent<NetworkConnectionService>();
 
         if (connectionService == null && projectContext != null)
             connectionService = projectContext.ConnectionService;
 
-        if (sceneLoader == null)
-            sceneLoader = GetComponent<NetworkSceneLoader>();
-
-        if (sceneLoader == null && projectContext != null)
-            sceneLoader = projectContext.SceneLoader;
+        if (sceneNavigator == null && projectContext != null)
+            sceneNavigator = projectContext.SceneNavigator;
 
         if (playerPrefab == null && networkManager != null)
             playerPrefab = networkManager.NetworkConfig.PlayerPrefab;
@@ -247,6 +237,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     private bool HasRequiredReferences()
     {
+        ResolveReferences();
+
         if (stateMachine == null)
         {
             Debug.LogError("GameStateMachine reference is missing.");
@@ -259,9 +251,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return false;
         }
 
-        if (sceneLoader == null)
+        if (sceneNavigator == null)
         {
-            Debug.LogError("NetworkSceneLoader reference is missing.");
+            Debug.LogError("ProjectSceneNavigator reference is missing.");
             return false;
         }
 
@@ -303,9 +295,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (projectContext != null)
             return projectContext.GetActiveSceneKind() == ProjectSceneKind.Lobby;
-
-        if (sceneLoader != null)
-            return SceneManager.GetActiveScene().name == sceneLoader.LobbySceneName;
 
         return false;
     }
@@ -374,10 +363,10 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     private void HandleClientConnected(ulong clientId)
     {
-        if (networkManager == null || sceneLoader == null || !networkManager.IsServer)
+        if (networkManager == null || !networkManager.IsServer)
             return;
 
-        if (!IsCurrentScene(sceneLoader.GameSceneName))
+        if (!IsCurrentScene(ProjectSceneKind.Game))
             return;
 
         SpawnPlayerForClient(clientId);
@@ -397,9 +386,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (stateMachine.CurrentState == GameState.Disconnecting)
             return;
 
-        if (sceneLoader == null)
+        if (sceneNavigator == null)
         {
-            Debug.LogError("NetworkSceneLoader reference is missing.");
+            Debug.LogError("ProjectSceneNavigator reference is missing.");
             stateMachine.ChangeState(GameState.Error);
             return;
         }
@@ -424,10 +413,10 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         List<ulong> clientsCompleted,
         List<ulong> clientsTimedOut)
     {
-        if (sceneLoader == null)
+        if (sceneNavigator == null)
             return;
 
-        if (sceneName != sceneLoader.GameSceneName)
+        if (sceneName != sceneNavigator.GameSceneName)
             return;
 
         if (networkManager == null || !networkManager.IsServer)
@@ -442,9 +431,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return;
 
         foreach (ulong clientId in networkManager.ConnectedClientsIds)
-        {
             SpawnPlayerForClient(clientId);
-        }
     }
 
     private void SpawnPlayerForClient(ulong clientId)
@@ -472,9 +459,20 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         playerInstance.SpawnAsPlayerObject(clientId, true);
     }
 
-    private bool IsCurrentScene(string sceneName)
+    private bool IsCurrentScene(ProjectSceneKind sceneKind)
     {
-        return SceneManager.GetActiveScene().name == sceneName;
+        if (projectContext != null)
+            return projectContext.GetActiveSceneKind() == sceneKind;
+
+        if (sceneNavigator == null)
+            return false;
+
+        string expectedSceneName = sceneKind == ProjectSceneKind.Game
+            ? sceneNavigator.GameSceneName
+            : sceneNavigator.LobbySceneName;
+
+        return !string.IsNullOrWhiteSpace(expectedSceneName) &&
+               SceneManager.GetActiveScene().name == expectedSceneName;
     }
 
     private void FailAndReturnToMainMenu(string userMessage, string debugMessage = "")
@@ -504,8 +502,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (connectionService != null)
             connectionService.Shutdown();
 
-        if (sceneLoader != null)
-            sceneLoader.LoadMainMenu();
+        if (sceneNavigator != null)
+            sceneNavigator.LoadMainMenu();
 
         if (TryGetErrorService(out IUiErrorService service))
             service.ShowError(result.UserMessage);

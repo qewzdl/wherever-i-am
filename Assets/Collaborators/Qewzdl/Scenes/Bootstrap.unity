@@ -138,6 +138,8 @@ GameObject:
   - component: {fileID: 481142981}
   - component: {fileID: 481142984}
   - component: {fileID: 481142985}
+  - component: {fileID: 481142989}
+  - component: {fileID: 481142988}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -160,39 +162,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &481142986
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 481142975}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 76352c58339f47129d0f8dadbeea0a72, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  settings: {fileID: 11400000, guid: a7ef7d2849b642b4a65225007f1fe78e, type: 2}
-  stateMachine: {fileID: 481142978}
-  sessionOrchestrator: {fileID: 481142980}
-  connectionService: {fileID: 481142981}
-  sceneLoader: {fileID: 481142979}
-  uiErrorManager: {fileID: 1020719287}
-  audioManager: {fileID: 1269671436}
---- !u!114 &481142987
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 481142975}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ebb0b9325411473d9a48332dc4a94e33, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  loadStartupScene: 1
-  context: {fileID: 481142986}
 --- !u!114 &481142978
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -233,7 +202,7 @@ MonoBehaviour:
   networkManager: {fileID: 481142982}
   stateMachine: {fileID: 481142978}
   connectionService: {fileID: 481142981}
-  sceneLoader: {fileID: 481142979}
+  sceneNavigator: {fileID: 481142988}
   chatSessionSpawner: {fileID: 481142984}
   projectContext: {fileID: 481142986}
   playerPrefab: {fileID: 5710508612914273328, guid: a6b1763c8abbebe4989088f71540c4bc, type: 3}
@@ -360,6 +329,69 @@ MonoBehaviour:
   uiRoot: {fileID: 0}
   chatWindowPrefab: {fileID: 1008245277231494500, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
   createCanvasForPanelPrefab: 1
+--- !u!114 &481142986
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76352c58339f47129d0f8dadbeea0a72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  settings: {fileID: 11400000, guid: a7ef7d2849b642b4a65225007f1fe78e, type: 2}
+  stateMachine: {fileID: 481142978}
+  sessionOrchestrator: {fileID: 481142980}
+  connectionService: {fileID: 481142981}
+  localSceneLoader: {fileID: 481142989}
+  networkSceneLoader: {fileID: 481142979}
+  sceneNavigator: {fileID: 481142988}
+  uiErrorManager: {fileID: 1020719287}
+  audioManager: {fileID: 1269671436}
+--- !u!114 &481142987
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebb0b9325411473d9a48332dc4a94e33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  loadStartupScene: 1
+  context: {fileID: 481142986}
+--- !u!114 &481142988
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 973b644e39398eb44a4caa92297f279c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+  localSceneLoader: {fileID: 481142989}
+  networkSceneLoader: {fileID: 481142979}
+--- !u!114 &481142989
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da251d7cd591bee478383f161f7d4e5e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
 --- !u!1 &542830336
 GameObject:
   m_ObjectHideFlags: 0

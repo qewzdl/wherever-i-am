@@ -2,81 +2,111 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class NetworkSceneLoader : MonoBehaviour
+public sealed class NetworkSceneLoader : MonoBehaviour
 {
-    private const string FallbackMainMenuSceneName = "Main Menu";
-    private const string FallbackLobbySceneName = "Lobby";
-    private const string FallbackGameSceneName = "Game";
-
     [SerializeField] private ProjectContext projectContext;
 
-    public string MainMenuSceneName => GetSceneName(ProjectSceneKind.MainMenu, FallbackMainMenuSceneName);
-    public string LobbySceneName => GetSceneName(ProjectSceneKind.Lobby, FallbackLobbySceneName);
-    public string GameSceneName => GetSceneName(ProjectSceneKind.Game, FallbackGameSceneName);
+    public string LobbySceneName => GetSceneName(ProjectSceneKind.Lobby);
+    public string GameSceneName => GetSceneName(ProjectSceneKind.Game);
 
-    private void Awake()
+    public void Construct(ProjectContext context)
     {
-        ResolveProjectContext();
-    }
-
-    public void LoadMainMenu()
-    {
-        SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
+        projectContext = context;
     }
 
     public bool LoadLobby()
     {
-        if (!CanLoadNetworkScene()) return false;
-
-        NetworkManager.Singleton.SceneManager.LoadScene(LobbySceneName, LoadSceneMode.Single);
-        return true;
+        return Load(ProjectSceneKind.Lobby);
     }
 
     public bool LoadGame()
     {
-        if (!CanLoadNetworkScene()) return false;
+        return Load(ProjectSceneKind.Game);
+    }
 
-        NetworkManager.Singleton.SceneManager.LoadScene(GameSceneName, LoadSceneMode.Single);
+    public bool Load(ProjectSceneKind sceneKind)
+    {
+        if (!IsNetworkScene(sceneKind))
+        {
+            Debug.LogError($"{nameof(NetworkSceneLoader)} can load only Lobby/Game network scenes. Requested: {sceneKind}.", this);
+            return false;
+        }
+
+        if (!TryGetSceneName(sceneKind, out string sceneName))
+            return false;
+
+        if (!CanLoadNetworkScene())
+            return false;
+
+        NetworkManager.Singleton.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
         return true;
     }
 
-    private void ResolveProjectContext()
+    private bool TryGetSceneName(ProjectSceneKind sceneKind, out string sceneName)
     {
-        if (projectContext == null)
-            projectContext = GetComponent<ProjectContext>();
+        sceneName = string.Empty;
 
         if (projectContext == null)
-            projectContext = ProjectContext.Instance;
+        {
+            Debug.LogError($"{nameof(NetworkSceneLoader)} is missing {nameof(ProjectContext)}.", this);
+            return false;
+        }
+
+        if (!projectContext.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
+        {
+            Debug.LogError($"Network scene is not configured for {sceneKind}.", this);
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(scene.SceneName))
+        {
+            Debug.LogError($"Network scene '{sceneKind}' has no configured scene name.", this);
+            return false;
+        }
+
+        sceneName = scene.SceneName;
+        return true;
     }
 
-    private string GetSceneName(ProjectSceneKind sceneKind, string fallbackSceneName)
+    private string GetSceneName(ProjectSceneKind sceneKind)
     {
-        ResolveProjectContext();
-
-        if (projectContext == null)
-            return fallbackSceneName;
-
-        string sceneName = projectContext.GetSceneName(sceneKind);
-
-        return string.IsNullOrWhiteSpace(sceneName)
-            ? fallbackSceneName
-            : sceneName;
+        return TryGetSceneName(sceneKind, out string sceneName)
+            ? sceneName
+            : string.Empty;
     }
 
     private bool CanLoadNetworkScene()
     {
         if (NetworkManager.Singleton == null)
         {
-            Debug.LogError("NetworkManager.Singleton is null.");
+            Debug.LogError("NetworkManager.Singleton is null.", this);
+            return false;
+        }
+
+        if (!NetworkManager.Singleton.IsListening)
+        {
+            Debug.LogError("NetworkManager is not listening.", this);
+            return false;
+        }
+
+        if (NetworkManager.Singleton.SceneManager == null)
+        {
+            Debug.LogError("NetworkManager.SceneManager is null.", this);
             return false;
         }
 
         if (!NetworkManager.Singleton.IsServer)
         {
-            Debug.LogWarning("Only server can load network scenes.");
+            Debug.LogWarning("Only server can load network scenes.", this);
             return false;
         }
 
         return true;
+    }
+
+    private static bool IsNetworkScene(ProjectSceneKind sceneKind)
+    {
+        return sceneKind == ProjectSceneKind.Lobby ||
+               sceneKind == ProjectSceneKind.Game;
     }
 }

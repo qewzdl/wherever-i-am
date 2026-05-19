@@ -14,21 +14,15 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkSessionOrchestrator sessionOrchestrator;
     [SerializeField] private NetworkConnectionService connectionService;
-    [SerializeField] private NetworkSceneLoader sceneLoader;
+    [SerializeField] private LocalSceneLoader localSceneLoader;
+    [SerializeField] private NetworkSceneLoader networkSceneLoader;
+    [SerializeField] private ProjectSceneNavigator sceneNavigator;
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private AudioManager audioManager;
 
-    public static ProjectContext Instance
-    {
-        get
-        {
-            if (instance != null)
-                return instance;
+    private bool referencesValidated;
 
-            instance = FindFirstObjectByType<ProjectContext>();
-            return instance;
-        }
-    }
+    public static ProjectContext Instance => instance;
 
     public ProjectSettings Settings => settings;
 
@@ -61,12 +55,32 @@ public sealed class ProjectContext : MonoBehaviour
         }
     }
 
-    public NetworkSceneLoader SceneLoader
+    public LocalSceneLoader LocalSceneLoader
     {
         get
         {
             ResolveReferences();
-            return sceneLoader;
+            return localSceneLoader;
+        }
+    }
+
+    public NetworkSceneLoader NetworkSceneLoader
+    {
+        get
+        {
+            ResolveReferences();
+            return networkSceneLoader;
+        }
+    }
+
+    public NetworkSceneLoader SceneLoader => NetworkSceneLoader;
+
+    public ProjectSceneNavigator SceneNavigator
+    {
+        get
+        {
+            ResolveReferences();
+            return sceneNavigator;
         }
     }
 
@@ -86,20 +100,6 @@ public sealed class ProjectContext : MonoBehaviour
             ResolveReferences();
             return audioManager;
         }
-    }
-
-    public static ProjectContext GetOrCreateOn(GameObject host)
-    {
-        if (Instance != null)
-            return instance;
-
-        if (host == null)
-            host = new GameObject(nameof(ProjectContext));
-
-        if (host.TryGetComponent(out ProjectContext context))
-            return context;
-
-        return host.AddComponent<ProjectContext>();
     }
 
     private void Awake()
@@ -128,43 +128,29 @@ public sealed class ProjectContext : MonoBehaviour
 
     public void ResolveReferences()
     {
-        if (stateMachine == null)
-            stateMachine = GetComponent<GameStateMachine>();
+        if (localSceneLoader != null)
+            localSceneLoader.Construct(this);
 
-        if (stateMachine == null)
-            stateMachine = FindFirstObjectByType<GameStateMachine>();
+        if (networkSceneLoader != null)
+            networkSceneLoader.Construct(this);
 
-        if (sessionOrchestrator == null)
-            sessionOrchestrator = GetComponent<NetworkSessionOrchestrator>();
+        if (sceneNavigator != null)
+            sceneNavigator.Construct(this, localSceneLoader, networkSceneLoader);
 
-        if (sessionOrchestrator == null)
-            sessionOrchestrator = NetworkSessionOrchestrator.Instance != null
-                ? NetworkSessionOrchestrator.Instance
-                : FindFirstObjectByType<NetworkSessionOrchestrator>();
+        if (referencesValidated)
+            return;
 
-        if (connectionService == null)
-            connectionService = GetComponent<NetworkConnectionService>();
+        referencesValidated = true;
 
-        if (connectionService == null)
-            connectionService = FindFirstObjectByType<NetworkConnectionService>();
-
-        if (sceneLoader == null)
-            sceneLoader = GetComponent<NetworkSceneLoader>();
-
-        if (sceneLoader == null)
-            sceneLoader = FindFirstObjectByType<NetworkSceneLoader>();
-
-        if (uiErrorManager == null)
-            uiErrorManager = global::UiErrorManager.Instance;
-
-        if (uiErrorManager == null)
-            uiErrorManager = FindFirstObjectByType<UiErrorManager>();
-
-        if (audioManager == null)
-            audioManager = global::AudioManager.Instance;
-
-        if (audioManager == null)
-            audioManager = FindFirstObjectByType<AudioManager>();
+        ValidateRequiredReference(settings, nameof(settings));
+        ValidateRequiredReference(stateMachine, nameof(stateMachine));
+        ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator));
+        ValidateRequiredReference(connectionService, nameof(connectionService));
+        ValidateRequiredReference(localSceneLoader, nameof(localSceneLoader));
+        ValidateRequiredReference(networkSceneLoader, nameof(networkSceneLoader));
+        ValidateRequiredReference(sceneNavigator, nameof(sceneNavigator));
+        ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager));
+        ValidateRequiredReference(audioManager, nameof(audioManager));
     }
 
     public string GetSceneName(ProjectSceneKind sceneKind)
@@ -242,11 +228,19 @@ public sealed class ProjectContext : MonoBehaviour
             : fallback;
     }
 
-    private bool TryGetScene(ProjectSceneKind sceneKind, out ProjectSceneDefinition scene)
+    public bool TryGetScene(ProjectSceneKind sceneKind, out ProjectSceneDefinition scene)
     {
         if (settings != null && settings.TryGetScene(sceneKind, out scene))
             return true;
 
         return ProjectSettings.TryGetDefaultScene(sceneKind, out scene);
+    }
+
+    private void ValidateRequiredReference(Object reference, string fieldName)
+    {
+        if (reference != null)
+            return;
+
+        Debug.LogError($"{nameof(ProjectContext)} is missing '{fieldName}'.", this);
     }
 }

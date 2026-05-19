@@ -3,7 +3,6 @@ using UnityEngine.SceneManagement;
 
 #if UNITY_EDITOR
 using UnityEditor;
-using UnityEditor.SceneManagement;
 #endif
 
 [DefaultExecutionOrder(-1000)]
@@ -24,31 +23,7 @@ public sealed class AppRuntime : MonoBehaviour
     private bool runtimeStarted;
     private bool sceneEventsSubscribed;
 
-    public static AppRuntime Instance
-    {
-        get
-        {
-            if (instance != null)
-                return instance;
-
-            instance = FindFirstObjectByType<AppRuntime>();
-            return instance;
-        }
-    }
-
-    public static AppRuntime GetOrCreateOn(GameObject host)
-    {
-        if (Instance != null)
-            return instance;
-
-        if (host == null)
-            host = new GameObject(nameof(AppRuntime));
-
-        if (host.TryGetComponent(out AppRuntime runtime))
-            return runtime;
-
-        return host.AddComponent<AppRuntime>();
-    }
+    public static AppRuntime Instance => instance;
 
     private void Awake()
     {
@@ -60,7 +35,9 @@ public sealed class AppRuntime : MonoBehaviour
 
         instance = this;
 
-        EnsureContext();
+        if (!EnsureContext())
+            return;
+
         context.MakePersistent();
         DontDestroyOnLoad(gameObject);
         SubscribeToSceneEvents();
@@ -90,9 +67,11 @@ public sealed class AppRuntime : MonoBehaviour
         if (runtimeStarted)
             return;
 
+        if (!EnsureContext())
+            return;
+
         runtimeStarted = true;
 
-        EnsureContext();
         context.ResolveReferences();
         ApplyStateForScene(SceneManager.GetActiveScene());
         SceneRuntime.InstallActiveScene(context);
@@ -101,12 +80,28 @@ public sealed class AppRuntime : MonoBehaviour
             LoadStartupSceneIfNeeded();
     }
 
-    private void EnsureContext()
+    public void LoadScene(ProjectSceneKind sceneKind)
     {
-        if (context != null)
+        if (sceneKind == ProjectSceneKind.Unknown)
+        {
+            Debug.LogError($"{nameof(AppRuntime)} cannot load unknown scene.", this);
+            return;
+        }
+
+        if (!TryGetSceneNavigator(out ProjectSceneNavigator navigator))
             return;
 
-        context = ProjectContext.GetOrCreateOn(gameObject);
+        navigator.LoadScene(sceneKind);
+    }
+
+    private bool EnsureContext()
+    {
+        if (context != null)
+            return true;
+
+        Debug.LogError($"{nameof(AppRuntime)} is missing {nameof(ProjectContext)}.", this);
+        enabled = false;
+        return false;
     }
 
     private void SubscribeToSceneEvents()
@@ -136,43 +131,19 @@ public sealed class AppRuntime : MonoBehaviour
 
         ProjectSceneKind startupScene = ResolveStartupScene();
 
-        if (startupScene == ProjectSceneKind.Unknown ||
-            startupScene == context.GetBootstrapSceneKind())
+        if (startupScene == ProjectSceneKind.Unknown)
         {
-            startupScene = context.GetDefaultStartupScene();
-        }
-
-        string sceneName = context.GetSceneName(startupScene);
-
-        if (string.IsNullOrWhiteSpace(sceneName))
-        {
-            Debug.LogError($"Startup scene is not configured for {startupScene}.");
+            Debug.LogError("Startup scene is not configured.", this);
             return;
         }
+
+        if (startupScene == context.GetBootstrapSceneKind())
+            startupScene = context.GetDefaultStartupScene();
 
         if (context.IsScene(startupScene, activeScene.name))
             return;
 
         LoadScene(startupScene);
-    }
-
-    public void LoadScene(ProjectSceneKind sceneKind)
-    {
-        if (sceneKind == ProjectSceneKind.Unknown)
-            return;
-
-        EnsureContext();
-
-        string sceneName = context.GetSceneName(sceneKind);
-        string scenePath = context.GetScenePath(sceneKind);
-
-        if (string.IsNullOrWhiteSpace(sceneName) && string.IsNullOrWhiteSpace(scenePath))
-        {
-            Debug.LogError($"Scene is not configured for {sceneKind}.");
-            return;
-        }
-
-        LoadConfiguredScene(sceneName, scenePath);
     }
 
     private ProjectSceneKind ResolveStartupScene()
@@ -192,7 +163,8 @@ public sealed class AppRuntime : MonoBehaviour
             if (editorSceneKind != ProjectSceneKind.Unknown)
                 return editorSceneKind;
 
-            Debug.LogWarning($"Editor requested unknown startup scene '{editorRequestedScenePath}'. Falling back to {context.GetDefaultStartupScene()}.");
+            Debug.LogError($"Editor requested unknown startup scene '{editorRequestedScenePath}'.", this);
+            return ProjectSceneKind.Unknown;
         }
 
         return context.GetDefaultStartupScene();
@@ -234,18 +206,19 @@ public sealed class AppRuntime : MonoBehaviour
         stateMachine.ChangeState(sceneState);
     }
 
-    private static void LoadConfiguredScene(string sceneName, string scenePath)
+    private bool TryGetSceneNavigator(out ProjectSceneNavigator navigator)
     {
-#if UNITY_EDITOR
-        if (!string.IsNullOrWhiteSpace(scenePath))
-        {
-            EditorSceneManager.LoadSceneInPlayMode(
-                scenePath,
-                new LoadSceneParameters(LoadSceneMode.Single));
-            return;
-        }
-#endif
+        navigator = null;
 
-        SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+        if (!EnsureContext())
+            return false;
+
+        navigator = context.SceneNavigator;
+
+        if (navigator != null)
+            return true;
+
+        Debug.LogError($"{nameof(AppRuntime)} is missing {nameof(ProjectSceneNavigator)}.", this);
+        return false;
     }
 }
