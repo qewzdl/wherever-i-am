@@ -21,7 +21,7 @@ public class EnemyAttackController : MonoBehaviour
     private Component activeLogContext;
 
     private bool commitApplied;
-    private bool warnedAboutMissingAttackEffect;
+    private bool missingAttackEffectErrorLogged;
 
     public event Action<EnemyAttackPhaseEvent> PhaseChanged;
     public event Action<EnemyAttackResult> AttackResolved;
@@ -30,9 +30,28 @@ public class EnemyAttackController : MonoBehaviour
 
     public bool IsBusy => phase != EnemyAttackPhase.Idle;
 
+    public bool HasRequiredDependencies => attackEffect != null;
+
     public bool CanBeInterrupted =>
         phase == EnemyAttackPhase.AttackWindup ||
         (phase == EnemyAttackPhase.AttackCommit && !commitApplied);
+
+    private void Awake()
+    {
+        ValidateRequiredDependencies();
+    }
+
+    public bool ValidateRequiredDependencies(Component logContext = null)
+    {
+        if (attackEffect != null)
+        {
+            missingAttackEffectErrorLogged = false;
+            return true;
+        }
+
+        LogMissingAttackEffectError(logContext);
+        return false;
+    }
 
     public void Tick(float deltaTime)
     {
@@ -41,6 +60,16 @@ public class EnemyAttackController : MonoBehaviour
 
     public void Tick(float deltaTime, Vector3 attackerPosition)
     {
+        if (!ValidateRequiredDependencies(activeLogContext))
+        {
+            if (phase != EnemyAttackPhase.Idle)
+            {
+                FinishPipeline();
+            }
+
+            return;
+        }
+
         TickCooldown(deltaTime);
 
         if (phase == EnemyAttackPhase.Idle)
@@ -75,6 +104,16 @@ public class EnemyAttackController : MonoBehaviour
         Component logContext
     )
     {
+        if (!ValidateRequiredDependencies(logContext))
+        {
+            return CreateResult(
+                EnemyAttackResultType.MissingEffect,
+                EnemyTargetIdentity.FromTarget(target),
+                attackerPosition,
+                target != null ? target.transform.position : default
+            );
+        }
+
         if (IsBusy)
         {
             return CreateResult(
@@ -297,6 +336,12 @@ public class EnemyAttackController : MonoBehaviour
     {
         commitApplied = true;
 
+        if (!ValidateRequiredDependencies(activeLogContext))
+        {
+            InterruptInternal(EnemyAttackResultType.MissingEffect, attackerPosition);
+            return;
+        }
+
         if (!TryRefreshPendingContext(
                 attackerPosition,
                 activeConfig.attackCommitMaxDistance,
@@ -304,13 +349,6 @@ public class EnemyAttackController : MonoBehaviour
             ))
         {
             InterruptInternal(failureType, attackerPosition);
-            return;
-        }
-
-        if (attackEffect == null)
-        {
-            WarnAboutMissingAttackEffect(pendingContext);
-            ResolveCommit(EnemyAttackResultType.MissingEffect, attackerPosition, false);
             return;
         }
 
@@ -561,19 +599,28 @@ public class EnemyAttackController : MonoBehaviour
         cooldownTimer = config.attackCooldown;
     }
 
-    private void WarnAboutMissingAttackEffect(EnemyAttackContext context)
+    private void LogMissingAttackEffectError(Component logContext)
     {
-        if (warnedAboutMissingAttackEffect)
+        if (missingAttackEffectErrorLogged)
         {
             return;
         }
 
-        warnedAboutMissingAttackEffect = true;
+        missingAttackEffectErrorLogged = true;
 
-        Debug.LogWarning(
-            $"{nameof(EnemyAttackController)} has no {nameof(EnemyAttackEffect)} assigned. " +
-            $"Attack against target {context.TargetDebugName} was validated but no result was applied.",
-            this
+        UnityEngine.Object context = logContext != null ? logContext : this;
+
+        Debug.LogError(
+            $"{nameof(EnemyAttackController)} requires {nameof(EnemyAttackEffect)}. " +
+            "Assign an explicit attack effect asset before running enemy attacks.",
+            context
         );
     }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        ValidateRequiredDependencies(this);
+    }
+#endif
 }

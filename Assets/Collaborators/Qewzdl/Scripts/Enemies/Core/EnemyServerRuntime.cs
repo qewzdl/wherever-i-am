@@ -175,6 +175,11 @@ public class EnemyServerRuntime : MonoBehaviour
             return false;
         }
 
+        if (!attackController.ValidateRequiredDependencies())
+        {
+            return false;
+        }
+
         if (navMeshStartupGate == null)
         {
             Debug.LogError($"{nameof(EnemyServerRuntime)} requires {nameof(EnemyNavMeshStartupGate)}.", this);
