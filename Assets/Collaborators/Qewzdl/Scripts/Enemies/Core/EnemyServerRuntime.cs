@@ -175,7 +175,7 @@ public class EnemyServerRuntime : MonoBehaviour
             return false;
         }
 
-        if (!attackController.ValidateRequiredDependencies())
+        if (!attackController.ValidateRuntimeDependencies())
         {
             return false;
         }
@@ -204,6 +204,11 @@ public class EnemyServerRuntime : MonoBehaviour
                 this
             );
 
+            return false;
+        }
+
+        if (config.RequiresTargetDetector && !targetDetector.ValidateRuntimeDependencies(config))
+        {
             return false;
         }
 

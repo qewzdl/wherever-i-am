@@ -23,6 +23,11 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
         enabled = true;
     }
 
+    public bool ValidateStaticDependencies()
+    {
+        return true;
+    }
+
     public bool ValidateRuntimeDependencies()
     {
         if (noiseWorldService != null)

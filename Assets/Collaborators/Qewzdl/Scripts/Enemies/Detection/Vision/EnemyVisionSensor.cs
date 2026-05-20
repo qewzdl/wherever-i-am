@@ -23,11 +23,15 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     private EnemyTarget[] processedTargets;
     private float nextOverflowWarningTime;
     private Vector3[] visibilityPointResults;
-    private bool invalidConfigurationLogged;
+
+    private bool invalidStaticConfigurationLogged;
     private bool missingConfigLogged;
 
     public Transform OriginTransform => eyes;
-    public bool IsConfigured => ValidateDependencies(false);
+
+    public bool IsConfigured =>
+        ValidateStaticDependencies(false) &&
+        ValidateRuntimeDependencies(false);
 
     public bool HasLastTargetedVerticalView { get; private set; }
     public Vector3 LastTargetedVerticalViewOrigin { get; private set; }
@@ -38,15 +42,20 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     {
         EnsureDetectionBuffers();
 
-        if (!ValidateDependencies())
+        if (!ValidateStaticDependencies())
         {
-            enabled = false;
+            DisableUntilConfigured();
         }
+    }
+
+    public bool ValidateStaticDependencies()
+    {
+        return ValidateStaticDependencies(true);
     }
 
     public bool ValidateRuntimeDependencies()
     {
-        return ValidateDependencies();
+        return ValidateRuntimeDependencies(true);
     }
 
     public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
@@ -85,7 +94,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         bestVisiblePoint = Vector3.zero;
         HasLastTargetedVerticalView = false;
 
-        if (!ValidateDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return null;
         }
@@ -187,7 +196,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        if (!ValidateDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return false;
         }
@@ -313,7 +322,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     private bool HasLineOfSight(Vector3 originPosition, Vector3 targetPoint)
     {
-        if (!ValidateDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return false;
         }
@@ -349,73 +358,51 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     private bool ValidateConfig(EnemyConfig config)
     {
-        if (config != null)
-        {
-            missingConfigLogged = false;
-            return true;
-        }
-
-        if (!missingConfigLogged)
-        {
-            missingConfigLogged = true;
-
-            Debug.LogError(
-                $"{nameof(EnemyVisionSensor)} requires non-null {nameof(EnemyConfig)}.",
-                this
-            );
-        }
-
-        return false;
+        return EnemyValidationLogger.ValidateConfig(
+            this,
+            nameof(EnemyVisionSensor),
+            config,
+            ref missingConfigLogged
+        );
     }
 
-    private bool ValidateDependencies(bool logErrors = true)
+    private bool ValidateStaticDependencies(bool logErrors)
     {
         StringBuilder builder = new();
 
         if (eyes == null)
         {
-            builder.AppendLine($"- {nameof(eyes)} is not assigned.");
+            EnemyValidationLogger.AppendMissingDependency(builder, nameof(eyes));
         }
 
         if (targetMask.value == 0)
         {
-            builder.AppendLine($"- {nameof(targetMask)} is empty.");
+            EnemyValidationLogger.AppendEmptyLayerMask(builder, nameof(targetMask));
         }
 
         if (obstructionMask.value == 0)
         {
-            builder.AppendLine($"- {nameof(obstructionMask)} is empty.");
+            EnemyValidationLogger.AppendEmptyLayerMask(builder, nameof(obstructionMask));
         }
 
-        if (builder.Length == 0)
-        {
-            invalidConfigurationLogged = false;
-            return true;
-        }
-
-        if (logErrors)
-        {
-            LogInvalidConfiguration(builder.ToString());
-        }
-
-        return false;
+        return EnemyValidationLogger.ValidateAndLog(
+            this,
+            nameof(EnemyVisionSensor),
+            builder,
+            ref invalidStaticConfigurationLogged,
+            logErrors,
+            "Vision sensor is disabled until configured."
+        );
     }
 
-    private void LogInvalidConfiguration(string details)
+    private bool ValidateRuntimeDependencies(bool logErrors)
     {
-        if (invalidConfigurationLogged)
-        {
-            return;
-        }
+        return ValidateStaticDependencies(logErrors);
+    }
 
-        invalidConfigurationLogged = true;
-
-        Debug.LogError(
-            $"{nameof(EnemyVisionSensor)} has invalid configuration:\n" +
-            details +
-            "Vision sensor is disabled until configured.",
-            this
-        );
+    private void DisableUntilConfigured()
+    {
+        enabled = false;
     }
 
     private void EnsureDetectionBuffers()
@@ -494,6 +481,6 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         overflowWarningCooldown = Mathf.Max(0.1f, overflowWarningCooldown);
         maxVisibilityPoints = Mathf.Max(1, maxVisibilityPoints);
         EnsureDetectionBuffers();
-        ValidateDependencies();
+        ValidateStaticDependencies();
     }
 }

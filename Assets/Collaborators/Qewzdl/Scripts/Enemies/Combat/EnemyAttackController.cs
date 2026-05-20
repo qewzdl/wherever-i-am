@@ -1,9 +1,10 @@
 using System;
+using System.Text;
 using Unity.Netcode;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public class EnemyAttackController : MonoBehaviour
+public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
 {
     [SerializeField] private EnemyAttackEffect attackEffect;
 
@@ -21,7 +22,7 @@ public class EnemyAttackController : MonoBehaviour
     private Component activeLogContext;
 
     private bool commitApplied;
-    private bool missingAttackEffectErrorLogged;
+    private bool invalidStaticConfigurationLogged;
 
     public event Action<EnemyAttackPhaseEvent> PhaseChanged;
     public event Action<EnemyAttackResult> AttackResolved;
@@ -30,7 +31,11 @@ public class EnemyAttackController : MonoBehaviour
 
     public bool IsBusy => phase != EnemyAttackPhase.Idle;
 
-    public bool HasRequiredDependencies => attackEffect != null;
+    public bool IsConfigured =>
+        ValidateStaticDependencies(false) &&
+        ValidateRuntimeDependencies(false);
+
+    public bool HasRequiredDependencies => IsConfigured;
 
     public bool CanBeInterrupted =>
         phase == EnemyAttackPhase.AttackWindup ||
@@ -38,19 +43,25 @@ public class EnemyAttackController : MonoBehaviour
 
     private void Awake()
     {
-        ValidateRequiredDependencies();
+        if (!ValidateStaticDependencies())
+        {
+            DisableUntilConfigured();
+        }
+    }
+
+    public bool ValidateStaticDependencies()
+    {
+        return ValidateStaticDependencies(this, true);
+    }
+
+    public bool ValidateRuntimeDependencies()
+    {
+        return ValidateRuntimeDependencies(this, true);
     }
 
     public bool ValidateRequiredDependencies(Component logContext = null)
     {
-        if (attackEffect != null)
-        {
-            missingAttackEffectErrorLogged = false;
-            return true;
-        }
-
-        LogMissingAttackEffectError(logContext);
-        return false;
+        return ValidateRuntimeDependencies(logContext != null ? logContext : this, true);
     }
 
     public void Tick(float deltaTime)
@@ -60,13 +71,14 @@ public class EnemyAttackController : MonoBehaviour
 
     public void Tick(float deltaTime, Vector3 attackerPosition)
     {
-        if (!ValidateRequiredDependencies(activeLogContext))
+        if (!ValidateRuntimeDependencies(activeLogContext != null ? activeLogContext : this, true))
         {
             if (phase != EnemyAttackPhase.Idle)
             {
                 FinishPipeline();
             }
 
+            DisableUntilConfigured();
             return;
         }
 
@@ -104,8 +116,10 @@ public class EnemyAttackController : MonoBehaviour
         Component logContext
     )
     {
-        if (!ValidateRequiredDependencies(logContext))
+        if (!ValidateRuntimeDependencies(logContext != null ? logContext : this, true))
         {
+            DisableUntilConfigured();
+
             return CreateResult(
                 EnemyAttackResultType.MissingEffect,
                 EnemyTargetIdentity.FromTarget(target),
@@ -336,9 +350,10 @@ public class EnemyAttackController : MonoBehaviour
     {
         commitApplied = true;
 
-        if (!ValidateRequiredDependencies(activeLogContext))
+        if (!ValidateRuntimeDependencies(activeLogContext != null ? activeLogContext : this, true))
         {
             InterruptInternal(EnemyAttackResultType.MissingEffect, attackerPosition);
+            DisableUntilConfigured();
             return;
         }
 
@@ -599,28 +614,52 @@ public class EnemyAttackController : MonoBehaviour
         cooldownTimer = config.attackCooldown;
     }
 
-    private void LogMissingAttackEffectError(Component logContext)
+    private bool ValidateStaticDependencies(Component logContext, bool logErrors)
     {
-        if (missingAttackEffectErrorLogged)
+        StringBuilder builder = new();
+
+        if (attackEffect == null)
         {
-            return;
+            EnemyValidationLogger.AppendMissingDependency(
+                builder,
+                nameof(attackEffect)
+            );
         }
 
-        missingAttackEffectErrorLogged = true;
-
-        UnityEngine.Object context = logContext != null ? logContext : this;
-
-        Debug.LogError(
-            $"{nameof(EnemyAttackController)} requires {nameof(EnemyAttackEffect)}. " +
-            "Assign an explicit attack effect asset before running enemy attacks.",
-            context
+        return EnemyValidationLogger.ValidateAndLog(
+            logContext != null ? logContext : this,
+            nameof(EnemyAttackController),
+            builder,
+            ref invalidStaticConfigurationLogged,
+            logErrors,
+            "Enemy attack pipeline is disabled until configured."
         );
+    }
+
+    private bool ValidateRuntimeDependencies(Component logContext, bool logErrors)
+    {
+        return ValidateStaticDependencies(logContext, logErrors);
+    }
+
+    private bool ValidateStaticDependencies(bool logErrors)
+    {
+        return ValidateStaticDependencies(this, logErrors);
+    }
+
+    private bool ValidateRuntimeDependencies(bool logErrors)
+    {
+        return ValidateRuntimeDependencies(this, logErrors);
+    }
+
+    private void DisableUntilConfigured()
+    {
+        enabled = false;
     }
 
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        ValidateRequiredDependencies(this);
+        ValidateStaticDependencies(this, true);
     }
 #endif
 }

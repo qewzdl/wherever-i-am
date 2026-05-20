@@ -1,10 +1,11 @@
 using System.Collections.Generic;
+using System.Text;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
-public sealed class EnemyNoiseWorldService : MonoBehaviour
+public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedComponent
 {
     [Header("Storage")]
     [SerializeField, Min(1)] private int maxStoredNoises = 128;
@@ -28,23 +29,24 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private bool initialized;
     private bool networkCallbacksSubscribed;
-    private bool missingNetworkManagerLogged;
+    private bool invalidStaticConfigurationLogged;
 
     public bool IsInitialized => initialized;
 
+    public bool IsConfigured =>
+        ValidateStaticDependencies(false) &&
+        ValidateRuntimeDependencies(false);
+
     public bool Construct(NetworkManager manager)
     {
-        if (manager == null)
+        networkManager = manager;
+
+        if (!ValidateRuntimeDependencies())
         {
-            networkManager = null;
             initialized = false;
-            LogMissingNetworkManager();
-            enabled = false;
+            DisableUntilConfigured();
             return false;
         }
-
-        networkManager = manager;
-        missingNetworkManagerLogged = false;
 
         if (!enabled)
         {
@@ -62,9 +64,9 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
             return;
         }
 
-        if (!ValidateRequiredDependencies())
+        if (!ValidateRuntimeDependencies())
         {
-            enabled = false;
+            DisableUntilConfigured();
             return;
         }
 
@@ -79,6 +81,16 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
         {
             ClearIfAllowed("initialize");
         }
+    }
+
+    public bool ValidateStaticDependencies()
+    {
+        return ValidateStaticDependencies(true);
+    }
+
+    public bool ValidateRuntimeDependencies()
+    {
+        return ValidateRuntimeDependencies(true);
     }
 
     private void Awake()
@@ -102,8 +114,8 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
             return;
         }
 
-        LogMissingNetworkManager();
-        enabled = false;
+        ValidateRuntimeDependencies();
+        DisableUntilConfigured();
     }
 
     private void OnEnable()
@@ -284,8 +296,9 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private bool CanUseServerWorld()
     {
-        if (!ValidateRequiredDependencies())
+        if (!ValidateRuntimeDependencies())
         {
+            DisableUntilConfigured();
             return false;
         }
 
@@ -296,7 +309,7 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private bool CanClearForCurrentContext()
     {
-        if (!ValidateRequiredDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return false;
         }
@@ -309,37 +322,36 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
         return true;
     }
 
-    private bool ValidateRequiredDependencies()
+    private bool ValidateStaticDependencies(bool logErrors)
     {
-        if (networkManager != null)
+        StringBuilder builder = new();
+
+        if (networkManager == null)
         {
-            missingNetworkManagerLogged = false;
-            return true;
+            EnemyValidationLogger.AppendMissingDependency(
+                builder,
+                nameof(networkManager)
+            );
         }
 
-        LogMissingNetworkManager();
-        return false;
+        return EnemyValidationLogger.ValidateAndLog(
+            this,
+            nameof(EnemyNoiseWorldService),
+            builder,
+            ref invalidStaticConfigurationLogged,
+            logErrors,
+            "Enemy noise world service is disabled until configured."
+        );
     }
 
-    private void LogMissingNetworkManager()
+    private bool ValidateRuntimeDependencies(bool logErrors)
     {
-        if (missingNetworkManagerLogged)
-        {
-            return;
-        }
-
-        missingNetworkManagerLogged = true;
-
-        Debug.LogError(
-            $"{nameof(EnemyNoiseWorldService)} requires an explicit {nameof(NetworkManager)} reference. " +
-            $"{nameof(NetworkManager)}.{nameof(NetworkManager.Singleton)} is intentionally not used as fallback.",
-            this
-        );
+        return ValidateStaticDependencies(logErrors);
     }
 
     private void SubscribeToNetworkCallbacks()
     {
-        if (!ValidateRequiredDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return;
         }
@@ -401,7 +413,7 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
 
     private void HandleClientDisconnected(ulong clientId)
     {
-        if (!ValidateRequiredDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return;
         }
@@ -414,10 +426,16 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour
         Clear("local client disconnect");
     }
 
+    private void DisableUntilConfigured()
+    {
+        enabled = false;
+    }
+
 #if UNITY_EDITOR
     private void OnValidate()
     {
         maxStoredNoises = Mathf.Max(1, maxStoredNoises);
+        ValidateStaticDependencies();
     }
 #endif
 }

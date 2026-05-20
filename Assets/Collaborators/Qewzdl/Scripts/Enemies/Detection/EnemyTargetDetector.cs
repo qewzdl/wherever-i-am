@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public class EnemyTargetDetector : MonoBehaviour
+public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
 {
     [Header("Sensors")]
     [SerializeField] private EnemyVisionSensor visionSensor;
@@ -14,11 +14,54 @@ public class EnemyTargetDetector : MonoBehaviour
 
     private bool missingConfigLogged;
     private bool invalidStaticConfigurationLogged;
+    private bool invalidRuntimeConfigurationLogged;
     private bool missingHearingSensorLogged;
+
+    public bool IsConfigured =>
+        ValidateStaticDependencies(false) &&
+        ValidateRuntimeDependencies(false);
 
     private void Awake()
     {
-        ValidateStaticDependencies();
+        if (!ValidateStaticDependencies())
+        {
+            enabled = false;
+        }
+    }
+
+    public bool ValidateStaticDependencies()
+    {
+        return ValidateStaticDependencies(true);
+    }
+
+    public bool ValidateRuntimeDependencies()
+    {
+        return ValidateRuntimeDependencies(true);
+    }
+
+    public bool ValidateRuntimeDependencies(EnemyConfig config)
+    {
+        if (!ValidateConfig(config))
+        {
+            return false;
+        }
+
+        if (!config.RequiresTargetDetector)
+        {
+            return true;
+        }
+
+        if (!ValidateRuntimeDependencies())
+        {
+            return false;
+        }
+
+        if (!ValidateHearingDependencies(config))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     public bool TryResolveBestStimulus(
@@ -96,32 +139,7 @@ public class EnemyTargetDetector : MonoBehaviour
 
     private bool ValidateDependencies(EnemyConfig config)
     {
-        if (!ValidateConfig(config))
-        {
-            return false;
-        }
-
-        if (!config.RequiresTargetDetector)
-        {
-            return false;
-        }
-
-        if (!ValidateStaticDependencies())
-        {
-            return false;
-        }
-
-        if (!visionSensor.ValidateRuntimeDependencies())
-        {
-            return false;
-        }
-
-        if (!ValidateHearingDependencies(config))
-        {
-            return false;
-        }
-
-        return true;
+        return ValidateRuntimeDependencies(config);
     }
 
     private bool ValidateVisionDependencies(EnemyConfig config)
@@ -136,12 +154,12 @@ public class EnemyTargetDetector : MonoBehaviour
             return false;
         }
 
-        if (!ValidateStaticDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return false;
         }
 
-        return visionSensor.ValidateRuntimeDependencies();
+        return true;
     }
 
     private bool ValidateConfig(EnemyConfig config)
@@ -165,7 +183,7 @@ public class EnemyTargetDetector : MonoBehaviour
         return false;
     }
 
-    private bool ValidateStaticDependencies(bool logErrors = true)
+    private bool ValidateStaticDependencies(bool logErrors)
     {
         bool isValid = true;
 
@@ -188,6 +206,27 @@ public class EnemyTargetDetector : MonoBehaviour
         if (logErrors)
         {
             LogInvalidStaticConfiguration();
+        }
+
+        return false;
+    }
+
+    private bool ValidateRuntimeDependencies(bool logErrors)
+    {
+        if (!ValidateStaticDependencies(logErrors))
+        {
+            return false;
+        }
+
+        if (visionSensor.ValidateRuntimeDependencies())
+        {
+            invalidRuntimeConfigurationLogged = false;
+            return true;
+        }
+
+        if (logErrors)
+        {
+            LogInvalidRuntimeConfiguration();
         }
 
         return false;
@@ -237,6 +276,23 @@ public class EnemyTargetDetector : MonoBehaviour
         );
     }
 
+    private void LogInvalidRuntimeConfiguration()
+    {
+        if (invalidRuntimeConfigurationLogged)
+        {
+            return;
+        }
+
+        invalidRuntimeConfigurationLogged = true;
+
+        Debug.LogError(
+            $"{nameof(EnemyTargetDetector)} has invalid runtime dependencies:\n" +
+            $"- {nameof(visionSensor)} runtime dependencies are invalid.\n" +
+            "Enemy perception is disabled until runtime dependencies are configured.",
+            this
+        );
+    }
+
     private void LogMissingHearingSensor()
     {
         if (missingHearingSensorLogged)
@@ -247,8 +303,9 @@ public class EnemyTargetDetector : MonoBehaviour
         missingHearingSensorLogged = true;
 
         Debug.LogError(
-            $"{nameof(EnemyTargetDetector)} requires {nameof(EnemyHearingSensor)} " +
-            "because hearing is enabled in enemy config.",
+            $"{nameof(EnemyTargetDetector)} has invalid configuration:\n" +
+            $"- {nameof(hearingSensor)} is not assigned while hearing is enabled.\n" +
+            "Enemy perception is disabled until configured.",
             this
         );
     }
