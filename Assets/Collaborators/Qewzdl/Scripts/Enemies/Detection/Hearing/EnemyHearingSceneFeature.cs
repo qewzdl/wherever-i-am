@@ -11,7 +11,8 @@ public sealed class EnemyHearingSceneFeature : SceneRuntimeFeature
         if (!RequireReference(noiseWorldService, nameof(noiseWorldService)))
             return false;
 
-        noiseWorldService.Initialize();
+        if (!noiseWorldService.Construct(context.NetworkManager))
+            return false;
 
         bool emittersInstalled = InstallNoiseEmitters();
         bool sensorsInstalled = InstallHearingSensors();

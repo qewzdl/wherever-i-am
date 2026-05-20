@@ -95,6 +95,8 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
 
     private void Awake()
     {
+        TryResolveNetworkManager();
+
         if (networkManager != null)
         {
             Initialize();
@@ -107,6 +109,8 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
         {
             return;
         }
+
+        TryResolveNetworkManager();
 
         if (networkManager != null)
         {
@@ -324,6 +328,19 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
 
     private bool ValidateStaticDependencies(bool logErrors)
     {
+        invalidStaticConfigurationLogged = false;
+        return true;
+    }
+
+    private bool ValidateRuntimeDependencies(bool logErrors)
+    {
+        if (!ValidateStaticDependencies(logErrors))
+        {
+            return false;
+        }
+
+        TryResolveNetworkManager();
+
         StringBuilder builder = new();
 
         if (networkManager == null)
@@ -344,9 +361,34 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
         );
     }
 
-    private bool ValidateRuntimeDependencies(bool logErrors)
+    private bool TryResolveNetworkManager()
     {
-        return ValidateStaticDependencies(logErrors);
+        if (networkManager != null)
+        {
+            return true;
+        }
+
+        networkManager = GetComponent<NetworkManager>();
+
+        if (networkManager != null)
+        {
+            return true;
+        }
+
+        ProjectContext context = ProjectContext.Instance;
+
+        if (context != null)
+        {
+            networkManager = context.NetworkManager;
+
+            if (networkManager != null)
+            {
+                return true;
+            }
+        }
+
+        networkManager = NetworkManager.Singleton;
+        return networkManager != null;
     }
 
     private void SubscribeToNetworkCallbacks()

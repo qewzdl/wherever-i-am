@@ -6,11 +6,10 @@ public sealed class EnemyServerBrain
 {
     private readonly EnemyConfig config;
     private readonly EnemyNavigator navigator;
-    private readonly EnemyTargetDetector targetDetector;
-    private readonly bool usesTargetDetection;
     private readonly EnemyAttackController attackController;
     private readonly EnemyPostureController postureController;
     private readonly EnemyBlackboard blackboard;
+    private readonly EnemyPerceptionRuntime perceptionRuntime;
     private readonly Action<EnemyState> setState;
     private readonly Action<EnemyTargetIdentity> setTargetIdentity;
 
@@ -19,7 +18,6 @@ public sealed class EnemyServerBrain
     private EnemyBrainContext context;
     private IEnemyStateHandler currentHandler;
     private EnemyState currentState = EnemyState.Idle;
-    private float targetRefreshTimer;
 
     public bool HasStarted { get; private set; }
 
@@ -44,15 +42,25 @@ public sealed class EnemyServerBrain
             );
         }
 
+        this.blackboard = blackboard ?? throw new ArgumentNullException(
+            nameof(blackboard),
+            $"{nameof(EnemyServerBrain)} requires non-null {nameof(EnemyBlackboard)}."
+        );
+
         this.config = config;
         this.navigator = navigator;
-        this.targetDetector = targetDetector;
-        this.usesTargetDetection = usesTargetDetection;
         this.attackController = attackController;
         this.postureController = postureController;
-        this.blackboard = blackboard ?? new EnemyBlackboard();
         this.setState = setState;
         this.setTargetIdentity = setTargetIdentity;
+
+        perceptionRuntime = new EnemyPerceptionRuntime(
+            config,
+            targetDetector,
+            usesTargetDetection,
+            this.blackboard,
+            setTargetIdentity
+        );
 
         context = new EnemyBrainContext(
             config,
@@ -111,16 +119,12 @@ public sealed class EnemyServerBrain
 
         attackController?.Tick(deltaTime, navigator.Position);
 
-        if (TickVisualTargetMemory(deltaTime))
-        {
-            currentHandler?.Tick(deltaTime);
-            return;
-        }
+        EnemyPerceptionDecision perceptionDecision = perceptionRuntime.Tick(
+            deltaTime,
+            currentState
+        );
 
-        if (usesTargetDetection)
-        {
-            TickTargetRefresh(deltaTime);
-        }
+        ApplyPerceptionDecision(perceptionDecision);
 
         currentHandler?.Tick(deltaTime);
     }
@@ -131,6 +135,8 @@ public sealed class EnemyServerBrain
 
         currentHandler?.Exit();
         currentHandler = null;
+
+        perceptionRuntime.ResetRuntimeState();
 
         blackboard.ClearAll();
         SyncTarget();
@@ -179,248 +185,40 @@ public sealed class EnemyServerBrain
         currentHandler.Enter();
     }
 
-    private bool TickVisualTargetMemory(float deltaTime)
+    private void ApplyPerceptionDecision(EnemyPerceptionDecision decision)
     {
-        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
-
-        if (!perceptionMemory.IsUsingVisualMemory)
-        {
-            return false;
-        }
-
-        bool stillHasTarget = perceptionMemory.TickVisualMemory(
-            deltaTime,
-            out EnemyTarget rememberedTarget,
-            out Vector3 rememberedPosition,
-            out bool hasRememberedPosition
-        );
-
-        if (hasRememberedPosition)
-        {
-            blackboard.InvestigationMemory.RememberLastKnownTargetPosition(rememberedPosition);
-        }
-
-        if (stillHasTarget && rememberedTarget != null)
-        {
-            blackboard.SetCurrentStimulus(
-                EnemyPerceptionStimulus.ForConfirmedTarget(
-                    rememberedTarget,
-                    rememberedPosition,
-                    1f,
-                    EnemyPerceptionSource.Vision
-                ),
-                Time.time
-            );
-
-            return false;
-        }
-
-        blackboard.TargetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
-        blackboard.ClearCurrentStimulus();
-        SyncTarget();
-
-        if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
-        {
-            ChangeState(EnemyState.Investigate);
-            return true;
-        }
-
-        return false;
-    }
-
-    private void TickTargetRefresh(float deltaTime)
-    {
-        targetRefreshTimer -= deltaTime;
-
-        if (targetRefreshTimer > 0f)
+        if (!decision.HasDecision)
         {
             return;
         }
 
-        targetRefreshTimer = Mathf.Max(0.05f, config.targetRefreshInterval);
-        RefreshTarget();
-    }
-
-    private void RefreshTarget()
-    {
-        if (!targetDetector.TryResolveBestStimulus(
-                config,
-                blackboard,
-                currentState,
-                out EnemyStimulusResolution resolution
-            ))
+        switch (decision.Type)
         {
-            HandleNoStimulus();
-            return;
-        }
-
-        ApplyStimulusResolution(resolution);
-    }
-
-    private void ApplyStimulusResolution(EnemyStimulusResolution resolution)
-    {
-        if (!resolution.HasResolution)
-        {
-            HandleNoStimulus();
-            return;
-        }
-
-        blackboard.SetCurrentStimulus(resolution.PrimaryStimulus, Time.time);
-
-        switch (resolution.Action)
-        {
-            case EnemyStimulusResolutionAction.ChaseConfirmedTarget:
-                ApplyConfirmedTargetStimulus(resolution.PrimaryStimulus);
-
-                if (resolution.HasSecondaryStimulus)
+            case EnemyPerceptionDecisionType.ConfirmedTarget:
+                if (currentState != EnemyState.Chase && currentState != EnemyState.Attack)
                 {
-                    RememberSecondarySuspiciousStimulus(resolution.SecondaryStimulus);
+                    ChangeState(EnemyState.Chase);
                 }
 
                 break;
 
-            case EnemyStimulusResolutionAction.InvestigateSuspiciousPosition:
-                ApplySuspiciousStimulus(
-                    resolution.PrimaryStimulus,
-                    resolution.ShouldClearCurrentTarget
-                );
+            case EnemyPerceptionDecisionType.SuspiciousPosition:
+                if (currentState != EnemyState.Investigate)
+                {
+                    ChangeState(EnemyState.Investigate);
+                }
 
                 break;
 
-            case EnemyStimulusResolutionAction.RememberSecondarySuspicion:
-                RememberSecondarySuspiciousStimulus(resolution.PrimaryStimulus);
+            case EnemyPerceptionDecisionType.None:
                 break;
 
             default:
-                HandleNoStimulus();
-                break;
-        }
-    }
-
-    private void RememberSecondarySuspiciousStimulus(EnemyPerceptionStimulus stimulus)
-    {
-        if (!stimulus.HasStimulus)
-        {
-            return;
-        }
-
-        blackboard.InvestigationMemory.RememberSuspiciousPosition(stimulus.Position);
-    }
-
-    private void ApplyConfirmedTargetStimulus(EnemyPerceptionStimulus stimulus)
-    {
-        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
-        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
-        EnemyInvestigationMemory investigationMemory = blackboard.InvestigationMemory;
-
-        if (targetMemory.HasTarget && targetMemory.CurrentTarget == stimulus.Target)
-        {
-            targetMemory.RefreshConfirmedTarget(stimulus.Target);
-        }
-        else
-        {
-            targetMemory.SetTarget(stimulus.Target);
-        }
-
-        investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
-        investigationMemory.ClearSuspiciousPosition();
-
-        perceptionMemory.CancelVisualMemory();
-
-        SyncTarget();
-
-        if (currentState != EnemyState.Chase && currentState != EnemyState.Attack)
-        {
-            ChangeState(EnemyState.Chase);
-        }
-    }
-
-    private void ApplySuspiciousStimulus(
-        EnemyPerceptionStimulus stimulus,
-        bool forceInvestigate = false
-    )
-    {
-        if (!stimulus.HasStimulus)
-        {
-            return;
-        }
-
-        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
-        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
-        EnemyInvestigationMemory investigationMemory = blackboard.InvestigationMemory;
-
-        if (!forceInvestigate && IsPursuingConfirmedTarget())
-        {
-            investigationMemory.RememberSuspiciousPosition(stimulus.Position);
-            return;
-        }
-
-        if (!forceInvestigate && targetMemory.HasTarget)
-        {
-            perceptionMemory.TryStartVisualMemoryGracePeriod(
-                targetMemory.CurrentTarget,
-                config.visualTargetMemoryDuration
-            );
-
-            return;
-        }
-
-        if (forceInvestigate && targetMemory.HasTarget)
-        {
-            targetMemory.ForgetCurrentTargetButKeepLastKnownPosition();
-            perceptionMemory.CancelVisualMemory();
-            SyncTarget();
-        }
-
-        investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
-
-        if (currentState != EnemyState.Investigate)
-        {
-            ChangeState(EnemyState.Investigate);
-        }
-    }
-
-    private bool IsPursuingConfirmedTarget()
-    {
-        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
-
-        return targetMemory.HasTarget &&
-               targetMemory.IsCurrentTargetValid &&
-               (currentState == EnemyState.Chase || currentState == EnemyState.Attack);
-    }
-
-    private void HandleNoStimulus()
-    {
-        blackboard.ClearCurrentStimulus();
-
-        EnemyTargetMemory targetMemory = blackboard.TargetMemory;
-        EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
-
-        if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
-        {
-            if (targetMemory.HasTarget)
-            {
-                perceptionMemory.TryStartVisualMemoryGracePeriod(
-                    targetMemory.CurrentTarget,
-                    config.visualTargetMemoryDuration
+                Debug.LogError(
+                    $"{nameof(EnemyServerBrain)} received unsupported perception decision {decision.Type}."
                 );
-            }
 
-            return;
-        }
-
-        if (currentState == EnemyState.Investigate)
-        {
-            return;
-        }
-
-        if (targetMemory.HasTarget || targetMemory.CurrentTargetIdentity.HasTarget)
-        {
-            targetMemory.ClearAll();
-            perceptionMemory.ClearAll();
-            blackboard.InvestigationMemory.ClearAll();
-
-            SyncTarget();
+                break;
         }
     }
 

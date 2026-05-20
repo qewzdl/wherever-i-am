@@ -39,7 +39,10 @@ public sealed class EnemyBrainContext
         PatrolController = patrolController;
         AttackController = attackController;
         PostureController = postureController;
-        Blackboard = blackboard ?? new EnemyBlackboard();
+        Blackboard = blackboard ?? throw new ArgumentNullException(
+            nameof(blackboard),
+            $"{nameof(EnemyBrainContext)} requires non-null {nameof(EnemyBlackboard)}."
+        );
 
         this.changeState = changeState;
         this.syncTarget = syncTarget;
