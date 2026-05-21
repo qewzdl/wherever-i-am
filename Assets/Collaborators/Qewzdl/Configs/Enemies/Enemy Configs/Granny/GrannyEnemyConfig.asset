@@ -19,4 +19,5 @@ MonoBehaviour:
   investigationProfile: {fileID: 11400000, guid: 3727f94b1b18ec04fa47b04bce674644, type: 2}
   patrolProfile: {fileID: 11400000, guid: 27c11d71a9cde3445bb3c13234781f65, type: 2}
   postureProfile: {fileID: 11400000, guid: 3564bef38eba4a54aa1ea3f58baf7c80, type: 2}
-  attackProfile: {fileID: 11400000, guid: 2eb114e18ca551b4281abe180585abbe, type: 2}
+  attackTimingProfile: {fileID: 11400000, guid: 8199d0226cd800c4c8bddbd3ae4a7e5c, type: 2}
+  attackHitValidationProfile: {fileID: 11400000, guid: 264c3064846d57c45abeb84150648e88, type: 2}

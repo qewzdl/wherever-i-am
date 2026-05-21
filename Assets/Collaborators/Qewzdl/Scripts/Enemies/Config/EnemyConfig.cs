@@ -14,7 +14,8 @@ public class EnemyConfig : ScriptableObject
     [SerializeField] private EnemyInvestigationConfig investigationProfile;
     [SerializeField] private EnemyPatrolConfig patrolProfile;
     [SerializeField] private EnemyPostureConfig postureProfile;
-    [SerializeField] private EnemyAttackConfig attackProfile;
+    [SerializeField] private EnemyAttackTimingConfig attackTimingProfile;
+    [SerializeField] private EnemyAttackHitValidationConfig attackHitValidationProfile;
 
     public EnemyBehaviorMode BehaviorMode => behaviorMode;
     public bool IsPatrolOnlyEnemy => behaviorMode == EnemyBehaviorMode.PatrolOnly;
@@ -26,7 +27,8 @@ public class EnemyConfig : ScriptableObject
     public EnemyInvestigationConfig InvestigationProfile => investigationProfile;
     public EnemyPatrolConfig PatrolProfile => patrolProfile;
     public EnemyPostureConfig PostureProfile => postureProfile;
-    public EnemyAttackConfig AttackProfile => attackProfile;
+    public EnemyAttackTimingConfig AttackTimingProfile => attackTimingProfile;
+    public EnemyAttackHitValidationConfig AttackHitValidationProfile => attackHitValidationProfile;
 
     public bool HasAllProfiles =>
         movementProfile != null &&
@@ -35,7 +37,8 @@ public class EnemyConfig : ScriptableObject
         investigationProfile != null &&
         patrolProfile != null &&
         postureProfile != null &&
-        attackProfile != null;
+        attackTimingProfile != null &&
+        attackHitValidationProfile != null;
 
     public bool HasRequiredProfiles =>
         movementProfile != null &&
@@ -47,7 +50,8 @@ public class EnemyConfig : ScriptableObject
                 visionProfile != null &&
                 hearingProfile != null &&
                 investigationProfile != null &&
-                attackProfile != null
+                attackTimingProfile != null &&
+                attackHitValidationProfile != null
             )
         );
 
@@ -83,26 +87,26 @@ public class EnemyConfig : ScriptableObject
     public float minimumNoiseLoudness => hearingProfile.minimumNoiseLoudness;
 
     public float attackDistance => Mathf.Max(
-        attackProfile.attackDistance,
+        attackHitValidationProfile.attackDistance,
         stoppingDistance
     );
 
-    public float attackCooldown => attackProfile.attackCooldown;
+    public float attackCooldown => attackTimingProfile.attackCooldown;
+    public float attackWindupDuration => attackTimingProfile.attackWindupDuration;
+    public float attackCommitDuration => attackTimingProfile.attackCommitDuration;
+    public float attackRecoveryDuration => attackTimingProfile.attackRecoveryDuration;
+    public float attackInterruptedDuration => attackTimingProfile.attackInterruptedDuration;
 
-    public float attackWindupDuration => attackProfile.attackWindupDuration;
-    public float attackCommitDuration => attackProfile.attackCommitDuration;
-    public float attackRecoveryDuration => attackProfile.attackRecoveryDuration;
-    public float attackInterruptedDuration => attackProfile.attackInterruptedDuration;
     public float attackCommitMaxDistance => Mathf.Max(
-        attackProfile.CommitMaxDistance,
+        attackHitValidationProfile.CommitMaxDistance,
         attackDistance
     );
 
-    public bool attackLineOfHitValidationEnabled => attackProfile.validateLineOfHit;
-    public LayerMask attackLineOfHitBlockingMask => attackProfile.attackLineOfHitBlockingMask;
-    public float attackLineOfHitOriginHeight => attackProfile.attackLineOfHitOriginHeight;
+    public bool attackLineOfHitValidationEnabled => attackHitValidationProfile.validateLineOfHit;
+    public LayerMask attackLineOfHitBlockingMask => attackHitValidationProfile.attackLineOfHitBlockingMask;
+    public float attackLineOfHitOriginHeight => attackHitValidationProfile.attackLineOfHitOriginHeight;
     public QueryTriggerInteraction attackLineOfHitTriggerInteraction =>
-        attackProfile.attackLineOfHitTriggerInteraction;
+        attackHitValidationProfile.attackLineOfHitTriggerInteraction;
 
     public float patrolPointReachDistance => patrolProfile.patrolPointReachDistance;
     public float patrolStopDuration => patrolProfile.patrolStopDuration;
@@ -165,7 +169,8 @@ public class EnemyConfig : ScriptableObject
             AppendMissingProfile(builder, visionProfile, nameof(visionProfile));
             AppendMissingProfile(builder, hearingProfile, nameof(hearingProfile));
             AppendMissingProfile(builder, investigationProfile, nameof(investigationProfile));
-            AppendMissingProfile(builder, attackProfile, nameof(attackProfile));
+            AppendMissingProfile(builder, attackTimingProfile, nameof(attackTimingProfile));
+            AppendMissingProfile(builder, attackHitValidationProfile, nameof(attackHitValidationProfile));
         }
 
         error = builder.ToString();
@@ -180,7 +185,8 @@ public class EnemyConfig : ScriptableObject
         investigationProfile?.Validate(stoppingDistance);
         patrolProfile?.Validate();
         postureProfile?.Validate();
-        attackProfile?.Validate(stoppingDistance);
+        attackHitValidationProfile?.Validate(stoppingDistance);
+        attackTimingProfile?.Validate();
     }
 
     private static void AppendMissingProfile(

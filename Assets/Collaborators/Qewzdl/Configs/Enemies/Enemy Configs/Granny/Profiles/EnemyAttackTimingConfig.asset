@@ -9,17 +9,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 25aee05fcbbae2346839e4401867ce81, type: 3}
-  m_Name: EnemyAttackConfig
+  m_Script: {fileID: 11500000, guid: 54120abdfbf2d4343888740eaa46a7f9, type: 3}
+  m_Name: EnemyAttackTimingConfig
   m_EditorClassIdentifier: 
-  attackDistance: 1.6
-  attackCommitDistanceTolerance: 0.2
-  validateLineOfHit: 1
-  attackLineOfHitBlockingMask:
-    serializedVersion: 2
-    m_Bits: 897
-  attackLineOfHitOriginHeight: 1.2
-  attackLineOfHitTriggerInteraction: 1
   attackCooldown: 1.5
   attackWindupDuration: 0.35
   attackCommitDuration: 0.1
