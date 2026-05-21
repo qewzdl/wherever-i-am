@@ -1,6 +1,5 @@
 using System;
 using System.Text;
-using Unity.Netcode;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -11,25 +10,17 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
     [Tooltip("If enabled, failed attack effects still consume cooldown. Keep disabled for most gameplay cases.")]
     [SerializeField] private bool consumeCooldownOnFailedEffect;
 
-    private float cooldownTimer;
-    private float phaseTimer;
-
-    private EnemyAttackPhase phase = EnemyAttackPhase.Idle;
-    private EnemyAttackContext pendingContext;
-    private EnemyTarget pendingTarget;
-    private EnemyTargetIdentity pendingTargetIdentity = EnemyTargetIdentity.None;
-    private EnemyConfig activeConfig;
-    private Component activeLogContext;
-
-    private bool commitApplied;
+    private EnemyAttackPipeline pipeline;
     private bool invalidStaticConfigurationLogged;
 
     public event Action<EnemyAttackPhaseEvent> PhaseChanged;
     public event Action<EnemyAttackResult> AttackResolved;
 
-    public EnemyAttackPhase Phase => phase;
+    public EnemyAttackPhase Phase =>
+        pipeline != null ? pipeline.Phase : EnemyAttackPhase.Idle;
 
-    public bool IsBusy => phase != EnemyAttackPhase.Idle;
+    public bool IsBusy =>
+        pipeline != null && pipeline.IsBusy;
 
     public bool IsConfigured =>
         ValidateStaticDependencies(false) &&
@@ -38,15 +29,22 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
     public bool HasRequiredDependencies => IsConfigured;
 
     public bool CanBeInterrupted =>
-        phase == EnemyAttackPhase.AttackWindup ||
-        (phase == EnemyAttackPhase.AttackCommit && !commitApplied);
+        pipeline != null && pipeline.CanBeInterrupted;
 
     private void Awake()
     {
         if (!ValidateStaticDependencies())
         {
             DisableUntilConfigured();
+            return;
         }
+
+        BuildPipeline();
+    }
+
+    private void OnDestroy()
+    {
+        DisposePipeline();
     }
 
     public bool ValidateStaticDependencies()
@@ -71,42 +69,20 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
 
     public void Tick(float deltaTime, Vector3 attackerPosition)
     {
-        if (!ValidateRuntimeDependencies(activeLogContext != null ? activeLogContext : this, true))
+        if (!ValidateRuntimeDependencies(this, true))
         {
-            if (phase != EnemyAttackPhase.Idle)
-            {
-                FinishPipeline();
-            }
-
+            pipeline?.Stop(attackerPosition);
+            DisposePipeline();
             DisableUntilConfigured();
             return;
         }
 
-        TickCooldown(deltaTime);
-
-        if (phase == EnemyAttackPhase.Idle)
+        if (!EnsurePipeline(this))
         {
             return;
         }
 
-        switch (phase)
-        {
-            case EnemyAttackPhase.AttackWindup:
-                TickWindup(deltaTime, attackerPosition);
-                break;
-
-            case EnemyAttackPhase.AttackCommit:
-                TickCommit(deltaTime, attackerPosition);
-                break;
-
-            case EnemyAttackPhase.AttackRecovery:
-                TickRecovery(deltaTime);
-                break;
-
-            case EnemyAttackPhase.AttackInterrupted:
-                TickInterrupted(deltaTime);
-                break;
-        }
+        pipeline.Tick(deltaTime, attackerPosition);
     }
 
     public EnemyAttackResult TryStartAttack(
@@ -116,10 +92,10 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
         Component logContext
     )
     {
-        if (!ValidateRuntimeDependencies(logContext != null ? logContext : this, true))
-        {
-            DisableUntilConfigured();
+        Component resolvedLogContext = logContext != null ? logContext : this;
 
+        if (!EnsurePipeline(resolvedLogContext))
+        {
             return CreateResult(
                 EnemyAttackResultType.MissingEffect,
                 EnemyTargetIdentity.FromTarget(target),
@@ -128,70 +104,11 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
             );
         }
 
-        if (IsBusy)
-        {
-            return CreateResult(
-                EnemyAttackResultType.Busy,
-                pendingTargetIdentity,
-                attackerPosition,
-                GetCurrentTargetPosition()
-            );
-        }
-
-        if (cooldownTimer > 0f)
-        {
-            return CreateResult(
-                EnemyAttackResultType.CooldownActive,
-                EnemyTargetIdentity.None,
-                attackerPosition,
-                default
-            );
-        }
-
-        if (!TryCreateContext(
-                target,
-                config,
-                attackerPosition,
-                logContext,
-                config != null ? config.attackDistance : 0f,
-                out EnemyAttackContext context,
-                out EnemyAttackResultType failureType
-            ))
-        {
-            return CreateResult(
-                failureType,
-                EnemyTargetIdentity.FromTarget(target),
-                attackerPosition,
-                target != null ? target.transform.position : default
-            );
-        }
-
-        pendingContext = context;
-        pendingTarget = target;
-        pendingTargetIdentity = context.TargetIdentity;
-        activeConfig = config;
-        activeLogContext = logContext != null ? logContext : this;
-        commitApplied = false;
-
-        SetPhase(
-            EnemyAttackPhase.AttackWindup,
-            pendingTargetIdentity,
+        return pipeline.TryStartAttack(
+            target,
+            config,
             attackerPosition,
-            context.TargetPosition
-        );
-
-        phaseTimer = Mathf.Max(0f, config.attackWindupDuration);
-
-        if (phaseTimer <= 0f)
-        {
-            EnterCommit(attackerPosition);
-        }
-
-        return CreateResult(
-            EnemyAttackResultType.Started,
-            pendingTargetIdentity,
-            attackerPosition,
-            context.TargetPosition
+            resolvedLogContext
         );
     }
 
@@ -224,333 +141,75 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
         Vector3 attackerPosition
     )
     {
-        if (!CanBeInterrupted)
-        {
-            return;
-        }
-
-        InterruptInternal(reason, attackerPosition);
+        pipeline?.Interrupt(reason, attackerPosition);
     }
 
     public void ResetCooldown()
     {
-        cooldownTimer = 0f;
+        if (!EnsurePipeline(this))
+        {
+            return;
+        }
+
+        pipeline.ResetCooldown();
     }
 
-    private void TickCooldown(float deltaTime)
+    private bool EnsurePipeline(Component logContext)
     {
-        if (cooldownTimer <= 0f)
+        if (pipeline != null)
         {
-            return;
+            return true;
         }
 
-        cooldownTimer = Mathf.Max(0f, cooldownTimer - deltaTime);
-    }
-
-    private void TickWindup(float deltaTime, Vector3 attackerPosition)
-    {
-        phaseTimer -= deltaTime;
-
-        if (!TryRefreshPendingContext(
-                attackerPosition,
-                activeConfig != null ? activeConfig.attackDistance : 0f,
-                out EnemyAttackResultType failureType
-            ))
+        if (!ValidateRuntimeDependencies(logContext != null ? logContext : this, true))
         {
-            InterruptInternal(failureType, attackerPosition);
-            return;
-        }
-
-        if (phaseTimer > 0f)
-        {
-            return;
-        }
-
-        EnterCommit(attackerPosition);
-    }
-
-    private void TickCommit(float deltaTime, Vector3 attackerPosition)
-    {
-        phaseTimer -= deltaTime;
-
-        if (!commitApplied)
-        {
-            ApplyCommit(attackerPosition);
-
-            if (phase != EnemyAttackPhase.AttackCommit)
-            {
-                return;
-            }
-        }
-
-        if (phaseTimer > 0f)
-        {
-            return;
-        }
-
-        EnterRecovery(attackerPosition);
-    }
-
-    private void TickRecovery(float deltaTime)
-    {
-        phaseTimer -= deltaTime;
-
-        if (phaseTimer > 0f)
-        {
-            return;
-        }
-
-        FinishPipeline();
-    }
-
-    private void TickInterrupted(float deltaTime)
-    {
-        phaseTimer -= deltaTime;
-
-        if (phaseTimer > 0f)
-        {
-            return;
-        }
-
-        EnterRecovery(transform.position);
-    }
-
-    private void EnterCommit(Vector3 attackerPosition)
-    {
-        if (activeConfig == null)
-        {
-            InterruptInternal(EnemyAttackResultType.InvalidTarget, attackerPosition);
-            return;
-        }
-
-        SetPhase(
-            EnemyAttackPhase.AttackCommit,
-            pendingTargetIdentity,
-            attackerPosition,
-            GetCurrentTargetPosition()
-        );
-
-        phaseTimer = Mathf.Max(0f, activeConfig.attackCommitDuration);
-        commitApplied = false;
-
-        ApplyCommit(attackerPosition);
-
-        if (phase != EnemyAttackPhase.AttackCommit)
-        {
-            return;
-        }
-
-        if (phaseTimer <= 0f)
-        {
-            EnterRecovery(attackerPosition);
-        }
-    }
-
-    private void ApplyCommit(Vector3 attackerPosition)
-    {
-        commitApplied = true;
-
-        if (!ValidateRuntimeDependencies(activeLogContext != null ? activeLogContext : this, true))
-        {
-            InterruptInternal(EnemyAttackResultType.MissingEffect, attackerPosition);
             DisableUntilConfigured();
-            return;
+            return false;
         }
 
-        if (!TryRefreshPendingContext(
-                attackerPosition,
-                activeConfig.attackCommitMaxDistance,
-                out EnemyAttackResultType failureType
-            ))
-        {
-            InterruptInternal(failureType, attackerPosition);
-            return;
-        }
-
-        bool attackApplied = attackEffect.TryApply(pendingContext);
-
-        if (!attackApplied)
-        {
-            ResolveCommit(
-                EnemyAttackResultType.EffectRejected,
-                attackerPosition,
-                consumeCooldownOnFailedEffect
-            );
-
-            return;
-        }
-
-        ResolveCommit(EnemyAttackResultType.Hit, attackerPosition, true);
+        BuildPipeline();
+        return pipeline != null;
     }
 
-    private void ResolveCommit(
-        EnemyAttackResultType resultType,
-        Vector3 attackerPosition,
-        bool consumeCooldown
-    )
+    private void BuildPipeline()
     {
-        if (consumeCooldown)
-        {
-            StartCooldown(activeConfig);
-        }
+        DisposePipeline();
 
-        EnemyAttackResult result = CreateResult(
-            resultType,
-            pendingTargetIdentity,
-            attackerPosition,
-            GetCurrentTargetPosition()
+        EnemyAttackCooldown cooldown = new();
+        EnemyAttackContextFactory contextFactory = new();
+
+        pipeline = new EnemyAttackPipeline(
+            attackEffect,
+            cooldown,
+            contextFactory,
+            consumeCooldownOnFailedEffect,
+            this
         );
 
+        pipeline.PhaseChanged += HandlePhaseChanged;
+        pipeline.AttackResolved += HandleAttackResolved;
+    }
+
+    private void DisposePipeline()
+    {
+        if (pipeline == null)
+        {
+            return;
+        }
+
+        pipeline.PhaseChanged -= HandlePhaseChanged;
+        pipeline.AttackResolved -= HandleAttackResolved;
+        pipeline = null;
+    }
+
+    private void HandlePhaseChanged(EnemyAttackPhaseEvent phaseEvent)
+    {
+        PhaseChanged?.Invoke(phaseEvent);
+    }
+
+    private void HandleAttackResolved(EnemyAttackResult result)
+    {
         AttackResolved?.Invoke(result);
-    }
-
-    private void EnterRecovery(Vector3 attackerPosition)
-    {
-        if (activeConfig == null)
-        {
-            FinishPipeline();
-            return;
-        }
-
-        SetPhase(
-            EnemyAttackPhase.AttackRecovery,
-            pendingTargetIdentity,
-            attackerPosition,
-            GetCurrentTargetPosition()
-        );
-
-        phaseTimer = Mathf.Max(0f, activeConfig.attackRecoveryDuration);
-
-        if (phaseTimer <= 0f)
-        {
-            FinishPipeline();
-        }
-    }
-
-    private void InterruptInternal(
-        EnemyAttackResultType reason,
-        Vector3 attackerPosition
-    )
-    {
-        EnemyAttackResult result = CreateResult(
-            reason,
-            pendingTargetIdentity,
-            attackerPosition,
-            GetCurrentTargetPosition()
-        );
-
-        AttackResolved?.Invoke(result);
-
-        SetPhase(
-            EnemyAttackPhase.AttackInterrupted,
-            pendingTargetIdentity,
-            attackerPosition,
-            result.TargetPosition,
-            reason
-        );
-
-        phaseTimer = activeConfig != null
-            ? Mathf.Max(0f, activeConfig.attackInterruptedDuration)
-            : 0f;
-
-        if (phaseTimer <= 0f)
-        {
-            EnterRecovery(attackerPosition);
-        }
-    }
-
-    private void FinishPipeline()
-    {
-        SetPhase(
-            EnemyAttackPhase.Idle,
-            pendingTargetIdentity,
-            transform.position,
-            GetCurrentTargetPosition()
-        );
-
-        phaseTimer = 0f;
-        commitApplied = false;
-
-        pendingContext = default;
-        pendingTarget = null;
-        pendingTargetIdentity = EnemyTargetIdentity.None;
-        activeConfig = null;
-        activeLogContext = null;
-    }
-
-    private bool TryRefreshPendingContext(
-        Vector3 attackerPosition,
-        float maxDistance,
-        out EnemyAttackResultType failureType
-    )
-    {
-        return TryCreateContext(
-            pendingTarget,
-            activeConfig,
-            attackerPosition,
-            activeLogContext,
-            maxDistance,
-            out pendingContext,
-            out failureType
-        );
-    }
-
-    private bool TryCreateContext(
-        EnemyTarget target,
-        EnemyConfig config,
-        Vector3 attackerPosition,
-        Component logContext,
-        float maxDistance,
-        out EnemyAttackContext context,
-        out EnemyAttackResultType failureType
-    )
-    {
-        context = default;
-        failureType = EnemyAttackResultType.None;
-
-        if (target == null || config == null)
-        {
-            failureType = EnemyAttackResultType.InvalidTarget;
-            return false;
-        }
-
-        NetworkObject targetNetworkObject = target.NetworkObject;
-
-        if (targetNetworkObject == null || !targetNetworkObject.IsSpawned)
-        {
-            failureType = EnemyAttackResultType.InvalidTarget;
-            return false;
-        }
-
-        EnemyTargetIdentity targetIdentity = EnemyTargetIdentity.FromNetworkObject(targetNetworkObject);
-
-        if (!targetIdentity.HasTarget)
-        {
-            failureType = EnemyAttackResultType.InvalidTarget;
-            return false;
-        }
-
-        float distanceToTarget = Vector3.Distance(
-            attackerPosition,
-            targetNetworkObject.transform.position
-        );
-
-        if (distanceToTarget > maxDistance)
-        {
-            failureType = EnemyAttackResultType.OutOfRange;
-            return false;
-        }
-
-        context = new EnemyAttackContext(
-            target,
-            targetIdentity,
-            targetNetworkObject,
-            config,
-            attackerPosition,
-            logContext != null ? logContext : this
-        );
-
-        return true;
     }
 
     private EnemyAttackResult CreateResult(
@@ -566,52 +225,6 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
             attackerPosition,
             targetPosition
         );
-    }
-
-    private void SetPhase(
-        EnemyAttackPhase nextPhase,
-        EnemyTargetIdentity targetIdentity,
-        Vector3 attackerPosition,
-        Vector3 targetPosition,
-        EnemyAttackResultType reason = EnemyAttackResultType.None
-    )
-    {
-        phase = nextPhase;
-
-        PhaseChanged?.Invoke(
-            new EnemyAttackPhaseEvent(
-                nextPhase,
-                targetIdentity,
-                attackerPosition,
-                targetPosition,
-                reason
-            )
-        );
-    }
-
-    private Vector3 GetCurrentTargetPosition()
-    {
-        if (pendingContext.IsValid)
-        {
-            return pendingContext.TargetPosition;
-        }
-
-        if (pendingTarget != null)
-        {
-            return pendingTarget.transform.position;
-        }
-
-        return default;
-    }
-
-    private void StartCooldown(EnemyConfig config)
-    {
-        if (config == null)
-        {
-            return;
-        }
-
-        cooldownTimer = config.attackCooldown;
     }
 
     private bool ValidateStaticDependencies(Component logContext, bool logErrors)
