@@ -2,7 +2,8 @@
     "name": "WhereverIAm.Qewzdl.Editor",
     "rootNamespace": "",
     "references": [
-        "WhereverIAm.Qewzdl"
+        "WhereverIAm.Qewzdl",
+        "Unity.Netcode.Runtime"
     ],
     "includePlatforms": [
         "Editor"

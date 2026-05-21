@@ -1,9 +1,12 @@
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 [RequireComponent(typeof(NetworkObject))]
+[RequireComponent(typeof(NetworkTransform))]
 [RequireComponent(typeof(EnemyNetworkState))]
 [RequireComponent(typeof(EnemyServerRuntime))]
+[RequireComponent(typeof(EnemyNavigator))]
 public class NetworkEnemyController : NetworkBehaviour
 {
     [Header("Config")]
@@ -11,6 +14,7 @@ public class NetworkEnemyController : NetworkBehaviour
     [SerializeField] private EnemyPatrolRoute patrolRoute;
 
     [Header("Runtime")]
+    [SerializeField] private NetworkTransform networkTransform;
     [SerializeField] private EnemyNetworkState networkState;
     [SerializeField] private EnemyServerRuntime serverRuntime;
     [SerializeField] private MonoBehaviour clientPresentationBehaviour;
@@ -162,6 +166,11 @@ public class NetworkEnemyController : NetworkBehaviour
 
     private void CacheComponents()
     {
+        if (networkTransform == null)
+        {
+            networkTransform = GetComponent<NetworkTransform>();
+        }
+
         if (networkState == null)
         {
             networkState = GetComponent<EnemyNetworkState>();
@@ -215,6 +224,16 @@ public class NetworkEnemyController : NetworkBehaviour
             return false;
         }
 
+        if (networkTransform == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires {nameof(NetworkTransform)} for enemy movement synchronization.",
+                this
+            );
+
+            return false;
+        }
+
         if (networkState == null)
         {
             Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNetworkState)}.", this);
@@ -224,6 +243,12 @@ public class NetworkEnemyController : NetworkBehaviour
         if (serverRuntime == null)
         {
             Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyServerRuntime)}.", this);
+            return false;
+        }
+
+        if (navigator == null)
+        {
+            Debug.LogError($"{nameof(NetworkEnemyController)} requires {nameof(EnemyNavigator)}.", this);
             return false;
         }
 
@@ -296,6 +321,14 @@ public class NetworkEnemyController : NetworkBehaviour
     private void OnValidate()
     {
         CacheComponents();
+
+        if (networkTransform == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires {nameof(NetworkTransform)} for enemy movement synchronization.",
+                this
+            );
+        }
 
         if (config == null)
         {
