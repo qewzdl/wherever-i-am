@@ -50,11 +50,23 @@ public class EnemyServerRuntime : MonoBehaviour
             return false;
         }
 
+        if (postureController != null &&
+            !postureController.TryInitializeServer(config, networkState))
+        {
+            initializedServer = false;
+            return false;
+        }
+
         navigator.Configure(config);
 
         if (networkState.IsSpawned)
         {
             networkState.ClearAttackPhaseServer();
+            networkState.SetPostureServer(
+                postureController != null
+                    ? postureController.CurrentPosture
+                    : EnemyPosture.Standing
+            );
         }
 
         SubscribeToAttackPhaseServer();
@@ -99,26 +111,14 @@ public class EnemyServerRuntime : MonoBehaviour
             networkState.ClearAttackPhaseServer();
         }
 
+        postureController?.ShutdownServer();
+
         blackboard.ClearAll();
 
         initializedServer = false;
         config = null;
         patrolRoute = null;
         networkState = null;
-    }
-
-    public void DisableClientSimulation(EnemyConfig enemyConfig)
-    {
-        CacheComponents();
-
-        config = enemyConfig;
-
-        if (postureController != null)
-        {
-            postureController.Configure(config);
-        }
-
-        navigator?.DisableAgent();
     }
 
     private void CacheComponents()

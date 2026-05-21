@@ -17,6 +17,12 @@ public class EnemyNetworkState : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private readonly NetworkVariable<EnemyPosture> currentPosture = new(
+        EnemyPosture.Standing,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     private readonly NetworkVariable<EnemyAttackPhaseSnapshot> currentAttackPhase = new(
         EnemyAttackPhaseSnapshot.Idle,
         NetworkVariableReadPermission.Everyone,
@@ -25,10 +31,12 @@ public class EnemyNetworkState : NetworkBehaviour
 
     public event Action<EnemyState, EnemyState> StateChanged;
     public event Action<EnemyTargetIdentity, EnemyTargetIdentity> TargetChanged;
+    public event Action<EnemyPosture, EnemyPosture> PostureChanged;
     public event Action<EnemyAttackPhaseSnapshot, EnemyAttackPhaseSnapshot> AttackPhaseChanged;
 
     public EnemyState CurrentState => currentState.Value;
     public EnemyTargetIdentity CurrentTargetIdentity => currentTargetIdentity.Value;
+    public EnemyPosture CurrentPosture => currentPosture.Value;
     public EnemyAttackPhaseSnapshot CurrentAttackPhase => currentAttackPhase.Value;
 
     public ulong CurrentTargetClientId => currentTargetIdentity.Value.OwnerClientId;
@@ -39,6 +47,7 @@ public class EnemyNetworkState : NetworkBehaviour
     {
         currentState.OnValueChanged += HandleStateChanged;
         currentTargetIdentity.OnValueChanged += HandleTargetChanged;
+        currentPosture.OnValueChanged += HandlePostureChanged;
         currentAttackPhase.OnValueChanged += HandleAttackPhaseChanged;
     }
 
@@ -46,6 +55,7 @@ public class EnemyNetworkState : NetworkBehaviour
     {
         currentState.OnValueChanged -= HandleStateChanged;
         currentTargetIdentity.OnValueChanged -= HandleTargetChanged;
+        currentPosture.OnValueChanged -= HandlePostureChanged;
         currentAttackPhase.OnValueChanged -= HandleAttackPhaseChanged;
     }
 
@@ -72,6 +82,16 @@ public class EnemyNetworkState : NetworkBehaviour
         }
 
         currentTargetIdentity.Value = targetIdentity;
+    }
+
+    public void SetPostureServer(EnemyPosture nextPosture)
+    {
+        if (!IsServer || currentPosture.Value == nextPosture)
+        {
+            return;
+        }
+
+        currentPosture.Value = nextPosture;
     }
 
     public void SetAttackPhaseServer(EnemyAttackPhaseEvent phaseEvent)
@@ -152,6 +172,14 @@ public class EnemyNetworkState : NetworkBehaviour
     )
     {
         TargetChanged?.Invoke(previousTarget, nextTarget);
+    }
+
+    private void HandlePostureChanged(
+        EnemyPosture previousPosture,
+        EnemyPosture nextPosture
+    )
+    {
+        PostureChanged?.Invoke(previousPosture, nextPosture);
     }
 
     private void HandleAttackPhaseChanged(

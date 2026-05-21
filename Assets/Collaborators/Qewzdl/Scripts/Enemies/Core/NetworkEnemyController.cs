@@ -13,22 +13,22 @@ public class NetworkEnemyController : NetworkBehaviour
     [Header("Runtime")]
     [SerializeField] private EnemyNetworkState networkState;
     [SerializeField] private EnemyServerRuntime serverRuntime;
+    [SerializeField] private MonoBehaviour clientPresentationBehaviour;
+
+    [Header("Server Components")]
     [SerializeField] private EnemyTargetDetector targetDetector;
+    [SerializeField] private EnemyNavigator navigator;
+    [SerializeField] private EnemyAttackController attackController;
+    [SerializeField] private EnemyNavMeshStartupGate navMeshStartupGate;
 
     private bool shouldStartServerRuntime;
+    private IEnemyClientPresentation clientPresentation;
 
     public EnemyConfig Config => config;
-
-    public EnemyState CurrentState =>
-        networkState != null ? networkState.CurrentState : EnemyState.Idle;
-
-    public EnemyTargetIdentity CurrentTargetIdentity =>
-        networkState != null ? networkState.CurrentTargetIdentity : EnemyTargetIdentity.None;
-
-    public ulong CurrentTargetClientId =>
-        networkState != null ? networkState.CurrentTargetClientId : EnemyTargetMemory.NoTargetClientId;
-
-    public bool HasTarget => networkState != null && networkState.HasTarget;
+    public EnemyState CurrentState => networkState.CurrentState;
+    public EnemyTargetIdentity CurrentTargetIdentity => networkState.CurrentTargetIdentity;
+    public ulong CurrentTargetClientId => networkState.CurrentTargetClientId;
+    public bool HasTarget => networkState.HasTarget;
 
     private void Awake()
     {
@@ -45,20 +45,40 @@ public class NetworkEnemyController : NetworkBehaviour
             return;
         }
 
-        serverRuntime.enabled = true;
+        if (IsClient)
+        {
+            bool disableLocalSimulation = !IsServer;
+
+            if (!clientPresentation.InitializePresentation(
+                    config,
+                    networkState,
+                    disableLocalSimulation
+                ))
+            {
+                DisableRuntimeAfterInvalidConfiguration();
+                return;
+            }
+        }
+        else
+        {
+            DisableClientPresentation();
+        }
 
         if (!IsServer)
         {
-            serverRuntime.DisableClientSimulation(config);
+            DisableServerRuntimeOnClient();
             return;
         }
 
+        EnableServerRuntimeComponents();
         shouldStartServerRuntime = true;
     }
 
     public override void OnNetworkDespawn()
     {
         shouldStartServerRuntime = false;
+
+        clientPresentation?.ShutdownPresentation();
         serverRuntime?.ShutdownServer();
     }
 
@@ -84,6 +104,62 @@ public class NetworkEnemyController : NetworkBehaviour
         serverRuntime.TickServer(Time.deltaTime);
     }
 
+    private void EnableServerRuntimeComponents()
+    {
+        serverRuntime.enabled = true;
+
+        if (targetDetector != null)
+        {
+            targetDetector.enabled = config.RequiresTargetDetector;
+        }
+
+        if (navigator != null)
+        {
+            navigator.enabled = true;
+        }
+
+        if (attackController != null)
+        {
+            attackController.enabled = true;
+        }
+
+        if (navMeshStartupGate != null)
+        {
+            navMeshStartupGate.enabled = true;
+        }
+    }
+
+    private void DisableServerRuntimeOnClient()
+    {
+        shouldStartServerRuntime = false;
+
+        if (serverRuntime != null)
+        {
+            serverRuntime.ShutdownServer();
+            serverRuntime.enabled = false;
+        }
+
+        if (targetDetector != null)
+        {
+            targetDetector.enabled = false;
+        }
+
+        if (navigator != null)
+        {
+            navigator.enabled = false;
+        }
+
+        if (attackController != null)
+        {
+            attackController.enabled = false;
+        }
+
+        if (navMeshStartupGate != null)
+        {
+            navMeshStartupGate.enabled = false;
+        }
+    }
+
     private void CacheComponents()
     {
         if (networkState == null)
@@ -96,9 +172,32 @@ public class NetworkEnemyController : NetworkBehaviour
             serverRuntime = GetComponent<EnemyServerRuntime>();
         }
 
+        clientPresentation = clientPresentationBehaviour as IEnemyClientPresentation;
+
+        if (clientPresentation == null)
+        {
+            clientPresentationBehaviour = FindClientPresentationBehaviour();
+            clientPresentation = clientPresentationBehaviour as IEnemyClientPresentation;
+        }
+
         if (targetDetector == null)
         {
             targetDetector = GetComponent<EnemyTargetDetector>();
+        }
+
+        if (navigator == null)
+        {
+            navigator = GetComponent<EnemyNavigator>();
+        }
+
+        if (attackController == null)
+        {
+            attackController = GetComponent<EnemyAttackController>();
+        }
+
+        if (navMeshStartupGate == null)
+        {
+            navMeshStartupGate = GetComponent<EnemyNavMeshStartupGate>();
         }
     }
 
@@ -128,6 +227,16 @@ public class NetworkEnemyController : NetworkBehaviour
             return false;
         }
 
+        if (clientPresentation == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires a component that implements " +
+                $"{nameof(IEnemyClientPresentation)}.",
+                this
+            );
+            return false;
+        }
+
         if (config.RequiresTargetDetector && targetDetector == null)
         {
             Debug.LogError(
@@ -146,10 +255,33 @@ public class NetworkEnemyController : NetworkBehaviour
     {
         shouldStartServerRuntime = false;
 
+        clientPresentation?.ShutdownPresentation();
+        SetClientPresentationEnabled(false);
+
         if (serverRuntime != null)
         {
             serverRuntime.ShutdownServer();
             serverRuntime.enabled = false;
+        }
+
+        if (targetDetector != null)
+        {
+            targetDetector.enabled = false;
+        }
+
+        if (navigator != null)
+        {
+            navigator.enabled = false;
+        }
+
+        if (attackController != null)
+        {
+            attackController.enabled = false;
+        }
+
+        if (navMeshStartupGate != null)
+        {
+            navMeshStartupGate.enabled = false;
         }
 
         enabled = false;
@@ -170,6 +302,15 @@ public class NetworkEnemyController : NetworkBehaviour
             return;
         }
 
+        if (clientPresentation == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires a component that implements " +
+                $"{nameof(IEnemyClientPresentation)}.",
+                this
+            );
+        }
+
         if (config.RequiresTargetDetector && targetDetector == null)
         {
             Debug.LogError(
@@ -180,4 +321,35 @@ public class NetworkEnemyController : NetworkBehaviour
         }
     }
 #endif
+
+    private MonoBehaviour FindClientPresentationBehaviour()
+    {
+        MonoBehaviour[] behaviours = GetComponents<MonoBehaviour>();
+
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            MonoBehaviour behaviour = behaviours[i];
+
+            if (behaviour is IEnemyClientPresentation)
+            {
+                return behaviour;
+            }
+        }
+
+        return null;
+    }
+
+    private void DisableClientPresentation()
+    {
+        clientPresentation?.ShutdownPresentation();
+        SetClientPresentationEnabled(false);
+    }
+
+    private void SetClientPresentationEnabled(bool isEnabled)
+    {
+        if (clientPresentationBehaviour != null)
+        {
+            clientPresentationBehaviour.enabled = isEnabled;
+        }
+    }
 }

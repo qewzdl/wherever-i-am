@@ -1,18 +1,11 @@
-using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NavMeshAgent))]
-public class EnemyPostureController : NetworkBehaviour
+public class EnemyPostureController : MonoBehaviour
 {
     private const int StandingClearanceBufferSize = 32;
-
-    private readonly NetworkVariable<EnemyPosture> networkPosture = new(
-        EnemyPosture.Standing,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
 
     private readonly Collider[] standingClearanceHits = new Collider[StandingClearanceBufferSize];
 
@@ -29,6 +22,10 @@ public class EnemyPostureController : NetworkBehaviour
     [SerializeField] private string crawlingAnimatorBool = "IsCrawling";
 
     private EnemyConfig config;
+    private EnemyNetworkState networkState;
+
+    private bool initializedServer;
+    private bool missingNetworkStateLogged;
 
     public EnemyPosture CurrentPosture { get; private set; } = EnemyPosture.Standing;
     public float LastPostureChangedTime { get; private set; } = float.NegativeInfinity;
@@ -39,17 +36,41 @@ public class EnemyPostureController : NetworkBehaviour
         CacheComponents();
     }
 
-    public override void OnNetworkSpawn()
+    public bool TryInitializeServer(
+        EnemyConfig enemyConfig,
+        EnemyNetworkState enemyNetworkState
+    )
     {
-        networkPosture.OnValueChanged += HandleNetworkPostureChanged;
+        Configure(enemyConfig);
 
-        CurrentPosture = networkPosture.Value;
-        ApplyVisualPosture(CurrentPosture);
+        networkState = enemyNetworkState;
+        initializedServer = false;
+
+        if (config == null)
+        {
+            Debug.LogError($"{nameof(EnemyPostureController)} requires {nameof(EnemyConfig)}.", this);
+            return false;
+        }
+
+        if (networkState == null)
+        {
+            Debug.LogError($"{nameof(EnemyPostureController)} requires {nameof(EnemyNetworkState)}.", this);
+            return false;
+        }
+
+        initializedServer = true;
+        missingNetworkStateLogged = false;
+
+        SyncPostureServer(CurrentPosture);
+
+        return true;
     }
 
-    public override void OnNetworkDespawn()
+    public void ShutdownServer()
     {
-        networkPosture.OnValueChanged -= HandleNetworkPostureChanged;
+        initializedServer = false;
+        networkState = null;
+        missingNetworkStateLogged = false;
     }
 
     public void Configure(EnemyConfig enemyConfig)
@@ -67,7 +88,7 @@ public class EnemyPostureController : NetworkBehaviour
 
     public bool TrySetServerPosture(EnemyPosture posture)
     {
-        if (IsSpawned && !IsServer)
+        if (!initializedServer)
         {
             return false;
         }
@@ -79,6 +100,7 @@ public class EnemyPostureController : NetworkBehaviour
 
         if (CurrentPosture == posture)
         {
+            SyncPostureServer(posture);
             return true;
         }
 
@@ -91,11 +113,7 @@ public class EnemyPostureController : NetworkBehaviour
         LastPostureChangedTime = Time.time;
 
         ApplyVisualPosture(posture);
-
-        if (IsSpawned && IsServer && networkPosture.Value != posture)
-        {
-            networkPosture.Value = posture;
-        }
+        SyncPostureServer(posture);
 
         return true;
     }
@@ -138,11 +156,11 @@ public class EnemyPostureController : NetworkBehaviour
         float sampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
 
         if (!TrySamplePositionForAgentType(
-            transform.position,
-            agentTypeId,
-            sampleRadius,
-            out NavMeshHit hit
-        ))
+                transform.position,
+                agentTypeId,
+                sampleRadius,
+                out NavMeshHit hit
+            ))
         {
             return false;
         }
@@ -151,6 +169,28 @@ public class EnemyPostureController : NetworkBehaviour
         flatDelta.y = 0f;
 
         return flatDelta.sqrMagnitude <= sampleRadius * sampleRadius;
+    }
+
+    private void SyncPostureServer(EnemyPosture posture)
+    {
+        if (networkState != null)
+        {
+            missingNetworkStateLogged = false;
+            networkState.SetPostureServer(posture);
+            return;
+        }
+
+        if (missingNetworkStateLogged)
+        {
+            return;
+        }
+
+        missingNetworkStateLogged = true;
+
+        Debug.LogError(
+            $"{nameof(EnemyPostureController)} cannot synchronize posture without {nameof(EnemyNetworkState)}.",
+            this
+        );
     }
 
     private bool TryApplyNavigationPosture(EnemyPosture posture)
@@ -177,11 +217,11 @@ public class EnemyPostureController : NetworkBehaviour
         float switchSampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
 
         if (!TrySamplePositionForAgentType(
-            transform.position,
-            targetAgentTypeId,
-            switchSampleRadius,
-            out NavMeshHit postureHit
-        ))
+                transform.position,
+                targetAgentTypeId,
+                switchSampleRadius,
+                out NavMeshHit postureHit
+            ))
         {
             return false;
         }
@@ -451,11 +491,11 @@ public class EnemyPostureController : NetworkBehaviour
             : 0.25f;
 
         if (!TrySamplePositionForAgentType(
-            transform.position,
-            agent.agentTypeID,
-            sampleRadius,
-            out NavMeshHit hit
-        ))
+                transform.position,
+                agent.agentTypeID,
+                sampleRadius,
+                out NavMeshHit hit
+            ))
         {
             return false;
         }
@@ -562,14 +602,6 @@ public class EnemyPostureController : NetworkBehaviour
         }
 
         animator.SetBool(crawlingAnimatorBool, posture == EnemyPosture.Crawling);
-    }
-
-    private void HandleNetworkPostureChanged(EnemyPosture previousPosture, EnemyPosture nextPosture)
-    {
-        CurrentPosture = nextPosture;
-        LastPostureChangedTime = Time.time;
-
-        ApplyVisualPosture(nextPosture);
     }
 
     private void CacheComponents()
