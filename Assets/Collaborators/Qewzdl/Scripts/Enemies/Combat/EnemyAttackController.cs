@@ -177,11 +177,13 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
 
         EnemyAttackCooldown cooldown = new();
         EnemyAttackContextFactory contextFactory = new();
+        EnemyLineOfHitValidator lineOfHitValidator = new();
 
         pipeline = new EnemyAttackPipeline(
             attackEffect,
             cooldown,
             contextFactory,
+            lineOfHitValidator,
             consumeCooldownOnFailedEffect,
             this
         );

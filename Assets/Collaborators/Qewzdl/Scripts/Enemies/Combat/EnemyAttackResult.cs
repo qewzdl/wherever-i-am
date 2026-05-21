@@ -11,6 +11,7 @@ public readonly struct EnemyAttackResult
     public bool WasApplied => Type == EnemyAttackResultType.Hit;
     public bool WasInterrupted => Type == EnemyAttackResultType.Interrupted ||
                                   Type == EnemyAttackResultType.OutOfRange ||
+                                  Type == EnemyAttackResultType.LineOfHitBlocked ||
                                   Type == EnemyAttackResultType.InvalidTarget;
 
     public EnemyAttackResult(

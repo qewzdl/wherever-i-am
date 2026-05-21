@@ -6,6 +6,7 @@ public sealed class EnemyAttackPipeline
     private readonly IEnemyAttackEffect attackEffect;
     private readonly EnemyAttackCooldown cooldown;
     private readonly EnemyAttackContextFactory contextFactory;
+    private readonly EnemyLineOfHitValidator lineOfHitValidator;
     private readonly bool consumeCooldownOnFailedEffect;
     private readonly Component defaultLogContext;
 
@@ -35,6 +36,7 @@ public sealed class EnemyAttackPipeline
         IEnemyAttackEffect attackEffect,
         EnemyAttackCooldown cooldown,
         EnemyAttackContextFactory contextFactory,
+        EnemyLineOfHitValidator lineOfHitValidator,
         bool consumeCooldownOnFailedEffect,
         Component defaultLogContext
     )
@@ -52,6 +54,11 @@ public sealed class EnemyAttackPipeline
         this.contextFactory = contextFactory ?? throw new ArgumentNullException(
             nameof(contextFactory),
             $"{nameof(EnemyAttackPipeline)} requires non-null {nameof(contextFactory)}."
+        );
+
+        this.lineOfHitValidator = lineOfHitValidator ?? throw new ArgumentNullException(
+            nameof(lineOfHitValidator),
+            $"{nameof(EnemyAttackPipeline)} requires non-null {nameof(lineOfHitValidator)}."
         );
 
         this.defaultLogContext = defaultLogContext ?? throw new ArgumentNullException(
@@ -313,6 +320,15 @@ public sealed class EnemyAttackPipeline
             ))
         {
             InterruptInternal(failureType, attackerPosition);
+            return;
+        }
+
+        if (!lineOfHitValidator.TryValidate(
+                pendingContext,
+                out EnemyAttackResultType lineOfHitFailureType
+            ))
+        {
+            InterruptInternal(lineOfHitFailureType, attackerPosition);
             return;
         }
 

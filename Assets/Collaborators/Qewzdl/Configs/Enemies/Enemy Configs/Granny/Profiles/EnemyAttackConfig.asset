@@ -13,4 +13,15 @@ MonoBehaviour:
   m_Name: EnemyAttackConfig
   m_EditorClassIdentifier: 
   attackDistance: 1.6
+  attackCommitDistanceTolerance: 0.2
+  validateLineOfHit: 1
+  attackLineOfHitBlockingMask:
+    serializedVersion: 2
+    m_Bits: 897
+  attackLineOfHitOriginHeight: 1.2
+  attackLineOfHitTriggerInteraction: 1
   attackCooldown: 1.5
+  attackWindupDuration: 0.35
+  attackCommitDuration: 0.1
+  attackRecoveryDuration: 0.55
+  attackInterruptedDuration: 0.15

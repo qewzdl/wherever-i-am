@@ -98,6 +98,12 @@ public class EnemyConfig : ScriptableObject
         attackDistance
     );
 
+    public bool attackLineOfHitValidationEnabled => attackProfile.validateLineOfHit;
+    public LayerMask attackLineOfHitBlockingMask => attackProfile.attackLineOfHitBlockingMask;
+    public float attackLineOfHitOriginHeight => attackProfile.attackLineOfHitOriginHeight;
+    public QueryTriggerInteraction attackLineOfHitTriggerInteraction =>
+        attackProfile.attackLineOfHitTriggerInteraction;
+
     public float patrolPointReachDistance => patrolProfile.patrolPointReachDistance;
     public float patrolStopDuration => patrolProfile.patrolStopDuration;
     public float patrolStopWanderRadius => patrolProfile.patrolStopWanderRadius;
