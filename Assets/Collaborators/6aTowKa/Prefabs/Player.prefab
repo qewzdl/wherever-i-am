@@ -873,8 +873,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   aimPoint: {fileID: 4359292692769392996}
-  visibilityPoints:
-  - {fileID: 4359292692769392996}
+  visibilityPoints: []
   visibilityColliders:
   - {fileID: 5517377447485859117}
   useColliderBoundsVisibility: 1

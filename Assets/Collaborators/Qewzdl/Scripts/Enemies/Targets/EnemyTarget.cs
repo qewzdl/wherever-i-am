@@ -74,7 +74,7 @@ public class EnemyTarget : MonoBehaviour
 
         if (useColliderBoundsVisibility)
         {
-            return AddColliderBoundsVisibilityPoints(results);
+            return AddColliderBoundsVisibilityPoints(results, targetHeightOffset);
         }
 
         return 0;
@@ -147,36 +147,54 @@ public class EnemyTarget : MonoBehaviour
         return count;
     }
 
-    private int AddColliderBoundsVisibilityPoints(Vector3[] results)
+    private int AddColliderBoundsVisibilityPoints(Vector3[] results, float targetHeightOffset)
     {
         if (!TryGetCombinedVisibilityBounds(out Bounds bounds))
         {
             return 0;
         }
 
-        Vector3 center = bounds.center;
+        Vector3 boundsCenter = bounds.center;
         Vector3 extents = bounds.extents;
 
         float inset = Mathf.Max(0f, boundsInset);
 
         float x = Mathf.Max(0f, extents.x - inset);
-        float y = Mathf.Max(0f, extents.y - inset);
         float z = Mathf.Max(0f, extents.z - inset);
+
+        float minY = bounds.min.y + inset;
+        float maxY = bounds.max.y - inset;
+
+        if (minY > maxY)
+        {
+            minY = boundsCenter.y;
+            maxY = boundsCenter.y;
+        }
+
+        float focusedY = Mathf.Clamp(
+            bounds.min.y + Mathf.Max(0f, targetHeightOffset),
+            minY,
+            maxY
+        );
+
+        Vector3 focusedCenter = new(boundsCenter.x, focusedY, boundsCenter.z);
+        Vector3 topPoint = new(boundsCenter.x, maxY, boundsCenter.z);
+        Vector3 bottomPoint = new(boundsCenter.x, minY, boundsCenter.z);
+        Vector3 upperPoint = new(boundsCenter.x, Mathf.Lerp(focusedY, maxY, 0.5f), boundsCenter.z);
 
         int count = 0;
 
-        AddPoint(results, ref count, center + Vector3.up * y);
+        AddPoint(results, ref count, focusedCenter);
+        AddPoint(results, ref count, topPoint);
+        AddPoint(results, ref count, bottomPoint);
 
-        AddPoint(results, ref count, center);
-        AddPoint(results, ref count, center - Vector3.up * y);
+        AddPoint(results, ref count, focusedCenter + transform.right * x);
+        AddPoint(results, ref count, focusedCenter - transform.right * x);
 
-        AddPoint(results, ref count, center + transform.right * x);
-        AddPoint(results, ref count, center - transform.right * x);
+        AddPoint(results, ref count, focusedCenter + transform.forward * z);
+        AddPoint(results, ref count, focusedCenter - transform.forward * z);
 
-        AddPoint(results, ref count, center + transform.forward * z);
-        AddPoint(results, ref count, center - transform.forward * z);
-
-        AddPoint(results, ref count, center + Vector3.up * (y * 0.5f));
+        AddPoint(results, ref count, upperPoint);
 
         return count;
     }
