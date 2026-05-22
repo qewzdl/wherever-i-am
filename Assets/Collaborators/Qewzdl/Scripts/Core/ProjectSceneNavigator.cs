@@ -54,9 +54,35 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
             return false;
         }
 
-        if (IsNetworkScene(scene.Kind))
-            return LoadNetworkScene(scene);
+        ProjectSceneKind currentScene = projectContext.GetActiveSceneKind();
 
+        if (!projectContext.SceneFlow.TryGetTransition(
+                currentScene,
+                scene.Kind,
+                out ProjectSceneTransitionDefinition transition))
+        {
+            Debug.LogError($"Scene transition is not configured: {currentScene} -> {scene.Kind}.", this);
+            return false;
+        }
+
+        if (!CanUseTransition(transition))
+            return false;
+
+        switch (transition.LoadMode)
+        {
+            case ProjectSceneLoadMode.Local:
+                return LoadLocalScene(scene);
+
+            case ProjectSceneLoadMode.Network:
+                return LoadNetworkScene(scene, transition);
+        }
+
+        Debug.LogError($"Unsupported scene load mode '{transition.LoadMode}' for transition {currentScene} -> {scene.Kind}.", this);
+        return false;
+    }
+
+    private bool LoadLocalScene(ProjectSceneDefinition scene)
+    {
         if (IsNetworkSessionActive())
         {
             Debug.LogError(
@@ -68,18 +94,48 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
         return localSceneLoader.Load(scene);
     }
 
-    private bool LoadNetworkScene(ProjectSceneDefinition scene)
+    private bool LoadNetworkScene(
+        ProjectSceneDefinition scene,
+        ProjectSceneTransitionDefinition transition)
     {
         if (IsNetworkSessionActive())
             return networkSceneLoader.Load(scene.Kind);
 
 #if UNITY_EDITOR
-        if (projectContext.CanStartDirectly(scene.ScenePath))
+        if (transition.AllowEditorDirectLoad && projectContext.CanStartDirectly(scene.ScenePath))
             return localSceneLoader.Load(scene);
 #endif
 
         Debug.LogError(
             $"Cannot load network scene '{scene.Kind}' without an active network session.",
+            this);
+        return false;
+    }
+
+    private bool CanUseTransition(ProjectSceneTransitionDefinition transition)
+    {
+        if (transition.Authority == ProjectSceneTransitionAuthority.ServerOnly)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                Debug.LogWarning($"Only server can execute scene transition {transition.FromScene} -> {transition.ToScene}.", this);
+                return false;
+            }
+        }
+
+        if (!transition.RequiresActiveNetworkSession)
+            return true;
+
+        if (IsNetworkSessionActive())
+            return true;
+
+#if UNITY_EDITOR
+        if (transition.AllowEditorDirectLoad)
+            return true;
+#endif
+
+        Debug.LogError(
+            $"Scene transition {transition.FromScene} -> {transition.ToScene} requires an active network session.",
             this);
         return false;
     }
@@ -100,6 +156,12 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
             return false;
         }
 
+        if (projectContext.SceneFlow == null)
+        {
+            Debug.LogError($"{nameof(ProjectSceneNavigator)} is missing {nameof(ProjectSceneFlow)}.", this);
+            return false;
+        }
+
         if (localSceneLoader == null)
         {
             Debug.LogError($"{nameof(ProjectSceneNavigator)} is missing {nameof(LocalSceneLoader)}.", this);
@@ -113,12 +175,6 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
         }
 
         return true;
-    }
-
-    private static bool IsNetworkScene(ProjectSceneKind sceneKind)
-    {
-        return sceneKind == ProjectSceneKind.Lobby ||
-               sceneKind == ProjectSceneKind.Game;
     }
 
     private static bool IsNetworkSessionActive()

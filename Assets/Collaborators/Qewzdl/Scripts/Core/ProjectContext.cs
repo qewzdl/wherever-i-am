@@ -10,6 +10,7 @@ public sealed class ProjectContext : MonoBehaviour
 
     [Header("Project")]
     [SerializeField] private ProjectSettings settings;
+    [SerializeField] private ProjectSceneFlow sceneFlow;
 
     [Header("Network")]
     [SerializeField] private NetworkManager networkManager;
@@ -29,6 +30,7 @@ public sealed class ProjectContext : MonoBehaviour
     public static ProjectContext Instance => instance;
 
     public ProjectSettings Settings => settings;
+    public ProjectSceneFlow SceneFlow => sceneFlow;
 
     public NetworkManager NetworkManager
     {
@@ -156,6 +158,7 @@ public sealed class ProjectContext : MonoBehaviour
         referencesValidated = true;
 
         ValidateRequiredReference(settings, nameof(settings));
+        ValidateRequiredReference(sceneFlow, nameof(sceneFlow));
         ValidateRequiredReference(networkManager, nameof(networkManager));
         ValidateRequiredReference(stateMachine, nameof(stateMachine));
         ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator));
