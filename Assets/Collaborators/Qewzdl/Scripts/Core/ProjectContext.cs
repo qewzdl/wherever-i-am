@@ -23,6 +23,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private LocalSceneLoader localSceneLoader;
     [SerializeField] private NetworkSceneLoader networkSceneLoader;
     [SerializeField] private ProjectSceneNavigator sceneNavigator;
+    [SerializeField] private ProjectSceneFlowService sceneFlowService;
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private AudioManager audioManager;
 
@@ -109,6 +110,15 @@ public sealed class ProjectContext : MonoBehaviour
         }
     }
 
+    public ProjectSceneFlowService SceneFlowService
+    {
+        get
+        {
+            ResolveReferences();
+            return sceneFlowService;
+        }
+    }
+
     public UiErrorManager UiErrors
     {
         get
@@ -162,6 +172,9 @@ public sealed class ProjectContext : MonoBehaviour
         if (sceneNavigator != null)
             sceneNavigator.Construct(this, localSceneLoader, networkSceneLoader);
 
+        if (sceneFlowService != null)
+            sceneFlowService.Construct(this, sceneNavigator);
+
         if (referencesValidated)
             return;
 
@@ -177,6 +190,7 @@ public sealed class ProjectContext : MonoBehaviour
         ValidateRequiredReference(localSceneLoader, nameof(localSceneLoader));
         ValidateRequiredReference(networkSceneLoader, nameof(networkSceneLoader));
         ValidateRequiredReference(sceneNavigator, nameof(sceneNavigator));
+        ValidateRequiredReference(sceneFlowService, nameof(sceneFlowService));
         ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager));
         ValidateRequiredReference(audioManager, nameof(audioManager));
     }
@@ -236,13 +250,6 @@ public sealed class ProjectContext : MonoBehaviour
         return settings != null
             ? settings.DefaultStartupScene
             : ProjectSceneKind.MainMenu;
-    }
-
-    public bool CanStartDirectly(string scenePath)
-    {
-        return settings != null
-            ? settings.CanStartDirectly(scenePath)
-            : ProjectSettings.CanDefaultSceneStartDirectly(scenePath);
     }
 
     public GameState GetStateForScene(ProjectSceneKind sceneKind)

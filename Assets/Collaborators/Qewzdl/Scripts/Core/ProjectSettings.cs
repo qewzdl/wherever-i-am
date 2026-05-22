@@ -11,32 +11,27 @@ public sealed class ProjectSettings : ScriptableObject
             ProjectSceneKind.Bootstrap,
             "Bootstrap",
             "Assets/Collaborators/Qewzdl/Scenes/Bootstrap.unity",
-            GameState.Bootstrapping,
-            false),
+            GameState.Bootstrapping),
         new ProjectSceneDefinition(
             ProjectSceneKind.MainMenu,
             "Main Menu",
             "Assets/Collaborators/Qewzdl/Scenes/Main Menu.unity",
-            GameState.MainMenu,
-            true),
+            GameState.MainMenu),
         new ProjectSceneDefinition(
             ProjectSceneKind.Lobby,
             "Lobby",
             "Assets/Collaborators/Qewzdl/Scenes/Lobby.unity",
-            GameState.Lobby,
-            true),
+            GameState.Lobby),
         new ProjectSceneDefinition(
             ProjectSceneKind.Game,
             "Game",
             "Assets/Collaborators/Qewzdl/Scenes/Game.unity",
-            GameState.InGame,
-            true),
+            GameState.InGame),
         new ProjectSceneDefinition(
             ProjectSceneKind.GameplayTest,
             "Test",
             "Assets/Collaborators/6aTowKa/Scenes/Test.unity",
-            GameState.InGame,
-            true)
+            GameState.InGame)
     };
 
     [Header("Startup")]
@@ -50,32 +45,27 @@ public sealed class ProjectSettings : ScriptableObject
             ProjectSceneKind.Bootstrap,
             "Bootstrap",
             "Assets/Collaborators/Qewzdl/Scenes/Bootstrap.unity",
-            GameState.Bootstrapping,
-            false),
+            GameState.Bootstrapping),
         new ProjectSceneDefinition(
             ProjectSceneKind.MainMenu,
             "Main Menu",
             "Assets/Collaborators/Qewzdl/Scenes/Main Menu.unity",
-            GameState.MainMenu,
-            true),
+            GameState.MainMenu),
         new ProjectSceneDefinition(
             ProjectSceneKind.Lobby,
             "Lobby",
             "Assets/Collaborators/Qewzdl/Scenes/Lobby.unity",
-            GameState.Lobby,
-            true),
+            GameState.Lobby),
         new ProjectSceneDefinition(
             ProjectSceneKind.Game,
             "Game",
             "Assets/Collaborators/Qewzdl/Scenes/Game.unity",
-            GameState.InGame,
-            true),
+            GameState.InGame),
         new ProjectSceneDefinition(
             ProjectSceneKind.GameplayTest,
             "Test",
             "Assets/Collaborators/6aTowKa/Scenes/Test.unity",
-            GameState.InGame,
-            true)
+            GameState.InGame)
     };
 
     public ProjectSceneKind BootstrapScene => bootstrapScene;
@@ -127,14 +117,6 @@ public sealed class ProjectSettings : ScriptableObject
             : ProjectSceneKind.Unknown;
     }
 
-    public bool CanStartDirectly(string scenePath)
-    {
-        if (TryGetScene(string.Empty, scenePath, out ProjectSceneDefinition scene))
-            return scene.CanStartDirectly;
-
-        return false;
-    }
-
     public static bool TryGetDefaultScene(ProjectSceneKind kind, out ProjectSceneDefinition scene)
     {
         return TryGetScene(kind, DefaultScenes, out scene);
@@ -151,19 +133,6 @@ public sealed class ProjectSettings : ScriptableObject
         }
 
         return ProjectSceneKind.Unknown;
-    }
-
-    public static bool CanDefaultSceneStartDirectly(string scenePath)
-    {
-        for (int i = 0; i < DefaultScenes.Length; i++)
-        {
-            ProjectSceneDefinition scene = DefaultScenes[i];
-
-            if (scene.Matches(string.Empty, scenePath))
-                return scene.CanStartDirectly;
-        }
-
-        return false;
     }
 
     private static bool TryGetScene(

@@ -8,27 +8,23 @@ public struct ProjectSceneDefinition
     [SerializeField] private string sceneName;
     [SerializeField] private string scenePath;
     [SerializeField] private GameState state;
-    [SerializeField] private bool canStartDirectly;
 
     public ProjectSceneDefinition(
         ProjectSceneKind kind,
         string sceneName,
         string scenePath,
-        GameState state,
-        bool canStartDirectly)
+        GameState state)
     {
         this.kind = kind;
         this.sceneName = sceneName;
         this.scenePath = scenePath;
         this.state = state;
-        this.canStartDirectly = canStartDirectly;
     }
 
     public ProjectSceneKind Kind => kind;
     public string SceneName => sceneName;
     public string ScenePath => scenePath;
     public GameState State => state;
-    public bool CanStartDirectly => canStartDirectly;
 
     public bool Matches(string candidateName, string candidatePath)
     {

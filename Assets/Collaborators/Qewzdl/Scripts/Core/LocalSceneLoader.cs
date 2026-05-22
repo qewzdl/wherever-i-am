@@ -34,14 +34,6 @@ public sealed class LocalSceneLoader : MonoBehaviour
         if (!HasProjectContext())
             return false;
 
-        if (!CanLoadLocally(scene))
-        {
-            Debug.LogError(
-                $"Scene '{scene.Kind}' is not allowed for local loading. Use {nameof(ProjectSceneNavigator)}.",
-                this);
-            return false;
-        }
-
         if (string.IsNullOrWhiteSpace(scene.SceneName) && string.IsNullOrWhiteSpace(scene.ScenePath))
         {
             Debug.LogError($"Scene '{scene.Kind}' has no configured name or path.", this);
@@ -50,23 +42,6 @@ public sealed class LocalSceneLoader : MonoBehaviour
 
         LoadConfiguredScene(scene.SceneName, scene.ScenePath);
         return true;
-    }
-
-    private bool CanLoadLocally(ProjectSceneDefinition scene)
-    {
-        switch (scene.Kind)
-        {
-            case ProjectSceneKind.Bootstrap:
-            case ProjectSceneKind.MainMenu:
-            case ProjectSceneKind.GameplayTest:
-                return true;
-        }
-
-#if UNITY_EDITOR
-        return projectContext != null && projectContext.CanStartDirectly(scene.ScenePath);
-#else
-        return false;
-#endif
     }
 
     private bool HasProjectContext()

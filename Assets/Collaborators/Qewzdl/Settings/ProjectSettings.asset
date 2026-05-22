@@ -19,24 +19,19 @@ MonoBehaviour:
     sceneName: Bootstrap
     scenePath: Assets/Collaborators/Qewzdl/Scenes/Bootstrap.unity
     state: 0
-    canStartDirectly: 0
   - kind: 2
     sceneName: Main Menu
     scenePath: Assets/Collaborators/Qewzdl/Scenes/Main Menu.unity
     state: 1
-    canStartDirectly: 1
   - kind: 3
     sceneName: Lobby
     scenePath: Assets/Collaborators/Qewzdl/Scenes/Lobby.unity
     state: 3
-    canStartDirectly: 1
   - kind: 4
     sceneName: Game
     scenePath: Assets/Collaborators/Qewzdl/Scenes/Game.unity
     state: 5
-    canStartDirectly: 1
   - kind: 100
     sceneName: Test
     scenePath: Assets/Collaborators/6aTowKa/Scenes/Test.unity
     state: 5
-    canStartDirectly: 1

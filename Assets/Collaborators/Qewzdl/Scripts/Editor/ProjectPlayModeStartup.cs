@@ -118,11 +118,23 @@ public static class ProjectPlayModeStartup
     private static bool CanStartDirectly(string scenePath, ProjectSettings settings)
     {
         if (settings != null)
-            return settings.CanStartDirectly(scenePath) &&
-                   AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) != null;
+        {
+            if (!settings.TryGetScene(string.Empty, scenePath, out ProjectSceneDefinition scene))
+                return false;
 
-        if (!ProjectSettings.CanDefaultSceneStartDirectly(scenePath))
+            if (scene.Kind == settings.BootstrapScene)
+                return false;
+
+            return AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) != null;
+        }
+
+        ProjectSceneKind sceneKind = ProjectSettings.GetDefaultSceneKind(string.Empty, scenePath);
+
+        if (sceneKind == ProjectSceneKind.Unknown ||
+            sceneKind == ProjectSceneKind.Bootstrap)
+        {
             return false;
+        }
 
         return IsEnabledBuildScene(scenePath);
     }

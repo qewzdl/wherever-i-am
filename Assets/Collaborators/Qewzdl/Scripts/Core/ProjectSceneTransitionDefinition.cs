@@ -10,6 +10,8 @@ public struct ProjectSceneTransitionDefinition
     [SerializeField] private ProjectSceneTransitionAuthority authority;
     [SerializeField] private bool requiresActiveNetworkSession;
     [SerializeField] private bool allowEditorDirectLoad;
+    [SerializeField] private GameState stateBeforeLoad;
+    [SerializeField] private ProjectSceneServerAction[] serverActionsAfterLoad;
 
     public ProjectSceneTransitionDefinition(
         ProjectSceneKind fromScene,
@@ -17,7 +19,9 @@ public struct ProjectSceneTransitionDefinition
         ProjectSceneLoadMode loadMode,
         ProjectSceneTransitionAuthority authority,
         bool requiresActiveNetworkSession,
-        bool allowEditorDirectLoad)
+        bool allowEditorDirectLoad,
+        GameState stateBeforeLoad,
+        params ProjectSceneServerAction[] serverActionsAfterLoad)
     {
         this.fromScene = fromScene;
         this.toScene = toScene;
@@ -25,6 +29,8 @@ public struct ProjectSceneTransitionDefinition
         this.authority = authority;
         this.requiresActiveNetworkSession = requiresActiveNetworkSession;
         this.allowEditorDirectLoad = allowEditorDirectLoad;
+        this.stateBeforeLoad = stateBeforeLoad;
+        this.serverActionsAfterLoad = serverActionsAfterLoad;
     }
 
     public ProjectSceneKind FromScene => fromScene;
@@ -33,6 +39,8 @@ public struct ProjectSceneTransitionDefinition
     public ProjectSceneTransitionAuthority Authority => authority;
     public bool RequiresActiveNetworkSession => requiresActiveNetworkSession;
     public bool AllowEditorDirectLoad => allowEditorDirectLoad;
+    public GameState StateBeforeLoad => stateBeforeLoad;
+    public ProjectSceneServerAction[] ServerActionsAfterLoad => serverActionsAfterLoad;
 
     public bool IsExactMatch(ProjectSceneKind currentScene, ProjectSceneKind targetScene)
     {

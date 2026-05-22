@@ -1,7 +1,7 @@
 using Unity.Netcode;
 using UnityEngine;
 
-public class NetworkChatSessionSpawner : MonoBehaviour
+public class NetworkChatSessionSpawner : MonoBehaviour, IProjectSceneFlowServerActionHandler
 {
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
@@ -13,27 +13,37 @@ public class NetworkChatSessionSpawner : MonoBehaviour
 
     private void Awake()
     {
-        ResolveReferences();
+        HasRequiredReferences();
+    }
+
+    public bool CanHandle(ProjectSceneServerAction action)
+    {
+        return action == ProjectSceneServerAction.SpawnChatSession;
+    }
+
+    public void Handle(ProjectSceneServerAction action, ProjectSceneKind loadedScene)
+    {
+        if (!CanHandle(action))
+            return;
+
+        if (loadedScene != ProjectSceneKind.Lobby)
+        {
+            Debug.LogWarning(
+                $"{nameof(NetworkChatSessionSpawner)} received '{action}' for non-lobby scene '{loadedScene}'.",
+                this);
+            return;
+        }
+
+        SpawnForServer();
     }
 
     public void SpawnForServer()
     {
-        ResolveReferences();
-
-        if (networkManager == null)
-        {
-            Debug.LogError("NetworkManager is missing.");
+        if (!HasRequiredReferences())
             return;
-        }
 
         if (!networkManager.IsServer)
             return;
-
-        if (chatSessionPrefab == null)
-        {
-            Debug.LogError("NetworkChatSession prefab is not assigned.");
-            return;
-        }
 
         if (spawnedSession != null)
         {
@@ -49,7 +59,7 @@ public class NetworkChatSessionSpawner : MonoBehaviour
 
         if (!instance.TryGetComponent(out NetworkObject networkObject))
         {
-            Debug.LogError("NetworkChatSession prefab is missing NetworkObject.");
+            Debug.LogError("NetworkChatSession prefab is missing NetworkObject.", instance);
             Destroy(instance.gameObject);
             return;
         }
@@ -63,9 +73,10 @@ public class NetworkChatSessionSpawner : MonoBehaviour
         if (spawnedSession == null)
             return;
 
-        ResolveReferences();
+        if (!HasRequiredReferences())
+            return;
 
-        if (networkManager == null || !networkManager.IsServer)
+        if (!networkManager.IsServer)
             return;
 
         if (spawnedSession.IsSpawned)
@@ -79,15 +90,32 @@ public class NetworkChatSessionSpawner : MonoBehaviour
         spawnedSession = null;
     }
 
-    private void ResolveReferences()
+    private bool HasRequiredReferences()
     {
         if (networkManager == null)
-            networkManager = GetComponent<NetworkManager>();
-
-        if (networkManager == null)
-            networkManager = NetworkManager.Singleton;
+        {
+            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(NetworkManager)}.", this);
+            return false;
+        }
 
         if (stateMachine == null)
-            stateMachine = GetComponent<GameStateMachine>();
+        {
+            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(GameStateMachine)}.", this);
+            return false;
+        }
+
+        if (chatSessionPrefab == null)
+        {
+            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(NetworkChatSession)} prefab.", this);
+            return false;
+        }
+
+        if (chatConfig == null)
+        {
+            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(ChatConfig)}.", this);
+            return false;
+        }
+
+        return true;
     }
 }

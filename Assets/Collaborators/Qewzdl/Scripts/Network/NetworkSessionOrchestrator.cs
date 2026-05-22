@@ -11,8 +11,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkConnectionService connectionService;
-    [SerializeField] private ProjectSceneNavigator sceneNavigator;
-    [SerializeField] private NetworkChatSessionSpawner chatSessionSpawner;
+    [SerializeField] private ProjectSceneFlowService sceneFlowService;
     [SerializeField] private ProjectContext projectContext;
 
     private bool networkCallbacksSubscribed;
@@ -79,16 +78,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         RefreshNetworkSubscriptions();
 
-        if (chatSessionSpawner != null)
-        {
-            chatSessionSpawner.SpawnForServer();
-        }
-        else
-        {
-            Debug.LogWarning("NetworkChatSessionSpawner is missing. Chat will be disabled.");
-        }
-
-        if (!sceneNavigator.LoadLobby())
+        if (!sceneFlowService.LoadScene(ProjectSceneKind.Lobby))
         {
             FailAndReturnToMainMenu(ConnectionResult.Fail(
                 ConnectionErrorCode.LobbySceneLoadFailed,
@@ -139,8 +129,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return;
         }
 
-        if (sceneNavigator.LoadGame())
-            stateMachine.ChangeState(GameState.LoadingGame);
+        sceneFlowService.LoadScene(ProjectSceneKind.Game);
     }
 
     public void ShutdownToMainMenu()
@@ -160,15 +149,11 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         ResetNetworkSubscriptions();
 
-        if (chatSessionSpawner != null)
-            chatSessionSpawner.DespawnForServer();
-
         connectionService.Shutdown();
 
         yield return null;
 
-        if (sceneNavigator != null)
-            sceneNavigator.LoadMainMenu();
+        sceneFlowService.LoadScene(ProjectSceneKind.MainMenu);
 
         shutdownRoutine = null;
     }
@@ -204,17 +189,14 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (connectionService == null && projectContext != null)
             connectionService = projectContext.ConnectionService;
 
-        if (sceneNavigator == null && projectContext != null)
-            sceneNavigator = projectContext.SceneNavigator;
+        if (sceneFlowService == null && projectContext != null)
+            sceneFlowService = projectContext.SceneFlowService;
 
         if (errorService == null)
         {
             if (UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
                 errorService = uiErrorManager;
         }
-
-        if (chatSessionSpawner == null)
-            chatSessionSpawner = GetComponent<NetworkChatSessionSpawner>();
     }
 
     private bool HasRequiredReferences()
@@ -233,9 +215,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return false;
         }
 
-        if (sceneNavigator == null)
+        if (sceneFlowService == null)
         {
-            Debug.LogError("ProjectSceneNavigator reference is missing.");
+            Debug.LogError("ProjectSceneFlowService reference is missing.");
             return false;
         }
 
@@ -284,13 +266,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (stateMachine.CurrentState == GameState.Disconnecting)
             return;
 
-        if (sceneNavigator == null)
-        {
-            Debug.LogError("ProjectSceneNavigator reference is missing.");
-            stateMachine.ChangeState(GameState.Error);
-            return;
-        }
-
         if (stateMachine.CurrentState == GameState.Connecting)
         {
             FailAndReturnToMainMenu("Connection failed or was interrupted while connecting.");
@@ -326,14 +301,11 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         ResetNetworkSubscriptions();
 
-        if (chatSessionSpawner != null)
-            chatSessionSpawner.DespawnForServer();
-
         if (connectionService != null)
             connectionService.Shutdown();
 
-        if (sceneNavigator != null)
-            sceneNavigator.LoadMainMenu();
+        if (sceneFlowService != null)
+            sceneFlowService.LoadScene(ProjectSceneKind.MainMenu);
 
         if (TryGetErrorService(out IUiErrorService service))
             service.ShowError(result.UserMessage);

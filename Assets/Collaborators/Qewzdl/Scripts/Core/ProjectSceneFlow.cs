@@ -11,7 +11,8 @@ public sealed class ProjectSceneFlow : ScriptableObject
             ProjectSceneLoadMode.Local,
             ProjectSceneTransitionAuthority.Any,
             false,
-            false),
+            false,
+            GameState.MainMenu),
 
         new ProjectSceneTransitionDefinition(
             ProjectSceneKind.Unknown,
@@ -19,7 +20,8 @@ public sealed class ProjectSceneFlow : ScriptableObject
             ProjectSceneLoadMode.Local,
             ProjectSceneTransitionAuthority.Any,
             false,
-            false),
+            false,
+            GameState.MainMenu),
 
         new ProjectSceneTransitionDefinition(
             ProjectSceneKind.MainMenu,
@@ -27,7 +29,9 @@ public sealed class ProjectSceneFlow : ScriptableObject
             ProjectSceneLoadMode.Network,
             ProjectSceneTransitionAuthority.ServerOnly,
             true,
-            false),
+            false,
+            GameState.Lobby,
+            ProjectSceneServerAction.SpawnChatSession),
 
         new ProjectSceneTransitionDefinition(
             ProjectSceneKind.Lobby,
@@ -35,7 +39,9 @@ public sealed class ProjectSceneFlow : ScriptableObject
             ProjectSceneLoadMode.Network,
             ProjectSceneTransitionAuthority.ServerOnly,
             true,
-            false),
+            false,
+            GameState.LoadingGame,
+            ProjectSceneServerAction.SpawnPlayers),
 
         new ProjectSceneTransitionDefinition(
             ProjectSceneKind.Lobby,
@@ -43,7 +49,8 @@ public sealed class ProjectSceneFlow : ScriptableObject
             ProjectSceneLoadMode.Local,
             ProjectSceneTransitionAuthority.Any,
             false,
-            false),
+            false,
+            GameState.MainMenu),
 
         new ProjectSceneTransitionDefinition(
             ProjectSceneKind.Game,
@@ -51,7 +58,8 @@ public sealed class ProjectSceneFlow : ScriptableObject
             ProjectSceneLoadMode.Local,
             ProjectSceneTransitionAuthority.Any,
             false,
-            false),
+            false,
+            GameState.MainMenu),
 
         new ProjectSceneTransitionDefinition(
             ProjectSceneKind.Unknown,
@@ -59,7 +67,8 @@ public sealed class ProjectSceneFlow : ScriptableObject
             ProjectSceneLoadMode.Local,
             ProjectSceneTransitionAuthority.Any,
             false,
-            true)
+            true,
+            GameState.InGame)
     };
 
     public bool TryGetTransition(

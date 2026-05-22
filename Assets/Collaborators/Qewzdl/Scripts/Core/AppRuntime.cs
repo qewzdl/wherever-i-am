@@ -91,7 +91,7 @@ public sealed class AppRuntime : MonoBehaviour
         if (!TryGetSceneNavigator(out ProjectSceneNavigator navigator))
             return;
 
-        navigator.LoadScene(sceneKind);
+        navigator.LoadLocal(sceneKind);
     }
 
     private bool EnsureContext()

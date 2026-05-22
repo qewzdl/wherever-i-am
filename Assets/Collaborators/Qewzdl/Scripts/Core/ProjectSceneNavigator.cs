@@ -1,4 +1,3 @@
-using Unity.Netcode;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -28,22 +27,22 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
             networkSceneLoader.Construct(projectContext);
     }
 
-    public bool LoadMainMenu()
+    public bool Load(ProjectSceneKind sceneKind, ProjectSceneLoadMode loadMode)
     {
-        return LoadScene(ProjectSceneKind.MainMenu);
+        switch (loadMode)
+        {
+            case ProjectSceneLoadMode.Local:
+                return LoadLocal(sceneKind);
+
+            case ProjectSceneLoadMode.Network:
+                return LoadNetwork(sceneKind);
+        }
+
+        Debug.LogError($"Unsupported scene load mode '{loadMode}' for scene '{sceneKind}'.", this);
+        return false;
     }
 
-    public bool LoadLobby()
-    {
-        return LoadScene(ProjectSceneKind.Lobby);
-    }
-
-    public bool LoadGame()
-    {
-        return LoadScene(ProjectSceneKind.Game);
-    }
-
-    public bool LoadScene(ProjectSceneKind sceneKind)
+    public bool LoadLocal(ProjectSceneKind sceneKind)
     {
         if (!HasRequiredReferences())
             return false;
@@ -54,90 +53,21 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
             return false;
         }
 
-        ProjectSceneKind currentScene = projectContext.GetActiveSceneKind();
-
-        if (!projectContext.SceneFlow.TryGetTransition(
-                currentScene,
-                scene.Kind,
-                out ProjectSceneTransitionDefinition transition))
-        {
-            Debug.LogError($"Scene transition is not configured: {currentScene} -> {scene.Kind}.", this);
-            return false;
-        }
-
-        if (!CanUseTransition(transition))
-            return false;
-
-        switch (transition.LoadMode)
-        {
-            case ProjectSceneLoadMode.Local:
-                return LoadLocalScene(scene);
-
-            case ProjectSceneLoadMode.Network:
-                return LoadNetworkScene(scene, transition);
-        }
-
-        Debug.LogError($"Unsupported scene load mode '{transition.LoadMode}' for transition {currentScene} -> {scene.Kind}.", this);
-        return false;
-    }
-
-    private bool LoadLocalScene(ProjectSceneDefinition scene)
-    {
-        if (IsNetworkSessionActive())
-        {
-            Debug.LogError(
-                $"Cannot load local scene '{scene.Kind}' while NetworkManager is listening. Shutdown network session first.",
-                this);
-            return false;
-        }
-
         return localSceneLoader.Load(scene);
     }
 
-    private bool LoadNetworkScene(
-        ProjectSceneDefinition scene,
-        ProjectSceneTransitionDefinition transition)
+    public bool LoadNetwork(ProjectSceneKind sceneKind)
     {
-        if (IsNetworkSessionActive())
-            return networkSceneLoader.Load(scene.Kind);
+        if (!HasRequiredReferences())
+            return false;
 
-#if UNITY_EDITOR
-        if (transition.AllowEditorDirectLoad && projectContext.CanStartDirectly(scene.ScenePath))
-            return localSceneLoader.Load(scene);
-#endif
-
-        Debug.LogError(
-            $"Cannot load network scene '{scene.Kind}' without an active network session.",
-            this);
-        return false;
-    }
-
-    private bool CanUseTransition(ProjectSceneTransitionDefinition transition)
-    {
-        if (transition.Authority == ProjectSceneTransitionAuthority.ServerOnly)
+        if (!projectContext.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
         {
-            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
-            {
-                Debug.LogWarning($"Only server can execute scene transition {transition.FromScene} -> {transition.ToScene}.", this);
-                return false;
-            }
+            Debug.LogError($"Scene is not configured for {sceneKind}.", this);
+            return false;
         }
 
-        if (!transition.RequiresActiveNetworkSession)
-            return true;
-
-        if (IsNetworkSessionActive())
-            return true;
-
-#if UNITY_EDITOR
-        if (transition.AllowEditorDirectLoad)
-            return true;
-#endif
-
-        Debug.LogError(
-            $"Scene transition {transition.FromScene} -> {transition.ToScene} requires an active network session.",
-            this);
-        return false;
+        return networkSceneLoader.Load(scene.Kind);
     }
 
     private string GetSceneName(ProjectSceneKind sceneKind)
@@ -156,12 +86,6 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
             return false;
         }
 
-        if (projectContext.SceneFlow == null)
-        {
-            Debug.LogError($"{nameof(ProjectSceneNavigator)} is missing {nameof(ProjectSceneFlow)}.", this);
-            return false;
-        }
-
         if (localSceneLoader == null)
         {
             Debug.LogError($"{nameof(ProjectSceneNavigator)} is missing {nameof(LocalSceneLoader)}.", this);
@@ -175,11 +99,5 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
         }
 
         return true;
-    }
-
-    private static bool IsNetworkSessionActive()
-    {
-        return NetworkManager.Singleton != null &&
-               NetworkManager.Singleton.IsListening;
     }
 }
