@@ -1,9 +1,7 @@
 using System.Collections;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 {
@@ -19,14 +17,9 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     [SerializeField] private NetworkChatSessionSpawner chatSessionSpawner;
     [SerializeField] private ProjectContext projectContext;
 
-    [Header("Player")]
-    [SerializeField] private GameObject playerPrefab;
-
     private bool networkCallbacksSubscribed;
-    private bool networkSceneCallbacksSubscribed;
 
     private NetworkManager subscribedNetworkManager;
-    private NetworkSceneManager subscribedNetworkSceneManager;
     private Coroutine shutdownRoutine;
 
     private IUiErrorService errorService;
@@ -51,13 +44,11 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         ConfigureConnectionApproval();
 
         SubscribeToNetworkCallbacks();
-        SubscribeToNetworkSceneCallbacks();
     }
 
     private void OnDisable()
     {
         UnsubscribeFromNetworkCallbacks();
-        UnsubscribeFromNetworkSceneCallbacks();
     }
 
     private void OnDestroy()
@@ -193,13 +184,11 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         ResolveReferences();
 
         SubscribeToNetworkCallbacks();
-        SubscribeToNetworkSceneCallbacks();
     }
 
     private void ResetNetworkSubscriptions()
     {
         UnsubscribeFromNetworkCallbacks();
-        UnsubscribeFromNetworkSceneCallbacks();
     }
 
     private void ResolveReferences()
@@ -221,9 +210,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         if (sceneNavigator == null && projectContext != null)
             sceneNavigator = projectContext.SceneNavigator;
-
-        if (playerPrefab == null && networkManager != null)
-            playerPrefab = networkManager.NetworkConfig.PlayerPrefab;
 
         if (errorService == null)
         {
@@ -310,7 +296,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         UnsubscribeFromNetworkCallbacks();
 
         subscribedNetworkManager = networkManager;
-        subscribedNetworkManager.OnClientConnectedCallback += HandleClientConnected;
         subscribedNetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
 
         networkCallbacksSubscribed = true;
@@ -322,54 +307,10 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
             return;
 
         if (subscribedNetworkManager != null)
-        {
-            subscribedNetworkManager.OnClientConnectedCallback -= HandleClientConnected;
             subscribedNetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
-        }
 
         subscribedNetworkManager = null;
         networkCallbacksSubscribed = false;
-    }
-
-    private void SubscribeToNetworkSceneCallbacks()
-    {
-        if (networkManager == null || networkManager.SceneManager == null)
-            return;
-
-        NetworkSceneManager currentSceneManager = networkManager.SceneManager;
-
-        if (networkSceneCallbacksSubscribed && subscribedNetworkSceneManager == currentSceneManager)
-            return;
-
-        UnsubscribeFromNetworkSceneCallbacks();
-
-        subscribedNetworkSceneManager = currentSceneManager;
-        subscribedNetworkSceneManager.OnLoadEventCompleted += HandleNetworkLoadEventCompleted;
-
-        networkSceneCallbacksSubscribed = true;
-    }
-
-    private void UnsubscribeFromNetworkSceneCallbacks()
-    {
-        if (!networkSceneCallbacksSubscribed)
-            return;
-
-        if (subscribedNetworkSceneManager != null)
-            subscribedNetworkSceneManager.OnLoadEventCompleted -= HandleNetworkLoadEventCompleted;
-
-        subscribedNetworkSceneManager = null;
-        networkSceneCallbacksSubscribed = false;
-    }
-
-    private void HandleClientConnected(ulong clientId)
-    {
-        if (networkManager == null || !networkManager.IsServer)
-            return;
-
-        if (!IsCurrentScene(ProjectSceneKind.Game))
-            return;
-
-        SpawnPlayerForClient(clientId);
     }
 
     private void HandleClientDisconnected(ulong clientId)
@@ -405,74 +346,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         {
             FailAndReturnToMainMenu("Disconnected from network session.");
         }
-    }
-
-    private void HandleNetworkLoadEventCompleted(
-        string sceneName,
-        LoadSceneMode loadSceneMode,
-        List<ulong> clientsCompleted,
-        List<ulong> clientsTimedOut)
-    {
-        if (sceneNavigator == null)
-            return;
-
-        if (sceneName != sceneNavigator.GameSceneName)
-            return;
-
-        if (networkManager == null || !networkManager.IsServer)
-            return;
-
-        SpawnPlayersForConnectedClients();
-    }
-
-    private void SpawnPlayersForConnectedClients()
-    {
-        if (networkManager == null || playerPrefab == null)
-            return;
-
-        foreach (ulong clientId in networkManager.ConnectedClientsIds)
-            SpawnPlayerForClient(clientId);
-    }
-
-    private void SpawnPlayerForClient(ulong clientId)
-    {
-        if (networkManager == null || playerPrefab == null)
-            return;
-
-        if (!networkManager.ConnectedClients.TryGetValue(clientId, out NetworkClient client))
-            return;
-
-        if (client.PlayerObject != null)
-            return;
-
-        if (!playerPrefab.TryGetComponent(out NetworkObject playerNetworkObject))
-        {
-            Debug.LogError("Player prefab is missing NetworkObject.");
-            return;
-        }
-
-        NetworkObject playerInstance = Instantiate(
-            playerNetworkObject,
-            playerPrefab.transform.position,
-            playerPrefab.transform.rotation);
-
-        playerInstance.SpawnAsPlayerObject(clientId, true);
-    }
-
-    private bool IsCurrentScene(ProjectSceneKind sceneKind)
-    {
-        if (projectContext != null)
-            return projectContext.GetActiveSceneKind() == sceneKind;
-
-        if (sceneNavigator == null)
-            return false;
-
-        string expectedSceneName = sceneKind == ProjectSceneKind.Game
-            ? sceneNavigator.GameSceneName
-            : sceneNavigator.LobbySceneName;
-
-        return !string.IsNullOrWhiteSpace(expectedSceneName) &&
-               SceneManager.GetActiveScene().name == expectedSceneName;
     }
 
     private void FailAndReturnToMainMenu(string userMessage, string debugMessage = "")

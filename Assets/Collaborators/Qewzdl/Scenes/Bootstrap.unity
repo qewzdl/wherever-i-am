@@ -140,6 +140,7 @@ GameObject:
   - component: {fileID: 481142985}
   - component: {fileID: 481142989}
   - component: {fileID: 481142988}
+  - component: {fileID: 481142990}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -205,7 +206,6 @@ MonoBehaviour:
   sceneNavigator: {fileID: 481142988}
   chatSessionSpawner: {fileID: 481142984}
   projectContext: {fileID: 481142986}
-  playerPrefab: {fileID: 5710508612914273328, guid: a6b1763c8abbebe4989088f71540c4bc, type: 3}
 --- !u!114 &481142981
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -394,6 +394,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   projectContext: {fileID: 481142986}
+--- !u!114 &481142990
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6cae1a7200cf124eb69936d87c89aa8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  sceneNavigator: {fileID: 481142988}
+  playerPrefab: {fileID: 5710508612914273328, guid: a6b1763c8abbebe4989088f71540c4bc, type: 3}
 --- !u!1 &542830336
 GameObject:
   m_ObjectHideFlags: 0
