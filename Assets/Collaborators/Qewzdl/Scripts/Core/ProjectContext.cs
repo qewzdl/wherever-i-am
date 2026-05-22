@@ -19,6 +19,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkSessionOrchestrator sessionOrchestrator;
     [SerializeField] private NetworkConnectionService connectionService;
+    [SerializeField] private NetworkConnectionApprovalService connectionApprovalService;
     [SerializeField] private LocalSceneLoader localSceneLoader;
     [SerializeField] private NetworkSceneLoader networkSceneLoader;
     [SerializeField] private ProjectSceneNavigator sceneNavigator;
@@ -67,6 +68,15 @@ public sealed class ProjectContext : MonoBehaviour
         {
             ResolveReferences();
             return connectionService;
+        }
+    }
+
+    public NetworkConnectionApprovalService ConnectionApprovalService
+    {
+        get
+        {
+            ResolveReferences();
+            return connectionApprovalService;
         }
     }
 
@@ -163,6 +173,7 @@ public sealed class ProjectContext : MonoBehaviour
         ValidateRequiredReference(stateMachine, nameof(stateMachine));
         ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator));
         ValidateRequiredReference(connectionService, nameof(connectionService));
+        ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService));
         ValidateRequiredReference(localSceneLoader, nameof(localSceneLoader));
         ValidateRequiredReference(networkSceneLoader, nameof(networkSceneLoader));
         ValidateRequiredReference(sceneNavigator, nameof(sceneNavigator));

@@ -5,8 +5,6 @@ using UnityEngine;
 
 public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 {
-    private const string LobbyJoinDeniedReason = "The game has already started. You can only join while the host is in the lobby.";
-
     public static NetworkSessionOrchestrator Instance { get; private set; }
 
     [Header("References")]
@@ -35,13 +33,11 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         Instance = this;
 
         ResolveReferences();
-        ConfigureConnectionApproval();
     }
 
     private void OnEnable()
     {
         ResolveReferences();
-        ConfigureConnectionApproval();
 
         SubscribeToNetworkCallbacks();
     }
@@ -244,45 +240,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         }
 
         return true;
-    }
-
-    private void ConfigureConnectionApproval()
-    {
-        if (networkManager == null || networkManager.IsListening)
-            return;
-
-        networkManager.NetworkConfig.ConnectionApproval = true;
-        networkManager.ConnectionApprovalCallback = ApproveLobbyConnectionWithoutPlayerObject;
-    }
-
-    private void ApproveLobbyConnectionWithoutPlayerObject(
-        NetworkManager.ConnectionApprovalRequest request,
-        NetworkManager.ConnectionApprovalResponse response)
-    {
-        response.CreatePlayerObject = false;
-        response.Pending = false;
-
-        if (request.ClientNetworkId == NetworkManager.ServerClientId || IsAcceptingRemoteClientConnections())
-        {
-            response.Approved = true;
-            return;
-        }
-
-        response.Approved = false;
-        response.Reason = LobbyJoinDeniedReason;
-
-        Debug.Log($"Rejected client {request.ClientNetworkId}: {LobbyJoinDeniedReason}");
-    }
-
-    private bool IsAcceptingRemoteClientConnections()
-    {
-        if (stateMachine != null)
-            return stateMachine.CurrentState == GameState.Lobby;
-
-        if (projectContext != null)
-            return projectContext.GetActiveSceneKind() == ProjectSceneKind.Lobby;
-
-        return false;
     }
 
     private void SubscribeToNetworkCallbacks()
