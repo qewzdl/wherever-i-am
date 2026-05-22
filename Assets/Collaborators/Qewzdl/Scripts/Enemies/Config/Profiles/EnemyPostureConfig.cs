@@ -8,6 +8,11 @@ public class EnemyPostureConfig : ScriptableObject
 {
     public bool crawlingEnabled = true;
 
+    [Header("Transitions")]
+    [Min(0f)] public float standingToCrawlingTransitionDuration = 0.35f;
+    [Min(0f)] public float crawlingToStandingTransitionDuration = 0.35f;
+
+    [Header("Agent")]
     [Min(0.1f)] public float standingAgentHeight = 2f;
     [Min(0.05f)] public float standingAgentRadius = 0.35f;
     public float standingAgentBaseOffset = 0f;
@@ -37,8 +42,36 @@ public class EnemyPostureConfig : ScriptableObject
     [Min(0.05f)] public float crawlingBodyColliderRadius = 0.35f;
     public Vector3 crawlingBodyColliderCenter = new(0f, 0.375f, 0f);
 
+    public float GetTransitionDuration(EnemyPosture fromPosture, EnemyPosture toPosture)
+    {
+        if (fromPosture == toPosture)
+        {
+            return 0f;
+        }
+
+        if (fromPosture == EnemyPosture.Standing && toPosture == EnemyPosture.Crawling)
+        {
+            return standingToCrawlingTransitionDuration;
+        }
+
+        if (fromPosture == EnemyPosture.Crawling && toPosture == EnemyPosture.Standing)
+        {
+            return crawlingToStandingTransitionDuration;
+        }
+
+        Debug.LogError(
+            $"{nameof(EnemyPostureConfig)} has no transition duration for {fromPosture} -> {toPosture}.",
+            this
+        );
+
+        return 0f;
+    }
+
     public void Validate()
     {
+        standingToCrawlingTransitionDuration = Mathf.Max(0f, standingToCrawlingTransitionDuration);
+        crawlingToStandingTransitionDuration = Mathf.Max(0f, crawlingToStandingTransitionDuration);
+
         standingAgentHeight = Mathf.Max(0.1f, standingAgentHeight);
         standingAgentRadius = Mathf.Max(0.05f, standingAgentRadius);
 

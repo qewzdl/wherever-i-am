@@ -27,13 +27,44 @@ public class EnemyPostureController : MonoBehaviour
     private bool initializedServer;
     private bool missingNetworkStateLogged;
 
+    private bool postureTransitionInProgress;
+    private EnemyPosture transitionTargetPosture = EnemyPosture.Standing;
+    private float postureTransitionStartedTime = float.NegativeInfinity;
+    private float postureTransitionCompleteTime = float.NegativeInfinity;
+
     public EnemyPosture CurrentPosture { get; private set; } = EnemyPosture.Standing;
     public float LastPostureChangedTime { get; private set; } = float.NegativeInfinity;
     public bool IsCrawling => CurrentPosture == EnemyPosture.Crawling;
 
+    public bool IsPostureTransitionInProgress => postureTransitionInProgress;
+    public EnemyPosture TargetPosture => postureTransitionInProgress
+        ? transitionTargetPosture
+        : CurrentPosture;
+
+    public float PostureTransitionStartedTime => postureTransitionStartedTime;
+
+    public float PostureTransitionDuration => postureTransitionInProgress
+        ? Mathf.Max(0f, postureTransitionCompleteTime - postureTransitionStartedTime)
+        : 0f;
+
     private void Awake()
     {
         CacheComponents();
+    }
+
+    private void Update()
+    {
+        if (!initializedServer || !postureTransitionInProgress)
+        {
+            return;
+        }
+
+        if (Time.time < postureTransitionCompleteTime)
+        {
+            return;
+        }
+
+        CompletePostureTransitionServer();
     }
 
     public bool TryInitializeServer(
@@ -45,6 +76,7 @@ public class EnemyPostureController : MonoBehaviour
 
         networkState = enemyNetworkState;
         initializedServer = false;
+        ClearPostureTransition();
 
         if (config == null)
         {
@@ -71,6 +103,7 @@ public class EnemyPostureController : MonoBehaviour
         initializedServer = false;
         networkState = null;
         missingNetworkStateLogged = false;
+        ClearPostureTransition();
     }
 
     public void Configure(EnemyConfig enemyConfig)
@@ -98,24 +131,30 @@ public class EnemyPostureController : MonoBehaviour
             return false;
         }
 
+        if (postureTransitionInProgress)
+        {
+            if (transitionTargetPosture == posture)
+            {
+                return true;
+            }
+
+            if (CurrentPosture == posture)
+            {
+                ClearPostureTransition();
+                SyncPostureServer(CurrentPosture);
+                return true;
+            }
+
+            ClearPostureTransition();
+        }
+
         if (CurrentPosture == posture)
         {
             SyncPostureServer(posture);
             return true;
         }
 
-        if (!TryApplyNavigationPosture(posture))
-        {
-            return false;
-        }
-
-        CurrentPosture = posture;
-        LastPostureChangedTime = Time.time;
-
-        ApplyVisualPosture(posture);
-        SyncPostureServer(posture);
-
-        return true;
+        return TryStartPostureTransitionServer(posture);
     }
 
     public float GetSpeedForPosture(float baseSpeed, EnemyPosture posture)
@@ -169,6 +208,81 @@ public class EnemyPostureController : MonoBehaviour
         flatDelta.y = 0f;
 
         return flatDelta.sqrMagnitude <= sampleRadius * sampleRadius;
+    }
+
+    private bool TryStartPostureTransitionServer(EnemyPosture posture)
+    {
+        if (!CanUsePostureAtCurrentPosition(posture))
+        {
+            return false;
+        }
+
+        float transitionDuration = Mathf.Max(
+            0f,
+            config.GetPostureTransitionDuration(CurrentPosture, posture)
+        );
+
+        if (transitionDuration <= 0f)
+        {
+            return CommitPostureServer(posture);
+        }
+
+        postureTransitionInProgress = true;
+        transitionTargetPosture = posture;
+        postureTransitionStartedTime = Time.time;
+        postureTransitionCompleteTime = postureTransitionStartedTime + transitionDuration;
+
+        return true;
+    }
+
+    private void CompletePostureTransitionServer()
+    {
+        EnemyPosture targetPosture = transitionTargetPosture;
+
+        ClearPostureTransition();
+
+        if (CommitPostureServer(targetPosture))
+        {
+            return;
+        }
+
+        Debug.LogWarning(
+            $"{nameof(EnemyPostureController)} cancelled transition to {targetPosture} because target posture is no longer usable.",
+            this
+        );
+
+        ApplyVisualPosture(CurrentPosture);
+        SyncPostureServer(CurrentPosture);
+    }
+
+    private bool CommitPostureServer(EnemyPosture posture)
+    {
+        if (CurrentPosture == posture)
+        {
+            SyncPostureServer(posture);
+            return true;
+        }
+
+        if (!TryApplyNavigationPosture(posture))
+        {
+            return false;
+        }
+
+        CurrentPosture = posture;
+        LastPostureChangedTime = Time.time;
+
+        ApplyVisualPosture(posture);
+        SyncPostureServer(posture);
+
+        return true;
+    }
+
+    private void ClearPostureTransition()
+    {
+        postureTransitionInProgress = false;
+        transitionTargetPosture = CurrentPosture;
+        postureTransitionStartedTime = float.NegativeInfinity;
+        postureTransitionCompleteTime = float.NegativeInfinity;
     }
 
     private void SyncPostureServer(EnemyPosture posture)

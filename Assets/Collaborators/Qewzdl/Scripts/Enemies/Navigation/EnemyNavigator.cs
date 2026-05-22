@@ -69,6 +69,12 @@ public class EnemyNavigator : MonoBehaviour
 
     public bool TryMoveTo(Vector3 destination, float speed)
     {
+        if (postureController != null && postureController.IsPostureTransitionInProgress)
+        {
+            StopForPostureTransition();
+            return false;
+        }
+
         if (config != null && config.crawlingEnabled && postureController != null)
         {
             if (postureController.IsCrawling)
@@ -77,6 +83,12 @@ public class EnemyNavigator : MonoBehaviour
                     TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
                 {
                     return true;
+                }
+
+                if (postureController.IsPostureTransitionInProgress)
+                {
+                    StopForPostureTransition();
+                    return false;
                 }
 
                 if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
@@ -90,6 +102,12 @@ public class EnemyNavigator : MonoBehaviour
             if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
             {
                 return true;
+            }
+
+            if (postureController.IsPostureTransitionInProgress)
+            {
+                StopForPostureTransition();
+                return false;
             }
 
             if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
@@ -166,6 +184,16 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void StopForPostureTransition()
+    {
+        if (!TryEnsureOnNavMesh())
+        {
+            return;
+        }
+
+        agent.isStopped = true;
     }
 
     private bool TryMoveToWithPosture(
@@ -306,6 +334,11 @@ public class EnemyNavigator : MonoBehaviour
     private bool CanAttemptStandingRecovery()
     {
         if (config == null || postureController == null)
+        {
+            return false;
+        }
+
+        if (postureController.IsPostureTransitionInProgress)
         {
             return false;
         }

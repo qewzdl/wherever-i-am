@@ -118,6 +118,12 @@ public class EnemyConfig : ScriptableObject
 
     public bool crawlingEnabled => postureProfile.crawlingEnabled;
 
+    public float standingToCrawlingTransitionDuration =>
+        postureProfile.standingToCrawlingTransitionDuration;
+
+    public float crawlingToStandingTransitionDuration =>
+        postureProfile.crawlingToStandingTransitionDuration;
+
     public float standingAgentHeight => postureProfile.standingAgentHeight;
     public float standingAgentRadius => postureProfile.standingAgentRadius;
     public float standingAgentBaseOffset => postureProfile.standingAgentBaseOffset;
@@ -145,6 +151,11 @@ public class EnemyConfig : ScriptableObject
     public float crawlingBodyColliderHeight => postureProfile.crawlingBodyColliderHeight;
     public float crawlingBodyColliderRadius => postureProfile.crawlingBodyColliderRadius;
     public Vector3 crawlingBodyColliderCenter => postureProfile.crawlingBodyColliderCenter;
+
+    public float GetPostureTransitionDuration(EnemyPosture fromPosture, EnemyPosture toPosture)
+    {
+        return postureProfile.GetTransitionDuration(fromPosture, toPosture);
+    }
 
     public bool TryGetValidationError(out string error)
     {
