@@ -3,73 +3,7 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "Wherever I Am/Scene Flow", fileName = "ProjectSceneFlow")]
 public sealed class ProjectSceneFlow : ScriptableObject
 {
-    [SerializeField] private ProjectSceneTransitionDefinition[] transitions =
-    {
-        new ProjectSceneTransitionDefinition(
-            ProjectSceneKind.Bootstrap,
-            ProjectSceneKind.MainMenu,
-            ProjectSceneLoadMode.Local,
-            ProjectSceneTransitionAuthority.Any,
-            false,
-            false,
-            GameState.MainMenu),
-
-        new ProjectSceneTransitionDefinition(
-            ProjectSceneKind.Unknown,
-            ProjectSceneKind.MainMenu,
-            ProjectSceneLoadMode.Local,
-            ProjectSceneTransitionAuthority.Any,
-            false,
-            false,
-            GameState.MainMenu),
-
-        new ProjectSceneTransitionDefinition(
-            ProjectSceneKind.MainMenu,
-            ProjectSceneKind.Lobby,
-            ProjectSceneLoadMode.Network,
-            ProjectSceneTransitionAuthority.ServerOnly,
-            true,
-            false,
-            GameState.Lobby,
-            ProjectSceneServerAction.SpawnChatSession),
-
-        new ProjectSceneTransitionDefinition(
-            ProjectSceneKind.Lobby,
-            ProjectSceneKind.Game,
-            ProjectSceneLoadMode.Network,
-            ProjectSceneTransitionAuthority.ServerOnly,
-            true,
-            false,
-            GameState.LoadingGame,
-            ProjectSceneServerAction.SpawnPlayers),
-
-        new ProjectSceneTransitionDefinition(
-            ProjectSceneKind.Lobby,
-            ProjectSceneKind.MainMenu,
-            ProjectSceneLoadMode.Local,
-            ProjectSceneTransitionAuthority.Any,
-            false,
-            false,
-            GameState.MainMenu),
-
-        new ProjectSceneTransitionDefinition(
-            ProjectSceneKind.Game,
-            ProjectSceneKind.MainMenu,
-            ProjectSceneLoadMode.Local,
-            ProjectSceneTransitionAuthority.Any,
-            false,
-            false,
-            GameState.MainMenu),
-
-        new ProjectSceneTransitionDefinition(
-            ProjectSceneKind.Unknown,
-            ProjectSceneKind.GameplayTest,
-            ProjectSceneLoadMode.Local,
-            ProjectSceneTransitionAuthority.Any,
-            false,
-            true,
-            GameState.InGame)
-    };
+    [SerializeField] private ProjectSceneTransitionDefinition[] transitions;
 
     public bool TryGetTransition(
         ProjectSceneKind currentScene,

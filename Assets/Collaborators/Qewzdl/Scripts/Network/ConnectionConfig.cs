@@ -13,8 +13,8 @@ public class ConnectionConfig
         ConnectionRole role,
         string address,
         ushort port,
-        string listenAddress = "0.0.0.0",
-        float clientConnectionTimeoutSeconds = 5f)
+        string listenAddress,
+        float clientConnectionTimeoutSeconds)
     {
         Mode = mode;
         Role = role;

@@ -7,6 +7,7 @@ using UnityEngine.SceneManagement;
 [InitializeOnLoad]
 public static class ProjectPlayModeStartup
 {
+    private const string ProjectSettingsAssetPath = "Assets/Collaborators/Qewzdl/Settings/ProjectSettings.asset";
     private const string PreviousPlayModeStartScenePathKey = "WhereverIAm.Editor.PreviousPlayModeStartScenePath";
 
     static ProjectPlayModeStartup()
@@ -33,8 +34,21 @@ public static class ProjectPlayModeStartup
     {
         Scene activeScene = SceneManager.GetActiveScene();
         string activeScenePath = activeScene.path;
-        ProjectSettings settings = AssetDatabase.LoadAssetAtPath<ProjectSettings>(ProjectSettings.DefaultAssetPath);
+        ProjectSettings settings = LoadProjectSettings();
+
+        if (settings == null)
+        {
+            ClearSession();
+            return;
+        }
+
         string bootstrapScenePath = GetBootstrapScenePath(settings);
+
+        if (string.IsNullOrWhiteSpace(bootstrapScenePath))
+        {
+            ClearSession();
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(activeScenePath))
         {
@@ -66,6 +80,7 @@ public static class ProjectPlayModeStartup
 
         if (bootstrapScene == null)
         {
+            UnityEngine.Debug.LogError($"Bootstrap scene asset is missing at '{bootstrapScenePath}'.");
             ClearSession();
             return;
         }
@@ -102,55 +117,41 @@ public static class ProjectPlayModeStartup
         SessionState.EraseString(PreviousPlayModeStartScenePathKey);
     }
 
+    private static ProjectSettings LoadProjectSettings()
+    {
+        ProjectSettings settings = AssetDatabase.LoadAssetAtPath<ProjectSettings>(ProjectSettingsAssetPath);
+
+        if (settings != null)
+            return settings;
+
+        UnityEngine.Debug.LogError($"{nameof(ProjectPlayModeStartup)} cannot load {nameof(ProjectSettings)} at '{ProjectSettingsAssetPath}'.");
+        return null;
+    }
+
     private static string GetBootstrapScenePath(ProjectSettings settings)
     {
-        if (settings != null)
+        if (!settings.TryGetScene(settings.BootstrapScene, out ProjectSceneDefinition bootstrapScene))
         {
-            string path = settings.GetScenePath(settings.BootstrapScene);
-
-            if (!string.IsNullOrWhiteSpace(path))
-                return path;
+            UnityEngine.Debug.LogError($"Bootstrap scene is not configured in {nameof(ProjectSettings)}.");
+            return string.Empty;
         }
 
-        return "Assets/Collaborators/Qewzdl/Scenes/Bootstrap.unity";
+        if (!string.IsNullOrWhiteSpace(bootstrapScene.ScenePath))
+            return bootstrapScene.ScenePath;
+
+        UnityEngine.Debug.LogError($"Bootstrap scene path is empty in {nameof(ProjectSettings)}.");
+        return string.Empty;
     }
 
     private static bool CanStartDirectly(string scenePath, ProjectSettings settings)
     {
-        if (settings != null)
-        {
-            if (!settings.TryGetScene(string.Empty, scenePath, out ProjectSceneDefinition scene))
-                return false;
-
-            if (scene.Kind == settings.BootstrapScene)
-                return false;
-
-            return AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) != null;
-        }
-
-        ProjectSceneKind sceneKind = ProjectSettings.GetDefaultSceneKind(string.Empty, scenePath);
-
-        if (sceneKind == ProjectSceneKind.Unknown ||
-            sceneKind == ProjectSceneKind.Bootstrap)
-        {
+        if (!settings.TryGetScene(string.Empty, scenePath, out ProjectSceneDefinition scene))
             return false;
-        }
 
-        return IsEnabledBuildScene(scenePath);
-    }
+        if (scene.Kind == settings.BootstrapScene)
+            return false;
 
-    private static bool IsEnabledBuildScene(string scenePath)
-    {
-        foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)
-        {
-            if (!scene.enabled)
-                continue;
-
-            if (PathsEqual(scene.path, scenePath))
-                return true;
-        }
-
-        return false;
+        return AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) != null;
     }
 
     private static bool PathsEqual(string left, string right)

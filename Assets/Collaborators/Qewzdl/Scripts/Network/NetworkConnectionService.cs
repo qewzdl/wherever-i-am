@@ -10,11 +10,8 @@ public class NetworkConnectionService : MonoBehaviour
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private UnityTransport transport;
 
-    [Header("LAN Settings")]
-    [SerializeField] private ushort port = 7777;
-    [SerializeField] private string hostAddress = "127.0.0.1";
-    [SerializeField] private string listenAddress = "0.0.0.0";
-    [SerializeField] private float clientConnectionTimeoutSeconds = 5f;
+    [Header("Configuration")]
+    [SerializeField] private NetworkConnectionConfig connectionConfig;
 
     private readonly Dictionary<ConnectionMode, IConnectionStrategy> strategies = new Dictionary<ConnectionMode, IConnectionStrategy>();
 
@@ -39,26 +36,26 @@ public class NetworkConnectionService : MonoBehaviour
 
     public Task<ConnectionResult> StartHostAsync()
     {
-        ConnectionConfig config = new ConnectionConfig(
-            ConnectionMode.Lan,
-            ConnectionRole.Host,
-            hostAddress,
-            port,
-            listenAddress
-        );
+        if (!TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error))
+            return Task.FromResult(error);
 
         return StartConnectionAsync(config);
     }
 
     public Task<ConnectionResult> StartClientAsync(string ip)
     {
-        ConnectionConfig config = new ConnectionConfig(
-            ConnectionMode.Lan,
-            ConnectionRole.Client,
-            ip,
-            port,
-            clientConnectionTimeoutSeconds: clientConnectionTimeoutSeconds
-        );
+        if (string.IsNullOrWhiteSpace(ip))
+        {
+            return Task.FromResult(ConnectionResult.Fail(
+                ConnectionErrorCode.EmptyIpAddress,
+                "Failed to start the network connection.",
+                "Client IP address is empty.",
+                true
+            ));
+        }
+
+        if (!TryCreateClientConnectionConfig(ip, out ConnectionConfig config, out ConnectionResult error))
+            return Task.FromResult(error);
 
         return StartConnectionAsync(config);
     }
@@ -151,6 +148,64 @@ public class NetworkConnectionService : MonoBehaviour
         Debug.Log("Network shutdown.");
     }
 
+    private bool TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error)
+    {
+        config = null;
+        error = null;
+
+        if (!ValidateConnectionConfig())
+        {
+            error = ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to start the network connection.",
+                "Network connection config is missing or invalid.",
+                false
+            );
+
+            return false;
+        }
+
+        config = new ConnectionConfig(
+            ConnectionMode.Lan,
+            ConnectionRole.Host,
+            connectionConfig.HostAddress,
+            connectionConfig.Port,
+            connectionConfig.ListenAddress,
+            connectionConfig.ClientConnectionTimeoutSeconds
+        );
+
+        return true;
+    }
+
+    private bool TryCreateClientConnectionConfig(string ip, out ConnectionConfig config, out ConnectionResult error)
+    {
+        config = null;
+        error = null;
+
+        if (!ValidateConnectionConfig())
+        {
+            error = ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to start the network connection.",
+                "Network connection config is missing or invalid.",
+                false
+            );
+
+            return false;
+        }
+
+        config = new ConnectionConfig(
+            ConnectionMode.Lan,
+            ConnectionRole.Client,
+            ip,
+            connectionConfig.Port,
+            connectionConfig.ListenAddress,
+            connectionConfig.ClientConnectionTimeoutSeconds
+        );
+
+        return true;
+    }
+
     private bool ValidateRequiredReferences()
     {
         bool isValid = true;
@@ -167,7 +222,21 @@ public class NetworkConnectionService : MonoBehaviour
             isValid = false;
         }
 
+        if (!ValidateConnectionConfig())
+            isValid = false;
+
         return isValid;
+    }
+
+    private bool ValidateConnectionConfig()
+    {
+        if (connectionConfig == null)
+        {
+            Debug.LogError($"{nameof(NetworkConnectionService)} is missing {nameof(NetworkConnectionConfig)}.", this);
+            return false;
+        }
+
+        return connectionConfig.Validate(this);
     }
 
     private void InitializeStrategies()
@@ -177,11 +246,6 @@ public class NetworkConnectionService : MonoBehaviour
         IConnectionStrategy lanStrategy = new LanConnectionStrategy(networkManager, transport);
 
         strategies.Add(lanStrategy.Mode, lanStrategy);
-    }
-
-    private void OnValidate()
-    {
-        clientConnectionTimeoutSeconds = Mathf.Max(1f, clientConnectionTimeoutSeconds);
     }
 
     private ConnectionResult CanStartConnection()
@@ -202,6 +266,16 @@ public class NetworkConnectionService : MonoBehaviour
                 ConnectionErrorCode.TransportMissing,
                 "Failed to start the network connection.",
                 "NetworkConnectionService requires UnityTransport to be assigned explicitly in the Inspector.",
+                false
+            );
+        }
+
+        if (!ValidateConnectionConfig())
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to start the network connection.",
+                "Network connection config is missing or invalid.",
                 false
             );
         }

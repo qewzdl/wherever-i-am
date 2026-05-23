@@ -4,11 +4,12 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class NetworkConnectionApprovalService : MonoBehaviour
 {
-    private const string LobbyJoinDeniedReason = "The game has already started. You can only join while the host is in the lobby.";
-
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameStateMachine stateMachine;
+
+    [Header("Configuration")]
+    [SerializeField] private NetworkConnectionApprovalConfig approvalConfig;
 
     private NetworkManager configuredNetworkManager;
     private bool approvalConfigured;
@@ -82,30 +83,36 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour
         }
 
         response.Approved = false;
-        response.Reason = LobbyJoinDeniedReason;
+        response.Reason = approvalConfig.RemoteClientDeniedReason;
 
-        Debug.Log($"Rejected client {request.ClientNetworkId}: {LobbyJoinDeniedReason}");
+        Debug.Log($"Rejected client {request.ClientNetworkId}: {approvalConfig.RemoteClientDeniedReason}");
     }
 
     private bool CanAcceptRemoteClientConnection()
     {
-        return stateMachine.CurrentState == GameState.Lobby;
+        return approvalConfig.CanAcceptRemoteClient(stateMachine.CurrentState);
     }
 
     private bool HasRequiredReferences()
     {
-        if (networkManager == null)
-        {
-            Debug.LogError($"{nameof(NetworkConnectionApprovalService)} is missing {nameof(NetworkManager)}.", this);
-            return false;
-        }
+        bool valid = true;
 
-        if (stateMachine == null)
-        {
-            Debug.LogError($"{nameof(NetworkConnectionApprovalService)} is missing {nameof(GameStateMachine)}.", this);
-            return false;
-        }
+        valid &= ValidateRequiredReference(networkManager, nameof(networkManager));
+        valid &= ValidateRequiredReference(stateMachine, nameof(stateMachine));
+        valid &= ValidateRequiredReference(approvalConfig, nameof(approvalConfig));
 
-        return true;
+        if (approvalConfig != null)
+            valid &= approvalConfig.Validate(this);
+
+        return valid;
+    }
+
+    private bool ValidateRequiredReference(Object reference, string fieldName)
+    {
+        if (reference != null)
+            return true;
+
+        Debug.LogError($"{nameof(NetworkConnectionApprovalService)} is missing '{fieldName}'.", this);
+        return false;
     }
 }

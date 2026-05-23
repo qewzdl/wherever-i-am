@@ -227,10 +227,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   transport: {fileID: 481142983}
-  port: 7777
-  hostAddress: 127.0.0.1
-  listenAddress: 0.0.0.0
-  clientConnectionTimeoutSeconds: 5
+  connectionConfig: {fileID: 11400000, guid: beb199e8898ed1a4c98f5c4cc163236d, type: 2}
 --- !u!114 &481142982
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -428,6 +425,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   stateMachine: {fileID: 481142978}
+  approvalConfig: {fileID: 11400000, guid: b7a541658d8b9b444afb810aaa0c459d, type: 2}
 --- !u!114 &481142992
 MonoBehaviour:
   m_ObjectHideFlags: 0
