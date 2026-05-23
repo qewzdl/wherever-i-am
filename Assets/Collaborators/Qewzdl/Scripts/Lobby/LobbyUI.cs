@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -15,15 +16,17 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string notReadyActionText = "Not ready";
 
     private ILobbyReadService readService;
-    private ILobbyCommandService commandService;
 
-    public void Construct(ILobbyReadService readService, ILobbyCommandService commandService)
+    public event Action ReadyClicked;
+    public event Action StartGameClicked;
+    public event Action LeaveLobbyClicked;
+
+    public void Construct(ILobbyReadService readService)
     {
         if (this.readService != null)
             this.readService.LobbyChanged -= Refresh;
 
         this.readService = readService;
-        this.commandService = commandService;
 
         if (this.readService != null)
             this.readService.LobbyChanged += Refresh;
@@ -36,13 +39,13 @@ public class LobbyUI : MonoBehaviour
         CacheReadyButtonLabel();
 
         if (readyButton != null)
-            readyButton.onClick.AddListener(ToggleReady);
+            readyButton.onClick.AddListener(HandleReadyClicked);
 
         if (startGameButton != null)
-            startGameButton.onClick.AddListener(StartGame);
+            startGameButton.onClick.AddListener(HandleStartGameClicked);
 
         if (leaveButton != null)
-            leaveButton.onClick.AddListener(LeaveLobby);
+            leaveButton.onClick.AddListener(HandleLeaveLobbyClicked);
     }
 
     private void Start()
@@ -53,69 +56,31 @@ public class LobbyUI : MonoBehaviour
     private void OnDestroy()
     {
         if (readyButton != null)
-            readyButton.onClick.RemoveListener(ToggleReady);
+            readyButton.onClick.RemoveListener(HandleReadyClicked);
 
         if (startGameButton != null)
-            startGameButton.onClick.RemoveListener(StartGame);
+            startGameButton.onClick.RemoveListener(HandleStartGameClicked);
 
         if (leaveButton != null)
-            leaveButton.onClick.RemoveListener(LeaveLobby);
+            leaveButton.onClick.RemoveListener(HandleLeaveLobbyClicked);
 
         if (readService != null)
             readService.LobbyChanged -= Refresh;
     }
 
-    private void ToggleReady()
+    private void HandleReadyClicked()
     {
-        if (commandService == null)
-        {
-            Debug.LogError("Lobby command service is not assigned.");
-            return;
-        }
-
-        if (readService == null)
-        {
-            Debug.LogError("Lobby read service is not assigned.");
-            return;
-        }
-
-        if (readService.Phase != LobbyPhase.Open)
-            return;
-
-        if (!readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer))
-        {
-            Debug.LogWarning("Local lobby player was not found.");
-            return;
-        }
-
-        bool newReadyState = !localPlayer.IsReady;
-        SetReadyButtonLabel(newReadyState);
-        commandService.SetReady(newReadyState);
+        ReadyClicked?.Invoke();
     }
 
-    private void StartGame()
+    private void HandleStartGameClicked()
     {
-        if (commandService == null)
-        {
-            Debug.LogError("Lobby command service is not assigned.");
-            return;
-        }
-
-        if (readService == null || readService.Phase != LobbyPhase.Open)
-            return;
-
-        commandService.StartGame();
+        StartGameClicked?.Invoke();
     }
 
-    private void LeaveLobby()
+    private void HandleLeaveLobbyClicked()
     {
-        if (commandService == null)
-        {
-            Debug.LogError("Lobby command service is not assigned.");
-            return;
-        }
-
-        commandService.LeaveLobby();
+        LeaveLobbyClicked?.Invoke();
     }
 
     private void Refresh()

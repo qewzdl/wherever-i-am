@@ -321,6 +321,7 @@ MonoBehaviour:
   lobbyController: {fileID: 707815386}
   lobbyService: {fileID: 707815385}
   lobbyUi: {fileID: 896598416}
+  lobbyCommandPresenter: {fileID: 896598414}
 --- !u!1 &142239125
 GameObject:
   m_ObjectHideFlags: 0
@@ -710,6 +711,7 @@ GameObject:
   - component: {fileID: 896598418}
   - component: {fileID: 896598417}
   - component: {fileID: 896598416}
+  - component: {fileID: 896598414}
   m_Layer: 5
   m_Name: LobbyCanvas
   m_TagString: Untagged
@@ -736,6 +738,21 @@ MonoBehaviour:
   leaveButton: {fileID: 916248616}
   readyActionText: Ready
   notReadyActionText: Not ready
+--- !u!114 &896598414
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 896598415}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa495c745fcb2e94f99a86e2c6eeeaba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lobbyUI: {fileID: 896598416}
+  readServiceSource: {fileID: 707815385}
+  commandServiceSource: {fileID: 707815385}
 --- !u!114 &896598417
 MonoBehaviour:
   m_ObjectHideFlags: 0

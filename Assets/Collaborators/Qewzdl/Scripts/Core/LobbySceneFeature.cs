@@ -6,6 +6,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
     [SerializeField] private LobbyController lobbyController;
     [SerializeField] private NetworkLobbyService lobbyService;
     [SerializeField] private LobbyUI lobbyUi;
+    [SerializeField] private LobbyUICommandPresenter lobbyCommandPresenter;
 
     protected override bool InstallFeature(ProjectContext context)
     {
@@ -16,6 +17,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         valid &= RequireReference(lobbyController, nameof(lobbyController));
         valid &= RequireReference(lobbyService, nameof(lobbyService));
         valid &= RequireReference(lobbyUi, nameof(lobbyUi));
+        valid &= RequireReference(lobbyCommandPresenter, nameof(lobbyCommandPresenter));
         valid &= RequireService(sessionService, nameof(ProjectContext.SessionService));
 
         if (!valid)
@@ -23,7 +25,8 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
 
         lobbyController.Construct(sessionService);
         lobbyService.Construct(lobbyState, lobbyController, sessionService);
-        lobbyUi.Construct(lobbyService, lobbyService);
+        lobbyUi.Construct(lobbyService);
+        lobbyCommandPresenter.Construct(lobbyUi, lobbyService, lobbyService);
 
         return true;
     }
