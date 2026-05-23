@@ -145,6 +145,10 @@ GameObject:
   - component: {fileID: 481142992}
   - component: {fileID: 481142994}
   - component: {fileID: 481142993}
+  - component: {fileID: 481142995}
+  - component: {fileID: 481142996}
+  - component: {fileID: 481142997}
+  - component: {fileID: 481142998}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -436,12 +440,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   projectContext: {fileID: 481142986}
-  sceneNavigator: {fileID: 481142988}
-  networkManager: {fileID: 481142982}
   stateMachine: {fileID: 481142978}
-  serverActionHandlers:
-  - {fileID: 481142984}
-  - {fileID: 481142990}
+  transitionValidator: {fileID: 481142995}
+  sceneLoadExecutor: {fileID: 481142996}
+  networkLoadCompletionTracker: {fileID: 481142997}
+  postLoadActionRunner: {fileID: 481142998}
 --- !u!114 &481142993
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -458,6 +461,68 @@ MonoBehaviour:
   networkSceneLoader: {fileID: 481142979}
   sceneNavigator: {fileID: 481142988}
   sceneFlowService: {fileID: 481142992}
+  sceneTransitionValidator: {fileID: 481142995}
+  sceneLoadExecutor: {fileID: 481142996}
+  networkLoadCompletionTracker: {fileID: 481142997}
+  postLoadActionRunner: {fileID: 481142998}
+--- !u!114 &481142995
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78c8b21bc445ffd468626e9cc2c1a92b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+  networkManager: {fileID: 481142982}
+--- !u!114 &481142996
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 261325934770c6d4888453455a54b662, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneNavigator: {fileID: 481142988}
+  networkManager: {fileID: 481142982}
+--- !u!114 &481142997
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7cb9814eab9c8e44aad21bf5d52a7687, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+  networkManager: {fileID: 481142982}
+--- !u!114 &481142998
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 591cfe42fd1bac448b8508a3feca0fd2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  serverActionHandlers:
+  - {fileID: 481142984}
+  - {fileID: 481142990}
 --- !u!114 &481142994
 MonoBehaviour:
   m_ObjectHideFlags: 0

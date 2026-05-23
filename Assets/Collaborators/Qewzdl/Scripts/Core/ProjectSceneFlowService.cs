@@ -1,26 +1,18 @@
-using System.Collections.Generic;
-using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
 public sealed class ProjectSceneFlowService : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private ProjectContext projectContext;
-    [SerializeField] private ProjectSceneNavigator sceneNavigator;
-    [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameStateMachine stateMachine;
+    [SerializeField] private ProjectSceneTransitionValidator transitionValidator;
+    [SerializeField] private ProjectSceneLoadExecutor sceneLoadExecutor;
+    [SerializeField] private ProjectNetworkSceneLoadCompletionTracker networkLoadCompletionTracker;
+    [SerializeField] private ProjectScenePostLoadActionRunner postLoadActionRunner;
 
-    [Header("Server Actions")]
-    [SerializeField] private MonoBehaviour[] serverActionHandlers;
-
-    private NetworkSceneManager subscribedSceneManager;
-    private bool networkSceneCallbackSubscribed;
-
-    private bool hasPendingNetworkTransition;
-    private ProjectSceneKind pendingNetworkScene;
-    private ProjectSceneServerAction[] pendingServerActionsAfterLoad;
+    private ProjectNetworkSceneLoadCompletionTracker subscribedNetworkLoadCompletionTracker;
+    private bool networkLoadCompletionSubscribed;
 
     private void Awake()
     {
@@ -29,18 +21,33 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
 
     private void OnEnable()
     {
-        SubscribeToNetworkSceneCallback();
+        SubscribeToNetworkLoadCompletion();
     }
 
     private void OnDisable()
     {
-        UnsubscribeFromNetworkSceneCallback();
+        UnsubscribeFromNetworkLoadCompletion();
     }
 
-    public void Construct(ProjectContext context, ProjectSceneNavigator navigator)
+    public void Construct(
+        ProjectContext context,
+        GameStateMachine gameStateMachine,
+        ProjectSceneTransitionValidator sceneTransitionValidator,
+        ProjectSceneLoadExecutor loadExecutor,
+        ProjectNetworkSceneLoadCompletionTracker loadCompletionTracker,
+        ProjectScenePostLoadActionRunner actionRunner)
     {
+        UnsubscribeFromNetworkLoadCompletion();
+
         projectContext = context;
-        sceneNavigator = navigator;
+        stateMachine = gameStateMachine;
+        transitionValidator = sceneTransitionValidator;
+        sceneLoadExecutor = loadExecutor;
+        networkLoadCompletionTracker = loadCompletionTracker;
+        postLoadActionRunner = actionRunner;
+
+        if (isActiveAndEnabled)
+            SubscribeToNetworkLoadCompletion();
     }
 
     public bool LoadScene(ProjectSceneKind targetScene)
@@ -48,337 +55,115 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         if (!HasRequiredReferences())
             return false;
 
-        if (!projectContext.TryGetScene(targetScene, out ProjectSceneDefinition scene))
-        {
-            Debug.LogError($"Scene is not configured for {targetScene}.", this);
-            return false;
-        }
-
-        ProjectSceneKind currentScene = projectContext.GetActiveSceneKind();
-
-        if (!projectContext.SceneFlow.TryGetTransition(
-                currentScene,
-                scene.Kind,
+        if (!transitionValidator.TryGetTransition(
+                targetScene,
+                out ProjectSceneDefinition scene,
                 out ProjectSceneTransitionDefinition transition))
-        {
-            Debug.LogError($"Scene transition is not configured: {currentScene} -> {scene.Kind}.", this);
-            return false;
-        }
-
-        if (!CanUseTransition(transition))
             return false;
 
-        if (!ValidateServerActionHandlers(transition))
+        if (!postLoadActionRunner.Validate(transition.ServerActionsAfterLoad))
+            return false;
+
+        bool shouldTrackNetworkCompletion = sceneLoadExecutor.ShouldTrackNetworkCompletion(transition);
+
+        if (shouldTrackNetworkCompletion &&
+            !networkLoadCompletionTracker.Track(scene.Kind, transition.ServerActionsAfterLoad))
             return false;
 
         stateMachine.ChangeState(transition.StateBeforeLoad);
 
-        switch (transition.LoadMode)
+        if (!sceneLoadExecutor.Load(scene, transition))
         {
-            case ProjectSceneLoadMode.Local:
-                return LoadLocalScene(scene, transition);
+            if (shouldTrackNetworkCompletion)
+                networkLoadCompletionTracker.ClearPending();
 
-            case ProjectSceneLoadMode.Network:
-                return LoadNetworkScene(scene, transition);
-        }
-
-        Debug.LogError(
-            $"Unsupported scene load mode '{transition.LoadMode}' for transition {transition.FromScene} -> {transition.ToScene}.",
-            this);
-
-        return false;
-    }
-
-    private bool LoadLocalScene(
-        ProjectSceneDefinition scene,
-        ProjectSceneTransitionDefinition transition)
-    {
-        if (IsNetworkSessionActive())
-        {
-            Debug.LogError(
-                $"Cannot load local scene '{scene.Kind}' while NetworkManager is listening. Shutdown network session first.",
-                this);
             return false;
         }
 
-        if (!sceneNavigator.Load(scene.Kind, transition.LoadMode))
-            return false;
+        if (shouldTrackNetworkCompletion)
+            return true;
 
-        ApplyTargetState(scene.Kind);
-        RunServerActionsAfterLoad(scene.Kind, transition.ServerActionsAfterLoad);
-
+        CompleteLoad(scene.Kind, transition.ServerActionsAfterLoad);
         return true;
     }
 
-    private bool LoadNetworkScene(
-        ProjectSceneDefinition scene,
-        ProjectSceneTransitionDefinition transition)
-    {
-        if (!IsNetworkSessionActive())
-        {
-#if UNITY_EDITOR
-            if (transition.AllowEditorDirectLoad)
-            {
-                if (!sceneNavigator.Load(scene.Kind, ProjectSceneLoadMode.Local))
-                    return false;
-
-                ApplyTargetState(scene.Kind);
-                return true;
-            }
-#endif
-
-            Debug.LogError(
-                $"Cannot load network scene '{scene.Kind}' without an active network session.",
-                this);
-            return false;
-        }
-
-        PreparePendingNetworkTransition(scene.Kind, transition.ServerActionsAfterLoad);
-        SubscribeToNetworkSceneCallback();
-
-        if (sceneNavigator.Load(scene.Kind, transition.LoadMode))
-            return true;
-
-        ClearPendingNetworkTransition();
-        return false;
-    }
-
-    private bool CanUseTransition(ProjectSceneTransitionDefinition transition)
-    {
-        if (transition.Authority == ProjectSceneTransitionAuthority.ServerOnly)
-        {
-            if (networkManager == null || !networkManager.IsServer)
-            {
-                Debug.LogWarning(
-                    $"Only server can execute scene transition {transition.FromScene} -> {transition.ToScene}.",
-                    this);
-                return false;
-            }
-        }
-
-        if (!transition.RequiresActiveNetworkSession)
-            return true;
-
-        if (IsNetworkSessionActive())
-            return true;
-
-#if UNITY_EDITOR
-        if (transition.AllowEditorDirectLoad)
-            return true;
-#endif
-
-        Debug.LogError(
-            $"Scene transition {transition.FromScene} -> {transition.ToScene} requires an active network session.",
-            this);
-        return false;
-    }
-
-    private void HandleNetworkLoadEventCompleted(
-        string sceneName,
-        LoadSceneMode loadSceneMode,
-        List<ulong> clientsCompleted,
-        List<ulong> clientsTimedOut)
+    private void HandleNetworkLoadCompleted(
+        ProjectSceneKind loadedScene,
+        ProjectSceneServerAction[] serverActionsAfterLoad)
     {
         if (!HasRequiredReferences())
             return;
 
-        ProjectSceneKind loadedScene = projectContext.GetSceneKind(sceneName);
-
-        if (loadedScene == ProjectSceneKind.Unknown)
-            return;
-
-        if (hasPendingNetworkTransition && loadedScene != pendingNetworkScene)
-            return;
-
-        ApplyTargetState(loadedScene);
-
-        if (!hasPendingNetworkTransition)
-            return;
-
-        ProjectSceneServerAction[] actions = pendingServerActionsAfterLoad;
-        ClearPendingNetworkTransition();
-
-        RunServerActionsAfterLoad(loadedScene, actions);
+        CompleteLoad(loadedScene, serverActionsAfterLoad);
     }
 
-    private void PreparePendingNetworkTransition(
-        ProjectSceneKind scene,
+    private void CompleteLoad(
+        ProjectSceneKind loadedScene,
         ProjectSceneServerAction[] serverActionsAfterLoad)
     {
-        pendingNetworkScene = scene;
-        pendingServerActionsAfterLoad = serverActionsAfterLoad;
-        hasPendingNetworkTransition = true;
-    }
-
-    private void ClearPendingNetworkTransition()
-    {
-        pendingNetworkScene = ProjectSceneKind.Unknown;
-        pendingServerActionsAfterLoad = null;
-        hasPendingNetworkTransition = false;
+        ApplyTargetState(loadedScene);
+        postLoadActionRunner.Run(loadedScene, serverActionsAfterLoad);
     }
 
     private void ApplyTargetState(ProjectSceneKind sceneKind)
     {
         if (!projectContext.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
+        {
+            Debug.LogError($"Scene state is not configured for {sceneKind}.", this);
             return;
+        }
 
         stateMachine.ChangeState(scene.State);
     }
 
-    private bool RunServerActionsAfterLoad(
-        ProjectSceneKind loadedScene,
-        ProjectSceneServerAction[] actions)
+    private void SubscribeToNetworkLoadCompletion()
     {
-        if (actions == null || actions.Length == 0)
-            return true;
-
-        if (networkManager == null || !networkManager.IsServer)
-            return true;
-
-        for (int i = 0; i < actions.Length; i++)
-        {
-            if (!TryGetServerActionHandler(actions[i], out IProjectSceneFlowServerActionHandler handler))
-                return false;
-
-            handler.Handle(actions[i], loadedScene);
-        }
-
-        return true;
-    }
-
-    private bool ValidateServerActionHandlers(ProjectSceneTransitionDefinition transition)
-    {
-        ProjectSceneServerAction[] actions = transition.ServerActionsAfterLoad;
-
-        if (actions == null || actions.Length == 0)
-            return true;
-
-        if (networkManager == null || !networkManager.IsServer)
-            return true;
-
-        for (int i = 0; i < actions.Length; i++)
-        {
-            if (!TryGetServerActionHandler(actions[i], out _))
-                return false;
-        }
-
-        return true;
-    }
-
-    private bool TryGetServerActionHandler(
-        ProjectSceneServerAction action,
-        out IProjectSceneFlowServerActionHandler handler)
-    {
-        handler = null;
-
-        if (serverActionHandlers == null || serverActionHandlers.Length == 0)
-        {
-            Debug.LogError(
-                $"{nameof(ProjectSceneFlowService)} has no server action handlers assigned for action '{action}'.",
-                this);
-            return false;
-        }
-
-        for (int i = 0; i < serverActionHandlers.Length; i++)
-        {
-            MonoBehaviour behaviour = serverActionHandlers[i];
-
-            if (behaviour == null)
-            {
-                Debug.LogError(
-                    $"{nameof(ProjectSceneFlowService)} has an empty server action handler slot.",
-                    this);
-                return false;
-            }
-
-            if (behaviour is not IProjectSceneFlowServerActionHandler candidate)
-            {
-                Debug.LogError(
-                    $"{behaviour.name} does not implement {nameof(IProjectSceneFlowServerActionHandler)}.",
-                    behaviour);
-                return false;
-            }
-
-            if (!candidate.CanHandle(action))
-                continue;
-
-            handler = candidate;
-            return true;
-        }
-
-        Debug.LogError(
-            $"No server action handler found for action '{action}'.",
-            this);
-        return false;
-    }
-
-    private void SubscribeToNetworkSceneCallback()
-    {
-        if (networkManager == null)
+        if (networkLoadCompletionSubscribed &&
+            subscribedNetworkLoadCompletionTracker == networkLoadCompletionTracker)
             return;
 
-        if (networkManager.SceneManager == null)
+        UnsubscribeFromNetworkLoadCompletion();
+
+        if (networkLoadCompletionTracker == null)
             return;
 
-        if (networkSceneCallbackSubscribed && subscribedSceneManager == networkManager.SceneManager)
-            return;
-
-        UnsubscribeFromNetworkSceneCallback();
-
-        subscribedSceneManager = networkManager.SceneManager;
-        subscribedSceneManager.OnLoadEventCompleted += HandleNetworkLoadEventCompleted;
-        networkSceneCallbackSubscribed = true;
+        subscribedNetworkLoadCompletionTracker = networkLoadCompletionTracker;
+        subscribedNetworkLoadCompletionTracker.NetworkLoadCompleted += HandleNetworkLoadCompleted;
+        networkLoadCompletionSubscribed = true;
     }
 
-    private void UnsubscribeFromNetworkSceneCallback()
+    private void UnsubscribeFromNetworkLoadCompletion()
     {
-        if (!networkSceneCallbackSubscribed)
+        if (!networkLoadCompletionSubscribed)
             return;
 
-        if (subscribedSceneManager != null)
-            subscribedSceneManager.OnLoadEventCompleted -= HandleNetworkLoadEventCompleted;
+        if (subscribedNetworkLoadCompletionTracker != null)
+            subscribedNetworkLoadCompletionTracker.NetworkLoadCompleted -= HandleNetworkLoadCompleted;
 
-        subscribedSceneManager = null;
-        networkSceneCallbackSubscribed = false;
-    }
-
-    private bool IsNetworkSessionActive()
-    {
-        return networkManager != null && networkManager.IsListening;
+        subscribedNetworkLoadCompletionTracker = null;
+        networkLoadCompletionSubscribed = false;
     }
 
     private bool HasRequiredReferences()
     {
-        if (projectContext == null)
-        {
-            Debug.LogError($"{nameof(ProjectSceneFlowService)} is missing {nameof(ProjectContext)}.", this);
-            return false;
-        }
+        bool valid = true;
 
-        if (projectContext.SceneFlow == null)
-        {
-            Debug.LogError($"{nameof(ProjectSceneFlowService)} is missing {nameof(ProjectSceneFlow)}.", this);
-            return false;
-        }
+        valid &= ValidateRequiredReference(projectContext, nameof(projectContext));
+        valid &= ValidateRequiredReference(stateMachine, nameof(stateMachine));
+        valid &= ValidateRequiredReference(transitionValidator, nameof(transitionValidator));
+        valid &= ValidateRequiredReference(sceneLoadExecutor, nameof(sceneLoadExecutor));
+        valid &= ValidateRequiredReference(networkLoadCompletionTracker, nameof(networkLoadCompletionTracker));
+        valid &= ValidateRequiredReference(postLoadActionRunner, nameof(postLoadActionRunner));
 
-        if (sceneNavigator == null)
-        {
-            Debug.LogError($"{nameof(ProjectSceneFlowService)} is missing {nameof(ProjectSceneNavigator)}.", this);
-            return false;
-        }
+        return valid;
+    }
 
-        if (networkManager == null)
-        {
-            Debug.LogError($"{nameof(ProjectSceneFlowService)} is missing {nameof(NetworkManager)}.", this);
-            return false;
-        }
+    private bool ValidateRequiredReference(Object reference, string fieldName)
+    {
+        if (reference != null)
+            return true;
 
-        if (stateMachine == null)
-        {
-            Debug.LogError($"{nameof(ProjectSceneFlowService)} is missing {nameof(GameStateMachine)}.", this);
-            return false;
-        }
-
-        return true;
+        Debug.LogError($"{nameof(ProjectSceneFlowService)} is missing '{fieldName}'.", this);
+        return false;
     }
 }
