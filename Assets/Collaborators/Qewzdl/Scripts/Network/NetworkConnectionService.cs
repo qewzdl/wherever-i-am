@@ -28,7 +28,12 @@ public class NetworkConnectionService : MonoBehaviour
 
     private void Awake()
     {
-        ResolveReferences();
+        if (!ValidateRequiredReferences())
+        {
+            enabled = false;
+            return;
+        }
+
         InitializeStrategies();
     }
 
@@ -146,16 +151,23 @@ public class NetworkConnectionService : MonoBehaviour
         Debug.Log("Network shutdown.");
     }
 
-    private void ResolveReferences()
+    private bool ValidateRequiredReferences()
     {
-        if (networkManager == null)
-            networkManager = GetComponent<NetworkManager>();
+        bool isValid = true;
 
         if (networkManager == null)
-            networkManager = NetworkManager.Singleton;
+        {
+            Debug.LogError("NetworkConnectionService requires NetworkManager to be assigned explicitly in the Inspector.", this);
+            isValid = false;
+        }
 
-        if (transport == null && networkManager != null)
-            transport = networkManager.GetComponent<UnityTransport>();
+        if (transport == null)
+        {
+            Debug.LogError("NetworkConnectionService requires UnityTransport to be assigned explicitly in the Inspector.", this);
+            isValid = false;
+        }
+
+        return isValid;
     }
 
     private void InitializeStrategies()
@@ -179,7 +191,7 @@ public class NetworkConnectionService : MonoBehaviour
             return ConnectionResult.Fail(
                 ConnectionErrorCode.NetworkManagerMissing,
                 "Failed to start the network connection.",
-                "NetworkManager not found in the scene.",
+                "NetworkConnectionService requires NetworkManager to be assigned explicitly in the Inspector.",
                 false
             );
         }
@@ -189,7 +201,17 @@ public class NetworkConnectionService : MonoBehaviour
             return ConnectionResult.Fail(
                 ConnectionErrorCode.TransportMissing,
                 "Failed to start the network connection.",
-                "UnityTransport not found on NetworkManager.",
+                "NetworkConnectionService requires UnityTransport to be assigned explicitly in the Inspector.",
+                false
+            );
+        }
+
+        if (strategies.Count == 0)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.StrategyNotFound,
+                "Failed to start the network connection.",
+                "NetworkConnectionService connection strategies are not initialized.",
                 false
             );
         }
