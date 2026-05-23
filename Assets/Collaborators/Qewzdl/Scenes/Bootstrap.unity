@@ -143,6 +143,8 @@ GameObject:
   - component: {fileID: 481142990}
   - component: {fileID: 481142991}
   - component: {fileID: 481142992}
+  - component: {fileID: 481142994}
+  - component: {fileID: 481142993}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -206,7 +208,7 @@ MonoBehaviour:
   stateMachine: {fileID: 481142978}
   connectionService: {fileID: 481142981}
   sceneFlowService: {fileID: 481142992}
-  projectContext: {fileID: 481142986}
+  errorManager: {fileID: 1020719287}
 --- !u!114 &481142981
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -342,17 +344,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 76352c58339f47129d0f8dadbeea0a72, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  settings: {fileID: 11400000, guid: a7ef7d2849b642b4a65225007f1fe78e, type: 2}
-  sceneFlow: {fileID: 11400000, guid: f8a4f65e49e59194ba22bc89f1b89a47, type: 2}
+  sceneRegistry: {fileID: 481142994}
+  sceneServiceComposer: {fileID: 481142993}
   networkManager: {fileID: 481142982}
   stateMachine: {fileID: 481142978}
   sessionOrchestrator: {fileID: 481142980}
   connectionService: {fileID: 481142981}
   connectionApprovalService: {fileID: 481142991}
-  localSceneLoader: {fileID: 481142989}
-  networkSceneLoader: {fileID: 481142979}
-  sceneNavigator: {fileID: 481142988}
-  sceneFlowService: {fileID: 481142992}
   uiErrorManager: {fileID: 1020719287}
   audioManager: {fileID: 1269671436}
 --- !u!114 &481142987
@@ -444,6 +442,36 @@ MonoBehaviour:
   serverActionHandlers:
   - {fileID: 481142984}
   - {fileID: 481142990}
+--- !u!114 &481142993
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac27e7424e5827b42888bd32fc78775d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  localSceneLoader: {fileID: 481142989}
+  networkSceneLoader: {fileID: 481142979}
+  sceneNavigator: {fileID: 481142988}
+  sceneFlowService: {fileID: 481142992}
+--- !u!114 &481142994
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0dfa86ebd5d06bf4ca87d48e4565aaf5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  settings: {fileID: 11400000, guid: a7ef7d2849b642b4a65225007f1fe78e, type: 2}
+  sceneFlow: {fileID: 11400000, guid: f8a4f65e49e59194ba22bc89f1b89a47, type: 2}
 --- !u!1 &542830336
 GameObject:
   m_ObjectHideFlags: 0

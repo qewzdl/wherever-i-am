@@ -1,6 +1,5 @@
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 [DefaultExecutionOrder(-1100)]
 [DisallowMultipleComponent]
@@ -9,8 +8,8 @@ public sealed class ProjectContext : MonoBehaviour
     private static ProjectContext instance;
 
     [Header("Project")]
-    [SerializeField] private ProjectSettings settings;
-    [SerializeField] private ProjectSceneFlow sceneFlow;
+    [SerializeField] private ProjectSceneRegistry sceneRegistry;
+    [SerializeField] private ProjectSceneServiceComposer sceneServiceComposer;
 
     [Header("Network")]
     [SerializeField] private NetworkManager networkManager;
@@ -20,19 +19,41 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private NetworkSessionOrchestrator sessionOrchestrator;
     [SerializeField] private NetworkConnectionService connectionService;
     [SerializeField] private NetworkConnectionApprovalService connectionApprovalService;
-    [SerializeField] private LocalSceneLoader localSceneLoader;
-    [SerializeField] private NetworkSceneLoader networkSceneLoader;
-    [SerializeField] private ProjectSceneNavigator sceneNavigator;
-    [SerializeField] private ProjectSceneFlowService sceneFlowService;
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private AudioManager audioManager;
 
     private bool referencesValidated;
+    private bool sceneServicesCompositionAttempted;
+    private bool sceneServicesComposed;
 
     public static ProjectContext Instance => instance;
 
-    public ProjectSettings Settings => settings;
-    public ProjectSceneFlow SceneFlow => sceneFlow;
+    public ProjectSceneRegistry SceneRegistry
+    {
+        get
+        {
+            ResolveReferences();
+            return sceneRegistry;
+        }
+    }
+
+    public ProjectSettings Settings
+    {
+        get
+        {
+            ResolveReferences();
+            return sceneRegistry != null ? sceneRegistry.Settings : null;
+        }
+    }
+
+    public ProjectSceneFlow SceneFlow
+    {
+        get
+        {
+            ResolveReferences();
+            return sceneRegistry != null ? sceneRegistry.SceneFlow : null;
+        }
+    }
 
     public NetworkManager NetworkManager
     {
@@ -86,7 +107,7 @@ public sealed class ProjectContext : MonoBehaviour
         get
         {
             ResolveReferences();
-            return localSceneLoader;
+            return sceneServiceComposer != null ? sceneServiceComposer.LocalSceneLoader : null;
         }
     }
 
@@ -95,7 +116,7 @@ public sealed class ProjectContext : MonoBehaviour
         get
         {
             ResolveReferences();
-            return networkSceneLoader;
+            return sceneServiceComposer != null ? sceneServiceComposer.NetworkSceneLoader : null;
         }
     }
 
@@ -106,7 +127,7 @@ public sealed class ProjectContext : MonoBehaviour
         get
         {
             ResolveReferences();
-            return sceneNavigator;
+            return sceneServiceComposer != null ? sceneServiceComposer.SceneNavigator : null;
         }
     }
 
@@ -115,7 +136,7 @@ public sealed class ProjectContext : MonoBehaviour
         get
         {
             ResolveReferences();
-            return sceneFlowService;
+            return sceneServiceComposer != null ? sceneServiceComposer.SceneFlowService : null;
         }
     }
 
@@ -163,112 +184,109 @@ public sealed class ProjectContext : MonoBehaviour
 
     public void ResolveReferences()
     {
-        if (localSceneLoader != null)
-            localSceneLoader.Construct(this);
-
-        if (networkSceneLoader != null)
-            networkSceneLoader.Construct(this);
-
-        if (sceneNavigator != null)
-            sceneNavigator.Construct(this, localSceneLoader, networkSceneLoader);
-
-        if (sceneFlowService != null)
-            sceneFlowService.Construct(this, sceneNavigator);
-
-        if (referencesValidated)
-            return;
-
-        referencesValidated = true;
-
-        ValidateRequiredReference(settings, nameof(settings));
-        ValidateRequiredReference(sceneFlow, nameof(sceneFlow));
-        ValidateRequiredReference(networkManager, nameof(networkManager));
-        ValidateRequiredReference(stateMachine, nameof(stateMachine));
-        ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator));
-        ValidateRequiredReference(connectionService, nameof(connectionService));
-        ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService));
-        ValidateRequiredReference(localSceneLoader, nameof(localSceneLoader));
-        ValidateRequiredReference(networkSceneLoader, nameof(networkSceneLoader));
-        ValidateRequiredReference(sceneNavigator, nameof(sceneNavigator));
-        ValidateRequiredReference(sceneFlowService, nameof(sceneFlowService));
-        ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager));
-        ValidateRequiredReference(audioManager, nameof(audioManager));
+        ValidateReferencesOnce();
+        ComposeSceneServicesOnce();
     }
 
     public string GetSceneName(ProjectSceneKind sceneKind)
     {
-        return TryGetScene(sceneKind, out ProjectSceneDefinition scene)
-            ? scene.SceneName
+        return sceneRegistry != null
+            ? sceneRegistry.GetSceneName(sceneKind)
             : string.Empty;
     }
 
     public string GetScenePath(ProjectSceneKind sceneKind)
     {
-        return TryGetScene(sceneKind, out ProjectSceneDefinition scene)
-            ? scene.ScenePath
+        return sceneRegistry != null
+            ? sceneRegistry.GetScenePath(sceneKind)
             : string.Empty;
     }
 
     public ProjectSceneKind GetActiveSceneKind()
     {
-        Scene activeScene = SceneManager.GetActiveScene();
-        return GetSceneKind(activeScene.name, activeScene.path);
+        return sceneRegistry != null
+            ? sceneRegistry.GetActiveSceneKind()
+            : ProjectSceneKind.Unknown;
     }
 
     public ProjectSceneKind GetSceneKind(string sceneName)
     {
-        return GetSceneKind(sceneName, string.Empty);
+        return sceneRegistry != null
+            ? sceneRegistry.GetSceneKind(sceneName)
+            : ProjectSceneKind.Unknown;
     }
 
     public ProjectSceneKind GetSceneKind(string sceneName, string scenePath)
     {
-        if (settings != null)
-        {
-            ProjectSceneKind configuredKind = settings.GetSceneKind(sceneName, scenePath);
-
-            if (configuredKind != ProjectSceneKind.Unknown)
-                return configuredKind;
-        }
-
-        return ProjectSettings.GetDefaultSceneKind(sceneName, scenePath);
+        return sceneRegistry != null
+            ? sceneRegistry.GetSceneKind(sceneName, scenePath)
+            : ProjectSceneKind.Unknown;
     }
 
     public bool IsScene(ProjectSceneKind sceneKind, string sceneName)
     {
-        return GetSceneKind(sceneName) == sceneKind;
+        return sceneRegistry != null && sceneRegistry.IsScene(sceneKind, sceneName);
     }
 
     public ProjectSceneKind GetBootstrapSceneKind()
     {
-        return settings != null
-            ? settings.BootstrapScene
-            : ProjectSceneKind.Bootstrap;
+        return sceneRegistry != null
+            ? sceneRegistry.GetBootstrapSceneKind()
+            : ProjectSceneKind.Unknown;
     }
 
     public ProjectSceneKind GetDefaultStartupScene()
     {
-        return settings != null
-            ? settings.DefaultStartupScene
-            : ProjectSceneKind.MainMenu;
+        return sceneRegistry != null
+            ? sceneRegistry.GetDefaultStartupScene()
+            : ProjectSceneKind.Unknown;
     }
 
     public GameState GetStateForScene(ProjectSceneKind sceneKind)
     {
-        GameState fallback = stateMachine != null
-            ? stateMachine.CurrentState
-            : GameState.Bootstrapping;
-
-        return TryGetScene(sceneKind, out ProjectSceneDefinition scene)
-            ? scene.State
-            : fallback;
+        return sceneRegistry != null
+            ? sceneRegistry.GetStateForScene(sceneKind)
+            : GameState.Error;
     }
 
     public bool TryGetScene(ProjectSceneKind sceneKind, out ProjectSceneDefinition scene)
     {
-        if (settings != null && settings.TryGetScene(sceneKind, out scene))
-            return true;
+        if (sceneRegistry != null)
+            return sceneRegistry.TryGetScene(sceneKind, out scene);
 
-        return ProjectSettings.TryGetDefaultScene(sceneKind, out scene);
+        scene = default;
+        return false;
+    }
+
+    private void ValidateReferencesOnce()
+    {
+        if (referencesValidated)
+            return;
+
+        referencesValidated = true;
+
+        ValidateRequiredReference(sceneRegistry, nameof(sceneRegistry));
+        ValidateRequiredReference(sceneServiceComposer, nameof(sceneServiceComposer));
+        ValidateRequiredReference(networkManager, nameof(networkManager));
+        ValidateRequiredReference(stateMachine, nameof(stateMachine));
+        ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator));
+        ValidateRequiredReference(connectionService, nameof(connectionService));
+        ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService));
+        ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager));
+        ValidateRequiredReference(audioManager, nameof(audioManager));
+    }
+
+    private void ComposeSceneServicesOnce()
+    {
+        if (sceneServicesComposed || sceneServicesCompositionAttempted)
+            return;
+
+        sceneServicesCompositionAttempted = true;
+
+        if (sceneServiceComposer == null)
+            return;
+
+        sceneServicesComposed = sceneServiceComposer.Compose(this);
     }
 
     private void ValidateRequiredReference(Object reference, string fieldName)

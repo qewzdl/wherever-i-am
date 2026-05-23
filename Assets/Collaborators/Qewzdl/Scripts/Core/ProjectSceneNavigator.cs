@@ -19,12 +19,6 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
         projectContext = context;
         localSceneLoader = localLoader;
         networkSceneLoader = networkLoader;
-
-        if (localSceneLoader != null)
-            localSceneLoader.Construct(projectContext);
-
-        if (networkSceneLoader != null)
-            networkSceneLoader.Construct(projectContext);
     }
 
     public bool Load(ProjectSceneKind sceneKind, ProjectSceneLoadMode loadMode)
