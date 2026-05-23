@@ -6,12 +6,16 @@ public sealed class NetworkPlayerSpawner : MonoBehaviour, IProjectSceneFlowServe
 {
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
+    [SerializeField] private NetworkPlayerOwnershipService ownershipService;
 
     [Header("Player")]
     [SerializeField] private GameObject playerPrefab;
 
+    private NetworkObject playerPrefabNetworkObject;
+
     private void Awake()
     {
+        CachePlayerPrefabNetworkObject();
         HasRequiredReferences();
     }
 
@@ -30,6 +34,7 @@ public sealed class NetworkPlayerSpawner : MonoBehaviour, IProjectSceneFlowServe
             Debug.LogWarning(
                 $"{nameof(NetworkPlayerSpawner)} received '{action}' for non-game scene '{loadedScene}'.",
                 this);
+
             return;
         }
 
@@ -47,24 +52,18 @@ public sealed class NetworkPlayerSpawner : MonoBehaviour, IProjectSceneFlowServe
 
     private void SpawnPlayerForClient(ulong clientId)
     {
-        if (!networkManager.ConnectedClients.TryGetValue(clientId, out NetworkClient client))
+        if (!ownershipService.CanSpawnPlayerObjectFor(clientId))
             return;
-
-        if (client.PlayerObject != null)
-            return;
-
-        if (!playerPrefab.TryGetComponent(out NetworkObject playerNetworkObject))
-        {
-            Debug.LogError("Player prefab is missing NetworkObject.", playerPrefab);
-            return;
-        }
 
         NetworkObject playerInstance = Instantiate(
-            playerNetworkObject,
+            playerPrefabNetworkObject,
             playerPrefab.transform.position,
             playerPrefab.transform.rotation);
 
-        playerInstance.SpawnAsPlayerObject(clientId, true);
+        if (ownershipService.TrySpawnAsPlayerObject(playerInstance, clientId))
+            return;
+
+        Destroy(playerInstance.gameObject);
     }
 
     private bool CanSpawn()
@@ -72,23 +71,46 @@ public sealed class NetworkPlayerSpawner : MonoBehaviour, IProjectSceneFlowServe
         if (!HasRequiredReferences())
             return false;
 
-        return networkManager.IsServer;
+        if (networkManager.IsServer)
+            return true;
+
+        Debug.LogWarning("Only server can spawn player objects.", this);
+        return false;
+    }
+
+    private void CachePlayerPrefabNetworkObject()
+    {
+        playerPrefabNetworkObject = null;
+
+        if (playerPrefab == null)
+            return;
+
+        playerPrefab.TryGetComponent(out playerPrefabNetworkObject);
     }
 
     private bool HasRequiredReferences()
     {
-        if (networkManager == null)
+        bool valid = true;
+
+        valid &= ValidateRequiredReference(networkManager, nameof(networkManager));
+        valid &= ValidateRequiredReference(ownershipService, nameof(ownershipService));
+        valid &= ValidateRequiredReference(playerPrefab, nameof(playerPrefab));
+
+        if (playerPrefab != null && playerPrefabNetworkObject == null)
         {
-            Debug.LogError($"{nameof(NetworkPlayerSpawner)} is missing {nameof(NetworkManager)}.", this);
-            return false;
+            Debug.LogError("Player prefab is missing NetworkObject.", playerPrefab);
+            valid = false;
         }
 
-        if (playerPrefab == null)
-        {
-            Debug.LogError($"{nameof(NetworkPlayerSpawner)} is missing player prefab.", this);
-            return false;
-        }
+        return valid;
+    }
 
-        return true;
+    private bool ValidateRequiredReference(Object reference, string fieldName)
+    {
+        if (reference != null)
+            return true;
+
+        Debug.LogError($"{nameof(NetworkPlayerSpawner)} is missing '{fieldName}'.", this);
+        return false;
     }
 }
