@@ -29,13 +29,16 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
 
     public bool Load(ProjectSceneKind sceneKind, ProjectSceneLoadMode loadMode)
     {
+        if (!TryGetScene(sceneKind, out ProjectSceneDefinition scene))
+            return false;
+
         switch (loadMode)
         {
             case ProjectSceneLoadMode.Local:
-                return LoadLocal(sceneKind);
+                return localSceneLoader.Load(scene);
 
             case ProjectSceneLoadMode.Network:
-                return LoadNetwork(sceneKind);
+                return networkSceneLoader.Load(scene.Kind);
         }
 
         Debug.LogError($"Unsupported scene load mode '{loadMode}' for scene '{sceneKind}'.", this);
@@ -44,30 +47,32 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
 
     public bool LoadLocal(ProjectSceneKind sceneKind)
     {
-        if (!HasRequiredReferences())
+        if (!TryGetScene(sceneKind, out ProjectSceneDefinition scene))
             return false;
-
-        if (!projectContext.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
-        {
-            Debug.LogError($"Scene is not configured for {sceneKind}.", this);
-            return false;
-        }
 
         return localSceneLoader.Load(scene);
     }
 
     public bool LoadNetwork(ProjectSceneKind sceneKind)
     {
+        if (!TryGetScene(sceneKind, out ProjectSceneDefinition scene))
+            return false;
+
+        return networkSceneLoader.Load(scene.Kind);
+    }
+
+    private bool TryGetScene(ProjectSceneKind sceneKind, out ProjectSceneDefinition scene)
+    {
+        scene = default;
+
         if (!HasRequiredReferences())
             return false;
 
-        if (!projectContext.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
-        {
-            Debug.LogError($"Scene is not configured for {sceneKind}.", this);
-            return false;
-        }
+        if (projectContext.TryGetScene(sceneKind, out scene))
+            return true;
 
-        return networkSceneLoader.Load(scene.Kind);
+        Debug.LogError($"Scene is not configured for {sceneKind}.", this);
+        return false;
     }
 
     private string GetSceneName(ProjectSceneKind sceneKind)

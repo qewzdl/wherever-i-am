@@ -101,7 +101,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
             return false;
         }
 
-        if (!sceneNavigator.LoadLocal(scene.Kind))
+        if (!sceneNavigator.Load(scene.Kind, transition.LoadMode))
             return false;
 
         ApplyTargetState(scene.Kind);
@@ -119,7 +119,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
 #if UNITY_EDITOR
             if (transition.AllowEditorDirectLoad)
             {
-                if (!sceneNavigator.LoadLocal(scene.Kind))
+                if (!sceneNavigator.Load(scene.Kind, ProjectSceneLoadMode.Local))
                     return false;
 
                 ApplyTargetState(scene.Kind);
@@ -136,7 +136,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         PreparePendingNetworkTransition(scene.Kind, transition.ServerActionsAfterLoad);
         SubscribeToNetworkSceneCallback();
 
-        if (sceneNavigator.LoadNetwork(scene.Kind))
+        if (sceneNavigator.Load(scene.Kind, transition.LoadMode))
             return true;
 
         ClearPendingNetworkTransition();
