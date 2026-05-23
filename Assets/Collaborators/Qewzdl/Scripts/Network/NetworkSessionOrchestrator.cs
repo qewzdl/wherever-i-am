@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 {
     public static NetworkSessionOrchestrator Instance { get; private set; }
@@ -12,14 +13,11 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     [SerializeField] private GameStateMachine stateMachine;
     [SerializeField] private NetworkConnectionService connectionService;
     [SerializeField] private ProjectSceneFlowService sceneFlowService;
-    [SerializeField] private ProjectContext projectContext;
+    [SerializeField] private UiErrorManager errorManager;
 
     private bool networkCallbacksSubscribed;
-
     private NetworkManager subscribedNetworkManager;
     private Coroutine shutdownRoutine;
-
-    private IUiErrorService errorService;
 
     private void Awake()
     {
@@ -31,12 +29,16 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
         Instance = this;
 
-        ResolveReferences();
+        HasRequiredReferences();
     }
 
     private void OnEnable()
     {
-        ResolveReferences();
+        if (Instance != this)
+            return;
+
+        if (!HasRequiredReferences())
+            return;
 
         SubscribeToNetworkCallbacks();
     }
@@ -48,6 +50,8 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 
     private void OnDestroy()
     {
+        UnsubscribeFromNetworkCallbacks();
+
         if (Instance == this)
             Instance = null;
     }
@@ -57,8 +61,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (!HasRequiredReferences())
             return;
 
-        if (TryGetErrorService(out IUiErrorService service))
-            service.HideError();
+        errorManager.HideError();
 
         if (connectionService.IsListening)
         {
@@ -94,8 +97,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (!HasRequiredReferences())
             return;
 
-        if (TryGetErrorService(out IUiErrorService service))
-            service.HideError();
+        errorManager.HideError();
 
         stateMachine.ChangeState(GameState.Connecting);
 
@@ -117,13 +119,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (!HasRequiredReferences())
             return;
 
-        if (NetworkManager.Singleton == null)
-        {
-            Debug.LogError("NetworkManager.Singleton is null.");
-            return;
-        }
-
-        if (!NetworkManager.Singleton.IsServer)
+        if (!networkManager.IsServer)
         {
             Debug.LogWarning("Only server can start the game.");
             return;
@@ -161,9 +157,6 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
     private void RefreshNetworkSubscriptions()
     {
         ResetNetworkSubscriptions();
-
-        ResolveReferences();
-
         SubscribeToNetworkCallbacks();
     }
 
@@ -172,56 +165,41 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         UnsubscribeFromNetworkCallbacks();
     }
 
-    private void ResolveReferences()
-    {
-        if (projectContext == null)
-            projectContext = ProjectContext.Instance;
-
-        if (networkManager == null)
-            networkManager = GetComponent<NetworkManager>();
-
-        if (networkManager == null)
-            networkManager = NetworkManager.Singleton;
-
-        if (stateMachine == null && projectContext != null)
-            stateMachine = projectContext.StateMachine;
-
-        if (connectionService == null && projectContext != null)
-            connectionService = projectContext.ConnectionService;
-
-        if (sceneFlowService == null && projectContext != null)
-            sceneFlowService = projectContext.SceneFlowService;
-
-        if (errorService == null)
-        {
-            if (UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
-                errorService = uiErrorManager;
-        }
-    }
-
     private bool HasRequiredReferences()
     {
-        ResolveReferences();
+        bool hasRequiredReferences = true;
+
+        if (networkManager == null)
+        {
+            Debug.LogError($"{nameof(NetworkSessionOrchestrator)} is missing {nameof(NetworkManager)} reference.", this);
+            hasRequiredReferences = false;
+        }
 
         if (stateMachine == null)
         {
-            Debug.LogError("GameStateMachine reference is missing.");
-            return false;
+            Debug.LogError($"{nameof(NetworkSessionOrchestrator)} is missing {nameof(GameStateMachine)} reference.", this);
+            hasRequiredReferences = false;
         }
 
         if (connectionService == null)
         {
-            Debug.LogError("NetworkConnectionService reference is missing.");
-            return false;
+            Debug.LogError($"{nameof(NetworkSessionOrchestrator)} is missing {nameof(NetworkConnectionService)} reference.", this);
+            hasRequiredReferences = false;
         }
 
         if (sceneFlowService == null)
         {
-            Debug.LogError("ProjectSceneFlowService reference is missing.");
-            return false;
+            Debug.LogError($"{nameof(NetworkSessionOrchestrator)} is missing {nameof(ProjectSceneFlowService)} reference.", this);
+            hasRequiredReferences = false;
         }
 
-        return true;
+        if (errorManager == null)
+        {
+            Debug.LogError($"{nameof(NetworkSessionOrchestrator)} is missing {nameof(UiErrorManager)} reference.", this);
+            hasRequiredReferences = false;
+        }
+
+        return hasRequiredReferences;
     }
 
     private void SubscribeToNetworkCallbacks()
@@ -307,23 +285,7 @@ public class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
         if (sceneFlowService != null)
             sceneFlowService.LoadScene(ProjectSceneKind.MainMenu);
 
-        if (TryGetErrorService(out IUiErrorService service))
-            service.ShowError(result.UserMessage);
-    }
-
-    private bool TryGetErrorService(out IUiErrorService service)
-    {
-        service = errorService;
-
-        if (service != null)
-            return true;
-
-        if (!UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
-            return false;
-
-        errorService = uiErrorManager;
-        service = errorService;
-
-        return true;
+        if (errorManager != null)
+            errorManager.ShowError(result.UserMessage);
     }
 }
