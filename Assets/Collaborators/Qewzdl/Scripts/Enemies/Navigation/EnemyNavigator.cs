@@ -6,11 +6,15 @@ using UnityEngine.AI;
 public class EnemyNavigator : MonoBehaviour
 {
     private const float NavMeshSampleRadius = 2f;
+    private const float MinimumStandingWaypointDistance = 0.1f;
 
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
 
     private NavMeshPath pathBuffer;
+    private NavMeshPath posturePathBuffer;
+    private NavMeshPath crawlingRouteBuffer;
+    private NavMeshPath standingCandidatePathBuffer;
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
@@ -22,7 +26,11 @@ public class EnemyNavigator : MonoBehaviour
     private void Awake()
     {
         CacheComponents();
+
         pathBuffer = new NavMeshPath();
+        posturePathBuffer = new NavMeshPath();
+        crawlingRouteBuffer = new NavMeshPath();
+        standingCandidatePathBuffer = new NavMeshPath();
     }
 
     public void Configure(EnemyConfig config)
@@ -77,45 +85,7 @@ public class EnemyNavigator : MonoBehaviour
 
         if (config != null && config.crawlingEnabled && postureController != null)
         {
-            if (postureController.IsCrawling)
-            {
-                if (CanAttemptStandingRecovery() &&
-                    TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
-                {
-                    return true;
-                }
-
-                if (postureController.IsPostureTransitionInProgress)
-                {
-                    StopForPostureTransition();
-                    return false;
-                }
-
-                if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
-                {
-                    return true;
-                }
-
-                return false;
-            }
-
-            if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
-            {
-                return true;
-            }
-
-            if (postureController.IsPostureTransitionInProgress)
-            {
-                StopForPostureTransition();
-                return false;
-            }
-
-            if (TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling))
-            {
-                return true;
-            }
-
-            return false;
+            return TryMoveWithPosturePriority(destination, speed);
         }
 
         return TryMoveToWithCurrentPosture(destination, speed);
@@ -186,6 +156,128 @@ public class EnemyNavigator : MonoBehaviour
         return false;
     }
 
+    private bool TryMoveWithPosturePriority(Vector3 destination, float speed)
+    {
+        bool canTryStanding = !postureController.IsCrawling || CanAttemptStandingRecovery();
+
+        if (canTryStanding && TryMoveStandingFirst(destination, speed))
+        {
+            return true;
+        }
+
+        if (postureController.IsPostureTransitionInProgress)
+        {
+            StopForPostureTransition();
+            return false;
+        }
+
+        return TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling);
+    }
+
+    private bool TryMoveStandingFirst(Vector3 destination, float speed)
+    {
+        if (!postureController.CanUsePostureAtCurrentPosition(EnemyPosture.Standing))
+        {
+            return false;
+        }
+
+        if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
+        {
+            return true;
+        }
+
+        if (postureController.IsPostureTransitionInProgress)
+        {
+            StopForPostureTransition();
+            return false;
+        }
+
+        if (!TryFindStandingWaypointTowards(destination, out Vector3 standingWaypoint))
+        {
+            return false;
+        }
+
+        return TryMoveToWithPosture(standingWaypoint, speed, EnemyPosture.Standing);
+    }
+
+    private bool TryFindStandingWaypointTowards(Vector3 destination, out Vector3 waypoint)
+    {
+        waypoint = transform.position;
+
+        if (agent == null || postureController == null)
+        {
+            return false;
+        }
+
+        if (!postureController.CanUsePostureAtCurrentPosition(EnemyPosture.Standing))
+        {
+            return false;
+        }
+
+        if (!TryBuildCompletePathForPosture(
+                destination,
+                EnemyPosture.Crawling,
+                crawlingRouteBuffer
+            ))
+        {
+            return false;
+        }
+
+        Vector3[] corners = crawlingRouteBuffer.corners;
+
+        if (corners == null || corners.Length < 2)
+        {
+            return false;
+        }
+
+        float sampleStep = config != null
+            ? Mathf.Max(0.1f, config.postureNavMeshSampleRadius)
+            : 1f;
+
+        float minimumWaypointDistance = agent != null
+            ? Mathf.Max(agent.stoppingDistance, MinimumStandingWaypointDistance)
+            : MinimumStandingWaypointDistance;
+
+        float minimumWaypointSqrDistance = minimumWaypointDistance * minimumWaypointDistance;
+
+        for (int segmentIndex = corners.Length - 2; segmentIndex >= 0; segmentIndex--)
+        {
+            Vector3 segmentStart = corners[segmentIndex];
+            Vector3 segmentEnd = corners[segmentIndex + 1];
+
+            float segmentLength = Vector3.Distance(segmentStart, segmentEnd);
+            int sampleCount = Mathf.Max(1, Mathf.CeilToInt(segmentLength / sampleStep));
+
+            for (int sampleIndex = sampleCount; sampleIndex >= 0; sampleIndex--)
+            {
+                float t = sampleIndex / (float)sampleCount;
+                Vector3 candidate = Vector3.Lerp(segmentStart, segmentEnd, t);
+
+                Vector3 flatDelta = candidate - transform.position;
+                flatDelta.y = 0f;
+
+                if (flatDelta.sqrMagnitude <= minimumWaypointSqrDistance)
+                {
+                    continue;
+                }
+
+                if (!TryBuildCompletePathForPosture(
+                        candidate,
+                        EnemyPosture.Standing,
+                        standingCandidatePathBuffer
+                    ))
+                {
+                    continue;
+                }
+
+                waypoint = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void StopForPostureTransition()
     {
         if (!TryEnsureOnNavMesh())
@@ -207,7 +299,7 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
-        if (!TryBuildCompletePathForPosture(destination, posture))
+        if (!TryBuildCompletePathForPosture(destination, posture, posturePathBuffer))
         {
             return false;
         }
@@ -216,6 +308,12 @@ public class EnemyNavigator : MonoBehaviour
 
         if (!postureController.TrySetServerPosture(posture))
         {
+            return false;
+        }
+
+        if (postureController.IsPostureTransitionInProgress)
+        {
+            StopForPostureTransition();
             return false;
         }
 
@@ -289,9 +387,13 @@ public class EnemyNavigator : MonoBehaviour
         return NavMesh.SamplePosition(sourcePosition, out hit, NavMeshSampleRadius, filter);
     }
 
-    private bool TryBuildCompletePathForPosture(Vector3 destination, EnemyPosture posture)
+    private bool TryBuildCompletePathForPosture(
+        Vector3 destination,
+        EnemyPosture posture,
+        NavMeshPath targetPath
+    )
     {
-        if (agent == null || postureController == null)
+        if (agent == null || postureController == null || targetPath == null)
         {
             return false;
         }
@@ -300,8 +402,6 @@ public class EnemyNavigator : MonoBehaviour
         {
             return false;
         }
-
-        pathBuffer ??= new NavMeshPath();
 
         NavMeshQueryFilter filter = new()
         {
@@ -323,12 +423,12 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
-        if (!NavMesh.CalculatePath(sourceHit.position, destinationHit.position, filter, pathBuffer))
+        if (!NavMesh.CalculatePath(sourceHit.position, destinationHit.position, filter, targetPath))
         {
             return false;
         }
 
-        return pathBuffer.status == NavMeshPathStatus.PathComplete;
+        return targetPath.status == NavMeshPathStatus.PathComplete;
     }
 
     private bool CanAttemptStandingRecovery()
