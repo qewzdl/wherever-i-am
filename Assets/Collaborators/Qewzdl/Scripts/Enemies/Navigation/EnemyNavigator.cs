@@ -418,7 +418,14 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
-        if (!NavMesh.SamplePosition(destination, out NavMeshHit destinationHit, NavMeshSampleRadius, filter))
+        float destinationSampleRadius = GetDestinationSampleRadiusForPosture(posture);
+
+        if (!postureController.TryGetUsablePosturePosition(
+                posture,
+                destination,
+                destinationSampleRadius,
+                out NavMeshHit destinationHit
+            ))
         {
             return false;
         }
@@ -429,6 +436,21 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         return targetPath.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private float GetDestinationSampleRadiusForPosture(EnemyPosture posture)
+    {
+        if (config == null)
+        {
+            return NavMeshSampleRadius;
+        }
+
+        if (posture == EnemyPosture.Standing)
+        {
+            return Mathf.Max(0.05f, config.postureSwitchSampleRadius);
+        }
+
+        return Mathf.Max(0.1f, config.postureNavMeshSampleRadius);
     }
 
     private bool CanAttemptStandingRecovery()

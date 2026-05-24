@@ -179,35 +179,39 @@ public class EnemyPostureController : MonoBehaviour
 
     public bool CanUsePostureAtCurrentPosition(EnemyPosture posture)
     {
-        if (config == null)
+        bool requireStandingPhysicalClearance =
+            posture == EnemyPosture.Standing &&
+            CurrentPosture != EnemyPosture.Standing;
+
+        if (requireStandingPhysicalClearance &&
+            (config == null || !HasStandingPhysicalClearance(transform.position)))
         {
             return false;
         }
 
-        if (posture == EnemyPosture.Standing &&
-            CurrentPosture != EnemyPosture.Standing &&
-            !HasStandingPhysicalClearance(transform.position))
-        {
-            return false;
-        }
+        return TryGetUsablePosturePosition(
+            posture,
+            transform.position,
+            config != null ? config.postureSwitchSampleRadius : 0.25f,
+            requireStandingPhysicalClearance,
+            out _
+        );
+    }
 
-        int agentTypeId = GetAgentTypeId(posture);
-        float sampleRadius = Mathf.Max(0.05f, config.postureSwitchSampleRadius);
-
-        if (!TrySamplePositionForAgentType(
-                transform.position,
-                agentTypeId,
-                sampleRadius,
-                out NavMeshHit hit
-            ))
-        {
-            return false;
-        }
-
-        Vector3 flatDelta = hit.position - transform.position;
-        flatDelta.y = 0f;
-
-        return flatDelta.sqrMagnitude <= sampleRadius * sampleRadius;
+    public bool TryGetUsablePosturePosition(
+        EnemyPosture posture,
+        Vector3 sourcePosition,
+        float sampleRadius,
+        out NavMeshHit hit
+    )
+    {
+        return TryGetUsablePosturePosition(
+            posture,
+            sourcePosition,
+            sampleRadius,
+            posture == EnemyPosture.Standing,
+            out hit
+        );
     }
 
     private bool TryStartPostureTransitionServer(EnemyPosture posture)
@@ -636,6 +640,45 @@ public class EnemyPostureController : MonoBehaviour
             Mathf.Max(0.05f, sampleRadius),
             filter
         );
+    }
+
+    private bool TryGetUsablePosturePosition(
+        EnemyPosture posture,
+        Vector3 sourcePosition,
+        float sampleRadius,
+        bool requireStandingPhysicalClearance,
+        out NavMeshHit hit
+    )
+    {
+        hit = default;
+
+        if (config == null)
+        {
+            return false;
+        }
+
+        float clampedSampleRadius = Mathf.Max(0.05f, sampleRadius);
+
+        if (!TrySamplePositionForAgentType(
+                sourcePosition,
+                GetAgentTypeId(posture),
+                clampedSampleRadius,
+                out hit
+            ))
+        {
+            return false;
+        }
+
+        Vector3 flatDelta = hit.position - sourcePosition;
+        flatDelta.y = 0f;
+
+        if (flatDelta.sqrMagnitude > clampedSampleRadius * clampedSampleRadius)
+        {
+            return false;
+        }
+
+        return !requireStandingPhysicalClearance ||
+               HasStandingPhysicalClearance(hit.position);
     }
 
     private int GetAgentTypeId(EnemyPosture posture)
