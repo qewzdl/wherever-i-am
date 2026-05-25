@@ -22,6 +22,11 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     [SerializeField, Min(1)] private int maxMessageLength = 120;
     [SerializeField, Min(0f)] private float messageCooldownSeconds = 0.5f;
 
+    [Header("Connection Notifications")]
+    [SerializeField] private bool announcePlayerConnections = true;
+    [SerializeField] private string playerJoinedMessageFormat = "{0} joined the game.";
+    [SerializeField] private string playerLeftMessageFormat = "{0} left the game.";
+
     private readonly Dictionary<ulong, double> lastMessageTimeByClient = new Dictionary<ulong, double>();
     private readonly ChatMessageValidator messageValidator = new ChatMessageValidator();
 
@@ -41,6 +46,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     private bool isSubscribedToMessages;
     private bool isSubscribedToStateMachine;
     private bool isSubscribedToEventChannel;
+    private bool isSubscribedToConnectionCallbacks;
     private uint nextMessageId = 1;
 
     public event Action MessagesChanged;
@@ -83,6 +89,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
             ResolveReferences();
             RefreshAvailabilityFromState();
             SubscribeToStateMachine();
+            SubscribeToConnectionCallbacks();
         }
 
         SubscribeToMessages();
@@ -101,6 +108,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         UnsubscribeFromEventChannel();
         UnsubscribeFromMessages();
         UnsubscribeFromStateMachine();
+        UnsubscribeFromConnectionCallbacks();
 
         lastMessageTimeByClient.Clear();
 
@@ -118,6 +126,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         UnsubscribeFromEventChannel();
         UnsubscribeFromMessages();
         UnsubscribeFromStateMachine();
+        UnsubscribeFromConnectionCallbacks();
 
         messages?.Dispose();
 
@@ -464,6 +473,111 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
         stateMachine.StateChanged -= HandleGameStateChanged;
         isSubscribedToStateMachine = false;
+    }
+
+    private void SubscribeToConnectionCallbacks()
+    {
+        if (isSubscribedToConnectionCallbacks)
+            return;
+
+        if (!IsServer)
+            return;
+
+        if (NetworkManager == null)
+        {
+            Debug.LogError($"{nameof(NetworkChatSession)} requires an active {nameof(NetworkManager)} to announce player connections.", this);
+            return;
+        }
+
+        NetworkManager.OnClientConnectedCallback += HandleClientConnected;
+        NetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+        isSubscribedToConnectionCallbacks = true;
+    }
+
+    private void UnsubscribeFromConnectionCallbacks()
+    {
+        if (!isSubscribedToConnectionCallbacks)
+            return;
+
+        if (NetworkManager != null)
+        {
+            NetworkManager.OnClientConnectedCallback -= HandleClientConnected;
+            NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+        }
+
+        isSubscribedToConnectionCallbacks = false;
+    }
+
+    private void HandleClientConnected(ulong clientId)
+    {
+        if (!CanAnnounceConnectionForClient(clientId))
+            return;
+
+        AddConnectionSystemMessage(clientId, playerJoinedMessageFormat);
+    }
+
+    private void HandleClientDisconnected(ulong clientId)
+    {
+        lastMessageTimeByClient.Remove(clientId);
+
+        if (!CanAnnounceConnectionForClient(clientId))
+            return;
+
+        AddConnectionSystemMessage(clientId, playerLeftMessageFormat);
+    }
+
+    private bool CanAnnounceConnectionForClient(ulong clientId)
+    {
+        if (!IsServer)
+            return false;
+
+        if (!announcePlayerConnections)
+            return false;
+
+        if (NetworkManager == null || !NetworkManager.IsListening)
+            return false;
+
+        return clientId != NetworkManager.ServerClientId;
+    }
+
+    private void AddConnectionSystemMessage(ulong clientId, string messageFormat)
+    {
+        if (!TryCreateConnectionSystemMessage(clientId, messageFormat, out string message))
+            return;
+
+        AddSystemMessage(message);
+    }
+
+    private bool TryCreateConnectionSystemMessage(
+        ulong clientId,
+        string messageFormat,
+        out string message)
+    {
+        message = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(messageFormat))
+        {
+            Debug.LogError($"{nameof(NetworkChatSession)} connection notification format is empty.", this);
+            return false;
+        }
+
+        try
+        {
+            message = string.Format(messageFormat, ResolveSenderName(clientId));
+        }
+        catch (FormatException exception)
+        {
+            Debug.LogError($"{nameof(NetworkChatSession)} connection notification format is invalid: {exception.Message}", this);
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            Debug.LogError($"{nameof(NetworkChatSession)} connection notification message is empty.", this);
+            return false;
+        }
+
+        return true;
     }
 
     private void HandleMessagesChanged(NetworkListEvent<ChatMessageData> changeEvent)
