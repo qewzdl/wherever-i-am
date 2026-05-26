@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
-public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedComponent
+public sealed class GameplayNoiseWorldService : MonoBehaviour
 {
     [Header("Storage")]
     [SerializeField, Min(1)] private int maxStoredNoises = 128;
@@ -16,58 +16,50 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
     [Header("Cleanup")]
     [SerializeField] private bool clearOnInitialize = true;
     [SerializeField] private bool clearOnDestroy = true;
-
     [Tooltip("Allows cleanup in editor/offline scene runs where NetworkManager is not listening yet.")]
     [SerializeField] private bool clearWithoutActiveNetworkSession = true;
 
     [Header("Debug")]
     [SerializeField] private bool logLifecycleCleanup;
 
-    private readonly List<EnemyNoiseEvent> noises = new();
+    private readonly List<GameplayNoiseEvent> noises = new();
 
     private NetworkManager subscribedNetworkManager;
 
     private bool initialized;
     private bool networkCallbacksSubscribed;
-    private bool invalidStaticConfigurationLogged;
+    private bool invalidConfigurationLogged;
 
     public bool IsInitialized => initialized;
 
-    public bool IsConfigured =>
-        ValidateStaticDependencies(false) &&
-        ValidateRuntimeDependencies(false);
+    public bool IsConfigured => ValidateRuntimeDependencies(false);
 
     public bool Construct(NetworkManager manager)
     {
         networkManager = manager;
-
-        if (!ValidateRuntimeDependencies())
-        {
-            initialized = false;
-            DisableUntilConfigured();
-            return false;
-        }
+        invalidConfigurationLogged = false;
 
         if (!enabled)
         {
             enabled = true;
         }
 
-        Initialize();
-        return initialized;
+        return Initialize();
     }
 
-    public void Initialize()
+    public bool Initialize()
     {
         if (initialized)
         {
-            return;
+            return true;
         }
+
+        TryResolveNetworkManager();
 
         if (!ValidateRuntimeDependencies())
         {
             DisableUntilConfigured();
-            return;
+            return false;
         }
 
         initialized = true;
@@ -81,26 +73,14 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
         {
             ClearIfAllowed("initialize");
         }
-    }
 
-    public bool ValidateStaticDependencies()
-    {
-        return ValidateStaticDependencies(true);
-    }
-
-    public bool ValidateRuntimeDependencies()
-    {
-        return ValidateRuntimeDependencies(true);
+        return true;
     }
 
     private void Awake()
     {
         TryResolveNetworkManager();
-
-        if (networkManager != null)
-        {
-            Initialize();
-        }
+        ValidateRuntimeDependencies();
     }
 
     private void Start()
@@ -111,15 +91,7 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
         }
 
         TryResolveNetworkManager();
-
-        if (networkManager != null)
-        {
-            Initialize();
-            return;
-        }
-
-        ValidateRuntimeDependencies();
-        DisableUntilConfigured();
+        Initialize();
     }
 
     private void OnEnable()
@@ -154,27 +126,36 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
         initialized = false;
     }
 
+    public bool ValidateRuntimeDependencies()
+    {
+        return ValidateRuntimeDependencies(true);
+    }
+
     public bool TryRaiseNoiseServer(
         Vector3 position,
         float radius,
-        float loudness = 1f,
-        EnemyTarget sourceTarget = null,
+        float loudness,
+        GameplayNoiseSourceType sourceType,
+        ulong sourceNetworkObjectId = GameplayNoiseEvent.NoNetworkObjectId,
+        ulong sourceClientId = GameplayNoiseEvent.NoClientId,
         Object sourceObject = null
     )
     {
-        EnemyNoiseEvent noiseEvent = new EnemyNoiseEvent(
+        GameplayNoiseEvent noiseEvent = new(
             position,
             radius,
             loudness,
             Time.time,
-            sourceTarget,
+            sourceType,
+            sourceNetworkObjectId,
+            sourceClientId,
             sourceObject
         );
 
         return TryRegisterNoiseServer(noiseEvent);
     }
 
-    public bool TryRegisterNoiseServer(EnemyNoiseEvent noiseEvent)
+    public bool TryRegisterNoiseServer(GameplayNoiseEvent noiseEvent)
     {
         if (!CanUseServerWorld())
         {
@@ -199,39 +180,45 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
 
     public bool TryFindBestNoise(
         Vector3 listenerPosition,
-        EnemyConfig config,
-        out EnemyPerceptionStimulus stimulus
+        float hearingRadius,
+        float memoryDuration,
+        float minimumLoudness,
+        out GameplayNoiseEvent bestNoise,
+        out float bestScore
     )
     {
-        stimulus = EnemyPerceptionStimulus.None;
+        bestNoise = default;
+        bestScore = 0f;
 
-        if (!CanUseServerWorld() || config == null || !config.hearingEnabled)
+        hearingRadius = Mathf.Max(0f, hearingRadius);
+        memoryDuration = Mathf.Max(0f, memoryDuration);
+        minimumLoudness = Mathf.Max(0f, minimumLoudness);
+
+        if (!CanUseServerWorld() || hearingRadius <= 0f)
         {
             return false;
         }
 
         float now = Time.time;
-        float bestScore = 0f;
-        EnemyNoiseEvent bestNoise = default;
         bool hasBestNoise = false;
 
         for (int i = noises.Count - 1; i >= 0; i--)
         {
-            EnemyNoiseEvent noise = noises[i];
+            GameplayNoiseEvent noise = noises[i];
 
-            if (now - noise.CreatedAtTime > config.hearingMemoryDuration)
+            if (now - noise.CreatedAtTime > memoryDuration)
             {
                 noises.RemoveAt(i);
                 continue;
             }
 
-            if (!noise.IsValid || noise.Loudness < config.minimumNoiseLoudness)
+            if (!noise.IsValid || noise.Loudness < minimumLoudness)
             {
                 continue;
             }
 
             float distance = Vector3.Distance(listenerPosition, noise.Position);
-            float effectiveRadius = Mathf.Min(config.hearingRadius, noise.Radius);
+            float effectiveRadius = Mathf.Min(hearingRadius, noise.Radius);
 
             if (distance > effectiveRadius)
             {
@@ -251,18 +238,7 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
             hasBestNoise = true;
         }
 
-        if (!hasBestNoise)
-        {
-            return false;
-        }
-
-        stimulus = EnemyPerceptionStimulus.ForSuspiciousPosition(
-            bestNoise.Position,
-            bestScore,
-            EnemyPerceptionSource.Hearing
-        );
-
-        return true;
+        return hasBestNoise;
     }
 
     public void Clear()
@@ -292,7 +268,7 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
         if (logLifecycleCleanup)
         {
             Debug.Log(
-                $"{nameof(EnemyNoiseWorldService)} cleared noise events on {reason}.",
+                $"{nameof(GameplayNoiseWorldService)} cleared noise events on {reason}.",
                 this
             );
         }
@@ -326,19 +302,8 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
         return true;
     }
 
-    private bool ValidateStaticDependencies(bool logErrors)
-    {
-        invalidStaticConfigurationLogged = false;
-        return true;
-    }
-
     private bool ValidateRuntimeDependencies(bool logErrors)
     {
-        if (!ValidateStaticDependencies(logErrors))
-        {
-            return false;
-        }
-
         TryResolveNetworkManager();
 
         StringBuilder builder = new();
@@ -353,11 +318,11 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
 
         return EnemyValidationLogger.ValidateAndLog(
             this,
-            nameof(EnemyNoiseWorldService),
+            nameof(GameplayNoiseWorldService),
             builder,
-            ref invalidStaticConfigurationLogged,
+            ref invalidConfigurationLogged,
             logErrors,
-            "Enemy noise world service is disabled until configured."
+            "Gameplay noise world service is disabled until configured."
         );
     }
 
@@ -435,11 +400,6 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
 
     private void HandleSceneUnloaded(Scene scene)
     {
-        if (scene.handle != gameObject.scene.handle)
-        {
-            return;
-        }
-
         Clear("scene unload");
     }
 
@@ -477,7 +437,8 @@ public sealed class EnemyNoiseWorldService : MonoBehaviour, IEnemyValidatedCompo
     private void OnValidate()
     {
         maxStoredNoises = Mathf.Max(1, maxStoredNoises);
-        ValidateStaticDependencies();
+        TryResolveNetworkManager();
+        ValidateRuntimeDependencies(false);
     }
 #endif
 }

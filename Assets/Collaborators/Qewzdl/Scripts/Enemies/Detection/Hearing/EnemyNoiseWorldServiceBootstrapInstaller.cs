@@ -5,7 +5,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class EnemyNoiseWorldServiceBootstrapInstaller : MonoBehaviour
 {
-    [SerializeField] private EnemyNoiseWorldService noiseWorldService;
+    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
 
     private bool missingNoiseWorldServiceLogged;
     private bool missingProjectContextLogged;
@@ -60,7 +60,7 @@ public sealed class EnemyNoiseWorldServiceBootstrapInstaller : MonoBehaviour
             missingNoiseWorldServiceLogged = true;
 
             Debug.LogError(
-                $"{nameof(EnemyNoiseWorldServiceBootstrapInstaller)} requires {nameof(EnemyNoiseWorldService)}.",
+                $"{nameof(EnemyNoiseWorldServiceBootstrapInstaller)} requires {nameof(GameplayNoiseWorldService)}.",
                 this
             );
         }
@@ -105,7 +105,7 @@ public sealed class EnemyNoiseWorldServiceBootstrapInstaller : MonoBehaviour
     {
         if (noiseWorldService == null)
         {
-            noiseWorldService = GetComponent<EnemyNoiseWorldService>();
+            noiseWorldService = GetComponent<GameplayNoiseWorldService>();
         }
     }
 #endif

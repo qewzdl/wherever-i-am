@@ -3,13 +3,15 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
 {
-    private EnemyNoiseWorldService noiseWorldService;
+    [Header("Gameplay Noise")]
+    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
+
     private bool missingNoiseWorldServiceLogged;
     private bool missingConfigLogged;
 
     public bool IsConfigured => noiseWorldService != null;
 
-    public void Construct(EnemyNoiseWorldService service)
+    public void Construct(GameplayNoiseWorldService service)
     {
         noiseWorldService = service;
         missingNoiseWorldServiceLogged = false;
@@ -59,11 +61,25 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        return noiseWorldService.TryFindBestNoise(
-            transform.position,
-            config,
-            out stimulus
+        if (!noiseWorldService.TryFindBestNoise(
+                transform.position,
+                config.hearingRadius,
+                config.hearingMemoryDuration,
+                config.minimumNoiseLoudness,
+                out GameplayNoiseEvent noiseEvent,
+                out float score
+            ))
+        {
+            return false;
+        }
+
+        stimulus = EnemyPerceptionStimulus.ForSuspiciousPosition(
+            noiseEvent.Position,
+            score,
+            EnemyPerceptionSource.Hearing
         );
+
+        return true;
     }
 
     private bool ValidateConfig(EnemyConfig config)
@@ -97,7 +113,7 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
         missingNoiseWorldServiceLogged = true;
 
         Debug.LogError(
-            $"{nameof(EnemyHearingSensor)} requires {nameof(EnemyNoiseWorldService)}. " +
+            $"{nameof(EnemyHearingSensor)} requires {nameof(GameplayNoiseWorldService)}. " +
             "Assign it through scene composition before perception ticks.",
             this
         );

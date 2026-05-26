@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -5,17 +6,18 @@ public class EnemyNoiseEmitter : MonoBehaviour
 {
     [SerializeField, Min(0f)] private float radius = 8f;
     [SerializeField, Min(0f)] private float loudness = 1f;
+    [SerializeField] private GameplayNoiseSourceType sourceType = GameplayNoiseSourceType.Player;
     [SerializeField] private EnemyTarget sourceTarget;
-    [SerializeField] private EnemyNoiseWorldService noiseWorldService;
+    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
 
-    public void Construct(EnemyNoiseWorldService service)
+    public void Construct(GameplayNoiseWorldService service)
     {
         noiseWorldService = service;
     }
 
     public bool RaiseNoiseServer()
     {
-        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        if (!TryGetNoiseWorldService(out GameplayNoiseWorldService service))
         {
             return false;
         }
@@ -24,14 +26,16 @@ public class EnemyNoiseEmitter : MonoBehaviour
             transform.position,
             radius,
             loudness,
-            sourceTarget,
-            this
+            sourceType,
+            GetSourceNetworkObjectId(),
+            GetSourceClientId(),
+            GetSourceObject()
         );
     }
 
     public bool RaiseNoiseServer(Vector3 position)
     {
-        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        if (!TryGetNoiseWorldService(out GameplayNoiseWorldService service))
         {
             return false;
         }
@@ -40,14 +44,16 @@ public class EnemyNoiseEmitter : MonoBehaviour
             position,
             radius,
             loudness,
-            sourceTarget,
-            this
+            sourceType,
+            GetSourceNetworkObjectId(),
+            GetSourceClientId(),
+            GetSourceObject()
         );
     }
 
     public bool RaiseNoiseServer(float customRadius, float customLoudness)
     {
-        if (!TryGetNoiseWorldService(out EnemyNoiseWorldService service))
+        if (!TryGetNoiseWorldService(out GameplayNoiseWorldService service))
         {
             return false;
         }
@@ -56,20 +62,56 @@ public class EnemyNoiseEmitter : MonoBehaviour
             transform.position,
             customRadius,
             customLoudness,
-            sourceTarget,
-            this
+            sourceType,
+            GetSourceNetworkObjectId(),
+            GetSourceClientId(),
+            GetSourceObject()
         );
     }
 
-    private bool TryGetNoiseWorldService(out EnemyNoiseWorldService service)
+    private bool TryGetNoiseWorldService(out GameplayNoiseWorldService service)
     {
         if (noiseWorldService == null)
         {
-            noiseWorldService = FindFirstObjectByType<EnemyNoiseWorldService>();
+            noiseWorldService = FindFirstObjectByType<GameplayNoiseWorldService>();
         }
 
         service = noiseWorldService;
         return service != null;
+    }
+
+    private ulong GetSourceNetworkObjectId()
+    {
+        if (!TryGetSourceNetworkObject(out NetworkObject networkObject))
+        {
+            return GameplayNoiseEvent.NoNetworkObjectId;
+        }
+
+        return networkObject.NetworkObjectId;
+    }
+
+    private ulong GetSourceClientId()
+    {
+        if (!TryGetSourceNetworkObject(out NetworkObject networkObject))
+        {
+            return GameplayNoiseEvent.NoClientId;
+        }
+
+        return networkObject.OwnerClientId;
+    }
+
+    private bool TryGetSourceNetworkObject(out NetworkObject networkObject)
+    {
+        networkObject = sourceTarget != null
+            ? sourceTarget.NetworkObject
+            : GetComponentInParent<NetworkObject>();
+
+        return networkObject != null && networkObject.IsSpawned;
+    }
+
+    private Object GetSourceObject()
+    {
+        return sourceTarget != null ? sourceTarget : this;
     }
 
 #if UNITY_EDITOR

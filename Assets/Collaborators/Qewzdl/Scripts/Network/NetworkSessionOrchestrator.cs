@@ -62,10 +62,25 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
 
     private bool HasRequiredReferences()
     {
+        ResolveReferences();
+
         if (sessionFlowService != null)
             return true;
 
         Debug.LogError($"{nameof(NetworkSessionOrchestrator)} is missing {nameof(NetworkSessionFlowService)} reference.", this);
         return false;
     }
+
+    private void ResolveReferences()
+    {
+        if (sessionFlowService == null)
+            sessionFlowService = GetComponent<NetworkSessionFlowService>();
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        ResolveReferences();
+    }
+#endif
 }

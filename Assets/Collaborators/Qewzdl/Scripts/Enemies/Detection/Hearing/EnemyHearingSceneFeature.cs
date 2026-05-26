@@ -2,7 +2,7 @@ using UnityEngine;
 
 public sealed class EnemyHearingSceneFeature : SceneRuntimeFeature
 {
-    [SerializeField] private EnemyNoiseWorldService noiseWorldService;
+    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
     [SerializeField] private EnemyNoiseEmitter[] noiseEmitters;
     [SerializeField] private EnemyHearingSensor[] hearingSensors;
 

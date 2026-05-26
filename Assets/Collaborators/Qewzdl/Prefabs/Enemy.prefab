@@ -480,6 +480,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   config: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
   patrolRoute: {fileID: 0}
+  networkTransform: {fileID: 8274894747446379500}
   networkState: {fileID: 5660041982996278054}
   serverRuntime: {fileID: 6370502762402772414}
   clientPresentationBehaviour: {fileID: 6129419102609731285}
@@ -628,15 +629,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0d35113e2c3cb654a96a7dab99356941, type: 3}
-  m_Name: ""
-  m_EditorClassIdentifier: ""
+  m_Name: 
+  m_EditorClassIdentifier: 
   networkState: {fileID: 5660041982996278054}
   localNavigationAgent: {fileID: 7505417439924373614}
   bodyCollider: {fileID: 305319650020945663}
   animator: {fileID: 0}
-  stateAnimatorInt: ""
-  crawlingAnimatorBool: ""
-  attackPhaseAnimatorInt: ""
+  stateAnimatorInt: 
+  crawlingAnimatorBool: 
+  attackPhaseAnimatorInt: 
 --- !u!114 &799151811322310901
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -704,7 +705,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffd5a56dd1697d04bb9d8e7ca8e74190, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
   agent: {fileID: 7505417439924373614}
   bodyCollider: {fileID: 305319650020945663}
   animator: {fileID: 0}
