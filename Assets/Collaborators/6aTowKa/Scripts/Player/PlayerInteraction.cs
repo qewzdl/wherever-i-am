@@ -82,12 +82,19 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     {
         if (states.IsDragging) return;
 
+        if (states.IsCarring)
+        {
+            bool success = currentItem.Action();
+            if (success) return;
+        }
+
         interactionContext = new InteractionContext
         {
             HoldPoint = contactPoint.transform,
             PlayerCameraTransform = this.playerCameraTransform,
             PlayerController = this.playerController,
-            RayOriginPosition = rayOrigin.position
+            RayOriginPosition = rayOrigin.position,
+            currentPlayerItem = currentItem,
         };
 
         if (currentInteractable is DraggingObject draggingObject)

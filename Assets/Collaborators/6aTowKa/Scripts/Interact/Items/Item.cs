@@ -20,7 +20,7 @@ public abstract class Item : DraggingObject
     private bool isPickedUp = false;
     private Vector3 hiddenPosition = new Vector3(0, -1000, 0);
 
-    protected abstract void Action();
+    public abstract bool Action();
 
     public void PickUp(PickUpContext context)
     {
