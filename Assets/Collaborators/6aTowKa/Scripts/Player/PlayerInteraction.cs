@@ -90,7 +90,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             RayOriginPosition = rayOrigin.position
         };
 
-        if (currentInteractable is Object draggingObject)
+        if (currentInteractable is DraggingObject draggingObject)
         {
             if (states.IsCarring) return;
             draggingObject.Interact(interactionContext);
@@ -107,7 +107,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private void Uninteract()
     {
-        if (currentInteractable is Object draggingObject)
+        if (currentInteractable is DraggingObject draggingObject)
         {
             draggingObject.Uninteract();
             currentInteractable = null;

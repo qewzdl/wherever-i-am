@@ -2,7 +2,7 @@
 using Unity.Netcode;
 using UnityEngine;
 
-public abstract class Object : InteractableObject
+public abstract class DraggingObject : InteractableObject
 {
     [Header("Physics")]
     [SerializeField] protected float mass = 1f;

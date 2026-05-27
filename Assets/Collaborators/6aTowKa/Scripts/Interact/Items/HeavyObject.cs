@@ -1,4 +1,4 @@
-public abstract class HeavyObject : Object
+public abstract class HeavyObject : DraggingObject
 {
 
 }

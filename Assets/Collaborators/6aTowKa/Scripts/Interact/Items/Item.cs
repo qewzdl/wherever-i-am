@@ -4,7 +4,7 @@ using Unity.Netcode.Components;
 using UnityEditor;
 using UnityEngine;
 
-public abstract class Item : Object
+public abstract class Item : DraggingObject
 {
     [Header("View Model Data")]
     [SerializeField] ViewmodelItemData itemViewModelData;
