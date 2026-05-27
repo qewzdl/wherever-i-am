@@ -54,8 +54,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
             return true;
         }
 
-        TryResolveNetworkManager();
-
         if (!ValidateRuntimeDependencies())
         {
             DisableUntilConfigured();
@@ -79,7 +77,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
 
     private void Awake()
     {
-        TryResolveNetworkManager();
         ValidateRuntimeDependencies();
     }
 
@@ -90,7 +87,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
             return;
         }
 
-        TryResolveNetworkManager();
         Initialize();
     }
 
@@ -304,8 +300,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
 
     private bool ValidateRuntimeDependencies(bool logErrors)
     {
-        TryResolveNetworkManager();
-
         StringBuilder builder = new();
 
         if (networkManager == null)
@@ -324,36 +318,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
             logErrors,
             "Gameplay noise world service is disabled until configured."
         );
-    }
-
-    private bool TryResolveNetworkManager()
-    {
-        if (networkManager != null)
-        {
-            return true;
-        }
-
-        networkManager = GetComponent<NetworkManager>();
-
-        if (networkManager != null)
-        {
-            return true;
-        }
-
-        ProjectContext context = ProjectContext.Instance;
-
-        if (context != null)
-        {
-            networkManager = context.NetworkManager;
-
-            if (networkManager != null)
-            {
-                return true;
-            }
-        }
-
-        networkManager = NetworkManager.Singleton;
-        return networkManager != null;
     }
 
     private void SubscribeToNetworkCallbacks()
@@ -437,7 +401,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
     private void OnValidate()
     {
         maxStoredNoises = Mathf.Max(1, maxStoredNoises);
-        TryResolveNetworkManager();
         ValidateRuntimeDependencies(false);
     }
 #endif
