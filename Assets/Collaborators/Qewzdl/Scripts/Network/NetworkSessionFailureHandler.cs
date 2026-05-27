@@ -5,6 +5,7 @@ public sealed class NetworkSessionFailureHandler : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private GameStateMachine stateMachine;
+    [SerializeField] private NetworkSessionStateMachine sessionStateMachine;
     [SerializeField] private NetworkConnectionService connectionService;
     [SerializeField] private ProjectSceneFlowService sceneFlowService;
     [SerializeField] private UiErrorManager errorManager;
@@ -31,7 +32,10 @@ public sealed class NetworkSessionFailureHandler : MonoBehaviour
         if (!HasRequiredReferences())
             return;
 
-        Debug.LogWarning(result.DebugMessage);
+        Debug.LogWarning(result.DebugMessage, this);
+
+        if (sessionStateMachine.CurrentState != NetworkSessionState.Failed)
+            sessionStateMachine.TryChangeState(NetworkSessionState.Failed, result.DebugMessage);
 
         stateMachine.ChangeState(GameState.Error);
 
@@ -48,6 +52,7 @@ public sealed class NetworkSessionFailureHandler : MonoBehaviour
         bool valid = true;
 
         valid &= ValidateRequiredReference(stateMachine, nameof(stateMachine));
+        valid &= ValidateRequiredReference(sessionStateMachine, nameof(sessionStateMachine));
         valid &= ValidateRequiredReference(connectionService, nameof(connectionService));
         valid &= ValidateRequiredReference(sceneFlowService, nameof(sceneFlowService));
         valid &= ValidateRequiredReference(errorManager, nameof(errorManager));

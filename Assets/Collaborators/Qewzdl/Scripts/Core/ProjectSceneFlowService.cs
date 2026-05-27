@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -13,6 +14,8 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
 
     private ProjectNetworkSceneLoadCompletionTracker subscribedNetworkLoadCompletionTracker;
     private bool networkLoadCompletionSubscribed;
+
+    public event Action<ProjectSceneKind> SceneLoadCompleted;
 
     private void Awake()
     {
@@ -103,6 +106,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
     {
         ApplyTargetState(loadedScene);
         postLoadActionRunner.Run(loadedScene, serverActionsAfterLoad);
+        SceneLoadCompleted?.Invoke(loadedScene);
     }
 
     private void ApplyTargetState(ProjectSceneKind sceneKind)
@@ -158,7 +162,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         return valid;
     }
 
-    private bool ValidateRequiredReference(Object reference, string fieldName)
+    private bool ValidateRequiredReference(UnityEngine.Object reference, string fieldName)
     {
         if (reference != null)
             return true;

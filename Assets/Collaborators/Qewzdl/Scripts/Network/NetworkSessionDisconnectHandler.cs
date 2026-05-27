@@ -6,7 +6,7 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
-    [SerializeField] private GameStateMachine stateMachine;
+    [SerializeField] private NetworkSessionStateMachine sessionStateMachine;
     [SerializeField] private NetworkSessionFailureHandler failureHandler;
 
     private NetworkManager subscribedNetworkManager;
@@ -57,19 +57,26 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
         if (clientId != networkManager.LocalClientId)
             return;
 
-        if (stateMachine.CurrentState == GameState.Disconnecting)
-            return;
+        NetworkSessionState state = sessionStateMachine.CurrentState;
 
-        if (stateMachine.CurrentState == GameState.Connecting)
+        if (state == NetworkSessionState.Disconnecting ||
+            state == NetworkSessionState.Failed ||
+            state == NetworkSessionState.Offline)
+        {
+            return;
+        }
+
+        if (state == NetworkSessionState.StartingHost ||
+            state == NetworkSessionState.StartingClient)
         {
             StopListening();
             failureHandler.FailAndReturnToMainMenu("Connection failed or was interrupted while connecting.");
             return;
         }
 
-        if (stateMachine.CurrentState == GameState.Lobby ||
-            stateMachine.CurrentState == GameState.LoadingGame ||
-            stateMachine.CurrentState == GameState.InGame)
+        if (state == NetworkSessionState.Lobby ||
+            state == NetworkSessionState.LoadingGame ||
+            state == NetworkSessionState.InGame)
         {
             StopListening();
             failureHandler.FailAndReturnToMainMenu("Disconnected from network session.");
@@ -81,7 +88,7 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
         bool valid = true;
 
         valid &= ValidateRequiredReference(networkManager, nameof(networkManager));
-        valid &= ValidateRequiredReference(stateMachine, nameof(stateMachine));
+        valid &= ValidateRequiredReference(sessionStateMachine, nameof(sessionStateMachine));
         valid &= ValidateRequiredReference(failureHandler, nameof(failureHandler));
 
         return valid;
