@@ -13,7 +13,7 @@ public sealed class GameCompositionRoot : CompositionRoot
     [SerializeField] private PauseCursorController pauseCursorController;
 
     [Header("Player")]
-    [SerializeField] private MouseLook mouseLook;
+    [SerializeField] private CameraLook mouseLook;
 
     protected override void ResolveReferences()
     {
@@ -38,7 +38,7 @@ public sealed class GameCompositionRoot : CompositionRoot
             pauseCursorController = FindFirstObjectByType<PauseCursorController>();
 
         if (mouseLook == null)
-            mouseLook = FindFirstObjectByType<MouseLook>();
+            mouseLook = FindFirstObjectByType<CameraLook>();
     }
 
     protected override void Compose()

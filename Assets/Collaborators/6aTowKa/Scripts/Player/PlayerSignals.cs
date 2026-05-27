@@ -11,6 +11,9 @@ public class PlayerSignals
     public readonly PlayerSignal<bool> CrouchSyncSignal;
     public readonly PlayerSignal<Sprite> CrosshairSpriteSignal;
     public readonly PlayerSignal Interact;
+    public readonly PlayerSignal Uninteract;
+    public readonly PlayerSignal PickUp;
+    public readonly PlayerSignal Drop;
 
     public PlayerSignals()
     {
@@ -20,5 +23,8 @@ public class PlayerSignals
         CrouchSyncSignal = new(SignalsList, nameof(CrouchSyncSignal));
         CrosshairSpriteSignal = new(SignalsList, nameof(CrosshairSpriteSignal));
         Interact = new(SignalsList, nameof(Interact));
+        Uninteract = new(SignalsList, nameof(Uninteract));
+        PickUp = new(SignalsList, nameof(PickUp));
+        Drop = new(SignalsList, nameof(Drop));
     }
 }

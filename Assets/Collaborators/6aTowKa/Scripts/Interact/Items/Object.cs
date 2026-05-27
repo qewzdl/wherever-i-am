@@ -1,7 +1,6 @@
 ﻿using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public abstract class Object : InteractableObject
 {
@@ -14,12 +13,6 @@ public abstract class Object : InteractableObject
 
     private NetworkVariable<bool> netIsDragging = new(
         false,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
-
-    private NetworkVariable<Vector3> netHoldPointPosition = new(
-        Vector3.zero,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Owner
     );
@@ -45,43 +38,20 @@ public abstract class Object : InteractableObject
         velocityBuffer = new Vector3[samples]; //create buffer
     }
 
-    public override void OnNetworkSpawn()
-    {
-        base.OnNetworkSpawn();
-        netIsDragging.OnValueChanged += OnDraggingStateChanged;
-    }
-
-    public override void OnNetworkDespawn()
-    {
-        netIsDragging.OnValueChanged -= OnDraggingStateChanged;
-        base.OnNetworkDespawn();
-    }
-
-    protected virtual void Update()
-    {
-        if (!IsOwner) return;
-
-        if (holdPointTransform != null)
-            netHoldPointPosition.Value = holdPointTransform.position;
-
-        if (netIsDragging.Value && Keyboard.current.eKey.wasReleasedThisFrame)
-            RequestStopDraggingServerRpc();
-    }
-
     protected virtual void FixedUpdate()
     {
-        if (!IsServer) return;
         if (!netIsDragging.Value) return;
 
-        ServerTickDragging();
+        if (IsClient && IsOwner)
+        {
+            TickDragging();
+        }
     }
 
     public override void Interact(InteractionContext context)
     {
-        if (!IsOwner)
-        {
-            RequestOwnershipServerRpc(NetworkManager.Singleton.LocalClientId);
-        }
+        if (netIsDragging.Value) return;
+        if (NetworkManager.Singleton == null) return;
 
         if (context.HoldPoint == null) return;
 
@@ -99,7 +69,20 @@ public abstract class Object : InteractableObject
         playerController = context.PlayerController;
         SetupPlayerBeforeDragging();
 
-        RequestStartDraggingServerRpc();
+        if (!IsOwner) // change ownership
+        {
+            RequestOwnershipServerRpc(NetworkManager.Singleton.LocalClientId);
+        }
+        else
+        {
+            StartDragging();
+        }
+    }
+
+    public void Uninteract()
+    {
+        if (netIsDragging.Value)
+            StopDragging(applyThrow: true);
     }
 
     protected virtual void SetupPlayerBeforeDragging()
@@ -113,15 +96,6 @@ public abstract class Object : InteractableObject
     {
         if (playerController != null)
             playerController.SetSpeed(originalPlayerSpeed);
-    }
-
-    private void OnDraggingStateChanged(bool oldValue, bool newValue)
-    {
-        if (!newValue && IsOwner)
-        {
-            RestorePlayerAfterDragging();
-            CleanupHoldPoint();
-        }
     }
 
     private void CheckStartDistance(Vector3 rayOrigin)
@@ -143,10 +117,19 @@ public abstract class Object : InteractableObject
         if (netIsDragging.Value) return;
 
         GetComponent<NetworkObject>().ChangeOwnership(requestingClientId);
+        StartDraggingOwnerRpc();
     }
 
-    [Rpc(SendTo.Server)]
-    private void RequestStartDraggingServerRpc()
+    [Rpc(SendTo.Owner)]
+    private void StartDraggingOwnerRpc()
+    {
+        StartDragging();
+    }
+
+
+    // Client Logic 
+
+    private void StartDragging()
     {
         if (netIsDragging.Value) return;
 
@@ -164,22 +147,14 @@ public abstract class Object : InteractableObject
         StartCoroutine(LerpMassCoroutine(from: rb.mass, to: originalMass, duration: 0.4f));
     }
 
-    [Rpc(SendTo.Server)]
-    private void RequestStopDraggingServerRpc()
+    private void TickDragging()
     {
-        ServerStopDragging(applyThrow: true);
-    }
-
-    // Server Logic 
-
-    private void ServerTickDragging()
-    {
-        Vector3 targetPos = netHoldPointPosition.Value;
+        Vector3 targetPos = holdPointTransform.position;
         float distanceToTarget = Vector3.Distance(rb.position, targetPos);
 
         if (distanceToTarget > maxDragDistance)
         {
-            ServerStopDragging(applyThrow: false);
+            StopDragging(applyThrow: false);
             return;
         }
 
@@ -192,7 +167,7 @@ public abstract class Object : InteractableObject
         rb.MovePosition(newPos);
     }
 
-    private void ServerStopDragging(bool applyThrow)
+    private void StopDragging(bool applyThrow)
     {
         StopAllCoroutines();
 
@@ -210,9 +185,12 @@ public abstract class Object : InteractableObject
         {
             rb.linearVelocity = Vector3.zero;
         }
+
+        RestorePlayerAfterDragging();
+        CleanupHoldPoint();
     }
 
-    // Coroutines (server only) 
+    // Coroutines 
 
     private IEnumerator LerpMassCoroutine(float from, float to, float duration)
     {
@@ -278,4 +256,5 @@ public abstract class Object : InteractableObject
         if (holdPointTransform != null)
             Gizmos.DrawWireSphere(holdPointTransform.position, maxDragDistance);
     }
+
 }

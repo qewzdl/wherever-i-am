@@ -1,4 +1,5 @@
 public class PlayerStates
 {
-    public bool IsInteracting;
+    public bool IsDragging;
+    public bool IsCarring;
 }

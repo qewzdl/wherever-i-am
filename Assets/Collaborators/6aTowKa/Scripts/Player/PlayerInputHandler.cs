@@ -42,8 +42,9 @@ public class PlayerInputHandler : PlayerComponent
 
     public void OnCrouch()
     {
-        if (inputActive)
-            signals.CrouchInputSignal.Trigger();
+        if (!inputActive) return; 
+
+        signals.CrouchInputSignal.Trigger();
     }  
     
     public void OnInteract(InputAction.CallbackContext context)
@@ -51,15 +52,27 @@ public class PlayerInputHandler : PlayerComponent
         if (!inputActive) return;
 
         if (context.started)
-        {
             signals.Interact.Trigger();
-            states.IsInteracting = true;
-        }
 
         if (context.canceled) 
-            states.IsInteracting = false;
+            signals.Uninteract.Trigger();
     }
 
+    public void OnPickUp(InputAction.CallbackContext context)
+    {
+        if (!inputActive) return;
+
+        if (context.started)
+            signals.PickUp.Trigger();
+    }
+
+    public void OnDrop(InputAction.CallbackContext context)
+    {
+        if (!inputActive) return;
+
+        if (context.started)
+            signals.Drop.Trigger();
+    }
 
     public void SetInputActive(bool value)
     {

@@ -40,7 +40,7 @@ public class PlayerSetup : NetworkBehaviour
                 destroingComponents.Add(GetComponent<PlayerInteraction>());
                 destroingComponents.Add(GetComponent<PlayerUI>());
 
-                destroingComponents.Add(GetComponentInChildren<MouseLook>());
+                destroingComponents.Add(GetComponentInChildren<CameraLook>());
                 destroingComponents.Add(GetComponentInChildren<AudioListener>());
                 destroingComponents.Add(GetComponentInChildren<CameraFollow>());
 

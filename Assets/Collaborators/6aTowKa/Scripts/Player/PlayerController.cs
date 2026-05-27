@@ -5,6 +5,14 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 {
     [SerializeField] private float speed;
     [SerializeField] private Rigidbody rb;
+
+    [Header("Gravity Settings")]
+    public float gravityMultiplier = 1f;
+
+    [Header("Ground Check")]
+    public LayerMask groundLayer;
+    public float groundCheckDistance = 0.1f;
+
     //[SerializeField] private float speedToCrouch;
 
     private Vector2 direction;
@@ -35,7 +43,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         Vector3 worldDirection = rb.rotation * localDirection;
         Vector3 newPos = rb.position + worldDirection * speed * Time.fixedDeltaTime;
         rb.MovePosition(newPos);
-    }
+    }   
 
     public void SetDirection(Vector2 value)
     {
