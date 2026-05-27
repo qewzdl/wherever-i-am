@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5839c61074e2e8a469e774a5fc68f51e, type: 3}
+  m_Name: GrannyEnemyConfig
+  m_EditorClassIdentifier: 
+  behaviorMode: 0
+  movementProfile: {fileID: 11400000, guid: 6f99476c13b6ade46bfe2993f8e280d6, type: 2}
+  visionProfile: {fileID: 11400000, guid: bcbded8c22ee45a4e875f723753d083f, type: 2}
+  hearingProfile: {fileID: 11400000, guid: a2d93308a73276548adedc078c7bcd1f, type: 2}
+  investigationProfile: {fileID: 11400000, guid: 3727f94b1b18ec04fa47b04bce674644, type: 2}
+  patrolProfile: {fileID: 11400000, guid: 27c11d71a9cde3445bb3c13234781f65, type: 2}
+  postureProfile: {fileID: 11400000, guid: 3564bef38eba4a54aa1ea3f58baf7c80, type: 2}
+  attackTimingProfile: {fileID: 11400000, guid: 8199d0226cd800c4c8bddbd3ae4a7e5c, type: 2}
+  attackHitValidationProfile: {fileID: 11400000, guid: 264c3064846d57c45abeb84150648e88, type: 2}

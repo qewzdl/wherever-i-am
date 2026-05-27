@@ -1,0 +1,17 @@
+{
+    "name": "WhereverIAm.Qewzdl.Enemies.Presentation",
+    "rootNamespace": "",
+    "references": [
+        "WhereverIAm.Qewzdl",
+        "Unity.Netcode.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

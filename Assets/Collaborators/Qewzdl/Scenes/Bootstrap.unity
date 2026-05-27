@@ -130,13 +130,29 @@ GameObject:
   - component: {fileID: 481142976}
   - component: {fileID: 481142983}
   - component: {fileID: 481142982}
-  - component: {fileID: 481142977}
+  - component: {fileID: 481142986}
+  - component: {fileID: 481142987}
   - component: {fileID: 481142978}
   - component: {fileID: 481142980}
   - component: {fileID: 481142979}
   - component: {fileID: 481142981}
   - component: {fileID: 481142984}
   - component: {fileID: 481142985}
+  - component: {fileID: 481142989}
+  - component: {fileID: 481142988}
+  - component: {fileID: 481142990}
+  - component: {fileID: 481142991}
+  - component: {fileID: 481142992}
+  - component: {fileID: 481142994}
+  - component: {fileID: 481142993}
+  - component: {fileID: 481142995}
+  - component: {fileID: 481142996}
+  - component: {fileID: 481142997}
+  - component: {fileID: 481142998}
+  - component: {fileID: 481143002}
+  - component: {fileID: 481143001}
+  - component: {fileID: 481143000}
+  - component: {fileID: 481142999}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -159,20 +175,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &481142977
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 481142975}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: acc6efdbc70efc14d8789df6662d7bc4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  mainMenuSceneName: Main Menu
-  stateMachine: {fileID: 481142978}
 --- !u!114 &481142978
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -197,9 +199,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c7e9e285ac228a24996fe9455c5797a1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mainMenuSceneName: Main Menu
-  lobbySceneName: Lobby
-  gameSceneName: Game
+  projectContext: {fileID: 481142986}
 --- !u!114 &481142980
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -212,12 +212,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6b2dd1954f7f45543a02993e35f8711b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  networkManager: {fileID: 481142982}
-  stateMachine: {fileID: 481142978}
-  connectionService: {fileID: 481142981}
-  sceneLoader: {fileID: 481142979}
-  chatSessionSpawner: {fileID: 481142984}
-  playerPrefab: {fileID: 5710508612914273328, guid: a6b1763c8abbebe4989088f71540c4bc, type: 3}
+  sessionFlowService: {fileID: 481143002}
 --- !u!114 &481142981
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -232,10 +227,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   transport: {fileID: 481142983}
-  port: 7777
-  hostAddress: 127.0.0.1
-  listenAddress: 0.0.0.0
-  clientConnectionTimeoutSeconds: 5
+  connectionConfig: {fileID: 11400000, guid: beb199e8898ed1a4c98f5c4cc163236d, type: 2}
 --- !u!114 &481142982
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -322,8 +314,26 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
+  stateMachine: {fileID: 481142978}
   chatSessionPrefab: {fileID: 8870712710676629079, guid: 38dc1c674a614d74da8374175a6d3c16, type: 3}
+  chatConfig: {fileID: 11400000, guid: d955cf441c32fcf40a0a951f263c63b8, type: 2}
 --- !u!114 &481142985
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2017d9f4e04e33747b353ea3c875c612, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  stateMachine: {fileID: 481142978}
+  uiRoot: {fileID: 0}
+  chatWindowPrefab: {fileID: 1008245277231494500, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
+  createCanvasForPanelPrefab: 1
+--- !u!114 &481142986
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -332,11 +342,263 @@ MonoBehaviour:
   m_GameObject: {fileID: 481142975}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2017d9f4e04e33747b353ea3c875c612, type: 3}
+  m_Script: {fileID: 11500000, guid: 76352c58339f47129d0f8dadbeea0a72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneRegistry: {fileID: 481142994}
+  sceneServiceComposer: {fileID: 481142993}
+  networkManager: {fileID: 481142982}
+  stateMachine: {fileID: 481142978}
+  sessionOrchestrator: {fileID: 481142980}
+  connectionService: {fileID: 481142981}
+  connectionApprovalService: {fileID: 481142991}
+  uiErrorManager: {fileID: 1020719287}
+  audioManager: {fileID: 1269671436}
+--- !u!114 &481142987
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebb0b9325411473d9a48332dc4a94e33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  loadStartupScene: 1
+  context: {fileID: 481142986}
+--- !u!114 &481142988
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 973b644e39398eb44a4caa92297f279c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+  localSceneLoader: {fileID: 481142989}
+  networkSceneLoader: {fileID: 481142979}
+--- !u!114 &481142989
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da251d7cd591bee478383f161f7d4e5e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+--- !u!114 &481142990
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6cae1a7200cf124eb69936d87c89aa8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  ownershipService: {fileID: 481142999}
+  playerPrefab: {fileID: 5710508612914273328, guid: a6b1763c8abbebe4989088f71540c4bc, type: 3}
+--- !u!114 &481142991
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1ab5669ebd371440a5f93b5b0dc4273, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  stateMachine: {fileID: 481142978}
+  approvalConfig: {fileID: 11400000, guid: b7a541658d8b9b444afb810aaa0c459d, type: 2}
+--- !u!114 &481142992
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d6014e8345ca744fb9fe164108e5c33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+  stateMachine: {fileID: 481142978}
+  transitionValidator: {fileID: 481142995}
+  sceneLoadExecutor: {fileID: 481142996}
+  networkLoadCompletionTracker: {fileID: 481142997}
+  postLoadActionRunner: {fileID: 481142998}
+--- !u!114 &481142993
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac27e7424e5827b42888bd32fc78775d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  localSceneLoader: {fileID: 481142989}
+  networkSceneLoader: {fileID: 481142979}
+  sceneNavigator: {fileID: 481142988}
+  sceneFlowService: {fileID: 481142992}
+  sceneTransitionValidator: {fileID: 481142995}
+  sceneLoadExecutor: {fileID: 481142996}
+  networkLoadCompletionTracker: {fileID: 481142997}
+  postLoadActionRunner: {fileID: 481142998}
+--- !u!114 &481142994
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0dfa86ebd5d06bf4ca87d48e4565aaf5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  settings: {fileID: 11400000, guid: a7ef7d2849b642b4a65225007f1fe78e, type: 2}
+  sceneFlow: {fileID: 11400000, guid: f8a4f65e49e59194ba22bc89f1b89a47, type: 2}
+--- !u!114 &481142995
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78c8b21bc445ffd468626e9cc2c1a92b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+  networkManager: {fileID: 481142982}
+--- !u!114 &481142996
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 261325934770c6d4888453455a54b662, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneNavigator: {fileID: 481142988}
+  networkManager: {fileID: 481142982}
+--- !u!114 &481142997
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7cb9814eab9c8e44aad21bf5d52a7687, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectContext: {fileID: 481142986}
+  networkManager: {fileID: 481142982}
+--- !u!114 &481142998
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 591cfe42fd1bac448b8508a3feca0fd2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  serverActionHandlers:
+  - {fileID: 481142984}
+  - {fileID: 481142990}
+--- !u!114 &481142999
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61f76e2e878c63545bc12c0c30f2bf40, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+--- !u!114 &481143000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 18924964e5370c64dacf3218936dc478, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   stateMachine: {fileID: 481142978}
-  chatWindowPrefab: {fileID: 9208680767485770640, guid: 040041efe163e2748a396e693d1a777a, type: 3}
+  connectionService: {fileID: 481142981}
+  sceneFlowService: {fileID: 481142992}
+  errorManager: {fileID: 1020719287}
+--- !u!114 &481143001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a24d0406751f8043acca620f27160df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  stateMachine: {fileID: 481142978}
+  failureHandler: {fileID: 481143000}
+--- !u!114 &481143002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be4fe68d34750c44091c4a52695530b1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  stateMachine: {fileID: 481142978}
+  connectionService: {fileID: 481142981}
+  sceneFlowService: {fileID: 481142992}
+  disconnectHandler: {fileID: 481143001}
+  failureHandler: {fileID: 481143000}
+  errorManager: {fileID: 1020719287}
 --- !u!1 &542830336
 GameObject:
   m_ObjectHideFlags: 0

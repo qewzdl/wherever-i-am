@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: MusicTrack_MainMenu2
   m_EditorClassIdentifier: 
   trackId: main_menu_2
-  clip: {fileID: 8300000, guid: e05b152574af9964a828c477d42a27cc, type: 3}
+  clip: {fileID: 8300000, guid: 7580e4ec62ac78e4e8d3c5d22d24c3ca, type: 3}
   volume: 0.3
   fadeInTime: 1
   fadeOutTime: 1

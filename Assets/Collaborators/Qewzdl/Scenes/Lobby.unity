@@ -266,8 +266,9 @@ GameObject:
   m_Component:
   - component: {fileID: 96767718}
   - component: {fileID: 96767719}
+  - component: {fileID: 96767720}
   m_Layer: 0
-  m_Name: LobbyCompositionRoot
+  m_Name: SceneRuntime
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -297,14 +298,30 @@ MonoBehaviour:
   m_GameObject: {fileID: 96767716}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43d3a97213b6f484889f07f5d8969bd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sessionService: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: e37cd7a3fb1e417f95d27af86a8ba1af, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sceneKind: 3
+  installOnAwake: 1
+  features:
+  - {fileID: 96767720}
+--- !u!114 &96767720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 96767716}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ca352e1975c454a9b54c97f1483727b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
   lobbyState: {fileID: 707815387}
   lobbyController: {fileID: 707815386}
   lobbyService: {fileID: 707815385}
-  lobbyUI: {fileID: 896598416}
+  lobbyUi: {fileID: 896598416}
+  lobbyCommandPresenter: {fileID: 896598414}
 --- !u!1 &142239125
 GameObject:
   m_ObjectHideFlags: 0
@@ -694,6 +711,7 @@ GameObject:
   - component: {fileID: 896598418}
   - component: {fileID: 896598417}
   - component: {fileID: 896598416}
+  - component: {fileID: 896598414}
   m_Layer: 5
   m_Name: LobbyCanvas
   m_TagString: Untagged
@@ -715,11 +733,26 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playersText: {fileID: 394823907}
   readyButton: {fileID: 1492635990}
-  readyButtonLabel: {fileID: 0}
+  readyButtonLabel: {fileID: 142239127}
   startGameButton: {fileID: 1202106741}
   leaveButton: {fileID: 916248616}
   readyActionText: Ready
   notReadyActionText: Not ready
+--- !u!114 &896598414
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 896598415}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa495c745fcb2e94f99a86e2c6eeeaba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lobbyUI: {fileID: 896598416}
+  readServiceSource: {fileID: 707815385}
+  commandServiceSource: {fileID: 707815385}
 --- !u!114 &896598417
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1643,6 +1676,55 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2061941465}
   m_CullTransparentMesh: 1
+--- !u!114 &213095891524083776
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 417636812377290944}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c6745b0401040838b8ffab6e511259a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mode: 0
+  profile: {fileID: 11400000, guid: 741a50ced37236b428fe2a0f56b61645, type: 2}
+  uiRoot: {fileID: 896598420}
+  lobbyChatPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
+  phoneChatPrefab: {fileID: 580301795716557312, guid: 531fc2ecdc954bbdbdc1cea9d3dcc24f, type: 3}
+--- !u!4 &250138345965943968
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 417636812377290944}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &417636812377290944
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 250138345965943968}
+  - component: {fileID: 213095891524083776}
+  m_Layer: 0
+  m_Name: ChatUiManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1653,3 +1735,4 @@ SceneRoots:
   - {fileID: 896598420}
   - {fileID: 1629856385}
   - {fileID: 96767718}
+  - {fileID: 250138345965943968}

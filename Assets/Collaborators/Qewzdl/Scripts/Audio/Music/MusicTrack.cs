@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "MusicTrack", menuName = "Game Audio/MusicTrack")]
+[CreateAssetMenu(fileName = "MusicTrack", menuName = "Wherever I Am/Audio/Music/Music Track")]
 public class MusicTrack : ScriptableObject 
 {
     [Header("Identity")]

@@ -10,11 +10,8 @@ public class NetworkConnectionService : MonoBehaviour
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private UnityTransport transport;
 
-    [Header("LAN Settings")]
-    [SerializeField] private ushort port = 7777;
-    [SerializeField] private string hostAddress = "127.0.0.1";
-    [SerializeField] private string listenAddress = "0.0.0.0";
-    [SerializeField] private float clientConnectionTimeoutSeconds = 5f;
+    [Header("Configuration")]
+    [SerializeField] private NetworkConnectionConfig connectionConfig;
 
     private readonly Dictionary<ConnectionMode, IConnectionStrategy> strategies = new Dictionary<ConnectionMode, IConnectionStrategy>();
 
@@ -28,32 +25,37 @@ public class NetworkConnectionService : MonoBehaviour
 
     private void Awake()
     {
-        ResolveReferences();
+        if (!ValidateRequiredReferences())
+        {
+            enabled = false;
+            return;
+        }
+
         InitializeStrategies();
     }
 
     public Task<ConnectionResult> StartHostAsync()
     {
-        ConnectionConfig config = new ConnectionConfig(
-            ConnectionMode.Lan,
-            ConnectionRole.Host,
-            hostAddress,
-            port,
-            listenAddress
-        );
+        if (!TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error))
+            return Task.FromResult(error);
 
         return StartConnectionAsync(config);
     }
 
     public Task<ConnectionResult> StartClientAsync(string ip)
     {
-        ConnectionConfig config = new ConnectionConfig(
-            ConnectionMode.Lan,
-            ConnectionRole.Client,
-            ip,
-            port,
-            clientConnectionTimeoutSeconds: clientConnectionTimeoutSeconds
-        );
+        if (string.IsNullOrWhiteSpace(ip))
+        {
+            return Task.FromResult(ConnectionResult.Fail(
+                ConnectionErrorCode.EmptyIpAddress,
+                "Failed to start the network connection.",
+                "Client IP address is empty.",
+                true
+            ));
+        }
+
+        if (!TryCreateClientConnectionConfig(ip, out ConnectionConfig config, out ConnectionResult error))
+            return Task.FromResult(error);
 
         return StartConnectionAsync(config);
     }
@@ -146,16 +148,95 @@ public class NetworkConnectionService : MonoBehaviour
         Debug.Log("Network shutdown.");
     }
 
-    private void ResolveReferences()
+    private bool TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error)
     {
-        if (networkManager == null)
-            networkManager = GetComponent<NetworkManager>();
+        config = null;
+        error = null;
+
+        if (!ValidateConnectionConfig())
+        {
+            error = ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to start the network connection.",
+                "Network connection config is missing or invalid.",
+                false
+            );
+
+            return false;
+        }
+
+        config = new ConnectionConfig(
+            ConnectionMode.Lan,
+            ConnectionRole.Host,
+            connectionConfig.HostAddress,
+            connectionConfig.Port,
+            connectionConfig.ListenAddress,
+            connectionConfig.ClientConnectionTimeoutSeconds
+        );
+
+        return true;
+    }
+
+    private bool TryCreateClientConnectionConfig(string ip, out ConnectionConfig config, out ConnectionResult error)
+    {
+        config = null;
+        error = null;
+
+        if (!ValidateConnectionConfig())
+        {
+            error = ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to start the network connection.",
+                "Network connection config is missing or invalid.",
+                false
+            );
+
+            return false;
+        }
+
+        config = new ConnectionConfig(
+            ConnectionMode.Lan,
+            ConnectionRole.Client,
+            ip,
+            connectionConfig.Port,
+            connectionConfig.ListenAddress,
+            connectionConfig.ClientConnectionTimeoutSeconds
+        );
+
+        return true;
+    }
+
+    private bool ValidateRequiredReferences()
+    {
+        bool isValid = true;
 
         if (networkManager == null)
-            networkManager = NetworkManager.Singleton;
+        {
+            Debug.LogError("NetworkConnectionService requires NetworkManager to be assigned explicitly in the Inspector.", this);
+            isValid = false;
+        }
 
-        if (transport == null && networkManager != null)
-            transport = networkManager.GetComponent<UnityTransport>();
+        if (transport == null)
+        {
+            Debug.LogError("NetworkConnectionService requires UnityTransport to be assigned explicitly in the Inspector.", this);
+            isValid = false;
+        }
+
+        if (!ValidateConnectionConfig())
+            isValid = false;
+
+        return isValid;
+    }
+
+    private bool ValidateConnectionConfig()
+    {
+        if (connectionConfig == null)
+        {
+            Debug.LogError($"{nameof(NetworkConnectionService)} is missing {nameof(NetworkConnectionConfig)}.", this);
+            return false;
+        }
+
+        return connectionConfig.Validate(this);
     }
 
     private void InitializeStrategies()
@@ -167,11 +248,6 @@ public class NetworkConnectionService : MonoBehaviour
         strategies.Add(lanStrategy.Mode, lanStrategy);
     }
 
-    private void OnValidate()
-    {
-        clientConnectionTimeoutSeconds = Mathf.Max(1f, clientConnectionTimeoutSeconds);
-    }
-
     private ConnectionResult CanStartConnection()
     {
         if (networkManager == null)
@@ -179,7 +255,7 @@ public class NetworkConnectionService : MonoBehaviour
             return ConnectionResult.Fail(
                 ConnectionErrorCode.NetworkManagerMissing,
                 "Failed to start the network connection.",
-                "NetworkManager not found in the scene.",
+                "NetworkConnectionService requires NetworkManager to be assigned explicitly in the Inspector.",
                 false
             );
         }
@@ -189,7 +265,27 @@ public class NetworkConnectionService : MonoBehaviour
             return ConnectionResult.Fail(
                 ConnectionErrorCode.TransportMissing,
                 "Failed to start the network connection.",
-                "UnityTransport not found on NetworkManager.",
+                "NetworkConnectionService requires UnityTransport to be assigned explicitly in the Inspector.",
+                false
+            );
+        }
+
+        if (!ValidateConnectionConfig())
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to start the network connection.",
+                "Network connection config is missing or invalid.",
+                false
+            );
+        }
+
+        if (strategies.Count == 0)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.StrategyNotFound,
+                "Failed to start the network connection.",
+                "NetworkConnectionService connection strategies are not initialized.",
                 false
             );
         }

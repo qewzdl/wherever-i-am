@@ -2,7 +2,7 @@ using UnityEngine;
 
 [CreateAssetMenu(
     fileName = "SequentialMusicSelector",
-    menuName = "Game Audio/Music Selectors/Sequential"
+    menuName = "Wherever I Am/Audio/Music/Selectors/Sequential"
 )]
 public class SequentialMusicSelector : MusicTrackSelector
 {

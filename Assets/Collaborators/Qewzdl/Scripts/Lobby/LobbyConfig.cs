@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "Wherever I Am/Lobby Config")]
+[CreateAssetMenu(fileName = "LobbyConfig", menuName = "Wherever I Am/Lobby/Lobby Config")]
 public class LobbyConfig : ScriptableObject
 {
     [Header("Players")]

@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56b60f1f9e6143018b87e7ef9dca64ac, type: 3}
+  m_Name: ProjectSettings
+  m_EditorClassIdentifier: 
+  bootstrapScene: 1
+  defaultStartupScene: 2
+  scenes:
+  - kind: 1
+    sceneName: Bootstrap
+    scenePath: Assets/Collaborators/Qewzdl/Scenes/Bootstrap.unity
+    state: 0
+  - kind: 2
+    sceneName: Main Menu
+    scenePath: Assets/Collaborators/Qewzdl/Scenes/Main Menu.unity
+    state: 1
+  - kind: 3
+    sceneName: Lobby
+    scenePath: Assets/Collaborators/Qewzdl/Scenes/Lobby.unity
+    state: 3
+  - kind: 4
+    sceneName: Game
+    scenePath: Assets/Collaborators/Qewzdl/Scenes/Game.unity
+    state: 5
+  - kind: 100
+    sceneName: Test
+    scenePath: Assets/Collaborators/6aTowKa/Scenes/Test.unity
+    state: 5

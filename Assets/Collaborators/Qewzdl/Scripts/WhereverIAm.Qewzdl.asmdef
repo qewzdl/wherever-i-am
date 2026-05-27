@@ -1,0 +1,24 @@
+{
+    "name": "WhereverIAm.Qewzdl",
+    "rootNamespace": "",
+    "references": [
+        "WhereverIAm.Shared",
+        "WhereverIAm.Player",
+        "Unity.AI.Navigation",
+        "Unity.Collections",
+        "Unity.InputSystem",
+        "Unity.Netcode.Runtime",
+        "Unity.Networking.Transport",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
