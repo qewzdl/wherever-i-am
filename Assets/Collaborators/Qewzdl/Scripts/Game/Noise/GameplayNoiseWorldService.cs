@@ -364,6 +364,11 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
 
     private void HandleSceneUnloaded(Scene scene)
     {
+        if (scene.handle != gameObject.scene.handle)
+        {
+            return;
+        }
+
         Clear("scene unload");
     }
 
