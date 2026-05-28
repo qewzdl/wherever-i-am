@@ -4,6 +4,7 @@ using UnityEngine;
 public class PlayerController : PlayerComponent, IPlayerSignalListener
 {
     [SerializeField] private float speed;
+    [SerializeField] private float moveInputDeadZone = 0.1f;
     [SerializeField] private Rigidbody rb;
 
     [Header("Gravity Settings")]
@@ -21,6 +22,8 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
         rb = GetComponent<Rigidbody>();
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
         signals.MoveSignal.Listen(SetDirection);
         signals.CrouchInputSignal.Listen(UpdateIsCrouching);
@@ -40,14 +43,17 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     private void Move()
     {
         Vector3 localDirection = new Vector3(direction.x, 0, direction.y);
+
         Vector3 worldDirection = rb.rotation * localDirection;
-        Vector3 newPos = rb.position + worldDirection * speed * Time.fixedDeltaTime;
-        rb.MovePosition(newPos);
+        Vector3 horizontalVelocity = worldDirection * speed;
+        rb.linearVelocity = new Vector3(horizontalVelocity.x, rb.linearVelocity.y, horizontalVelocity.z);
     }   
 
     public void SetDirection(Vector2 value)
     {
-        direction = value;
+        direction = value.sqrMagnitude < moveInputDeadZone * moveInputDeadZone
+            ? Vector2.zero
+            : Vector2.ClampMagnitude(value, 1f);
     }
 
     public void UpdateIsCrouching()
