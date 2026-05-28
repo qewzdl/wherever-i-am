@@ -31,14 +31,21 @@ public class PlayerSetup : NetworkBehaviour
                 GetComponent<PlayerInput>().enabled = true;
                 GetComponent<PlayerInputHandler>().enabled = true;
                 GetComponent<PlayerController>().enabled = true;
+                GetComponent<PlayerInteraction>().enabled = true;
+                GetComponent<PlayerUI>().enabled = true;
             }
             else // server player
             {
                 destroingComponents.Add(GetComponent<PlayerInput>());
                 destroingComponents.Add(GetComponent<PlayerInputHandler>());
                 destroingComponents.Add(GetComponent<PlayerController>());
+                destroingComponents.Add(GetComponent<PlayerInteraction>());
+                destroingComponents.Add(GetComponent<PlayerUI>());
 
-                GetComponentInChildren<MouseLook>().enabled = false;
+                destroingComponents.Add(GetComponentInChildren<CameraLook>());
+                destroingComponents.Add(GetComponentInChildren<AudioListener>());
+                destroingComponents.Add(GetComponentInChildren<CameraFollow>());
+
                 GetComponentInChildren<Camera>().enabled = false;
             }
         }
@@ -52,6 +59,8 @@ public class PlayerSetup : NetworkBehaviour
             GetComponent<PlayerInputHandler>().enabled = true;
             GetComponent<PlayerController>().enabled = true;
             GetComponent<PlayerAnimation>().enabled = true;
+            GetComponent<PlayerInteraction>().enabled = true;
+            GetComponent<PlayerUI>().enabled = true;
         }
 
         foreach (Behaviour component in GetComponents<Behaviour>())

@@ -15,8 +15,8 @@ TagManager:
   - Environment
   - Walls
   - Doors
-  - 
-  - 
+  - Interactable
+  - ViewModel
   - 
   - 
   - 
@@ -50,3 +50,4 @@ TagManager:
   - Light Layer 5
   - Light Layer 6
   - Light Layer 7
+  - View Model Light Layer

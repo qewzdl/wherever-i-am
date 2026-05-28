@@ -4,10 +4,12 @@ using UnityEngine;
 public abstract class PlayerComponent : MonoBehaviour
 {
     protected PlayerSignals signals;
+    protected PlayerStates states;
 
     public void Init(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
         signals = orch.Signals;
+        states = orch.States;
         OnPostInit(orch, isMultiplayer, isOwner);
     }
 

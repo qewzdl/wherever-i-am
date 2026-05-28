@@ -3,6 +3,7 @@ using UnityEngine;
 public class PlayerOrchestrator : MonoBehaviour
 {
     public readonly PlayerSignals Signals = new PlayerSignals();
+    public readonly PlayerStates States = new PlayerStates();
 
     public void Setup(bool isMultiplayer, bool isOwner)
     {
@@ -24,6 +25,14 @@ public class PlayerOrchestrator : MonoBehaviour
         foreach (IPlayerSignalListener playerComponent in GetComponents<IPlayerSignalListener>())
         {
             playerComponent.Cleanup();
+        }
+
+        foreach (BasePlayerSignal signal in Signals.SignalsList)
+        {
+            if (signal.GetListeners() != null)
+            {
+                Debug.Log($"Signal {signal.DebugName} has an active listener(s) that was not unsubscribed");
+            }
         }
     }
 

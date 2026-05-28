@@ -1,13 +1,14 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class MouseLook : MonoBehaviour, IPauseServiceConsumer
+public class CameraLook : MonoBehaviour
 {
     [SerializeField] private Transform playerTransform;
     [SerializeField] private float sensitivity = 100f;
 
     private float rotationX;
     private float rotationY;
+    private Vector2 delta;
 
     private IPauseService pauseService;
 
@@ -16,9 +17,9 @@ public class MouseLook : MonoBehaviour, IPauseServiceConsumer
         this.pauseService = pauseService;
     }
 
-    public void BindPauseService(IPauseService pauseService)
+    public void OnLook(InputAction.CallbackContext context)
     {
-        Construct(pauseService);
+        delta = context.ReadValue<Vector2>();
     }
 
     private void Update()
@@ -26,7 +27,15 @@ public class MouseLook : MonoBehaviour, IPauseServiceConsumer
         if (!CanLook())
             return;
 
-        Look();
+        delta = delta * sensitivity / 500f;
+
+        rotationX -= delta.y;
+        rotationX = Mathf.Clamp(rotationX, -90f, 90f);
+
+        rotationY += delta.x;
+
+        transform.localRotation = Quaternion.Euler(rotationX, 0f, 0f);
+        playerTransform.localRotation = Quaternion.Euler(0f, rotationY, 0f);
     }
 
     private bool CanLook()
@@ -38,18 +47,5 @@ public class MouseLook : MonoBehaviour, IPauseServiceConsumer
             return false;
 
         return Cursor.lockState == CursorLockMode.Locked;
-    }
-
-    private void Look()
-    {
-        Vector2 delta = Mouse.current.delta.value * sensitivity / 500f;
-
-        rotationX -= delta.y;
-        rotationX = Mathf.Clamp(rotationX, -90f, 90f);
-
-        rotationY += delta.x;
-
-        playerTransform.localRotation = Quaternion.Euler(0f, rotationY, 0f);
-        transform.localRotation = Quaternion.Euler(rotationX, 0f, 0f);
     }
 }
