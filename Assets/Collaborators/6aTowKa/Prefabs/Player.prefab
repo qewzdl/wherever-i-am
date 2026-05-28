@@ -339,6 +339,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerTransform: {fileID: 9134326554751017068}
   sensitivity: 50
+  horizontalSensitivityMultiplier: 1
+  verticalSensitivityMultiplier: 1
+  minPitch: -90
+  maxPitch: 90
+  smoothingTime: 0.03
+  lockCursorOnLocalControl: 1
+  unlockCursorOnDisable: 1
+  unlockCursorWhenLookBlocked: 1
+  lockCursorWhenLookUnblocked: 1
+  requireLockedCursorToLook: 1
 --- !u!1 &4015087319098987458
 GameObject:
   m_ObjectHideFlags: 0
@@ -800,7 +810,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 5
+  moveInputDeadZone: 0.1
   rb: {fileID: 7921583413856064293}
+  blockingContactMaxY: 0.7
   gravityMultiplier: 1
   groundLayer:
     serializedVersion: 2
@@ -818,6 +830,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43a52f3012d77ae44be690707f0aecb9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cameraLook: {fileID: 439289573477164544}
 --- !u!114 &3498987114125339092
 MonoBehaviour:
   m_ObjectHideFlags: 0
