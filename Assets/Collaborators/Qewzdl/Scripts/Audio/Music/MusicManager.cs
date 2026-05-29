@@ -68,6 +68,13 @@ public class MusicManager : MonoBehaviour
         if (transitionCoroutine != null)
         {
             StopCoroutine(transitionCoroutine);
+            transitionCoroutine = null;
+        }
+
+        if (!isActiveAndEnabled || fadeOutTime <= 0f)
+        {
+            StopMusicImmediate();
+            return;
         }
 
         transitionCoroutine = StartCoroutine(FadeOutAndStop(fadeOutTime));
@@ -314,6 +321,28 @@ public class MusicManager : MonoBehaviour
             yield return null;
         }
 
+        if (currentSource != null)
+        {
+            currentSource.Stop();
+            currentSource.clip = null;
+            currentSource.volume = 0f;
+        }
+
+        if (nextSource != null)
+        {
+            nextSource.Stop();
+            nextSource.clip = null;
+            nextSource.volume = 0f;
+        }
+
+        currentTrack = null;
+        currentCue = null;
+        cueState = null;
+        transitionCoroutine = null;
+    }
+
+    private void StopMusicImmediate()
+    {
         if (currentSource != null)
         {
             currentSource.Stop();

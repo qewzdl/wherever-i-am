@@ -1219,6 +1219,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2055177488}
   - component: {fileID: 2055177487}
+  - component: {fileID: 2055177489}
   m_Layer: 0
   m_Name: MusicManager
   m_TagString: Untagged
@@ -1241,6 +1242,24 @@ MonoBehaviour:
   musicMixerGroup: {fileID: -282525324856036455, guid: b49c85399aa0c7545a9b4272b89f6d23, type: 2}
   masterVolume: 1
   useUnscaledTime: 1
+--- !u!114 &2055177489
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2055177486}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cba32eecf001a74c8edc27a3a21c242, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  musicManager: {fileID: 2055177487}
+  suspiciousCue: {fileID: 11400000, guid: 4f4e3d4515b3f4146bda3a93df1ce6fd, type: 2}
+  combatCue: {fileID: 11400000, guid: 92fb48e32ab71ef498589f6f8b905809, type: 2}
+  lostTargetCue: {fileID: 11400000, guid: 4f4e3d4515b3f4146bda3a93df1ce6fd, type: 2}
+  calmCue: {fileID: 0}
+  calmFadeOutTime: 1
 --- !u!4 &2055177488
 Transform:
   m_ObjectHideFlags: 0

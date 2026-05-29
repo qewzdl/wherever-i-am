@@ -29,15 +29,25 @@ public class EnemyNetworkState : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private readonly NetworkVariable<EnemyThreatMusicState> currentThreatMusicState = new(
+        EnemyThreatMusicState.Calm,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private bool hasCombatThreatSinceCalm;
+
     public event Action<EnemyState, EnemyState> StateChanged;
     public event Action<EnemyTargetIdentity, EnemyTargetIdentity> TargetChanged;
     public event Action<EnemyPosture, EnemyPosture> PostureChanged;
     public event Action<EnemyAttackPhaseSnapshot, EnemyAttackPhaseSnapshot> AttackPhaseChanged;
+    public event Action<EnemyThreatMusicState, EnemyThreatMusicState> ThreatMusicStateChanged;
 
     public EnemyState CurrentState => currentState.Value;
     public EnemyTargetIdentity CurrentTargetIdentity => currentTargetIdentity.Value;
     public EnemyPosture CurrentPosture => currentPosture.Value;
     public EnemyAttackPhaseSnapshot CurrentAttackPhase => currentAttackPhase.Value;
+    public EnemyThreatMusicState CurrentThreatMusicState => currentThreatMusicState.Value;
 
     public ulong CurrentTargetClientId => currentTargetIdentity.Value.OwnerClientId;
     public bool HasTarget => currentTargetIdentity.Value.HasTarget;
@@ -49,6 +59,7 @@ public class EnemyNetworkState : NetworkBehaviour
         currentTargetIdentity.OnValueChanged += HandleTargetChanged;
         currentPosture.OnValueChanged += HandlePostureChanged;
         currentAttackPhase.OnValueChanged += HandleAttackPhaseChanged;
+        currentThreatMusicState.OnValueChanged += HandleThreatMusicStateChanged;
     }
 
     public override void OnNetworkDespawn()
@@ -57,6 +68,7 @@ public class EnemyNetworkState : NetworkBehaviour
         currentTargetIdentity.OnValueChanged -= HandleTargetChanged;
         currentPosture.OnValueChanged -= HandlePostureChanged;
         currentAttackPhase.OnValueChanged -= HandleAttackPhaseChanged;
+        currentThreatMusicState.OnValueChanged -= HandleThreatMusicStateChanged;
     }
 
     public bool TryGetCurrentTargetNetworkObject(out NetworkObject targetNetworkObject)
@@ -66,22 +78,32 @@ public class EnemyNetworkState : NetworkBehaviour
 
     public void SetStateServer(EnemyState nextState)
     {
-        if (!IsServer || currentState.Value == nextState)
+        if (!IsServer)
         {
             return;
         }
 
-        currentState.Value = nextState;
+        if (currentState.Value != nextState)
+        {
+            currentState.Value = nextState;
+        }
+
+        RefreshThreatMusicStateServer();
     }
 
     public void SetTargetIdentityServer(EnemyTargetIdentity targetIdentity)
     {
-        if (!IsServer || currentTargetIdentity.Value == targetIdentity)
+        if (!IsServer)
         {
             return;
         }
 
-        currentTargetIdentity.Value = targetIdentity;
+        if (currentTargetIdentity.Value != targetIdentity)
+        {
+            currentTargetIdentity.Value = targetIdentity;
+        }
+
+        RefreshThreatMusicStateServer();
     }
 
     public void SetPostureServer(EnemyPosture nextPosture)
@@ -92,6 +114,26 @@ public class EnemyNetworkState : NetworkBehaviour
         }
 
         currentPosture.Value = nextPosture;
+    }
+
+    public void SetThreatMusicStateServer(EnemyThreatMusicState nextThreatMusicState)
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        ApplyThreatMusicStateServer(nextThreatMusicState);
+    }
+
+    public void SetDeadThreatMusicStateServer()
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        ApplyThreatMusicStateServer(EnemyThreatMusicState.Dead);
     }
 
     public void SetAttackPhaseServer(EnemyAttackPhaseEvent phaseEvent)
@@ -143,6 +185,83 @@ public class EnemyNetworkState : NetworkBehaviour
         currentAttackPhase.Value = snapshot;
     }
 
+    private void RefreshThreatMusicStateServer()
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        EnemyThreatMusicState nextThreatMusicState = ResolveThreatMusicState(currentState.Value);
+        ApplyThreatMusicStateServer(nextThreatMusicState);
+    }
+
+    private EnemyThreatMusicState ResolveThreatMusicState(EnemyState enemyState)
+    {
+        switch (enemyState)
+        {
+            case EnemyState.Idle:
+            case EnemyState.Patrol:
+                return EnemyThreatMusicState.Calm;
+
+            case EnemyState.Chase:
+            case EnemyState.Attack:
+                return EnemyThreatMusicState.Combat;
+
+            case EnemyState.Investigate:
+                return hasCombatThreatSinceCalm
+                    ? EnemyThreatMusicState.LostTarget
+                    : EnemyThreatMusicState.Suspicious;
+
+            default:
+                Debug.LogError(
+                    $"{nameof(EnemyNetworkState)} cannot resolve threat music state for unsupported enemy state {enemyState}.",
+                    this
+                );
+
+                return EnemyThreatMusicState.Calm;
+        }
+    }
+
+    private void ApplyThreatMusicStateServer(EnemyThreatMusicState nextThreatMusicState)
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        switch (nextThreatMusicState)
+        {
+            case EnemyThreatMusicState.Calm:
+            case EnemyThreatMusicState.Dead:
+                hasCombatThreatSinceCalm = false;
+                break;
+
+            case EnemyThreatMusicState.Combat:
+                hasCombatThreatSinceCalm = true;
+                break;
+
+            case EnemyThreatMusicState.Suspicious:
+            case EnemyThreatMusicState.LostTarget:
+                break;
+
+            default:
+                Debug.LogError(
+                    $"{nameof(EnemyNetworkState)} received unsupported threat music state {nextThreatMusicState}.",
+                    this
+                );
+
+                return;
+        }
+
+        if (currentThreatMusicState.Value == nextThreatMusicState)
+        {
+            return;
+        }
+
+        currentThreatMusicState.Value = nextThreatMusicState;
+    }
+
     private bool TryGetServerTime(out double serverTime)
     {
         serverTime = 0d;
@@ -188,5 +307,13 @@ public class EnemyNetworkState : NetworkBehaviour
     )
     {
         AttackPhaseChanged?.Invoke(previousPhase, nextPhase);
+    }
+
+    private void HandleThreatMusicStateChanged(
+        EnemyThreatMusicState previousState,
+        EnemyThreatMusicState nextState
+    )
+    {
+        ThreatMusicStateChanged?.Invoke(previousState, nextState);
     }
 }

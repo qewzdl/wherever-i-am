@@ -2,265 +2,221 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public class EnemyThreatMusicDirector : MonoBehaviour
+[RequireComponent(typeof(MusicManager))]
+public sealed class EnemyThreatMusicDirector : MonoBehaviour
 {
-    [Header("No Threat")]
-    [SerializeField] private MusicCue noThreatCue;
-    [SerializeField] private bool restoreNoThreatCue = true;
+    [Header("References")]
+    [SerializeField] private MusicManager musicManager;
 
-    [Header("Threat Music")]
-    [SerializeField] private EnemyThreatMusicEntry[] musicByThreatLevel;
-    [SerializeField] private bool stopThreatCueWhenNoThreat = true;
-    [SerializeField, Min(0f)] private float threatFadeOutTime = 1f;
+    [Header("Cues")]
+    [SerializeField] private MusicCue suspiciousCue;
+    [SerializeField] private MusicCue combatCue;
+    [SerializeField] private MusicCue lostTargetCue;
+    [SerializeField] private MusicCue calmCue;
 
-    private readonly Dictionary<EnemyPresentationController, EnemyThreatLevel> threatLevels = new();
+    [Header("Playback")]
+    [SerializeField, Min(0f)] private float calmFadeOutTime = 1f;
 
-    private EnemyThreatLevel currentAppliedThreatLevel = EnemyThreatLevel.None;
-    private MusicCue currentThreatCue;
+    private readonly Dictionary<EnemyThreatMusicSource, EnemyThreatMusicState> activeThreats = new();
+
+    private EnemyThreatMusicState currentAppliedThreatState = EnemyThreatMusicState.Calm;
+    private MusicCue currentCue;
+
+    private void Awake()
+    {
+        CacheReferences();
+    }
 
     private void OnEnable()
     {
-        EnemyPresentationController.Registered += HandleEnemyRegistered;
-        EnemyPresentationController.Unregistered += HandleEnemyUnregistered;
-        EnemyPresentationController.ThreatLevelChanged += HandleThreatLevelChanged;
+        CacheReferences();
 
-        RegisterExistingEnemies();
-        ApplyHighestThreatLevel(force: true);
+        EnemyThreatMusicSource.ThreatStateChanged += HandleThreatStateChanged;
+        EnemyThreatMusicSource.SourceRemoved += HandleSourceRemoved;
+
+        EnemyThreatMusicSource.CopyActiveThreatsTo(activeThreats);
+        ApplyHighestThreatState(force: true);
     }
 
     private void OnDisable()
     {
-        EnemyPresentationController.Registered -= HandleEnemyRegistered;
-        EnemyPresentationController.Unregistered -= HandleEnemyUnregistered;
-        EnemyPresentationController.ThreatLevelChanged -= HandleThreatLevelChanged;
+        EnemyThreatMusicSource.ThreatStateChanged -= HandleThreatStateChanged;
+        EnemyThreatMusicSource.SourceRemoved -= HandleSourceRemoved;
 
-        StopCurrentThreatCue();
+        activeThreats.Clear();
+        StopCurrentCue();
 
-        threatLevels.Clear();
-        currentAppliedThreatLevel = EnemyThreatLevel.None;
-        currentThreatCue = null;
+        currentAppliedThreatState = EnemyThreatMusicState.Calm;
+        currentCue = null;
     }
 
-    private void RegisterExistingEnemies()
+    private void HandleThreatStateChanged(
+        EnemyThreatMusicSource source,
+        EnemyThreatMusicState threatState
+    )
     {
-        IReadOnlyList<EnemyPresentationController> activeControllers =
-            EnemyPresentationController.ActiveControllers;
-
-        for (int i = 0; i < activeControllers.Count; i++)
-        {
-            EnemyPresentationController controller = activeControllers[i];
-
-            if (controller == null || controller.CurrentThreatLevel == EnemyThreatLevel.None)
-            {
-                continue;
-            }
-
-            threatLevels[controller] = controller.CurrentThreatLevel;
-        }
-    }
-
-    private void HandleEnemyRegistered(EnemyPresentationController controller)
-    {
-        if (controller == null)
+        if (source == null)
         {
             return;
         }
 
-        if (controller.CurrentThreatLevel == EnemyThreatLevel.None)
+        if (threatState == EnemyThreatMusicState.Calm ||
+            threatState == EnemyThreatMusicState.Dead)
         {
-            threatLevels.Remove(controller);
+            activeThreats.Remove(source);
         }
         else
         {
-            threatLevels[controller] = controller.CurrentThreatLevel;
+            activeThreats[source] = threatState;
         }
 
-        ApplyHighestThreatLevel(force: false);
+        ApplyHighestThreatState(force: false);
     }
 
-    private void HandleEnemyUnregistered(EnemyPresentationController controller)
+    private void HandleSourceRemoved(EnemyThreatMusicSource source)
     {
-        if (controller == null)
+        if (source != null)
         {
-            return;
+            activeThreats.Remove(source);
         }
 
-        threatLevels.Remove(controller);
-        ApplyHighestThreatLevel(force: false);
+        ApplyHighestThreatState(force: false);
     }
 
-    private void HandleThreatLevelChanged(
-        EnemyPresentationController controller,
-        EnemyThreatLevel threatLevel
-    )
+    private void ApplyHighestThreatState(bool force)
     {
-        if (controller == null)
+        EnemyThreatMusicState highestThreatState = GetHighestThreatState();
+
+        if (!force && currentAppliedThreatState == highestThreatState)
         {
             return;
         }
 
-        if (threatLevel == EnemyThreatLevel.None)
+        currentAppliedThreatState = highestThreatState;
+
+        if (!TryGetCue(highestThreatState, out MusicCue nextCue))
         {
-            threatLevels.Remove(controller);
-        }
-        else
-        {
-            threatLevels[controller] = threatLevel;
+            StopCurrentCue();
+            return;
         }
 
-        ApplyHighestThreatLevel(force: false);
+        PlayCue(nextCue);
     }
 
-    private void ApplyHighestThreatLevel(bool force)
+    private EnemyThreatMusicState GetHighestThreatState()
     {
-        EnemyThreatLevel highestThreatLevel = GetHighestThreatLevel();
+        EnemyThreatMusicState highestThreatState = EnemyThreatMusicState.Calm;
+        int highestPriority = GetThreatPriority(highestThreatState);
 
-        if (!force && currentAppliedThreatLevel == highestThreatLevel)
+        foreach (EnemyThreatMusicState threatState in activeThreats.Values)
         {
-            return;
-        }
+            int priority = GetThreatPriority(threatState);
 
-        EnemyThreatLevel previousThreatLevel = currentAppliedThreatLevel;
-        currentAppliedThreatLevel = highestThreatLevel;
-
-        if (highestThreatLevel == EnemyThreatLevel.None)
-        {
-            HandleNoThreat();
-            return;
-        }
-
-        if (!TryGetCue(highestThreatLevel, out MusicCue nextThreatCue, out bool restartIfSameCue))
-        {
-            StopCurrentThreatCue();
-            return;
-        }
-
-        PlayThreatCue(nextThreatCue, restartIfSameCue, previousThreatLevel);
-    }
-
-    private void HandleNoThreat()
-    {
-        if (restoreNoThreatCue && noThreatCue != null)
-        {
-            currentThreatCue = null;
-            PlayCue(noThreatCue, restartIfSameCue: false);
-            return;
-        }
-
-        if (stopThreatCueWhenNoThreat)
-        {
-            StopCurrentThreatCue();
-        }
-    }
-
-    private void PlayThreatCue(
-        MusicCue cue,
-        bool restartIfSameCue,
-        EnemyThreatLevel previousThreatLevel
-    )
-    {
-        if (cue == null)
-        {
-            return;
-        }
-
-        if (currentThreatCue != null && currentThreatCue != cue)
-        {
-            StopCurrentThreatCue();
-        }
-
-        currentThreatCue = cue;
-
-        bool shouldRestart = restartIfSameCue || previousThreatLevel != currentAppliedThreatLevel;
-        PlayCue(cue, shouldRestart);
-    }
-
-    private void StopCurrentThreatCue()
-    {
-        if (currentThreatCue == null)
-        {
-            return;
-        }
-
-        AudioManager audioManager = AudioManager.Instance;
-
-        if (audioManager == null || audioManager.Music == null)
-        {
-            currentThreatCue = null;
-            return;
-        }
-
-        audioManager.Music.StopCue(currentThreatCue, threatFadeOutTime);
-        currentThreatCue = null;
-    }
-
-    private void PlayCue(MusicCue cue, bool restartIfSameCue)
-    {
-        if (cue == null)
-        {
-            return;
-        }
-
-        AudioManager audioManager = AudioManager.Instance;
-
-        if (audioManager == null || audioManager.Music == null)
-        {
-            return;
-        }
-
-        audioManager.Music.PlayCue(cue, restartIfSameCue);
-    }
-
-    private EnemyThreatLevel GetHighestThreatLevel()
-    {
-        EnemyThreatLevel highestThreatLevel = EnemyThreatLevel.None;
-
-        foreach (EnemyThreatLevel threatLevel in threatLevels.Values)
-        {
-            if (threatLevel > highestThreatLevel)
+            if (priority > highestPriority)
             {
-                highestThreatLevel = threatLevel;
+                highestPriority = priority;
+                highestThreatState = threatState;
             }
         }
 
-        return highestThreatLevel;
+        return highestThreatState;
     }
 
-    private bool TryGetCue(
-        EnemyThreatLevel threatLevel,
-        out MusicCue cue,
-        out bool restartIfSameCue
-    )
+    private static int GetThreatPriority(EnemyThreatMusicState threatState)
     {
-        cue = null;
-        restartIfSameCue = false;
-
-        if (musicByThreatLevel == null)
+        switch (threatState)
         {
-            return false;
+            case EnemyThreatMusicState.Calm:
+            case EnemyThreatMusicState.Dead:
+                return 0;
+
+            case EnemyThreatMusicState.Suspicious:
+                return 1;
+
+            case EnemyThreatMusicState.LostTarget:
+                return 2;
+
+            case EnemyThreatMusicState.Combat:
+                return 3;
+
+            default:
+                return 0;
+        }
+    }
+
+    private bool TryGetCue(EnemyThreatMusicState threatState, out MusicCue cue)
+    {
+        switch (threatState)
+        {
+            case EnemyThreatMusicState.Calm:
+            case EnemyThreatMusicState.Dead:
+                cue = calmCue;
+                return cue != null;
+
+            case EnemyThreatMusicState.Suspicious:
+                cue = suspiciousCue;
+                return cue != null;
+
+            case EnemyThreatMusicState.Combat:
+                cue = combatCue;
+                return cue != null;
+
+            case EnemyThreatMusicState.LostTarget:
+                cue = lostTargetCue;
+                return cue != null;
+
+            default:
+                Debug.LogError(
+                    $"{nameof(EnemyThreatMusicDirector)} received unsupported threat music state {threatState}.",
+                    this
+                );
+
+                cue = null;
+                return false;
+        }
+    }
+
+    private void PlayCue(MusicCue cue)
+    {
+        if (cue == null || musicManager == null)
+        {
+            return;
         }
 
-        for (int i = 0; i < musicByThreatLevel.Length; i++)
+        bool restartIfSameCue = currentCue != cue;
+        currentCue = cue;
+        musicManager.PlayCue(cue, restartIfSameCue);
+    }
+
+    private void StopCurrentCue()
+    {
+        if (musicManager == null)
         {
-            EnemyThreatMusicEntry entry = musicByThreatLevel[i];
-
-            if (entry == null || entry.threatLevel != threatLevel || entry.cue == null)
-            {
-                continue;
-            }
-
-            cue = entry.cue;
-            restartIfSameCue = entry.restartIfSameCue;
-            return true;
+            return;
         }
 
-        return false;
+        musicManager.StopMusic(calmFadeOutTime);
+        currentCue = null;
+    }
+
+    private void CacheReferences()
+    {
+        if (musicManager == null)
+        {
+            musicManager = GetComponent<MusicManager>();
+        }
     }
 
 #if UNITY_EDITOR
+    private void Reset()
+    {
+        CacheReferences();
+    }
+
     private void OnValidate()
     {
-        threatFadeOutTime = Mathf.Max(0f, threatFadeOutTime);
+        calmFadeOutTime = Mathf.Max(0f, calmFadeOutTime);
+        CacheReferences();
     }
 #endif
 }
