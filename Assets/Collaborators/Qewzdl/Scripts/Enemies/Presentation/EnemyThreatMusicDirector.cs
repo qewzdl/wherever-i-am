@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-[RequireComponent(typeof(MusicManager))]
 public sealed class EnemyThreatMusicDirector : MonoBehaviour
 {
     [Header("References")]
@@ -44,7 +43,7 @@ public sealed class EnemyThreatMusicDirector : MonoBehaviour
         EnemyThreatMusicSource.SourceRemoved -= HandleSourceRemoved;
 
         activeThreats.Clear();
-        StopCurrentCue();
+        StopCurrentCue(allowFadeOut: gameObject.activeInHierarchy);
 
         currentAppliedThreatState = EnemyThreatMusicState.Calm;
         currentCue = null;
@@ -96,7 +95,7 @@ public sealed class EnemyThreatMusicDirector : MonoBehaviour
 
         if (!TryGetCue(highestThreatState, out MusicCue nextCue))
         {
-            StopCurrentCue();
+            StopCurrentCue(allowFadeOut: true);
             return;
         }
 
@@ -188,19 +187,27 @@ public sealed class EnemyThreatMusicDirector : MonoBehaviour
         musicManager.PlayCue(cue, restartIfSameCue);
     }
 
-    private void StopCurrentCue()
+    private void StopCurrentCue(bool allowFadeOut)
     {
         if (musicManager == null)
         {
             return;
         }
 
-        musicManager.StopMusic(calmFadeOutTime);
+        musicManager.StopMusic(allowFadeOut ? calmFadeOutTime : 0f);
         currentCue = null;
     }
 
     private void CacheReferences()
     {
+        AudioManager audioManager = AudioManager.Instance;
+
+        if (audioManager != null && audioManager.Music != null)
+        {
+            musicManager = audioManager.Music;
+            return;
+        }
+
         if (musicManager == null)
         {
             musicManager = GetComponent<MusicManager>();

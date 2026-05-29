@@ -71,7 +71,7 @@ public class MusicManager : MonoBehaviour
             transitionCoroutine = null;
         }
 
-        if (!isActiveAndEnabled || fadeOutTime <= 0f)
+        if (!CanStartCoroutines() || fadeOutTime <= 0f)
         {
             StopMusicImmediate();
             return;
@@ -361,6 +361,11 @@ public class MusicManager : MonoBehaviour
         currentCue = null;
         cueState = null;
         transitionCoroutine = null;
+    }
+
+    private bool CanStartCoroutines()
+    {
+        return enabled && gameObject.activeInHierarchy;
     }
 
     private IEnumerator Wait(float seconds)
