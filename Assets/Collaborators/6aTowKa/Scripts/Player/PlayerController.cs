@@ -4,32 +4,57 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerController : PlayerComponent, IPlayerSignalListener
 {
-    [SerializeField] private float speed;
-    [SerializeField] private float moveInputDeadZone = 0.1f;
+    [Header("Movement")]
+    [SerializeField, Min(0f)] private float speed = 5f;
+    [SerializeField, Range(0f, 1f)] private float crouchSpeedMultiplier = 0.55f;
+    [SerializeField, Min(0f)] private float acceleration = 30f;
+    [SerializeField, Min(0f)] private float deceleration = 40f;
+    [SerializeField, Range(0f, 1f)] private float airControlMultiplier = 0.35f;
+    [SerializeField, Min(0f)] private float moveInputDeadZone = 0.1f;
+
+    [Header("References")]
     [SerializeField] private Rigidbody rb;
-    [SerializeField] private float blockingContactMaxY = 0.7f;
+    [SerializeField] private CapsuleCollider bodyCollider;
+    [SerializeField] private CameraFollow cameraFollow;
+
+    [Header("Collision")]
+    [SerializeField, Range(0f, 1f)] private float blockingContactMaxY = 0.7f;
 
     [Header("Gravity Settings")]
-    public float gravityMultiplier = 1f;
+    [SerializeField, Min(1f)] private float gravityMultiplier = 1f;
 
     [Header("Ground Check")]
-    public LayerMask groundLayer;
-    public float groundCheckDistance = 0.1f;
-
-    //[SerializeField] private float speedToCrouch;
+    [SerializeField] private LayerMask groundLayer = ~0;
+    [SerializeField, Min(0f)] private float groundCheckDistance = 0.1f;
 
     private Vector2 direction;
-    private bool isCrouching = false;
+    private bool isCrouching;
+    private bool hasLocalControl;
+
     private readonly List<Vector3> blockingContactNormals = new(8);
+    private readonly RaycastHit[] groundHits = new RaycastHit[8];
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
+        hasLocalControl = !isMultiplayer || isOwner;
+
         rb = GetComponent<Rigidbody>();
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
+        if (bodyCollider == null)
+            bodyCollider = GetComponentInChildren<CapsuleCollider>();
+
         signals.MoveSignal.Listen(SetDirection);
         signals.CrouchInputSignal.Listen(UpdateIsCrouching);
+
+        if (hasLocalControl)
+        {
+            if (cameraFollow == null)
+                Debug.LogError($"{nameof(PlayerController)} requires assigned {nameof(CameraFollow)} for local crouch camera height.", this);
+            else
+                cameraFollow.SetCrouching(isCrouching);
+        }
     }
 
     public void Cleanup()
@@ -38,22 +63,51 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         signals.CrouchInputSignal.Unlisten(UpdateIsCrouching);
     }
 
+    public void SetCameraFollow(CameraFollow cameraFollow)
+    {
+        this.cameraFollow = cameraFollow;
+    }
+
+    public void SetBodyCollider(CapsuleCollider collider)
+    {
+        bodyCollider = collider;
+    }
+
     private void FixedUpdate()
     {
-        Move();
+        bool isGrounded = IsGrounded();
+
+        Move(isGrounded);
+        ApplyExtraGravity(isGrounded);
         blockingContactNormals.Clear();
     }
 
-    private void Move()
+    private void Move(bool isGrounded)
     {
-        Vector3 localDirection = new Vector3(direction.x, 0, direction.y);
-
+        Vector3 localDirection = new Vector3(direction.x, 0f, direction.y);
         Vector3 worldDirection = rb.rotation * localDirection;
-        Vector3 horizontalVelocity = worldDirection * speed;
+
+        Vector3 currentHorizontalVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        Vector3 targetHorizontalVelocity = worldDirection * GetTargetSpeed();
+
+        float moveRate = targetHorizontalVelocity.sqrMagnitude > 0f ? acceleration : deceleration;
+        if (!isGrounded)
+            moveRate *= airControlMultiplier;
+
+        Vector3 horizontalVelocity = Vector3.MoveTowards(
+            currentHorizontalVelocity,
+            targetHorizontalVelocity,
+            moveRate * Time.fixedDeltaTime
+        );
+
         horizontalVelocity = ClipVelocityAgainstBlockingContacts(horizontalVelocity);
 
-        rb.linearVelocity = new Vector3(horizontalVelocity.x, rb.linearVelocity.y, horizontalVelocity.z);
-    }   
+        rb.linearVelocity = new Vector3(
+            horizontalVelocity.x,
+            rb.linearVelocity.y,
+            horizontalVelocity.z
+        );
+    }
 
     private Vector3 ClipVelocityAgainstBlockingContacts(Vector3 velocity)
     {
@@ -68,6 +122,121 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
         velocity.y = 0f;
         return velocity;
+    }
+
+    private void ApplyExtraGravity(bool isGrounded)
+    {
+        if (gravityMultiplier <= 1f)
+            return;
+
+        if (isGrounded)
+            return;
+
+        rb.linearVelocity += Physics.gravity * ((gravityMultiplier - 1f) * Time.fixedDeltaTime);
+    }
+
+    private float GetTargetSpeed()
+    {
+        float targetSpeed = speed;
+
+        if (isCrouching)
+            return targetSpeed * crouchSpeedMultiplier;
+
+        return targetSpeed;
+    }
+
+    private bool IsGrounded()
+    {
+        Vector3 origin = transform.position + Vector3.up * 0.05f;
+        Vector3 directionToGround = Vector3.down;
+        float radius = 0.1f;
+        float distance = groundCheckDistance + 0.05f;
+
+        if (bodyCollider != null)
+        {
+            Transform colliderTransform = bodyCollider.transform;
+            Vector3 axis = GetCapsuleAxis(bodyCollider);
+            Vector3 worldAxis = colliderTransform.TransformDirection(axis).normalized;
+            Vector3 center = colliderTransform.TransformPoint(bodyCollider.center);
+
+            float scaledHeight = GetScaledCapsuleHeight(bodyCollider);
+            float scaledRadius = GetScaledCapsuleRadius(bodyCollider) * 0.9f;
+            float halfHeight = Mathf.Max(scaledRadius, scaledHeight * 0.5f);
+
+            origin = center - worldAxis * Mathf.Max(0f, halfHeight - scaledRadius);
+            origin += worldAxis * groundCheckDistance;
+            directionToGround = -worldAxis;
+            radius = Mathf.Max(0.01f, scaledRadius);
+            distance = groundCheckDistance + 0.02f;
+        }
+
+        int hitCount = Physics.SphereCastNonAlloc(
+            origin,
+            radius,
+            directionToGround,
+            groundHits,
+            distance,
+            groundLayer,
+            QueryTriggerInteraction.Ignore
+        );
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hitCollider = groundHits[i].collider;
+
+            if (hitCollider == null)
+                continue;
+
+            if (hitCollider.transform.IsChildOf(transform))
+                continue;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static Vector3 GetCapsuleAxis(CapsuleCollider capsuleCollider)
+    {
+        return capsuleCollider.direction switch
+        {
+            0 => Vector3.right,
+            2 => Vector3.forward,
+            _ => Vector3.up
+        };
+    }
+
+    private static float GetScaledCapsuleHeight(CapsuleCollider capsuleCollider)
+    {
+        Vector3 scale = Abs(capsuleCollider.transform.lossyScale);
+
+        return capsuleCollider.direction switch
+        {
+            0 => capsuleCollider.height * scale.x,
+            2 => capsuleCollider.height * scale.z,
+            _ => capsuleCollider.height * scale.y
+        };
+    }
+
+    private static float GetScaledCapsuleRadius(CapsuleCollider capsuleCollider)
+    {
+        Vector3 scale = Abs(capsuleCollider.transform.lossyScale);
+
+        return capsuleCollider.direction switch
+        {
+            0 => capsuleCollider.radius * Mathf.Max(scale.y, scale.z),
+            2 => capsuleCollider.radius * Mathf.Max(scale.x, scale.y),
+            _ => capsuleCollider.radius * Mathf.Max(scale.x, scale.z)
+        };
+    }
+
+    private static Vector3 Abs(Vector3 value)
+    {
+        return new Vector3(
+            Mathf.Abs(value.x),
+            Mathf.Abs(value.y),
+            Mathf.Abs(value.z)
+        );
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -108,6 +277,10 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     public void UpdateIsCrouching()
     {
         isCrouching = !isCrouching;
+
+        if (hasLocalControl && cameraFollow != null)
+            cameraFollow.SetCrouching(isCrouching);
+
         signals.CrouchUpdateSignal.Trigger(isCrouching);
     }
 

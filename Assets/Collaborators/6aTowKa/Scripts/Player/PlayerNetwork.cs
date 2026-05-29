@@ -4,17 +4,34 @@ public class PlayerNetwork : PlayerNetworkComponent, IPlayerSignalListener
 {
     public NetworkVariable<bool> PlayerIsCrouching = new NetworkVariable<bool>();
 
+    private bool listensToLocalCrouch;
+    private bool listensToNetworkCrouch;
+
     protected override void OnPostInit(PlayerOrchestrator orch)
     {
-        signals.CrouchUpdateSignal.Listen(SetNetworkPlayerIsCrouchingRpc);
-        if (!IsOwner) 
-            PlayerIsCrouching.OnValueChanged += TriggerCrouchSyncSignal;
+        if (IsOwner)
+        {
+            signals.CrouchUpdateSignal.Listen(SetNetworkPlayerIsCrouchingRpc);
+            listensToLocalCrouch = true;
+            return;
+        }
+
+        PlayerIsCrouching.OnValueChanged += TriggerCrouchSyncSignal;
+        listensToNetworkCrouch = true;
+
+        signals.CrouchSyncSignal.Trigger(PlayerIsCrouching.Value);
     }
 
     public void Cleanup()
     {
-        signals.CrouchUpdateSignal.Unlisten(SetNetworkPlayerIsCrouchingRpc);
-        PlayerIsCrouching.OnValueChanged -= TriggerCrouchSyncSignal; // ???????????
+        if (listensToLocalCrouch)
+            signals.CrouchUpdateSignal.Unlisten(SetNetworkPlayerIsCrouchingRpc);
+
+        if (listensToNetworkCrouch)
+            PlayerIsCrouching.OnValueChanged -= TriggerCrouchSyncSignal;
+
+        listensToLocalCrouch = false;
+        listensToNetworkCrouch = false;
     }
 
     [Rpc(SendTo.Server)]
@@ -25,7 +42,7 @@ public class PlayerNetwork : PlayerNetworkComponent, IPlayerSignalListener
 
     private void TriggerCrouchSyncSignal(bool oldValue, bool newValue)
     {
-        if (oldValue != newValue) 
+        if (oldValue != newValue)
             signals.CrouchSyncSignal.Trigger(newValue);
     }
 }

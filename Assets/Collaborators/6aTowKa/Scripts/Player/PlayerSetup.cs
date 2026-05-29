@@ -36,12 +36,17 @@ public class PlayerSetup : NetworkBehaviour
         CameraFollow cameraFollow = RequireComponentInPlayerChildren<CameraFollow>();
         Camera playerCamera = RequireComponentInPlayerChildren<Camera>();
         AudioListener audioListener = RequireComponentInPlayerChildren<AudioListener>();
+        CapsuleCollider bodyCollider = RequireComponentInPlayerChildren<CapsuleCollider>();
 
         if (setupFailed)
         {
             enabled = false;
             return;
         }
+
+        playerController.SetCameraFollow(cameraFollow);
+        playerController.SetBodyCollider(bodyCollider);
+        playerAnimation.SetBodyCollider(bodyCollider);
 
         if (isMultiplayer)
         {
@@ -62,6 +67,8 @@ public class PlayerSetup : NetworkBehaviour
                 cameraFollow.enabled = true;
                 playerCamera.enabled = true;
                 audioListener.enabled = true;
+
+                cameraFollow.SetLocalControl(true);
                 cameraLook.SetLocalControl(true);
             }
             else
@@ -75,6 +82,8 @@ public class PlayerSetup : NetworkBehaviour
 
                 playerCamera.enabled = false;
                 audioListener.enabled = false;
+
+                cameraFollow.SetLocalControl(false);
                 cameraLook.SetLocalControl(false);
             }
         }
@@ -94,6 +103,8 @@ public class PlayerSetup : NetworkBehaviour
             cameraFollow.enabled = true;
             playerCamera.enabled = true;
             audioListener.enabled = true;
+
+            cameraFollow.SetLocalControl(true);
             cameraLook.SetLocalControl(true);
         }
 

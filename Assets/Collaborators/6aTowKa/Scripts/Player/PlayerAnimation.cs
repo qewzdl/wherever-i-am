@@ -2,59 +2,55 @@ using UnityEngine;
 
 public class PlayerAnimation : PlayerComponent, IPlayerSignalListener
 {
-    [SerializeField] private Transform playerModelTransform;
-    [SerializeField] private float animationSpeed;
-    [SerializeField] private float crouchHeight;
-    [SerializeField] private float standHeight;
+    [Header("Physical Crouch")]
+    [SerializeField] private CapsuleCollider bodyCollider;
+    [SerializeField] private float crouchColliderHeight = 1f;
+    [SerializeField] private float standColliderHeight = 2f;
+    [SerializeField] private Vector3 crouchColliderCenter = new Vector3(0f, -0.5f, 0f);
+    [SerializeField] private Vector3 standColliderCenter = Vector3.zero;
 
-    private float targetHeight;
-    private float lastHeight;
-    private bool playCrouchAnimation;
+    private bool missingColliderLogged;
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
         signals.CrouchUpdateSignal.Listen(SetupAnimation);
 
         if (isMultiplayer && !isOwner)
-        {
             signals.CrouchSyncSignal.Listen(SetupAnimation);
-        }
+
+        ApplyColliderState(false);
     }
 
     public void Cleanup()
     {
         signals.CrouchUpdateSignal.Unlisten(SetupAnimation);
-        signals.CrouchSyncSignal.Unlisten(SetupAnimation); // ???????
+        signals.CrouchSyncSignal.Unlisten(SetupAnimation);
     }
 
-    private void Update()
+    public void SetBodyCollider(CapsuleCollider collider)
     {
-        if (playCrouchAnimation)
-        {
-            CrouchAnimation();
-        }
+        bodyCollider = collider;
     }
 
     public void SetupAnimation(bool isCrouching)
     {
-        if (isCrouching) targetHeight = crouchHeight;
-        else targetHeight = standHeight;
-        playCrouchAnimation = true;
+        ApplyColliderState(isCrouching);
     }
 
-    private void CrouchAnimation()
+    private void ApplyColliderState(bool isCrouching)
     {
-        lastHeight = playerModelTransform.localScale.y;
-
-        float currentHeight = Mathf.Lerp(playerModelTransform.localScale.y, targetHeight, animationSpeed * Time.deltaTime);
-        if (Mathf.Abs(playerModelTransform.localScale.y - targetHeight) < 0.01)
+        if (bodyCollider == null)
         {
-            playerModelTransform.localScale = new Vector3(playerModelTransform.localScale.x, targetHeight, playerModelTransform.localScale.z);
-            playCrouchAnimation = false;
+            if (!missingColliderLogged)
+            {
+                Debug.LogError($"{nameof(PlayerAnimation)} requires assigned {nameof(CapsuleCollider)} for physical crouch.", this);
+                missingColliderLogged = true;
+            }
+
+            return;
         }
 
-        playerModelTransform.localScale = new Vector3(playerModelTransform.localScale.x, currentHeight, playerModelTransform.localScale.z);
-        playerModelTransform.position += new Vector3(0, (currentHeight - lastHeight), 0);
+        bodyCollider.height = Mathf.Max(0.01f, isCrouching ? crouchColliderHeight : standColliderHeight);
+        bodyCollider.center = isCrouching ? crouchColliderCenter : standColliderCenter;
     }
-
 }
