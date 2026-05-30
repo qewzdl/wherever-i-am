@@ -5,13 +5,15 @@ public abstract class PickupItem : DraggableObject
 {
     const int VIEWMODEL_LAYER_INDEX = 11;
     const int VIEWMODEL_RENDERING_LAYER_INDEX = 8;
-    
+
+    private bool isPickedUpServer = false;
+
     [SerializeField] private GameObject model;
 
     private Transform ownerTransform;
     private GameObject viewModel;
-    private bool isPickedUp = false;
     private Vector3 hiddenPosition = new Vector3(0, -1000, 0);
+    private PickUpContext context;
 
     private void OnValidate()
     {
@@ -37,20 +39,12 @@ public abstract class PickupItem : DraggableObject
     private void PickUp(PickUpContext context)
     {
         if (!NetworkManager.Singleton) return;
-        if (isPickedUp) return;
-        playerInteraction = context.PlayerInteraction;
-
-        ownerTransform = context.OwnerTransform;
-        isPickedUp = true;
-
-        MakeViewModel(context.ViewModelContainer);
-        PickUpServerRpc(NetworkManager.Singleton.LocalClientId);
+        this.context = context;
+        RequestPickUpItemServerRpc(NetworkManager.Singleton.LocalClientId);
     }
 
     protected void Drop()
     {
-        if (!isPickedUp) return;
-
         if (ownerTransform == null) return;
 
         GetComponentInChildren<MeshRenderer>().enabled = true;
@@ -60,9 +54,7 @@ public abstract class PickupItem : DraggableObject
 
         Destroy(viewModel);
 
-        isPickedUp = false;
-
-        DropServerRpc(ownerTransform.position);
+        DropServerRpc();
         ownerTransform = null;
 
         playerInteraction.SetIsCarrying(false);
@@ -70,19 +62,20 @@ public abstract class PickupItem : DraggableObject
 
     // Server RPCs
 
-    [Rpc(SendTo.Server)]
-    private void PickUpServerRpc(ulong ownerId)
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+    private void DropServerRpc()
     {
-        if (OwnerClientId != ownerId)
-            GetComponent<NetworkObject>().ChangeOwnership(ownerId);
-
-        PickUpClientRpc();
+        isPickedUpServer = false;
+        DropClientRpc();
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
-    private void DropServerRpc(Vector3 dropPosition)
+
+    [Rpc(SendTo.Server)]
+    private void RequestPickUpItemServerRpc(ulong ownerId)
     {
-        DropClientRpc(dropPosition);
+        if (isPickedUpServer) return;
+        isPickedUpServer = true;
+        PickUpServer(ownerId);
     }
 
     // Client RPCs
@@ -94,24 +87,34 @@ public abstract class PickupItem : DraggableObject
         rb.isKinematic = true;
         rb.position = hiddenPosition;
 
-        if (!IsOwner)
+        if (IsOwner)
         {
-            isPickedUp = true;
+            playerInteraction = context.PlayerInteraction;
+            ownerTransform = context.OwnerTransform;
+            MakeViewModel(context.ViewModelContainer);
         }
+
+        context = null;
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    private void DropClientRpc(Vector3 dropPosition)
+    private void DropClientRpc()
     {
-        if (!isPickedUp || IsOwner) return;
+        if (IsOwner) return;
 
         GetComponentInChildren<MeshRenderer>().enabled = true;
         rb.isKinematic = false;
-
-        ownerTransform = null;
-        isPickedUp = false;
     }
 
+    // Server
+    private void PickUpServer(ulong ownerId)
+    {
+        if (OwnerClientId != ownerId)
+            GetComponent<NetworkObject>().ChangeOwnership(ownerId);
+
+        PickUpClientRpc();
+    }
+        
     // Client
     private void MakeViewModel(Transform viewModelContainer)
     {

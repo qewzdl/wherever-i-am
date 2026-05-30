@@ -134,6 +134,12 @@ public abstract class DraggableObject : InteractableObject
         StartDraggingOwnerRpc();
     }
 
+    [Rpc(SendTo.Server)]
+    private void RequestResetOwnershipServerRpc()
+    {
+        GetComponent<NetworkObject>().ChangeOwnership(NetworkManager.ServerClientId);
+    }
+
     [Rpc(SendTo.Owner)]
     private void StartDraggingOwnerRpc()
     {
@@ -204,6 +210,7 @@ public abstract class DraggableObject : InteractableObject
         RestorePlayerAfterDragging();
         CleanupHoldPoint();
         playerInteraction.Undrag();
+        RequestResetOwnershipServerRpc();
     }
 
     // Coroutines 
