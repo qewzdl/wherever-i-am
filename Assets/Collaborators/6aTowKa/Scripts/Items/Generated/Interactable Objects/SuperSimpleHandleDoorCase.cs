@@ -14,6 +14,11 @@ public class SuperSimpleHandleDoorCase : ItemRequiredInteractable
         Debug.Log("You need the Door Handle!", this);
     }
 
+    public override void OnNetworkDespawn()
+    {
+        Destroy(gameObject);
+    }
+
     [Rpc(SendTo.Server)]
     private void DestroyCaseRpc()
     {
@@ -21,9 +26,8 @@ public class SuperSimpleHandleDoorCase : ItemRequiredInteractable
         if (netObj != null)
         {
             netObj.Despawn(false);
-            Destroy(netObj.gameObject);
         }
         else
-            Debug.LogWarning("Failed to find NetworkObject for SuperSimpleHandleDoorCase!", this);
+            Debug.LogWarning("Failed to find NetworkObject in parent hierarchy for SuperSimpleDoorHandle!", this);
     }
 }

@@ -4,8 +4,6 @@ using UnityEngine;
 
 public abstract class DraggableObject : InteractableObject
 {
-    private DraggableObjectData draggingData;
-
     private NetworkVariable<bool> netIsDragging = new(
         false,
         NetworkVariableReadPermission.Everyone,
@@ -24,24 +22,22 @@ public abstract class DraggableObject : InteractableObject
     private int velocityBufferIndex;
     private Vector3 previousPosition;
 
-    protected virtual void OnValidate()
+    private void OnValidate()
     {
         if (data != null)
         {
-            if (data is DraggableObjectData targetData)
-                draggingData = targetData;
-            else
+            if (data is not DraggableObjectData)
                 Debug.LogError($"Data for {name} must be of type DraggableObjectData!", this);
         }
     }
 
     private void Awake()
-    {
+    {        
         rb = GetComponent<Rigidbody>();
-        rb.mass = draggingData.Mass;
-        originalMass = draggingData.Mass;
+        rb.mass = ((DraggableObjectData)data).Mass;
+        originalMass = ((DraggableObjectData)data).Mass;
 
-        int samples = Mathf.Max(1, (int)draggingData.ThrowVelocitySamples);
+        int samples = Mathf.Max(1, (int)((DraggableObjectData)data).ThrowVelocitySamples);
         velocityBuffer = new Vector3[samples]; //create buffer
     }
 
@@ -106,7 +102,7 @@ public abstract class DraggableObject : InteractableObject
     private void SetupPlayerBeforeDragging()
     {
         originalPlayerSpeed = playerController.GetSpeed();
-        float speedMultiplier = 1f / (1f + draggingData.Mass * 0.3f);
+        float speedMultiplier = 1f / (1f + ((DraggableObjectData)data).Mass * 0.3f);
         playerController.SetSpeed(originalPlayerSpeed * speedMultiplier);
     }
 
@@ -121,9 +117,9 @@ public abstract class DraggableObject : InteractableObject
         if (holdPointTransform == null) return;
 
         float distance = Vector3.Distance(rayOrigin, holdPointTransform.transform.position);
-        if (distance < draggingData.MinDistance)
+        if (distance < ((DraggableObjectData)data).MinDistance)
         {
-            holdPointTransform.position = rayOrigin + (holdPointTransform.position - rayOrigin).normalized * draggingData.MinDistance;
+            holdPointTransform.position = rayOrigin + (holdPointTransform.position - rayOrigin).normalized * ((DraggableObjectData)data).MinDistance;
         }
     }
 
@@ -170,7 +166,7 @@ public abstract class DraggableObject : InteractableObject
         Vector3 targetPos = holdPointTransform.position;
         float distanceToTarget = Vector3.Distance(rb.position, targetPos);
 
-        if (distanceToTarget > draggingData.MaxDragDistance)
+        if (distanceToTarget > ((DraggableObjectData)data).MaxDragDistance)
         {
             StopDragging(applyThrow: false);
             return;
@@ -182,11 +178,8 @@ public abstract class DraggableObject : InteractableObject
         previousPosition = rb.position;
 
         Vector3 delta = targetPos - rb.position;
-        Vector3 desiredSpeed = delta * draggingData.FollowSpeedMultiplier;
-        rb.linearVelocity = Vector3.ClampMagnitude(desiredSpeed, draggingData.MaxFollowSpeed);
-
-        //Vector3 newPos = Vector3.Lerp(rb.position, targetPos, Time.fixedDeltaTime * (draggingData.FollowSpeed / (1 + draggingData.Mass)));
-        //rb.MovePosition(newPos);
+        Vector3 desiredSpeed = delta * ((DraggableObjectData)data).FollowSpeedMultiplier;
+        rb.linearVelocity = Vector3.ClampMagnitude(desiredSpeed, ((DraggableObjectData)data).MaxFollowSpeed);
     }
 
     private void StopDragging(bool applyThrow)
@@ -276,6 +269,6 @@ public abstract class DraggableObject : InteractableObject
         // Радиус автосброса
         Gizmos.color = new Color(1, 0, 0, 0.1f);
         if (holdPointTransform != null)
-            Gizmos.DrawWireSphere(holdPointTransform.position, draggingData.MaxDragDistance);
+            Gizmos.DrawWireSphere(holdPointTransform.position, ((DraggableObjectData)data).MaxDragDistance);
     }
 }

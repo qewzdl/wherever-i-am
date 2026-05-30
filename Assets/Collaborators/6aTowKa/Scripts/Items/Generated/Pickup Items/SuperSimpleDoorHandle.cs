@@ -9,6 +9,11 @@ public class SuperSimpleDoorHandle : PassiveItem
         DestroyHandleRpc();
     }
 
+    public override void OnNetworkDespawn()
+    {
+        Destroy(gameObject);
+    }
+
     [Rpc(SendTo.Server)]
     private void DestroyHandleRpc()
     {
@@ -16,7 +21,6 @@ public class SuperSimpleDoorHandle : PassiveItem
         if (netObj != null)
         {
             netObj.Despawn(false);
-            Destroy(netObj.gameObject);
         }
         else 
             Debug.LogWarning("Failed to find NetworkObject in parent hierarchy for SuperSimpleDoorHandle!", this);

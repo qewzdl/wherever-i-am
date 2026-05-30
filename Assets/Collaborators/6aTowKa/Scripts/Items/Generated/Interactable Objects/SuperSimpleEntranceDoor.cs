@@ -8,6 +8,11 @@ public class SuperSimpleEntranceDoor : InteractableObject
         DestroyDoorRpc();
     }
 
+    public override void OnNetworkDespawn()
+    {
+        Destroy(transform.parent.gameObject);
+    }
+
     [Rpc(SendTo.Server)]
     private void DestroyDoorRpc()
     {
@@ -15,9 +20,8 @@ public class SuperSimpleEntranceDoor : InteractableObject
         if (netObj != null)
         {
             netObj.Despawn(false);
-            Destroy(netObj.gameObject);
         }
         else
-            Debug.LogWarning("Failed to find NetworkObject for SuperSimpleHandleDoorCase!", this);
+            Debug.LogWarning("Failed to find NetworkObject in parent hierarchy for SuperSimpleDoorHandle!", this);
     }
 }

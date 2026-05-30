@@ -6,24 +6,18 @@ public abstract class PickupItem : DraggableObject
     const int VIEWMODEL_LAYER_INDEX = 11;
     const int VIEWMODEL_RENDERING_LAYER_INDEX = 8;
     
-
     [SerializeField] private GameObject model;
 
-    private PickupItemData itemData;
     private Transform ownerTransform;
     private GameObject viewModel;
     private bool isPickedUp = false;
     private Vector3 hiddenPosition = new Vector3(0, -1000, 0);
 
-    protected override void OnValidate()
+    private void OnValidate()
     {
-        base.OnValidate();  
-
         if (data != null)
         {
-            if (data is PickupItemData targetData)
-                itemData = targetData;
-            else
+            if (data is not PickupItemData)
                 Debug.LogError($"Data for {name} must be of type PickupItemData!", this);
         }
     }
@@ -126,13 +120,13 @@ public abstract class PickupItem : DraggableObject
         viewModel.GetComponent<MeshRenderer>().enabled = true;
         viewModel.layer = VIEWMODEL_LAYER_INDEX;
 
-        var entry = ViewModelsItemsData.Instance.GetEntry(itemData.ItemViewModelDataName);
+        var entry = ViewModelsItemsData.Instance.GetEntry(((PickupItemData)data).ItemViewModelDataName);
         entry.ApplyTo(viewModel.transform);
     }
 
     //other
     public int GetItemID()
     {
-        return itemData.ItemID;
+        return ((PickupItemData)data).ItemID;
     }
 }
