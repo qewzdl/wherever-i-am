@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem.HID;
 
 public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 {
@@ -8,7 +9,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     [SerializeField] private LayerMask interactableLayer;
 
     // Objects
-    [SerializeField] private Sprite defualtCrosshair;
+    [SerializeField] private Sprite defaultCrosshair;
     [SerializeField] private Transform playerCameraTransform;
     [SerializeField] private PlayerController playerController;
 
@@ -16,18 +17,20 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     [SerializeField] private Transform viewModelContainer;
     [SerializeField] private Transform itemDropTransform;
 
-    private InteractableObject currentInteractable;
-    private Item currentItem;
+    private InteractableObject focusedInteractable;
+    private PickupItem currentItem;
+    private DraggableObject currentDraggable;
+    
+    private GameObject HitPoint;
+    private bool crosshairIsDefualt;
 
-    private InteractionContext interactionContext;
-    private PickUpContext pickUpContext;
-    private GameObject contactPoint;
+    private RaycastHit hit;
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
-        contactPoint = new GameObject();
-        contactPoint.transform.parent = this.transform;
-        contactPoint.name = "ContactPoint";
+        HitPoint = new GameObject();
+        HitPoint.transform.parent = transform;
+        HitPoint.name = "ContactPoint";
 
         signals.Interact.Listen(Interact);
         signals.Uninteract.Listen(Uninteract);
@@ -41,15 +44,23 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
         signals.Uninteract.Unlisten(Uninteract);
         signals.PickUp.Unlisten(PickUp);
         signals.Drop.Unlisten(Drop);
+
+        if (HitPoint != null)
+            Destroy(HitPoint);
     }
 
+    private void Update()
+    {
+        Raycast();
+    }
+
+    // Focusing
     private void Raycast()
     {
-        if (states.IsDragging) return;
+        if (!CanFocus()) return;
 
         Debug.DrawRay(rayOrigin.position, rayOrigin.forward * interactionRange, Color.red);
         Ray ray = new Ray(rayOrigin.position, rayOrigin.forward);
-        RaycastHit hit;
 
         if (Physics.Raycast(ray, out hit, interactionRange, interactableLayer))
         {
@@ -57,102 +68,164 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
             if (interactable)
             {
-                if (currentInteractable != interactable)
-                {
-                    currentInteractable = interactable;
-                    if (states.IsCarring && currentInteractable is Object draggingObject) return;
-                    signals.CrosshairSpriteSignal.Trigger(interactable.InteractionSprite);
-                }
+                if (focusedInteractable != interactable)
+                    if (CanFocusOn(interactable))
+                        SetFocusedInteractable(interactable);
+            }
+        }
+        else
+        {
+            if (focusedInteractable != null || !crosshairIsDefualt)
+                ResetFocusedInteractable();
+        }
+    }
 
-                if (interactable is Object)
-                    contactPoint.transform.position = hit.point;
+    private void SetFocusedInteractable(InteractableObject interactable)
+    {
+        focusedInteractable = interactable; 
+        signals.CrosshairSpriteSignal.Trigger(interactable.GetIteractionSprite());
+        crosshairIsDefualt = false;
+    }
 
+    private void ResetFocusedInteractable()
+    {
+        focusedInteractable = null;
+        signals.CrosshairSpriteSignal.Trigger(defaultCrosshair);
+        crosshairIsDefualt = true;
+    }
+
+    private bool CanFocus()
+    {
+        if (states.IsDragging) return false;
+        return true;
+    }
+
+    private bool CanFocusOn(InteractableObject interactable)
+    {
+        if (states.IsCarrying && interactable is DraggableObject and not ItemInteractableDraggable) return false;
+
+        return true;    
+    }
+
+    //Interacting
+    private void Interact()
+    {
+        if (currentItem != null && focusedInteractable == null)
+        {
+            if (currentItem is UsableItem usableItem and not ActivatableUsableItem)
+            {
+                usableItem.Use();
                 return;
             }
         }
 
-        if (currentInteractable != null)
-        {
-            currentInteractable = null;
-            signals.CrosshairSpriteSignal.Trigger(defualtCrosshair);
-        }
+        if (focusedInteractable != null)
+            InteractWithWorldInteractable();
     }
 
-    private void Interact()
+    private void InteractWithWorldInteractable()
     {
-        if (states.IsDragging) return;
+        InteractionContext ctx = BuildInteractionContext();
 
-        if (states.IsCarring)
+        if (focusedInteractable is DraggableObject draggingObject)
         {
-            bool success = currentItem.Action();
-            if (success) return;
-        }
+            HitPoint.transform.position = hit.point;
 
-        interactionContext = new InteractionContext
-        {
-            HoldPoint = contactPoint.transform,
-            PlayerCameraTransform = this.playerCameraTransform,
-            PlayerController = this.playerController,
-            RayOriginPosition = rayOrigin.position,
-            currentPlayerItem = currentItem,
-        };
-
-        if (currentInteractable is DraggingObject draggingObject)
-        {
-            if (states.IsCarring) return;
-            draggingObject.Interact(interactionContext);
+            draggingObject.OnInteract(ctx);
             states.IsDragging = true;
+            currentDraggable = draggingObject;
         }
-        else if (currentInteractable)
+        else
         {
-            currentInteractable.Interact(interactionContext);
-            currentInteractable = null;
+            focusedInteractable.OnInteract(ctx);
         }
-
-        signals.CrosshairSpriteSignal.Trigger(defualtCrosshair);
     }
 
     private void Uninteract()
     {
-        if (currentInteractable is DraggingObject draggingObject)
-        {
-            draggingObject.Uninteract();
-            currentInteractable = null;
-        }
-
-        states.IsDragging = false;
+        Undrag();
     }
 
+    private InteractionContext BuildInteractionContext()
+    {
+        return new InteractionContext
+        {
+            HitPoint = HitPoint.transform,
+            PlayerCameraTransform = playerCameraTransform,
+            PlayerController = playerController,
+            RayOriginPosition = rayOrigin.position,
+            CurrentItem = currentItem,
+            PlayerInteraction = this,
+        };
+    }
+    //Undragging
+    public void Undrag()
+    {
+        if (currentDraggable != null)
+        {
+            currentDraggable.OnUninteract();
+            states.IsDragging = false;
+            currentDraggable = null;
+        }
+    }
+
+    // Picking up and dropping items
     private void PickUp()
     {
-        if (states.IsDragging) return;
-        if (currentInteractable == null) return;
+        if (focusedInteractable is not PickupItem item) return;
+        if (!CanPickUp()) return;
 
-        pickUpContext = new PickUpContext
-        {
-            ViewModelContainer = this.viewModelContainer,
-            OwnerTransform = itemDropTransform
-        };
+        PickUpContext pickUpContext = BuildPickUpContext();
 
-        if (currentInteractable is Item item)
-        {
-            item.PickUp(pickUpContext);
-            states.IsCarring = true;
-            currentItem = item;
-        }
-
+        item.OnPickup(pickUpContext);
+        SetCurrentItem(item);
     }
 
     private void Drop()
     {
         if (!currentItem) return;
-        currentItem.Drop();
-        currentItem = null;
-        states.IsCarring = false;
+
+        currentItem.OnDrop();
+        SetCurrentItem(null);
     }
 
-    private void Update()
+    private bool CanPickUp()
     {
-        Raycast();
+        if (states.IsCarrying) return false;
+        if (states.IsDragging) return false;
+        return true;
+    }
+
+
+    private void SetCurrentItem(PickupItem item)
+    {
+        currentItem = item;
+        states.IsCarrying = item != null;
+    }
+
+    private PickUpContext BuildPickUpContext()
+    {
+        return new PickUpContext
+        {
+            ViewModelContainer = viewModelContainer,
+            OwnerTransform = itemDropTransform,
+            PlayerInteraction = this,
+        };
+    }
+    
+    //other
+    public void SetIsCarrying(bool value)
+    {
+        states.IsCarrying = value;
+    }
+
+    //debug
+    private void OnDrawGizmos()
+    {
+        if (hit.point != Vector3.zero)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireSphere(hit.point, 0.06f);
+        }
     }
 }
