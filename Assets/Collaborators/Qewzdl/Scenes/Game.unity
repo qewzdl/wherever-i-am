@@ -4921,20 +4921,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3cba32eecf001a74c8edc27a3a21c242, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  noThreatCue: {fileID: 0}
-  restoreNoThreatCue: 1
-  musicByThreatLevel:
-  - threatLevel: 1
-    cue: {fileID: 11400000, guid: 4f4e3d4515b3f4146bda3a93df1ce6fd, type: 2}
-    restartIfSameCue: 0
-  - threatLevel: 2
-    cue: {fileID: 11400000, guid: 92fb48e32ab71ef498589f6f8b905809, type: 2}
-    restartIfSameCue: 0
-  - threatLevel: 3
-    cue: {fileID: 0}
-    restartIfSameCue: 0
-  stopThreatCueWhenNoThreat: 1
-  threatFadeOutTime: 1
+  musicManager: {fileID: 0}
+  suspiciousCue: {fileID: 0}
+  combatCue: {fileID: 0}
+  lostTargetCue: {fileID: 0}
+  calmCue: {fileID: 0}
+  calmFadeOutTime: 1
 --- !u!4 &1025451941
 Transform:
   m_ObjectHideFlags: 0
@@ -8622,7 +8614,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 2878350234
+  GlobalObjectIdHash: 937812421
   InScenePlacedSourceGlobalObjectIdHash: 2905841236
   DeferredDespawnTick: 0
   Ownership: 1
