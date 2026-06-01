@@ -20,8 +20,10 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         NetworkVariableWritePermission.Server);
 
     private Coroutine finishCoroutine;
+    private bool gameFinishedRaised;
 
     public event Action<GamePhase, GamePhase> PhaseChanged;
+    public event Action<GameResultData, GameResultData> ResultChanged;
     public event Action<GameResultData> GameFinished;
 
     public GamePhase CurrentPhase => phase.Value;
@@ -31,6 +33,8 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        gameFinishedRaised = phase.Value == GamePhase.Finished;
+
         phase.OnValueChanged += HandlePhaseChanged;
         result.OnValueChanged += HandleResultChanged;
 
@@ -38,11 +42,6 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         {
             phase.Value = initialPhase;
             result.Value = GameResultData.None;
-        }
-
-        if (IsGameFinished)
-        {
-            GameFinished?.Invoke(result.Value);
         }
     }
 
@@ -56,6 +55,8 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             StopCoroutine(finishCoroutine);
             finishCoroutine = null;
         }
+
+        gameFinishedRaised = false;
     }
 
     public bool StartGameServerOnly()
@@ -71,6 +72,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return false;
         }
 
+        gameFinishedRaised = false;
         result.Value = GameResultData.None;
         phase.Value = GamePhase.Playing;
         return true;
@@ -149,15 +151,23 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         if (newValue == GamePhase.Finished)
         {
-            GameFinished?.Invoke(result.Value);
+            RaiseGameFinishedOnce();
         }
     }
 
     private void HandleResultChanged(GameResultData previousValue, GameResultData newValue)
     {
-        if (phase.Value == GamePhase.Ending || phase.Value == GamePhase.Finished)
+        ResultChanged?.Invoke(previousValue, newValue);
+    }
+
+    private void RaiseGameFinishedOnce()
+    {
+        if (gameFinishedRaised)
         {
-            GameFinished?.Invoke(newValue);
+            return;
         }
+
+        gameFinishedRaised = true;
+        GameFinished?.Invoke(result.Value);
     }
 }
