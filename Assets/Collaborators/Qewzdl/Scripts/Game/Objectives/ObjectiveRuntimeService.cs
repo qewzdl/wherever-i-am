@@ -71,9 +71,23 @@ public sealed class ObjectiveRuntimeService
             return false;
         }
 
+        if (!CanStartAllObjectivesServerOnly())
+        {
+            return false;
+        }
+
         for (int i = 0; i < objectives.Length; i++)
         {
-            objectives[i].StartObjectiveServerOnly();
+            ObjectiveCondition objective = objectives[i];
+
+            if (!objective.StartObjectiveServerOnly())
+            {
+                Debug.LogError(
+                    $"{nameof(ObjectiveRuntimeService)} failed to start objective at index {i}. Current state: {objective.State}.",
+                    objective);
+
+                return false;
+            }
         }
 
         return true;
@@ -91,6 +105,31 @@ public sealed class ObjectiveRuntimeService
             if (objectives[i] != null)
             {
                 objectives[i].CancelObjectiveServerOnly();
+            }
+        }
+
+        return true;
+    }
+
+    private bool CanStartAllObjectivesServerOnly()
+    {
+        for (int i = 0; i < objectives.Length; i++)
+        {
+            ObjectiveCondition objective = objectives[i];
+
+            if (objective == null)
+            {
+                Debug.LogError($"{nameof(ObjectiveRuntimeService)} has null objective at index {i}.", manager);
+                return false;
+            }
+
+            if (!objective.CanStartObjectiveServerOnly())
+            {
+                Debug.LogError(
+                    $"{nameof(ObjectiveRuntimeService)} cannot start objective at index {i}. Current state: {objective.State}.",
+                    objective);
+
+                return false;
             }
         }
 

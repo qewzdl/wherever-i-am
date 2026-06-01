@@ -60,21 +60,36 @@ public abstract class ObjectiveCondition : MonoBehaviour
         OnInitialized();
     }
 
-    internal void StartObjectiveServerOnly()
+    internal bool CanStartObjectiveServerOnly()
+    {
+        return CanRunServerLogic() && state == ObjectiveState.Initialized;
+    }
+
+    internal bool StartObjectiveServerOnly()
     {
         if (!CanRunServerLogic())
         {
-            return;
+            Debug.LogError($"{GetType().Name} cannot start objective because server logic is not available. Current state: {state}.", this);
+            return false;
         }
 
         if (state != ObjectiveState.Initialized)
         {
-            return;
+            Debug.LogError($"{GetType().Name} can start only from {nameof(ObjectiveState.Initialized)}. Current state: {state}.", this);
+            return false;
         }
 
         SetState(ObjectiveState.Running);
         OnObjectiveStarted();
         NotifyProgressChanged();
+
+        if (state != ObjectiveState.Running)
+        {
+            Debug.LogError($"{GetType().Name} failed to stay in {nameof(ObjectiveState.Running)} after start. Current state: {state}.", this);
+            return false;
+        }
+
+        return true;
     }
 
     internal void CancelObjectiveServerOnly(ulong instigatorClientId = 0)
