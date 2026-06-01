@@ -31,8 +31,8 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
     public GamePhase CurrentPhase => phase.Value;
     public GameResultData CurrentResult => result.Value;
-    public bool IsGameRunning => phase.Value == GamePhase.Playing;
-    public bool IsGameFinished => IsTerminalPhase(phase.Value);
+    public bool IsMatchRunning => phase.Value == GamePhase.Playing;
+    public bool IsMatchFinished => IsTerminalPhase(phase.Value);
 
     public override void OnNetworkSpawn()
     {
@@ -79,7 +79,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return false;
         }
 
-        if (IsGameFinished)
+        if (IsMatchFinished)
         {
             return false;
         }
@@ -122,7 +122,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return false;
         }
 
-        if (IsGameFinished)
+        if (IsMatchFinished)
         {
             return false;
         }
