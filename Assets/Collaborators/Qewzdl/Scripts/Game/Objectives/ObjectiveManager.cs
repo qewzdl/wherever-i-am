@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -17,7 +16,10 @@ public sealed class ObjectiveManager : NetworkBehaviour
     [SerializeField] private bool startObjectivesOnSpawn = true;
 
     private NetworkList<ObjectiveProgressData> progressStates;
-    private readonly HashSet<string> objectiveIds = new HashSet<string>();
+
+    private ObjectiveRuntimeService runtimeService;
+    private ObjectiveProgressSync progressSync;
+    private ObjectiveCompletionRouter completionRouter;
 
     public event Action<ObjectiveProgressData> ObjectiveProgressChanged;
 
@@ -27,24 +29,35 @@ public sealed class ObjectiveManager : NetworkBehaviour
     private void Awake()
     {
         progressStates = new NetworkList<ObjectiveProgressData>();
+
+        runtimeService = new ObjectiveRuntimeService();
+        progressSync = new ObjectiveProgressSync(progressStates);
+        completionRouter = new ObjectiveCompletionRouter();
     }
 
     public override void OnNetworkSpawn()
     {
-        progressStates.OnListChanged += HandleProgressListChanged;
+        progressSync.Subscribe();
+        progressSync.ProgressChanged += HandleObjectiveProgressChanged;
 
         if (!IsServer)
         {
             return;
         }
 
-        if (!ValidateSetup())
+        if (!completionRouter.Initialize(gameFlow, this))
         {
             enabled = false;
             return;
         }
 
-        InitializeObjectives();
+        if (!runtimeService.Initialize(this, gameplayEventHub, objectives))
+        {
+            enabled = false;
+            return;
+        }
+
+        runtimeService.InitializeObjectivesServerOnly(progressSync);
 
         if (startGameFlowOnSpawn)
         {
@@ -59,25 +72,20 @@ public sealed class ObjectiveManager : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        progressStates.OnListChanged -= HandleProgressListChanged;
+        progressSync.ProgressChanged -= HandleObjectiveProgressChanged;
+        progressSync.Unsubscribe();
 
-        if (IsServer && objectives != null)
+        if (IsServer)
         {
-            for (int i = 0; i < objectives.Length; i++)
-            {
-                if (objectives[i] != null)
-                {
-                    objectives[i].StopObjectiveServerOnly();
-                }
-            }
+            runtimeService.StopObjectivesServerOnly();
         }
     }
 
-    public int ProgressCount => progressStates.Count;
+    public int ProgressCount => progressSync.ProgressCount;
 
     public ObjectiveProgressData GetProgress(int index)
     {
-        return progressStates[index];
+        return progressSync.GetProgress(index);
     }
 
     public void StartObjectivesServerOnly()
@@ -88,10 +96,7 @@ public sealed class ObjectiveManager : NetworkBehaviour
             return;
         }
 
-        for (int i = 0; i < objectives.Length; i++)
-        {
-            objectives[i].StartObjectiveServerOnly();
-        }
+        runtimeService.StartObjectivesServerOnly();
     }
 
     public void StopObjectivesServerOnly()
@@ -102,10 +107,7 @@ public sealed class ObjectiveManager : NetworkBehaviour
             return;
         }
 
-        for (int i = 0; i < objectives.Length; i++)
-        {
-            objectives[i].StopObjectiveServerOnly();
-        }
+        runtimeService.StopObjectivesServerOnly();
     }
 
     internal void HandleObjectiveCompleted(ObjectiveCondition objective, ulong instigatorClientId)
@@ -121,18 +123,8 @@ public sealed class ObjectiveManager : NetworkBehaviour
             return;
         }
 
-        UpdateObjectiveProgress(objective);
-
-        if (!objective.CompletesGame)
-        {
-            return;
-        }
-
-        gameFlow.FinishGameServerOnly(
-            objective.ResultType,
-            objective.CompletionReason,
-            objective.ObjectiveId,
-            instigatorClientId);
+        progressSync.UpsertObjectiveServerOnly(objective);
+        completionRouter.RouteCompletionServerOnly(objective, instigatorClientId, this);
     }
 
     internal void UpdateObjectiveProgress(ObjectiveCondition objective)
@@ -142,113 +134,11 @@ public sealed class ObjectiveManager : NetworkBehaviour
             return;
         }
 
-        ObjectiveProgressData progress = ObjectiveProgressData.Create(
-            objective.ObjectiveId,
-            objective.DisplayName,
-            objective.CurrentValue,
-            objective.TargetValue,
-            objective.IsCompleted);
-
-        int index = FindProgressIndex(objective.ObjectiveId);
-
-        if (index >= 0)
-        {
-            progressStates[index] = progress;
-            return;
-        }
-
-        progressStates.Add(progress);
+        progressSync.UpsertObjectiveServerOnly(objective);
     }
 
-    private bool ValidateSetup()
+    private void HandleObjectiveProgressChanged(ObjectiveProgressData progressData)
     {
-        if (gameFlow == null)
-        {
-            Debug.LogError($"{nameof(ObjectiveManager)} requires {nameof(NetworkGameFlow)} reference.", this);
-            return false;
-        }
-
-        if (objectives == null || objectives.Length == 0)
-        {
-            Debug.LogError($"{nameof(ObjectiveManager)} requires at least one objective.", this);
-            return false;
-        }
-
-        objectiveIds.Clear();
-
-        for (int i = 0; i < objectives.Length; i++)
-        {
-            ObjectiveCondition objective = objectives[i];
-
-            if (objective == null)
-            {
-                Debug.LogError($"{nameof(ObjectiveManager)} has null objective at index {i}.", this);
-                return false;
-            }
-
-            ObjectiveDefinition definition = objective.Definition;
-
-            if (definition == null)
-            {
-                Debug.LogError($"{objective.GetType().Name} at index {i} requires assigned {nameof(ObjectiveDefinition)}.", objective);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(definition.ObjectiveId))
-            {
-                Debug.LogError($"{definition.name} has empty objective id.", definition);
-                return false;
-            }
-
-            if (!objectiveIds.Add(definition.ObjectiveId))
-            {
-                Debug.LogError($"{nameof(ObjectiveManager)} has duplicate objective id: {definition.ObjectiveId}.", definition);
-                return false;
-            }
-
-            if (definition.CompletesGame && definition.ResultType == GameResultType.None)
-            {
-                Debug.LogError($"{definition.name} completes game but has invalid result type.", definition);
-                return false;
-            }
-
-            if (objective.RequiresGameplayEventHub && gameplayEventHub == null)
-            {
-                Debug.LogError($"{objective.GetType().Name} requires {nameof(GameplayEventHub)} reference.", objective);
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private void InitializeObjectives()
-    {
-        progressStates.Clear();
-
-        for (int i = 0; i < objectives.Length; i++)
-        {
-            ObjectiveCondition objective = objectives[i];
-            objective.Initialize(this, gameplayEventHub);
-            UpdateObjectiveProgress(objective);
-        }
-    }
-
-    private int FindProgressIndex(string objectiveId)
-    {
-        for (int i = 0; i < progressStates.Count; i++)
-        {
-            if (progressStates[i].ObjectiveId.ToString() == objectiveId)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    private void HandleProgressListChanged(NetworkListEvent<ObjectiveProgressData> changeEvent)
-    {
-        ObjectiveProgressChanged?.Invoke(changeEvent.Value);
+        ObjectiveProgressChanged?.Invoke(progressData);
     }
 }
