@@ -71,7 +71,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         gameFinishedRaised = false;
     }
 
-    public bool StartGameServerOnly()
+    public bool StartMatchServerOnly()
     {
         if (!IsServer)
         {
@@ -112,17 +112,6 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         }
 
         return TrySetPhaseServerOnly(GamePhase.Playing, true);
-    }
-
-    public bool SetPhaseServerOnly(GamePhase nextPhase)
-    {
-        if (!IsServer)
-        {
-            Debug.LogError($"{nameof(NetworkGameFlow)} can change phase only on server.", this);
-            return false;
-        }
-
-        return TrySetPhaseServerOnly(nextPhase, true);
     }
 
     public bool CompleteMatchServerOnly(GameResultData matchResult)

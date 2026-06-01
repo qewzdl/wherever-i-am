@@ -69,7 +69,7 @@ public sealed class MatchStartupService : NetworkBehaviour
 
         if (gameFlow.CurrentPhase != GamePhase.Playing)
         {
-            if (!gameFlow.StartGameServerOnly())
+            if (!gameFlow.StartMatchServerOnly())
             {
                 return false;
             }
