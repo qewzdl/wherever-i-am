@@ -16,14 +16,30 @@ public sealed class ObjectiveCompletionRouter
         return true;
     }
 
-    public void RouteCompletionServerOnly(
+    public void RouteCompletedObjectiveServerOnly(
+        ObjectiveCondition objective,
+        ulong instigatorClientId,
+        Object logContext)
+    {
+        RouteTerminalObjectiveServerOnly(objective, instigatorClientId, logContext);
+    }
+
+    public void RouteFailedObjectiveServerOnly(
+        ObjectiveCondition objective,
+        ulong instigatorClientId,
+        Object logContext)
+    {
+        RouteTerminalObjectiveServerOnly(objective, instigatorClientId, logContext);
+    }
+
+    private void RouteTerminalObjectiveServerOnly(
         ObjectiveCondition objective,
         ulong instigatorClientId,
         Object logContext)
     {
         if (objective == null)
         {
-            Debug.LogError($"{nameof(ObjectiveCompletionRouter)} received null completed objective.", logContext);
+            Debug.LogError($"{nameof(ObjectiveCompletionRouter)} received null terminal objective.", logContext);
             return;
         }
 

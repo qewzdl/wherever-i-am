@@ -77,7 +77,7 @@ public sealed class ObjectiveRuntimeService
         }
     }
 
-    public void StopObjectivesServerOnly()
+    public void CancelObjectivesServerOnly()
     {
         if (objectives == null)
         {
@@ -88,7 +88,7 @@ public sealed class ObjectiveRuntimeService
         {
             if (objectives[i] != null)
             {
-                objectives[i].StopObjectiveServerOnly();
+                objectives[i].CancelObjectiveServerOnly();
             }
         }
     }

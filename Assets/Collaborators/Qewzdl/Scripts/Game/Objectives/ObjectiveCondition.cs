@@ -4,9 +4,7 @@ public abstract class ObjectiveCondition : MonoBehaviour
 {
     private ObjectiveManager manager;
     private GameplayEventHub eventHub;
-    private bool isInitialized;
-    private bool isRunning;
-    private bool isCompleted;
+    private ObjectiveState state = ObjectiveState.Inactive;
 
     public abstract ObjectiveDefinition Definition { get; }
 
@@ -15,10 +13,14 @@ public abstract class ObjectiveCondition : MonoBehaviour
     public bool CompletesGame => Definition != null && Definition.CompletesGame;
     public GameResultType ResultType => Definition != null ? Definition.ResultType : GameResultType.None;
     public string CompletionReason => Definition != null ? Definition.CompletionReason : string.Empty;
-    public bool IsCompleted => isCompleted;
-    public bool IsRunning => isRunning;
+    public ObjectiveState State => state;
+    public bool IsCompleted => state == ObjectiveState.Completed;
+    public bool IsRunning => state == ObjectiveState.Running;
+    public bool IsTerminal => state == ObjectiveState.Completed
+                              || state == ObjectiveState.Failed
+                              || state == ObjectiveState.Cancelled;
     public virtual bool RequiresGameplayEventHub => false;
-    public virtual int CurrentValue => isCompleted ? TargetValue : 0;
+    public virtual int CurrentValue => IsCompleted ? TargetValue : 0;
     public virtual int TargetValue => Definition != null ? Definition.TargetValue : 0;
 
     protected ObjectiveManager Manager => manager;
@@ -26,6 +28,13 @@ public abstract class ObjectiveCondition : MonoBehaviour
 
     internal void Initialize(ObjectiveManager objectiveManager, GameplayEventHub gameplayEventHub)
     {
+        if (state != ObjectiveState.Inactive)
+        {
+            Debug.LogError($"{GetType().Name} can be initialized only from {nameof(ObjectiveState.Inactive)}. Current state: {state}.", this);
+            enabled = false;
+            return;
+        }
+
         if (objectiveManager == null)
         {
             Debug.LogError($"{nameof(ObjectiveCondition)} requires {nameof(ObjectiveManager)}.", this);
@@ -56,7 +65,7 @@ public abstract class ObjectiveCondition : MonoBehaviour
 
         manager = objectiveManager;
         eventHub = gameplayEventHub;
-        isInitialized = true;
+        SetState(ObjectiveState.Initialized);
 
         OnInitialized();
     }
@@ -68,25 +77,30 @@ public abstract class ObjectiveCondition : MonoBehaviour
             return;
         }
 
-        if (isRunning || isCompleted)
+        if (state != ObjectiveState.Initialized)
         {
             return;
         }
 
-        isRunning = true;
+        SetState(ObjectiveState.Running);
         OnObjectiveStarted();
         NotifyProgressChanged();
     }
 
-    internal void StopObjectiveServerOnly()
+    internal void CancelObjectiveServerOnly()
     {
-        if (!isRunning)
+        if (!CanRunServerLogic())
         {
             return;
         }
 
-        isRunning = false;
-        OnObjectiveStopped();
+        if (state != ObjectiveState.Initialized && state != ObjectiveState.Running)
+        {
+            return;
+        }
+
+        SetState(ObjectiveState.Cancelled);
+        OnObjectiveCancelled();
         NotifyProgressChanged();
     }
 
@@ -97,18 +111,35 @@ public abstract class ObjectiveCondition : MonoBehaviour
             return;
         }
 
-        if (!isRunning || isCompleted)
+        if (state != ObjectiveState.Running)
         {
             return;
         }
 
-        isCompleted = true;
-        isRunning = false;
-
+        SetState(ObjectiveState.Completed);
         OnObjectiveCompleted();
         NotifyProgressChanged();
 
         manager.HandleObjectiveCompleted(this, instigatorClientId);
+    }
+
+    protected void Fail(ulong instigatorClientId = 0)
+    {
+        if (!CanRunServerLogic())
+        {
+            return;
+        }
+
+        if (state != ObjectiveState.Running)
+        {
+            return;
+        }
+
+        SetState(ObjectiveState.Failed);
+        OnObjectiveFailed();
+        NotifyProgressChanged();
+
+        manager.HandleObjectiveFailed(this, instigatorClientId);
     }
 
     protected void NotifyProgressChanged()
@@ -123,12 +154,17 @@ public abstract class ObjectiveCondition : MonoBehaviour
 
     protected bool CanRunServerLogic()
     {
-        return isInitialized && manager != null && manager.IsServerActive;
+        return state != ObjectiveState.Inactive && manager != null && manager.IsServerActive;
     }
 
     protected bool CanReceiveObjectiveSignal()
     {
-        return CanRunServerLogic() && isRunning && !isCompleted;
+        return CanRunServerLogic() && state == ObjectiveState.Running;
+    }
+
+    private void SetState(ObjectiveState nextState)
+    {
+        state = nextState;
     }
 
     protected virtual void OnInitialized()
@@ -139,11 +175,15 @@ public abstract class ObjectiveCondition : MonoBehaviour
     {
     }
 
-    protected virtual void OnObjectiveStopped()
+    protected virtual void OnObjectiveCompleted()
     {
     }
 
-    protected virtual void OnObjectiveCompleted()
+    protected virtual void OnObjectiveFailed()
+    {
+    }
+
+    protected virtual void OnObjectiveCancelled()
     {
     }
 }

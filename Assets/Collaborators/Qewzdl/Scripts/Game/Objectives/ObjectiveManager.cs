@@ -72,13 +72,13 @@ public sealed class ObjectiveManager : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        progressSync.ProgressChanged -= HandleObjectiveProgressChanged;
-        progressSync.Unsubscribe();
-
         if (IsServer)
         {
-            runtimeService.StopObjectivesServerOnly();
+            runtimeService.CancelObjectivesServerOnly();
         }
+
+        progressSync.ProgressChanged -= HandleObjectiveProgressChanged;
+        progressSync.Unsubscribe();
     }
 
     public int ProgressCount => progressSync.ProgressCount;
@@ -107,7 +107,7 @@ public sealed class ObjectiveManager : NetworkBehaviour
             return;
         }
 
-        runtimeService.StopObjectivesServerOnly();
+        runtimeService.CancelObjectivesServerOnly();
     }
 
     internal void HandleObjectiveCompleted(ObjectiveCondition objective, ulong instigatorClientId)
@@ -124,7 +124,24 @@ public sealed class ObjectiveManager : NetworkBehaviour
         }
 
         progressSync.UpsertObjectiveServerOnly(objective);
-        completionRouter.RouteCompletionServerOnly(objective, instigatorClientId, this);
+        completionRouter.RouteCompletedObjectiveServerOnly(objective, instigatorClientId, this);
+    }
+
+    internal void HandleObjectiveFailed(ObjectiveCondition objective, ulong instigatorClientId)
+    {
+        if (!IsServerActive)
+        {
+            return;
+        }
+
+        if (objective == null)
+        {
+            Debug.LogError($"{nameof(ObjectiveManager)} received null failed objective.", this);
+            return;
+        }
+
+        progressSync.UpsertObjectiveServerOnly(objective);
+        completionRouter.RouteFailedObjectiveServerOnly(objective, instigatorClientId, this);
     }
 
     internal void UpdateObjectiveProgress(ObjectiveCondition objective)

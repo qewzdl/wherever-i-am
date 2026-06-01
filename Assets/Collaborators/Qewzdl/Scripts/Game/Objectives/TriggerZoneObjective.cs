@@ -19,12 +19,17 @@ public sealed class TriggerZoneObjective : ObjectiveCondition
         currentEntries = 0;
     }
 
-    protected override void OnObjectiveStopped()
+    protected override void OnObjectiveCompleted()
     {
         enteredClientIds.Clear();
     }
 
-    protected override void OnObjectiveCompleted()
+    protected override void OnObjectiveFailed()
+    {
+        enteredClientIds.Clear();
+    }
+
+    protected override void OnObjectiveCancelled()
     {
         enteredClientIds.Clear();
     }

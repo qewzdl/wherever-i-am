@@ -22,20 +22,19 @@ public sealed class CustomEventObjective : ObjectiveCondition
         }
     }
 
-    protected override void OnObjectiveStopped()
-    {
-        if (EventHub != null)
-        {
-            EventHub.GameplayEventRaised -= HandleGameplayEventRaised;
-        }
-    }
-
     protected override void OnObjectiveCompleted()
     {
-        if (EventHub != null)
-        {
-            EventHub.GameplayEventRaised -= HandleGameplayEventRaised;
-        }
+        UnsubscribeFromEventHub();
+    }
+
+    protected override void OnObjectiveFailed()
+    {
+        UnsubscribeFromEventHub();
+    }
+
+    protected override void OnObjectiveCancelled()
+    {
+        UnsubscribeFromEventHub();
     }
 
     private void HandleGameplayEventRaised(GameplayEventData eventData)
@@ -66,6 +65,14 @@ public sealed class CustomEventObjective : ObjectiveCondition
         if (currentEventCount >= TargetValue)
         {
             Complete(instigatorClientId);
+        }
+    }
+
+    private void UnsubscribeFromEventHub()
+    {
+        if (EventHub != null)
+        {
+            EventHub.GameplayEventRaised -= HandleGameplayEventRaised;
         }
     }
 }

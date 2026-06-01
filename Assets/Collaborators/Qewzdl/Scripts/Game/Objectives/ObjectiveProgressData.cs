@@ -9,13 +9,15 @@ public struct ObjectiveProgressData : INetworkSerializable, IEquatable<Objective
     public int CurrentValue;
     public int TargetValue;
     public bool IsCompleted;
+    public ObjectiveState State;
 
     public static ObjectiveProgressData Create(
         string objectiveId,
         string displayName,
         int currentValue,
         int targetValue,
-        bool isCompleted)
+        bool isCompleted,
+        ObjectiveState state)
     {
         return new ObjectiveProgressData
         {
@@ -23,7 +25,8 @@ public struct ObjectiveProgressData : INetworkSerializable, IEquatable<Objective
             DisplayName = displayName ?? string.Empty,
             CurrentValue = currentValue,
             TargetValue = targetValue,
-            IsCompleted = isCompleted
+            IsCompleted = isCompleted,
+            State = state
         };
     }
 
@@ -34,6 +37,7 @@ public struct ObjectiveProgressData : INetworkSerializable, IEquatable<Objective
         serializer.SerializeValue(ref CurrentValue);
         serializer.SerializeValue(ref TargetValue);
         serializer.SerializeValue(ref IsCompleted);
+        serializer.SerializeValue(ref State);
     }
 
     public bool Equals(ObjectiveProgressData other)
@@ -42,6 +46,7 @@ public struct ObjectiveProgressData : INetworkSerializable, IEquatable<Objective
                && DisplayName.Equals(other.DisplayName)
                && CurrentValue == other.CurrentValue
                && TargetValue == other.TargetValue
-               && IsCompleted == other.IsCompleted;
+               && IsCompleted == other.IsCompleted
+               && State == other.State;
     }
 }

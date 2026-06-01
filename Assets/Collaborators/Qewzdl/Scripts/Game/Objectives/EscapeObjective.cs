@@ -108,12 +108,6 @@ public sealed class EscapeObjective : ObjectiveCondition
         RefreshRequiredEscapedPlayersCountServer(networkManager);
     }
 
-    protected override void OnObjectiveStopped()
-    {
-        escapedClientIds.Clear();
-        UnregisterNetworkCallbacks();
-    }
-
     protected override void OnObjectiveCompleted()
     {
         UnregisterNetworkCallbacks();
@@ -124,9 +118,21 @@ public sealed class EscapeObjective : ObjectiveCondition
         }
     }
 
+    protected override void OnObjectiveFailed()
+    {
+        escapedClientIds.Clear();
+        UnregisterNetworkCallbacks();
+    }
+
+    protected override void OnObjectiveCancelled()
+    {
+        escapedClientIds.Clear();
+        UnregisterNetworkCallbacks();
+    }
+
     private void OnTriggerEnter(Collider other)
     {
-        if (!CanRunServerLogic() || !IsRunning || IsCompleted)
+        if (!CanReceiveObjectiveSignal())
         {
             return;
         }
@@ -176,7 +182,7 @@ public sealed class EscapeObjective : ObjectiveCondition
 
     private void HandleClientConnectedServer(ulong clientId)
     {
-        if (!CanRunServerLogic() || !IsRunning || IsCompleted)
+        if (!CanReceiveObjectiveSignal())
         {
             return;
         }
@@ -196,7 +202,7 @@ public sealed class EscapeObjective : ObjectiveCondition
 
     private void HandleClientDisconnectedServer(ulong clientId)
     {
-        if (!CanRunServerLogic() || !IsRunning || IsCompleted)
+        if (!CanReceiveObjectiveSignal())
         {
             return;
         }

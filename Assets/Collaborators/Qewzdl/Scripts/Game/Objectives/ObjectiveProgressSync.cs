@@ -46,7 +46,8 @@ public sealed class ObjectiveProgressSync
             objective.DisplayName,
             objective.CurrentValue,
             objective.TargetValue,
-            objective.IsCompleted);
+            objective.IsCompleted,
+            objective.State);
 
         int index = FindProgressIndex(objective.ObjectiveId);
 

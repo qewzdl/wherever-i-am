@@ -19,20 +19,22 @@ public sealed class TimedObjective : ObjectiveCondition
         elapsedSeconds = 0f;
         lastProgressReportTime = 0f;
 
-        if (timerCoroutine != null)
-        {
-            StopCoroutine(timerCoroutine);
-        }
+        StopTimer();
 
         timerCoroutine = StartCoroutine(TimerRoutine());
     }
 
-    protected override void OnObjectiveStopped()
+    protected override void OnObjectiveCompleted()
     {
         StopTimer();
     }
 
-    protected override void OnObjectiveCompleted()
+    protected override void OnObjectiveFailed()
+    {
+        StopTimer();
+    }
+
+    protected override void OnObjectiveCancelled()
     {
         StopTimer();
     }
