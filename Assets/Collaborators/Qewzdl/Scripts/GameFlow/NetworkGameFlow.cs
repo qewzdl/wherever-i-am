@@ -2,12 +2,14 @@ using System;
 using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public sealed class NetworkGameFlow : NetworkBehaviour
 {
     [Header("State")]
     [SerializeField] private GamePhase initialPhase = GamePhase.Waiting;
-    [SerializeField] [Min(0f)] private float objectiveCompletedDelaySeconds = 0.5f;
+    [FormerlySerializedAs("objectiveCompletedDelaySeconds")]
+    [SerializeField] [Min(0f)] private float matchResolvedDelaySeconds = 0.5f;
     [SerializeField] [Min(0f)] private float finishDelaySeconds = 1.5f;
 
     private readonly NetworkVariable<GamePhase> phase = new NetworkVariable<GamePhase>(
@@ -153,7 +155,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         result.Value = matchResult;
 
-        if (!TrySetPhaseServerOnly(GamePhase.ObjectiveCompleted, true))
+        if (!TrySetPhaseServerOnly(GamePhase.MatchResolved, true))
         {
             return false;
         }
@@ -165,7 +167,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     private void StartFinishRoutine()
     {
         StopFinishRoutine();
-        finishCoroutine = StartCoroutine(FinishAfterObjectiveCompleted());
+        finishCoroutine = StartCoroutine(FinishAfterMatchResolved());
     }
 
     private void StopFinishRoutine()
@@ -179,14 +181,14 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         finishCoroutine = null;
     }
 
-    private IEnumerator FinishAfterObjectiveCompleted()
+    private IEnumerator FinishAfterMatchResolved()
     {
-        if (objectiveCompletedDelaySeconds > 0f)
+        if (matchResolvedDelaySeconds > 0f)
         {
-            yield return new WaitForSeconds(objectiveCompletedDelaySeconds);
+            yield return new WaitForSeconds(matchResolvedDelaySeconds);
         }
 
-        if (!IsServer || phase.Value != GamePhase.ObjectiveCompleted)
+        if (!IsServer || phase.Value != GamePhase.MatchResolved)
         {
             finishCoroutine = null;
             yield break;
@@ -247,9 +249,9 @@ public sealed class NetworkGameFlow : NetworkBehaviour
                 return nextPhase == GamePhase.Playing;
 
             case GamePhase.Playing:
-                return nextPhase == GamePhase.ObjectiveCompleted;
+                return nextPhase == GamePhase.MatchResolved;
 
-            case GamePhase.ObjectiveCompleted:
+            case GamePhase.MatchResolved:
                 return nextPhase == GamePhase.Ending;
 
             case GamePhase.Ending:
@@ -265,7 +267,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
     private bool IsTerminalPhase(GamePhase value)
     {
-        return value == GamePhase.ObjectiveCompleted
+        return value == GamePhase.MatchResolved
                || value == GamePhase.Ending
                || value == GamePhase.Finished;
     }
