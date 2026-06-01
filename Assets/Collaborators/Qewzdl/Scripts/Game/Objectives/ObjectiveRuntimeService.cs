@@ -63,25 +63,27 @@ public sealed class ObjectiveRuntimeService
         }
     }
 
-    public void StartObjectivesServerOnly()
+    public bool StartObjectivesServerOnly()
     {
         if (objectives == null)
         {
             Debug.LogError($"{nameof(ObjectiveRuntimeService)} cannot start objectives before initialization.");
-            return;
+            return false;
         }
 
         for (int i = 0; i < objectives.Length; i++)
         {
             objectives[i].StartObjectiveServerOnly();
         }
+
+        return true;
     }
 
-    public void CancelObjectivesServerOnly()
+    public bool CancelObjectivesServerOnly()
     {
         if (objectives == null)
         {
-            return;
+            return false;
         }
 
         for (int i = 0; i < objectives.Length; i++)
@@ -91,6 +93,8 @@ public sealed class ObjectiveRuntimeService
                 objectives[i].CancelObjectiveServerOnly();
             }
         }
+
+        return true;
     }
 
     private bool ValidateObjectives(

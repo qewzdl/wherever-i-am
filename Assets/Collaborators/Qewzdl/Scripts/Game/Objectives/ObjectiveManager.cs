@@ -12,18 +12,20 @@ public sealed class ObjectiveManager : NetworkBehaviour
 
     [Header("Objectives")]
     [SerializeField] private ObjectiveCondition[] objectives;
-    [SerializeField] private bool startGameFlowOnSpawn = true;
-    [SerializeField] private bool startObjectivesOnSpawn = true;
 
     private NetworkList<ObjectiveProgressData> progressStates;
 
     private ObjectiveRuntimeService runtimeService;
     private ObjectiveProgressSync progressSync;
     private ObjectiveMatchResultService matchResultService;
+    private bool objectivesInitialized;
 
+    public event Action ObjectiveInitialized;
+    public event Action ObjectivesInitialized;
     public event Action<ObjectiveProgressData> ObjectiveProgressChanged;
 
     public bool IsServerActive => IsSpawned && IsServer;
+    public bool AreObjectivesInitialized => objectivesInitialized;
     public GameplayEventHub GameplayEventHub => gameplayEventHub;
 
     private void Awake()
@@ -59,15 +61,9 @@ public sealed class ObjectiveManager : NetworkBehaviour
 
         runtimeService.InitializeObjectivesServerOnly(progressSync);
 
-        if (startGameFlowOnSpawn)
-        {
-            gameFlow.StartGameServerOnly();
-        }
-
-        if (startObjectivesOnSpawn)
-        {
-            StartObjectivesServerOnly();
-        }
+        objectivesInitialized = true;
+        ObjectiveInitialized?.Invoke();
+        ObjectivesInitialized?.Invoke();
     }
 
     public override void OnNetworkDespawn()
@@ -76,6 +72,8 @@ public sealed class ObjectiveManager : NetworkBehaviour
         {
             runtimeService.CancelObjectivesServerOnly();
         }
+
+        objectivesInitialized = false;
 
         progressSync.ProgressChanged -= HandleObjectiveProgressChanged;
         progressSync.Unsubscribe();
@@ -88,26 +86,32 @@ public sealed class ObjectiveManager : NetworkBehaviour
         return progressSync.GetProgress(index);
     }
 
-    public void StartObjectivesServerOnly()
+    public bool StartObjectivesServerOnly()
     {
         if (!IsServerActive)
         {
             Debug.LogError($"{nameof(ObjectiveManager)} can start objectives only on server.", this);
-            return;
+            return false;
         }
 
-        runtimeService.StartObjectivesServerOnly();
+        if (!objectivesInitialized)
+        {
+            Debug.LogError($"{nameof(ObjectiveManager)} cannot start objectives before initialization.", this);
+            return false;
+        }
+
+        return runtimeService.StartObjectivesServerOnly();
     }
 
-    public void StopObjectivesServerOnly()
+    public bool StopObjectivesServerOnly()
     {
         if (!IsServerActive)
         {
             Debug.LogError($"{nameof(ObjectiveManager)} can stop objectives only on server.", this);
-            return;
+            return false;
         }
 
-        runtimeService.CancelObjectivesServerOnly();
+        return runtimeService.CancelObjectivesServerOnly();
     }
 
     internal void HandleObjectiveCompleted(ObjectiveCondition objective, ulong instigatorClientId)
