@@ -17,7 +17,6 @@ public sealed class ObjectiveManager : NetworkBehaviour
     private ObjectiveMatchResultService matchResultService;
     private bool objectivesInitialized;
 
-    public event Action ObjectiveInitialized;
     public event Action ObjectivesInitialized;
     public event Action<ObjectiveProgressData> ObjectiveProgressChanged;
 
@@ -60,7 +59,6 @@ public sealed class ObjectiveManager : NetworkBehaviour
         runtimeService.InitializeObjectivesServerOnly(progressSync);
 
         objectivesInitialized = true;
-        ObjectiveInitialized?.Invoke();
         ObjectivesInitialized?.Invoke();
     }
 
