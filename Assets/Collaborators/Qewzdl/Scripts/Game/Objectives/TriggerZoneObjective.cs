@@ -4,16 +4,14 @@ using UnityEngine;
 
 public sealed class TriggerZoneObjective : ObjectiveCondition
 {
-    [Header("Zone")]
-    [SerializeField] private string requiredTag = "Player";
-    [SerializeField] private int requiredEntries = 1;
-    [SerializeField] private bool countUniqueClients = true;
+    [Header("Definition")]
+    [SerializeField] private TriggerZoneObjectiveDefinition definition;
 
     private readonly HashSet<ulong> enteredClientIds = new HashSet<ulong>();
     private int currentEntries;
 
+    public override ObjectiveDefinition Definition => definition;
     public override int CurrentValue => currentEntries;
-    public override int TargetValue => Mathf.Max(1, requiredEntries);
 
     protected override void OnObjectiveStarted()
     {
@@ -38,7 +36,7 @@ public sealed class TriggerZoneObjective : ObjectiveCondition
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(requiredTag) && !other.CompareTag(requiredTag))
+        if (!string.IsNullOrWhiteSpace(definition.RequiredTag) && !other.CompareTag(definition.RequiredTag))
         {
             return;
         }
@@ -52,7 +50,7 @@ public sealed class TriggerZoneObjective : ObjectiveCondition
 
         ulong actorClientId = networkObject.OwnerClientId;
 
-        if (countUniqueClients)
+        if (definition.CountUniqueClients)
         {
             if (!enteredClientIds.Add(actorClientId))
             {

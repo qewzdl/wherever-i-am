@@ -3,17 +3,16 @@ using UnityEngine;
 
 public sealed class TimedObjective : ObjectiveCondition
 {
-    [Header("Timer")]
-    [SerializeField] private float durationSeconds = 60f;
-    [SerializeField] private float progressReportInterval = 1f;
-    [SerializeField] private bool completeWhenTimerEnds = true;
+    [Header("Definition")]
+    [SerializeField] private TimedObjectiveDefinition definition;
 
     private Coroutine timerCoroutine;
     private float elapsedSeconds;
     private float lastProgressReportTime;
 
+    public override ObjectiveDefinition Definition => definition;
     public override int CurrentValue => Mathf.FloorToInt(elapsedSeconds);
-    public override int TargetValue => Mathf.CeilToInt(Mathf.Max(1f, durationSeconds));
+    public override int TargetValue => definition != null ? Mathf.CeilToInt(definition.DurationSeconds) : 0;
 
     protected override void OnObjectiveStarted()
     {
@@ -40,23 +39,29 @@ public sealed class TimedObjective : ObjectiveCondition
 
     private IEnumerator TimerRoutine()
     {
-        while (elapsedSeconds < durationSeconds)
+        if (definition == null)
+        {
+            Debug.LogError($"{nameof(TimedObjective)} requires assigned {nameof(TimedObjectiveDefinition)}.", this);
+            yield break;
+        }
+
+        while (elapsedSeconds < definition.DurationSeconds)
         {
             yield return null;
 
             elapsedSeconds += Time.deltaTime;
 
-            if (elapsedSeconds - lastProgressReportTime >= progressReportInterval)
+            if (elapsedSeconds - lastProgressReportTime >= definition.ProgressReportInterval)
             {
                 lastProgressReportTime = elapsedSeconds;
                 NotifyProgressChanged();
             }
         }
 
-        elapsedSeconds = durationSeconds;
+        elapsedSeconds = definition.DurationSeconds;
         NotifyProgressChanged();
 
-        if (completeWhenTimerEnds)
+        if (definition.CompleteWhenTimerEnds)
         {
             Complete();
         }

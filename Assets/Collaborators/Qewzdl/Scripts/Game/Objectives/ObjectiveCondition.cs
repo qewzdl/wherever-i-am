@@ -2,31 +2,24 @@ using UnityEngine;
 
 public abstract class ObjectiveCondition : MonoBehaviour
 {
-    [Header("Identity")]
-    [SerializeField] private string objectiveId = "objective";
-    [SerializeField] private string displayName = "Objective";
-
-    [Header("Completion")]
-    [SerializeField] private bool completesGame = true;
-    [SerializeField] private GameResultType resultType = GameResultType.Victory;
-    [SerializeField] private string completionReason = "Objective completed";
-
     private ObjectiveManager manager;
     private GameplayEventHub eventHub;
     private bool isInitialized;
     private bool isRunning;
     private bool isCompleted;
 
-    public string ObjectiveId => objectiveId;
-    public string DisplayName => displayName;
-    public bool CompletesGame => completesGame;
-    public GameResultType ResultType => resultType;
-    public string CompletionReason => completionReason;
+    public abstract ObjectiveDefinition Definition { get; }
+
+    public string ObjectiveId => Definition != null ? Definition.ObjectiveId : string.Empty;
+    public string DisplayName => Definition != null ? Definition.DisplayName : string.Empty;
+    public bool CompletesGame => Definition != null && Definition.CompletesGame;
+    public GameResultType ResultType => Definition != null ? Definition.ResultType : GameResultType.None;
+    public string CompletionReason => Definition != null ? Definition.CompletionReason : string.Empty;
     public bool IsCompleted => isCompleted;
     public bool IsRunning => isRunning;
     public virtual bool RequiresGameplayEventHub => false;
     public virtual int CurrentValue => isCompleted ? TargetValue : 0;
-    public virtual int TargetValue => 1;
+    public virtual int TargetValue => Definition != null ? Definition.TargetValue : 0;
 
     protected ObjectiveManager Manager => manager;
     protected GameplayEventHub EventHub => eventHub;
@@ -40,9 +33,23 @@ public abstract class ObjectiveCondition : MonoBehaviour
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(objectiveId))
+        if (Definition == null)
         {
-            Debug.LogError($"{nameof(ObjectiveCondition)} has empty objective id.", this);
+            Debug.LogError($"{GetType().Name} requires assigned {nameof(ObjectiveDefinition)}.", this);
+            enabled = false;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Definition.ObjectiveId))
+        {
+            Debug.LogError($"{Definition.name} has empty objective id.", Definition);
+            enabled = false;
+            return;
+        }
+
+        if (Definition.CompletesGame && Definition.ResultType == GameResultType.None)
+        {
+            Debug.LogError($"{Definition.name} completes game but has invalid result type.", Definition);
             enabled = false;
             return;
         }

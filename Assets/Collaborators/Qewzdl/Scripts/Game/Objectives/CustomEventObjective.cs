@@ -3,15 +3,14 @@ using UnityEngine;
 
 public sealed class CustomEventObjective : ObjectiveCondition
 {
-    [Header("Event")]
-    [SerializeField] private string eventId = "objective.completed";
-    [SerializeField] private int requiredEventCount = 1;
+    [Header("Definition")]
+    [SerializeField] private CustomEventObjectiveDefinition definition;
 
     private int currentEventCount;
 
+    public override ObjectiveDefinition Definition => definition;
     public override bool RequiresGameplayEventHub => true;
     public override int CurrentValue => currentEventCount;
-    public override int TargetValue => Mathf.Max(1, requiredEventCount);
 
     protected override void OnObjectiveStarted()
     {
@@ -46,7 +45,7 @@ public sealed class CustomEventObjective : ObjectiveCondition
             return;
         }
 
-        if (!string.Equals(eventData.EventId, eventId, StringComparison.Ordinal))
+        if (!string.Equals(eventData.EventId, definition.EventId, StringComparison.Ordinal))
         {
             return;
         }

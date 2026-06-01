@@ -6,10 +6,8 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public sealed class EscapeObjective : ObjectiveCondition
 {
-    [Header("Escape")]
-    [SerializeField] private EscapeObjectiveMode escapeMode = EscapeObjectiveMode.AnyPlayerEscapes;
-    [SerializeField] private string requiredTag = "Player";
-    [SerializeField] private bool disableColliderAfterCompletion = true;
+    [Header("Definition")]
+    [SerializeField] private EscapeObjectiveDefinition definition;
 
     private readonly HashSet<ulong> escapedClientIds = new HashSet<ulong>();
 
@@ -17,8 +15,26 @@ public sealed class EscapeObjective : ObjectiveCondition
     private NetworkManager registeredNetworkManager;
     private int requiredEscapedPlayersCount = 1;
 
+    public override ObjectiveDefinition Definition => definition;
     public override int CurrentValue => escapedClientIds.Count;
-    public override int TargetValue => Mathf.Max(1, requiredEscapedPlayersCount);
+
+    public override int TargetValue
+    {
+        get
+        {
+            if (definition == null)
+            {
+                return 0;
+            }
+
+            if (definition.EscapeMode == EscapeObjectiveMode.AllConnectedPlayersEscape)
+            {
+                return Mathf.Max(1, requiredEscapedPlayersCount);
+            }
+
+            return definition.TargetValue;
+        }
+    }
 
     private void Awake()
     {
@@ -60,6 +76,13 @@ public sealed class EscapeObjective : ObjectiveCondition
     {
         escapedClientIds.Clear();
 
+        if (definition == null)
+        {
+            Debug.LogError($"{nameof(EscapeObjective)} requires assigned {nameof(EscapeObjectiveDefinition)}.", this);
+            enabled = false;
+            return;
+        }
+
         NetworkManager networkManager = NetworkManager.Singleton;
 
         if (networkManager == null)
@@ -76,7 +99,7 @@ public sealed class EscapeObjective : ObjectiveCondition
             return;
         }
 
-        if (disableColliderAfterCompletion)
+        if (definition.DisableColliderAfterCompletion)
         {
             triggerCollider.enabled = true;
         }
@@ -95,7 +118,7 @@ public sealed class EscapeObjective : ObjectiveCondition
     {
         UnregisterNetworkCallbacks();
 
-        if (disableColliderAfterCompletion && triggerCollider != null)
+        if (definition != null && definition.DisableColliderAfterCompletion && triggerCollider != null)
         {
             triggerCollider.enabled = false;
         }
@@ -108,7 +131,7 @@ public sealed class EscapeObjective : ObjectiveCondition
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(requiredTag) && !other.CompareTag(requiredTag))
+        if (!string.IsNullOrWhiteSpace(definition.RequiredTag) && !other.CompareTag(definition.RequiredTag))
         {
             return;
         }
@@ -206,9 +229,9 @@ public sealed class EscapeObjective : ObjectiveCondition
 
     private void RefreshRequiredEscapedPlayersCountServer(NetworkManager networkManager)
     {
-        if (escapeMode == EscapeObjectiveMode.AnyPlayerEscapes)
+        if (definition.EscapeMode == EscapeObjectiveMode.AnyPlayerEscapes)
         {
-            requiredEscapedPlayersCount = 1;
+            requiredEscapedPlayersCount = definition.TargetValue;
             return;
         }
 

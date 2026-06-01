@@ -186,15 +186,29 @@ public sealed class ObjectiveManager : NetworkBehaviour
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(objective.ObjectiveId))
+            ObjectiveDefinition definition = objective.Definition;
+
+            if (definition == null)
             {
-                Debug.LogError($"{nameof(ObjectiveManager)} has objective with empty id at index {i}.", objective);
+                Debug.LogError($"{objective.GetType().Name} at index {i} requires assigned {nameof(ObjectiveDefinition)}.", objective);
                 return false;
             }
 
-            if (!objectiveIds.Add(objective.ObjectiveId))
+            if (string.IsNullOrWhiteSpace(definition.ObjectiveId))
             {
-                Debug.LogError($"{nameof(ObjectiveManager)} has duplicate objective id: {objective.ObjectiveId}.", objective);
+                Debug.LogError($"{definition.name} has empty objective id.", definition);
+                return false;
+            }
+
+            if (!objectiveIds.Add(definition.ObjectiveId))
+            {
+                Debug.LogError($"{nameof(ObjectiveManager)} has duplicate objective id: {definition.ObjectiveId}.", definition);
+                return false;
+            }
+
+            if (definition.CompletesGame && definition.ResultType == GameResultType.None)
+            {
+                Debug.LogError($"{definition.name} completes game but has invalid result type.", definition);
                 return false;
             }
 
