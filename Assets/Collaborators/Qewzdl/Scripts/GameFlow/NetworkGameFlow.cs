@@ -23,10 +23,12 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         NetworkVariableWritePermission.Server);
 
     private Coroutine finishCoroutine;
+    private bool matchResolvedRaised;
     private bool matchFinishedRaised;
 
     public event Action<GamePhase, GamePhase> PhaseChanged;
     public event Action<GameResultData, GameResultData> ResultChanged;
+    public event Action<GameResultData> MatchResolved;
     public event Action<GameResultData> MatchFinished;
 
     public GamePhase CurrentPhase => phase.Value;
@@ -36,6 +38,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        matchResolvedRaised = IsResolvedPhase(phase.Value) && result.Value.HasResult;
         matchFinishedRaised = phase.Value == GamePhase.Finished;
 
         phase.OnValueChanged += HandlePhaseChanged;
@@ -58,6 +61,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         result.Value = GameResultData.None;
         phase.Value = initialPhase;
+        matchResolvedRaised = false;
         matchFinishedRaised = false;
     }
 
@@ -68,6 +72,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         StopFinishRoutine();
 
+        matchResolvedRaised = false;
         matchFinishedRaised = false;
     }
 
@@ -91,6 +96,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         StopFinishRoutine();
 
+        matchResolvedRaised = false;
         matchFinishedRaised = false;
         result.Value = GameResultData.None;
 
@@ -148,6 +154,8 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         {
             return false;
         }
+
+        TryRaiseMatchResolvedOnce();
 
         StartFinishRoutine();
         return true;
@@ -261,9 +269,21 @@ public sealed class NetworkGameFlow : NetworkBehaviour
                || value == GamePhase.Finished;
     }
 
+    private bool IsResolvedPhase(GamePhase value)
+    {
+        return value == GamePhase.MatchResolved
+               || value == GamePhase.Ending
+               || value == GamePhase.Finished;
+    }
+
     private void HandlePhaseChanged(GamePhase previousValue, GamePhase newValue)
     {
         PhaseChanged?.Invoke(previousValue, newValue);
+
+        if (IsResolvedPhase(newValue))
+        {
+            TryRaiseMatchResolvedOnce();
+        }
 
         if (newValue == GamePhase.Finished)
         {
@@ -274,6 +294,32 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     private void HandleResultChanged(GameResultData previousValue, GameResultData newValue)
     {
         ResultChanged?.Invoke(previousValue, newValue);
+
+        if (newValue.HasResult)
+        {
+            TryRaiseMatchResolvedOnce();
+        }
+    }
+
+    private void TryRaiseMatchResolvedOnce()
+    {
+        if (matchResolvedRaised)
+        {
+            return;
+        }
+
+        if (!IsResolvedPhase(phase.Value))
+        {
+            return;
+        }
+
+        if (!result.Value.HasResult)
+        {
+            return;
+        }
+
+        matchResolvedRaised = true;
+        MatchResolved?.Invoke(result.Value);
     }
 
     private void RaiseMatchFinishedOnce()
