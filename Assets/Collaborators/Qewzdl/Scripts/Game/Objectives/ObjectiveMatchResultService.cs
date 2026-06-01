@@ -85,14 +85,17 @@ public sealed class ObjectiveMatchResultService
             return false;
         }
 
-        matchOutcome = MatchOutcome.Create(
-            definition.ResultType,
-            MatchResultSource.Objective,
-            definition.ObjectiveId,
-            definition.CompletionReason,
+        matchOutcome = MatchOutcomeFactory.FromObjective(
+            definition,
             objectiveOutcome.InstigatorClientId);
 
-        return matchOutcome.HasResult;
+        if (!matchOutcome.HasResult)
+        {
+            Debug.LogError($"{nameof(MatchOutcomeFactory)} failed to create objective match outcome.", definition);
+            return false;
+        }
+
+        return true;
     }
 
     private bool ValidateMatchResultDefinitions(ObjectiveCondition[] objectives, Object logContext)

@@ -1,28 +1,25 @@
-public struct MatchOutcome
+public readonly struct MatchOutcome
 {
-    public GameResultType ResultType;
-    public MatchResultSource Source;
-    public string SourceId;
-    public string Reason;
-    public ulong InstigatorClientId;
+    public readonly GameResultType ResultType;
+    public readonly MatchResultSource Source;
+    public readonly string SourceId;
+    public readonly string Reason;
+    public readonly ulong InstigatorClientId;
 
     public bool HasResult => ResultType != GameResultType.None && Source != MatchResultSource.None;
 
-    public static MatchOutcome Create(
+    internal MatchOutcome(
         GameResultType resultType,
         MatchResultSource source,
         string sourceId,
         string reason,
         ulong instigatorClientId)
     {
-        return new MatchOutcome
-        {
-            ResultType = resultType,
-            Source = source,
-            SourceId = sourceId ?? string.Empty,
-            Reason = reason ?? string.Empty,
-            InstigatorClientId = instigatorClientId
-        };
+        ResultType = resultType;
+        Source = source;
+        SourceId = sourceId ?? string.Empty;
+        Reason = reason ?? string.Empty;
+        InstigatorClientId = instigatorClientId;
     }
 
     public GameResultData ToGameResultData()
