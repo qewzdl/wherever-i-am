@@ -4,9 +4,6 @@ using UnityEngine;
 
 public sealed class ObjectiveManager : NetworkBehaviour
 {
-    [Header("Required")]
-    [SerializeField] private NetworkGameFlow gameFlow;
-
     [Header("Optional")]
     [SerializeField] private GameplayEventHub gameplayEventHub;
 
@@ -28,13 +25,14 @@ public sealed class ObjectiveManager : NetworkBehaviour
     public bool AreObjectivesInitialized => objectivesInitialized;
     public GameplayEventHub GameplayEventHub => gameplayEventHub;
 
+    internal ObjectiveCondition[] ObjectiveConditions => objectives;
+
     private void Awake()
     {
         progressStates = new NetworkList<ObjectiveProgressData>();
 
         runtimeService = new ObjectiveRuntimeService();
         progressSync = new ObjectiveProgressSync(progressStates);
-        matchResultService = new ObjectiveMatchResultService();
     }
 
     public override void OnNetworkSpawn()
@@ -53,7 +51,7 @@ public sealed class ObjectiveManager : NetworkBehaviour
             return;
         }
 
-        if (!matchResultService.Initialize(gameFlow, objectives, this))
+        if (!HasMatchResultService())
         {
             enabled = false;
             return;
@@ -112,6 +110,24 @@ public sealed class ObjectiveManager : NetworkBehaviour
         }
 
         return runtimeService.CancelObjectivesServerOnly();
+    }
+
+    internal bool ConfigureMatchResultService(ObjectiveMatchResultService service)
+    {
+        if (objectivesInitialized)
+        {
+            Debug.LogError($"{nameof(ObjectiveManager)} cannot configure {nameof(ObjectiveMatchResultService)} after objectives initialization.", this);
+            return false;
+        }
+
+        if (service == null)
+        {
+            Debug.LogError($"{nameof(ObjectiveManager)} requires initialized {nameof(ObjectiveMatchResultService)}.", this);
+            return false;
+        }
+
+        matchResultService = service;
+        return true;
     }
 
     internal void HandleObjectiveCompleted(ObjectiveCondition objective, ulong instigatorClientId)
@@ -179,6 +195,17 @@ public sealed class ObjectiveManager : NetworkBehaviour
         }
 
         progressSync.UpsertObjectiveServerOnly(objective);
+    }
+
+    private bool HasMatchResultService()
+    {
+        if (matchResultService != null)
+        {
+            return true;
+        }
+
+        Debug.LogError($"{nameof(ObjectiveManager)} requires configured {nameof(ObjectiveMatchResultService)} before server initialization.", this);
+        return false;
     }
 
     private void HandleObjectiveProgressChanged(ObjectiveProgressData progressData)
