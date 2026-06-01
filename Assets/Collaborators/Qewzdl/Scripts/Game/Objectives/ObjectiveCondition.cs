@@ -10,9 +10,6 @@ public abstract class ObjectiveCondition : MonoBehaviour
 
     public string ObjectiveId => Definition != null ? Definition.ObjectiveId : string.Empty;
     public string DisplayName => Definition != null ? Definition.DisplayName : string.Empty;
-    public bool CompletesGame => Definition != null && Definition.CompletesGame;
-    public GameResultType ResultType => Definition != null ? Definition.ResultType : GameResultType.None;
-    public string CompletionReason => Definition != null ? Definition.CompletionReason : string.Empty;
     public ObjectiveState State => state;
     public bool IsCompleted => state == ObjectiveState.Completed;
     public bool IsRunning => state == ObjectiveState.Running;
@@ -52,13 +49,6 @@ public abstract class ObjectiveCondition : MonoBehaviour
         if (string.IsNullOrWhiteSpace(Definition.ObjectiveId))
         {
             Debug.LogError($"{Definition.name} has empty objective id.", Definition);
-            enabled = false;
-            return;
-        }
-
-        if (Definition.CompletesGame && Definition.ResultType == GameResultType.None)
-        {
-            Debug.LogError($"{Definition.name} completes game but has invalid result type.", Definition);
             enabled = false;
             return;
         }

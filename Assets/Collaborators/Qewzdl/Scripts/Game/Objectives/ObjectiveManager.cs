@@ -19,7 +19,7 @@ public sealed class ObjectiveManager : NetworkBehaviour
 
     private ObjectiveRuntimeService runtimeService;
     private ObjectiveProgressSync progressSync;
-    private ObjectiveCompletionRouter completionRouter;
+    private ObjectiveMatchResultService matchResultService;
 
     public event Action<ObjectiveProgressData> ObjectiveProgressChanged;
 
@@ -32,7 +32,7 @@ public sealed class ObjectiveManager : NetworkBehaviour
 
         runtimeService = new ObjectiveRuntimeService();
         progressSync = new ObjectiveProgressSync(progressStates);
-        completionRouter = new ObjectiveCompletionRouter();
+        matchResultService = new ObjectiveMatchResultService();
     }
 
     public override void OnNetworkSpawn()
@@ -45,13 +45,13 @@ public sealed class ObjectiveManager : NetworkBehaviour
             return;
         }
 
-        if (!completionRouter.Initialize(gameFlow, this))
+        if (!runtimeService.Initialize(this, gameplayEventHub, objectives))
         {
             enabled = false;
             return;
         }
 
-        if (!runtimeService.Initialize(this, gameplayEventHub, objectives))
+        if (!matchResultService.Initialize(gameFlow, objectives, this))
         {
             enabled = false;
             return;
@@ -124,7 +124,9 @@ public sealed class ObjectiveManager : NetworkBehaviour
         }
 
         progressSync.UpsertObjectiveServerOnly(objective);
-        completionRouter.RouteCompletedObjectiveServerOnly(objective, instigatorClientId, this);
+
+        ObjectiveOutcome outcome = ObjectiveOutcome.Completed(objective, instigatorClientId);
+        matchResultService.HandleObjectiveOutcomeServerOnly(outcome, this);
     }
 
     internal void HandleObjectiveFailed(ObjectiveCondition objective, ulong instigatorClientId)
@@ -141,7 +143,9 @@ public sealed class ObjectiveManager : NetworkBehaviour
         }
 
         progressSync.UpsertObjectiveServerOnly(objective);
-        completionRouter.RouteFailedObjectiveServerOnly(objective, instigatorClientId, this);
+
+        ObjectiveOutcome outcome = ObjectiveOutcome.Failed(objective, instigatorClientId);
+        matchResultService.HandleObjectiveOutcomeServerOnly(outcome, this);
     }
 
     internal void UpdateObjectiveProgress(ObjectiveCondition objective)

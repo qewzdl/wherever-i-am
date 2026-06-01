@@ -130,12 +130,6 @@ public sealed class ObjectiveRuntimeService
                 return false;
             }
 
-            if (definition.CompletesGame && definition.ResultType == GameResultType.None)
-            {
-                Debug.LogError($"{definition.name} completes game but has invalid result type.", definition);
-                return false;
-            }
-
             if (objective.RequiresGameplayEventHub && eventHub == null)
             {
                 Debug.LogError($"{objective.GetType().Name} requires {nameof(GameplayEventHub)} reference.", objective);
