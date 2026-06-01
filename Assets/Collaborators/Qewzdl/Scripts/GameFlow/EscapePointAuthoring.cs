@@ -8,11 +8,11 @@ public class EscapePointAuthoring : MonoBehaviour
     [SerializeField] private bool disableAfterVictory = true;
 
     [Header("Generated Runtime")]
-    [SerializeField] private EscapeVictoryTrigger runtimeTrigger;
+    [SerializeField] private EscapeObjective runtimeTrigger;
 
     public Collider TriggerCollider => triggerCollider;
     public bool DisableAfterVictory => disableAfterVictory;
-    public EscapeVictoryTrigger RuntimeTrigger => runtimeTrigger;
+    public EscapeObjective RuntimeTrigger => runtimeTrigger;
 
     private void Reset()
     {
