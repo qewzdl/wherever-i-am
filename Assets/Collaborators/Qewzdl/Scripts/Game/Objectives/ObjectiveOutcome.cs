@@ -7,7 +7,9 @@ public struct ObjectiveOutcome
     public bool IsCompleted => State == ObjectiveState.Completed;
     public bool IsFailed => State == ObjectiveState.Failed;
     public bool IsCancelled => State == ObjectiveState.Cancelled;
-    public bool IsTerminal => IsCompleted || IsFailed || IsCancelled;
+
+    public bool IsLifecycleTerminal => IsCompleted || IsFailed || IsCancelled;
+    public bool CanBeEvaluatedForMatch => IsCompleted || IsFailed;
 
     public static ObjectiveOutcome Completed(ObjectiveCondition objective, ulong instigatorClientId)
     {

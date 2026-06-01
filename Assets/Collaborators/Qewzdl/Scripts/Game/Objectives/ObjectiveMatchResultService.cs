@@ -47,13 +47,13 @@ public sealed class ObjectiveMatchResultService
     {
         matchOutcome = default;
 
-        if (!objectiveOutcome.IsTerminal)
+        if (!objectiveOutcome.IsLifecycleTerminal)
         {
             Debug.LogError($"{nameof(ObjectiveMatchResultService)} received non-terminal objective outcome: {objectiveOutcome.State}.", logContext);
             return false;
         }
 
-        if (objectiveOutcome.IsCancelled)
+        if (!objectiveOutcome.CanBeEvaluatedForMatch)
         {
             return false;
         }
