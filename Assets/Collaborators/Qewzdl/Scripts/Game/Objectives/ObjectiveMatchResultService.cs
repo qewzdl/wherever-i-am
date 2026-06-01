@@ -61,15 +61,17 @@ public sealed class ObjectiveMatchResultService
 
         if (definition.ResultType == GameResultType.None)
         {
-            Debug.LogError($"{definition.name} completes game but has invalid result type.", definition);
+            Debug.LogError($"{definition.name} completes match but has invalid result type.", definition);
             return;
         }
 
-        gameFlow.FinishGameServerOnly(
+        GameResultData matchResult = GameResultData.Create(
             definition.ResultType,
             definition.CompletionReason,
             definition.ObjectiveId,
             outcome.InstigatorClientId);
+
+        gameFlow.CompleteMatchServerOnly(matchResult);
     }
 
     private bool ValidateMatchResultDefinitions(ObjectiveCondition[] objectives, Object logContext)
@@ -100,7 +102,7 @@ public sealed class ObjectiveMatchResultService
 
             if (definition.CompletesGame && definition.ResultType == GameResultType.None)
             {
-                Debug.LogError($"{definition.name} completes game but has invalid result type.", definition);
+                Debug.LogError($"{definition.name} completes match but has invalid result type.", definition);
                 return false;
             }
         }

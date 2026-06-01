@@ -73,7 +73,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     {
         if (!IsServer)
         {
-            Debug.LogError($"{nameof(NetworkGameFlow)} can start game only on server.", this);
+            Debug.LogError($"{nameof(NetworkGameFlow)} can start match only on server.", this);
             return false;
         }
 
@@ -123,15 +123,11 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         return TrySetPhaseServerOnly(nextPhase, true);
     }
 
-    public bool FinishGameServerOnly(
-        GameResultType resultType,
-        string reason,
-        string objectiveId,
-        ulong instigatorClientId)
+    public bool CompleteMatchServerOnly(GameResultData matchResult)
     {
         if (!IsServer)
         {
-            Debug.LogError($"{nameof(NetworkGameFlow)} can finish game only on server.", this);
+            Debug.LogError($"{nameof(NetworkGameFlow)} can complete match only on server.", this);
             return false;
         }
 
@@ -143,19 +139,19 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         if (phase.Value != GamePhase.Playing)
         {
             Debug.LogError(
-                $"{nameof(NetworkGameFlow)} can complete objective only from {nameof(GamePhase.Playing)}. Current phase: {phase.Value}.",
+                $"{nameof(NetworkGameFlow)} can complete match only from {nameof(GamePhase.Playing)}. Current phase: {phase.Value}.",
                 this);
 
             return false;
         }
 
-        if (resultType == GameResultType.None)
+        if (matchResult.ResultType == GameResultType.None)
         {
-            Debug.LogError($"{nameof(NetworkGameFlow)} received invalid result type.", this);
+            Debug.LogError($"{nameof(NetworkGameFlow)} received invalid match result.", this);
             return false;
         }
 
-        result.Value = GameResultData.Create(resultType, reason, objectiveId, instigatorClientId);
+        result.Value = matchResult;
 
         if (!TrySetPhaseServerOnly(GamePhase.ObjectiveCompleted, true))
         {
