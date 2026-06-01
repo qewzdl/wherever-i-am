@@ -23,11 +23,11 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         NetworkVariableWritePermission.Server);
 
     private Coroutine finishCoroutine;
-    private bool gameFinishedRaised;
+    private bool matchFinishedRaised;
 
     public event Action<GamePhase, GamePhase> PhaseChanged;
     public event Action<GameResultData, GameResultData> ResultChanged;
-    public event Action<GameResultData> GameFinished;
+    public event Action<GameResultData> MatchFinished;
 
     public GamePhase CurrentPhase => phase.Value;
     public GameResultData CurrentResult => result.Value;
@@ -36,7 +36,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        gameFinishedRaised = phase.Value == GamePhase.Finished;
+        matchFinishedRaised = phase.Value == GamePhase.Finished;
 
         phase.OnValueChanged += HandlePhaseChanged;
         result.OnValueChanged += HandleResultChanged;
@@ -58,7 +58,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         result.Value = GameResultData.None;
         phase.Value = initialPhase;
-        gameFinishedRaised = false;
+        matchFinishedRaised = false;
     }
 
     public override void OnNetworkDespawn()
@@ -68,7 +68,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         StopFinishRoutine();
 
-        gameFinishedRaised = false;
+        matchFinishedRaised = false;
     }
 
     public bool StartMatchServerOnly()
@@ -91,7 +91,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         StopFinishRoutine();
 
-        gameFinishedRaised = false;
+        matchFinishedRaised = false;
         result.Value = GameResultData.None;
 
         if (phase.Value == GamePhase.Waiting)
@@ -267,7 +267,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         if (newValue == GamePhase.Finished)
         {
-            RaiseGameFinishedOnce();
+            RaiseMatchFinishedOnce();
         }
     }
 
@@ -276,14 +276,14 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         ResultChanged?.Invoke(previousValue, newValue);
     }
 
-    private void RaiseGameFinishedOnce()
+    private void RaiseMatchFinishedOnce()
     {
-        if (gameFinishedRaised)
+        if (matchFinishedRaised)
         {
             return;
         }
 
-        gameFinishedRaised = true;
-        GameFinished?.Invoke(result.Value);
+        matchFinishedRaised = true;
+        MatchFinished?.Invoke(result.Value);
     }
 }
