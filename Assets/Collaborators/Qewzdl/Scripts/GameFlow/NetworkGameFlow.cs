@@ -136,7 +136,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return false;
         }
 
-        if (matchResult.ResultType == GameResultType.None)
+        if (!matchResult.HasResult)
         {
             Debug.LogError($"{nameof(NetworkGameFlow)} received invalid match result.", this);
             return false;

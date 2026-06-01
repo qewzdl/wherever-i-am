@@ -87,8 +87,9 @@ public sealed class ObjectiveMatchResultService
 
         matchOutcome = MatchOutcome.Create(
             definition.ResultType,
-            definition.CompletionReason,
+            MatchResultSource.Objective,
             definition.ObjectiveId,
+            definition.CompletionReason,
             objectiveOutcome.InstigatorClientId);
 
         return matchOutcome.HasResult;

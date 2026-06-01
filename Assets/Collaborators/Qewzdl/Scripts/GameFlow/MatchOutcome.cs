@@ -1,23 +1,26 @@
 public struct MatchOutcome
 {
     public GameResultType ResultType;
-    public string Reason;
+    public MatchResultSource Source;
     public string SourceId;
+    public string Reason;
     public ulong InstigatorClientId;
 
-    public bool HasResult => ResultType != GameResultType.None;
+    public bool HasResult => ResultType != GameResultType.None && Source != MatchResultSource.None;
 
     public static MatchOutcome Create(
         GameResultType resultType,
-        string reason,
+        MatchResultSource source,
         string sourceId,
+        string reason,
         ulong instigatorClientId)
     {
         return new MatchOutcome
         {
             ResultType = resultType,
-            Reason = reason ?? string.Empty,
+            Source = source,
             SourceId = sourceId ?? string.Empty,
+            Reason = reason ?? string.Empty,
             InstigatorClientId = instigatorClientId
         };
     }
@@ -26,8 +29,9 @@ public struct MatchOutcome
     {
         return GameResultData.Create(
             ResultType,
-            Reason,
+            Source,
             SourceId,
+            Reason,
             InstigatorClientId);
     }
 }
