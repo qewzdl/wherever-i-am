@@ -1,9 +1,9 @@
 public enum GamePhase
 {
-    None = 0,
-    WaitingForPlayers = 1,
+    Waiting = 1,
     Starting = 2,
     Playing = 3,
-    Ending = 4,
-    Finished = 5
+    ObjectiveCompleted = 4,
+    Ending = 5,
+    Finished = 6
 }
