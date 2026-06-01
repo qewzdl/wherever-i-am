@@ -6,7 +6,11 @@ public readonly struct MatchOutcome
     public readonly string Reason;
     public readonly ulong InstigatorClientId;
 
-    public bool HasResult => ResultType != GameResultType.None && Source != MatchResultSource.None;
+    public bool HasResult => GameResultData.IsValidResult(
+        ResultType,
+        Source,
+        SourceId,
+        InstigatorClientId);
 
     internal MatchOutcome(
         GameResultType resultType,

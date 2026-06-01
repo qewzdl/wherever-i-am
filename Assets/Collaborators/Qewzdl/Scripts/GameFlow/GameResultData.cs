@@ -10,7 +10,7 @@ public struct GameResultData : INetworkSerializable, IEquatable<GameResultData>
     public FixedString128Bytes Reason;
     public ulong InstigatorClientId;
 
-    public bool HasResult => ResultType != GameResultType.None && Source != MatchResultSource.None;
+    public bool HasResult => IsValidResult(ResultType, Source, SourceId, InstigatorClientId);
 
     public static GameResultData None => new GameResultData
     {
@@ -36,6 +36,52 @@ public struct GameResultData : INetworkSerializable, IEquatable<GameResultData>
             Reason = reason ?? string.Empty,
             InstigatorClientId = instigatorClientId
         };
+    }
+
+    public static bool IsValidResult(
+        GameResultType resultType,
+        MatchResultSource source,
+        string sourceId,
+        ulong instigatorClientId)
+    {
+        if (resultType == GameResultType.None || source == MatchResultSource.None)
+        {
+            return false;
+        }
+
+        switch (source)
+        {
+            case MatchResultSource.Objective:
+                return !string.IsNullOrWhiteSpace(sourceId);
+
+            case MatchResultSource.Timeout:
+                return true;
+
+            case MatchResultSource.Admin:
+                return true;
+
+            case MatchResultSource.Disconnect:
+                return !string.IsNullOrWhiteSpace(sourceId);
+
+            case MatchResultSource.AllPlayersDead:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    public static bool IsValidResult(
+        GameResultType resultType,
+        MatchResultSource source,
+        FixedString64Bytes sourceId,
+        ulong instigatorClientId)
+    {
+        return IsValidResult(
+            resultType,
+            source,
+            sourceId.ToString(),
+            instigatorClientId);
     }
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
