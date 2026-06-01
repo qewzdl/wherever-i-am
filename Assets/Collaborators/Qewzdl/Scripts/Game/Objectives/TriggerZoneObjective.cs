@@ -15,9 +15,25 @@ public sealed class TriggerZoneObjective : ObjectiveCondition
     public override int CurrentValue => currentEntries;
     public override int TargetValue => Mathf.Max(1, requiredEntries);
 
+    protected override void OnObjectiveStarted()
+    {
+        enteredClientIds.Clear();
+        currentEntries = 0;
+    }
+
+    protected override void OnObjectiveStopped()
+    {
+        enteredClientIds.Clear();
+    }
+
+    protected override void OnObjectiveCompleted()
+    {
+        enteredClientIds.Clear();
+    }
+
     private void OnTriggerEnter(Collider other)
     {
-        if (!CanRunServerLogic())
+        if (!CanReceiveObjectiveSignal())
         {
             return;
         }
@@ -29,7 +45,7 @@ public sealed class TriggerZoneObjective : ObjectiveCondition
 
         NetworkObject networkObject = other.GetComponentInParent<NetworkObject>();
 
-        if (networkObject == null)
+        if (networkObject == null || !networkObject.IsSpawned)
         {
             return;
         }

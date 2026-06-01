@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public sealed class CustomEventObjective : ObjectiveCondition
@@ -12,29 +13,10 @@ public sealed class CustomEventObjective : ObjectiveCondition
     public override int CurrentValue => currentEventCount;
     public override int TargetValue => Mathf.Max(1, requiredEventCount);
 
-    public void RaiseObjectiveEvent()
-    {
-        RegisterEvent(0);
-    }
-
-    public void RegisterEvent(ulong instigatorClientId)
-    {
-        if (!CanRunServerLogic())
-        {
-            return;
-        }
-
-        currentEventCount = Mathf.Min(currentEventCount + 1, TargetValue);
-        NotifyProgressChanged();
-
-        if (currentEventCount >= TargetValue)
-        {
-            Complete(instigatorClientId);
-        }
-    }
-
     protected override void OnObjectiveStarted()
     {
+        currentEventCount = 0;
+
         if (EventHub != null)
         {
             EventHub.GameplayEventRaised += HandleGameplayEventRaised;
@@ -59,11 +41,32 @@ public sealed class CustomEventObjective : ObjectiveCondition
 
     private void HandleGameplayEventRaised(GameplayEventData eventData)
     {
-        if (eventData.EventId != eventId)
+        if (!CanReceiveObjectiveSignal())
         {
             return;
         }
 
-        RegisterEvent(eventData.ActorClientId);
+        if (!string.Equals(eventData.EventId, eventId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        RegisterGameplayEvent(eventData.ActorClientId);
+    }
+
+    private void RegisterGameplayEvent(ulong instigatorClientId)
+    {
+        if (!CanReceiveObjectiveSignal())
+        {
+            return;
+        }
+
+        currentEventCount = Mathf.Min(currentEventCount + 1, TargetValue);
+        NotifyProgressChanged();
+
+        if (currentEventCount >= TargetValue)
+        {
+            Complete(instigatorClientId);
+        }
     }
 }

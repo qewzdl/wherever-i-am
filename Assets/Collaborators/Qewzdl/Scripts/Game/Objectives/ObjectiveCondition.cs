@@ -90,7 +90,7 @@ public abstract class ObjectiveCondition : MonoBehaviour
             return;
         }
 
-        if (isCompleted)
+        if (!isRunning || isCompleted)
         {
             return;
         }
@@ -117,6 +117,11 @@ public abstract class ObjectiveCondition : MonoBehaviour
     protected bool CanRunServerLogic()
     {
         return isInitialized && manager != null && manager.IsServerActive;
+    }
+
+    protected bool CanReceiveObjectiveSignal()
+    {
+        return CanRunServerLogic() && isRunning && !isCompleted;
     }
 
     protected virtual void OnInitialized()
