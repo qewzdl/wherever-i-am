@@ -77,7 +77,7 @@ public abstract class ObjectiveCondition : MonoBehaviour
         NotifyProgressChanged();
     }
 
-    internal void CancelObjectiveServerOnly()
+    internal void CancelObjectiveServerOnly(ulong instigatorClientId = 0)
     {
         if (!CanRunServerLogic())
         {
@@ -92,6 +92,8 @@ public abstract class ObjectiveCondition : MonoBehaviour
         SetState(ObjectiveState.Cancelled);
         OnObjectiveCancelled();
         NotifyProgressChanged();
+
+        manager.HandleObjectiveCancelled(this, instigatorClientId);
     }
 
     protected void Complete(ulong instigatorClientId = 0)

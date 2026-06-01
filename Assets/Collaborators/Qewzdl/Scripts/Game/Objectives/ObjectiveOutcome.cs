@@ -6,7 +6,8 @@ public struct ObjectiveOutcome
 
     public bool IsCompleted => State == ObjectiveState.Completed;
     public bool IsFailed => State == ObjectiveState.Failed;
-    public bool IsTerminal => IsCompleted || IsFailed;
+    public bool IsCancelled => State == ObjectiveState.Cancelled;
+    public bool IsTerminal => IsCompleted || IsFailed || IsCancelled;
 
     public static ObjectiveOutcome Completed(ObjectiveCondition objective, ulong instigatorClientId)
     {
@@ -24,6 +25,16 @@ public struct ObjectiveOutcome
         {
             Objective = objective,
             State = ObjectiveState.Failed,
+            InstigatorClientId = instigatorClientId
+        };
+    }
+
+    public static ObjectiveOutcome Cancelled(ObjectiveCondition objective, ulong instigatorClientId)
+    {
+        return new ObjectiveOutcome
+        {
+            Objective = objective,
+            State = ObjectiveState.Cancelled,
             InstigatorClientId = instigatorClientId
         };
     }

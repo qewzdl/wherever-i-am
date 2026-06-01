@@ -152,6 +152,25 @@ public sealed class ObjectiveManager : NetworkBehaviour
         matchResultService.HandleObjectiveOutcomeServerOnly(outcome, this);
     }
 
+    internal void HandleObjectiveCancelled(ObjectiveCondition objective, ulong instigatorClientId)
+    {
+        if (!IsServerActive)
+        {
+            return;
+        }
+
+        if (objective == null)
+        {
+            Debug.LogError($"{nameof(ObjectiveManager)} received null cancelled objective.", this);
+            return;
+        }
+
+        progressSync.UpsertObjectiveServerOnly(objective);
+
+        ObjectiveOutcome outcome = ObjectiveOutcome.Cancelled(objective, instigatorClientId);
+        matchResultService.HandleObjectiveOutcomeServerOnly(outcome, this);
+    }
+
     internal void UpdateObjectiveProgress(ObjectiveCondition objective)
     {
         if (!IsServerActive || objective == null)

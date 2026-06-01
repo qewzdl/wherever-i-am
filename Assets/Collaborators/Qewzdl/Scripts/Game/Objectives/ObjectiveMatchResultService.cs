@@ -24,31 +24,9 @@ public sealed class ObjectiveMatchResultService
         return true;
     }
 
-    public void HandleObjectiveOutcomeServerOnly(ObjectiveOutcome outcome, Object logContext)
+    public void HandleObjectiveOutcomeServerOnly(ObjectiveOutcome objectiveOutcome, Object logContext)
     {
-        if (!outcome.IsTerminal)
-        {
-            Debug.LogError($"{nameof(ObjectiveMatchResultService)} received non-terminal objective outcome: {outcome.State}.", logContext);
-            return;
-        }
-
-        ObjectiveCondition objective = outcome.Objective;
-
-        if (objective == null)
-        {
-            Debug.LogError($"{nameof(ObjectiveMatchResultService)} received null objective outcome.", logContext);
-            return;
-        }
-
-        ObjectiveDefinition definition = objective.Definition;
-
-        if (definition == null)
-        {
-            Debug.LogError($"{objective.GetType().Name} requires assigned {nameof(ObjectiveDefinition)}.", objective);
-            return;
-        }
-
-        if (!definition.CompletesGame)
+        if (!TryCreateMatchOutcomeServerOnly(objectiveOutcome, out MatchOutcome matchOutcome, logContext))
         {
             return;
         }
@@ -59,19 +37,61 @@ public sealed class ObjectiveMatchResultService
             return;
         }
 
+        gameFlow.CompleteMatchServerOnly(matchOutcome.ToGameResultData());
+    }
+
+    private bool TryCreateMatchOutcomeServerOnly(
+        ObjectiveOutcome objectiveOutcome,
+        out MatchOutcome matchOutcome,
+        Object logContext)
+    {
+        matchOutcome = default;
+
+        if (!objectiveOutcome.IsTerminal)
+        {
+            Debug.LogError($"{nameof(ObjectiveMatchResultService)} received non-terminal objective outcome: {objectiveOutcome.State}.", logContext);
+            return false;
+        }
+
+        if (objectiveOutcome.IsCancelled)
+        {
+            return false;
+        }
+
+        ObjectiveCondition objective = objectiveOutcome.Objective;
+
+        if (objective == null)
+        {
+            Debug.LogError($"{nameof(ObjectiveMatchResultService)} received null objective outcome.", logContext);
+            return false;
+        }
+
+        ObjectiveDefinition definition = objective.Definition;
+
+        if (definition == null)
+        {
+            Debug.LogError($"{objective.GetType().Name} requires assigned {nameof(ObjectiveDefinition)}.", objective);
+            return false;
+        }
+
+        if (!definition.CompletesGame)
+        {
+            return false;
+        }
+
         if (definition.ResultType == GameResultType.None)
         {
             Debug.LogError($"{definition.name} completes match but has invalid result type.", definition);
-            return;
+            return false;
         }
 
-        GameResultData matchResult = GameResultData.Create(
+        matchOutcome = MatchOutcome.Create(
             definition.ResultType,
             definition.CompletionReason,
             definition.ObjectiveId,
-            outcome.InstigatorClientId);
+            objectiveOutcome.InstigatorClientId);
 
-        gameFlow.CompleteMatchServerOnly(matchResult);
+        return matchOutcome.HasResult;
     }
 
     private bool ValidateMatchResultDefinitions(ObjectiveCondition[] objectives, Object logContext)
