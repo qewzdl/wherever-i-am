@@ -131,6 +131,7 @@ GameObject:
   - component: {fileID: 34402236}
   - component: {fileID: 34402235}
   - component: {fileID: 34402234}
+  - component: {fileID: 34402237}
   m_Layer: 0
   m_Name: GameFlowRoot
   m_TagString: Untagged
@@ -211,6 +212,22 @@ MonoBehaviour:
   AutoObjectParentSync: 0
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &34402237
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 34402231}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0bc528463cd2ae419fa375bf70b77db, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  gameFlow: {fileID: 34402235}
+  startOnServerSpawn: 1
+  framesToWaitBeforeStart: 1
 --- !u!1 &48984701
 GameObject:
   m_ObjectHideFlags: 0
@@ -2216,9 +2233,9 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 661447793}
   - {fileID: 34402232}
   - {fileID: 1428459822}
+  - {fileID: 661447793}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &391906497
