@@ -24,16 +24,20 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         NetworkVariableWritePermission.Server);
 
     private ObjectiveSceneBinding activeBinding;
+    private bool serverReady;
 
+    public event Action ServerReady;
     public event Action<ObjectiveNetworkState, ObjectiveNetworkState> ObjectiveStateChanged;
     public event Action<FixedString128Bytes, FixedString128Bytes> ObjectiveReasonChanged;
 
     public ObjectiveNetworkState CurrentObjective => currentObjective.Value;
     public string LastObjectiveReason => lastObjectiveReason.Value.ToString();
     public bool HasActiveObjective => currentObjective.Value.State == ObjectiveRuntimeState.Active;
+    public bool IsServerReady => IsSpawned && IsServer && serverReady;
 
     public override void OnNetworkSpawn()
     {
+        serverReady = false;
         currentObjective.OnValueChanged += HandleObjectiveStateChanged;
         lastObjectiveReason.OnValueChanged += HandleObjectiveReasonChanged;
 
@@ -54,6 +58,9 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         gameFlow.PhaseChanged += HandleGamePhaseChanged;
         gameFlow.MatchResolved += HandleMatchResolved;
+
+        serverReady = true;
+        ServerReady?.Invoke();
 
         if (startFirstObjectiveWhenMatchStarts && gameFlow.IsMatchRunning)
         {
@@ -78,6 +85,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         }
 
         activeBinding = null;
+        serverReady = false;
     }
 
     public bool StartFirstObjectiveServerOnly()

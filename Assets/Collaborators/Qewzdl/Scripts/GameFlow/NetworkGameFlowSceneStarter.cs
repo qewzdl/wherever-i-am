@@ -1,4 +1,3 @@
-using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -7,13 +6,12 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
 {
     [Header("Dependencies")]
     [SerializeField] private NetworkGameFlow gameFlow;
+    [SerializeField] private NetworkObjectiveFlow objectiveFlow;
 
     [Header("Start")]
     [SerializeField] private bool startOnServerSpawn = true;
-    [SerializeField] [Min(0)] private int framesToWaitBeforeStart = 1;
     [SerializeField] private string startReason = "Game scene network spawn completed";
-
-    private Coroutine startRoutine;
+    private bool isSubscribed;
 
     public override void OnNetworkSpawn()
     {
@@ -33,59 +31,110 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             return;
         }
 
-        StopStartRoutine();
-        startRoutine = StartCoroutine(StartMatchAfterNetworkSpawn());
+        SubscribeReadinessEvents();
+        TryStartMatchWhenReadyServerOnly();
     }
 
     public override void OnNetworkDespawn()
     {
-        StopStartRoutine();
+        UnsubscribeReadinessEvents();
     }
 
     private void OnDisable()
     {
-        StopStartRoutine();
+        UnsubscribeReadinessEvents();
     }
 
     private void OnValidate()
     {
-        framesToWaitBeforeStart = Mathf.Max(0, framesToWaitBeforeStart);
-
         if (string.IsNullOrWhiteSpace(startReason))
         {
             startReason = "Game scene network spawn completed";
         }
     }
 
-    private IEnumerator StartMatchAfterNetworkSpawn()
+    public bool StartMatchServerOnly()
     {
-        for (int i = 0; i < framesToWaitBeforeStart; i++)
+        if (!IsServer)
         {
-            yield return null;
+            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} can start match only on server.", this);
+            return false;
         }
 
-        startRoutine = null;
+        if (!ValidateSetup())
+        {
+            return false;
+        }
 
+        return TryStartMatchWhenReadyServerOnly();
+    }
+
+    private bool TryStartMatchWhenReadyServerOnly()
+    {
         if (!IsServer || !IsSpawned)
         {
-            yield break;
+            return false;
         }
 
-        if (!gameFlow.IsSpawned)
+        if (!gameFlow.IsServerReady || !objectiveFlow.IsServerReady)
         {
-            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} cannot start match because assigned {nameof(NetworkGameFlow)} is not spawned.", this);
-            yield break;
+            return false;
         }
 
         if (gameFlow.CurrentPhase != GamePhase.Waiting)
         {
-            yield break;
+            return false;
         }
 
-        if (!gameFlow.StartMatchServerOnly(startReason))
+        if (gameFlow.StartMatchServerOnly(startReason))
         {
-            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} failed to start match from scene spawn.", this);
+            return true;
         }
+
+        Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} failed to start match after game flow dependencies became ready.", this);
+        return false;
+    }
+
+    private void SubscribeReadinessEvents()
+    {
+        if (isSubscribed)
+        {
+            return;
+        }
+
+        gameFlow.ServerReady += HandleDependencyReady;
+        objectiveFlow.ServerReady += HandleDependencyReady;
+        isSubscribed = true;
+    }
+
+    private void UnsubscribeReadinessEvents()
+    {
+        if (!isSubscribed)
+        {
+            return;
+        }
+
+        if (gameFlow != null)
+        {
+            gameFlow.ServerReady -= HandleDependencyReady;
+        }
+
+        if (objectiveFlow != null)
+        {
+            objectiveFlow.ServerReady -= HandleDependencyReady;
+        }
+
+        isSubscribed = false;
+    }
+
+    private void HandleDependencyReady()
+    {
+        if (!startOnServerSpawn)
+        {
+            return;
+        }
+
+        TryStartMatchWhenReadyServerOnly();
     }
 
     private bool ValidateSetup()
@@ -96,17 +145,12 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             return false;
         }
 
-        return true;
-    }
-
-    private void StopStartRoutine()
-    {
-        if (startRoutine == null)
+        if (objectiveFlow == null)
         {
-            return;
+            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires assigned {nameof(NetworkObjectiveFlow)}.", this);
+            return false;
         }
 
-        StopCoroutine(startRoutine);
-        startRoutine = null;
+        return true;
     }
 }

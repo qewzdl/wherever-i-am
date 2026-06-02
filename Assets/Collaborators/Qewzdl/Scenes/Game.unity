@@ -226,8 +226,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   gameFlow: {fileID: 34402235}
+  objectiveFlow: {fileID: 34402234}
   startOnServerSpawn: 1
-  framesToWaitBeforeStart: 1
 --- !u!1 &48984701
 GameObject:
   m_ObjectHideFlags: 0

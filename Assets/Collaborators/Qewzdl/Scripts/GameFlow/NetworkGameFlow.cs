@@ -31,10 +31,12 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     private Coroutine finishCoroutine;
     private bool matchResolvedRaised;
     private bool matchFinishedRaised;
+    private bool serverReady;
 
     public event Action<GamePhase, GamePhase> PhaseChanged;
     public event Action<GameResultData, GameResultData> ResultChanged;
     public event Action<FixedString128Bytes, FixedString128Bytes> TransitionReasonChanged;
+    public event Action ServerReady;
     public event Action<GameResultData> MatchResolved;
     public event Action<GameResultData> MatchFinished;
 
@@ -43,9 +45,11 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     public string LastTransitionReason => lastTransitionReason.Value.ToString();
     public bool IsMatchRunning => phase.Value == GamePhase.Playing;
     public bool IsMatchFinished => IsTerminalPhase(phase.Value);
+    public bool IsServerReady => IsSpawned && IsServer && serverReady;
 
     public override void OnNetworkSpawn()
     {
+        serverReady = false;
         matchResolvedRaised = IsResolvedPhase(phase.Value) && result.Value.HasResult;
         matchFinishedRaised = phase.Value == GamePhase.Finished;
 
@@ -76,6 +80,8 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         matchResolvedRaised = false;
         matchFinishedRaised = false;
+        serverReady = true;
+        ServerReady?.Invoke();
     }
 
     public override void OnNetworkDespawn()
@@ -86,6 +92,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         StopFinishRoutine();
 
+        serverReady = false;
         matchResolvedRaised = false;
         matchFinishedRaised = false;
     }
