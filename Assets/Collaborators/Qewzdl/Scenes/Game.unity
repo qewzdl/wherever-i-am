@@ -8629,6 +8629,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6213785773692922566}
   - component: {fileID: 6213785773692922567}
+  - component: {fileID: 6213785773692922568}
   m_Layer: 10
   m_Name: EntranceDoor
   m_TagString: Untagged
@@ -8784,6 +8785,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   objective: {fileID: 11400000, guid: b5ab6b493cb32464582ae2c1c044264a, type: 2}
+--- !u!114 &6213785773692922568
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2960792859147191975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e3e26b0efaf4c939ac44c9dbcf9fb01, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  objectiveBinding: {fileID: 6213785773692922567}
+  entranceDoor: {fileID: 1673580733}
+  reportHandleProgress: 1
+  maxProgressBeforeUnlock: 0.99
 --- !u!4 &6277086913069750313
 Transform:
   m_ObjectHideFlags: 0
