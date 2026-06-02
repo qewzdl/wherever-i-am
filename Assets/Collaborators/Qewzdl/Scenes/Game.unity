@@ -2216,6 +2216,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 661447793}
   - {fileID: 34402232}
   - {fileID: 1428459822}
   m_Father: {fileID: 0}
@@ -3317,6 +3318,81 @@ Transform:
   - {fileID: 1033010619}
   m_Father: {fileID: 2020218470}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &661447792
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 661447793}
+  - component: {fileID: 661447795}
+  - component: {fileID: 661447794}
+  m_Layer: 0
+  m_Name: RuntimeDebugRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &661447793
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 661447792}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 389546435}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &661447794
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 661447792}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a308a26b06d09864b91e957268b5dbd3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visible: 1
+  order: 0
+  gameFlow: {fileID: 34402235}
+  objectiveFlow: {fileID: 34402234}
+--- !u!114 &661447795
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 661447792}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99d6e65315afea44cb27d911e2c130f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sources:
+  - {fileID: 661447794}
+  showOnStart: 1
+  enableToggleShortcut: 1
+  toggleKey: 96
+  refreshIntervalSeconds: 0.1
+  screenOffset: {x: 16, y: -16}
+  panelWidth: 620
+  minPanelHeight: 120
+  panelPadding: {x: 14, y: 12}
+  sortingOrder: 32760
+  backgroundColor: {r: 0, g: 0, b: 0, a: 0.78}
+  textColor: {r: 1, g: 1, b: 1, a: 1}
+  fontSize: 18
 --- !u!1 &694620310
 GameObject:
   m_ObjectHideFlags: 0
