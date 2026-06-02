@@ -9,13 +9,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 88bbd8f7683d59e4780abcb67f22d25f, type: 3}
-  m_Name: CustomEventObjectiveDefinition
+  m_Script: {fileID: 11500000, guid: 60bb56007d337144aa5d714498f6989f, type: 3}
+  m_Name: ObjectiveSequence_Game_Main
   m_EditorClassIdentifier: 
-  objectiveId: objective
-  displayName: Objective
-  targetValue: 1
-  completionPolicy: 1
-  resultType: 1
-  completionReason: Objective completed
-  eventId: objective.completed
+  objectives:
+  - {fileID: 11400000, guid: b5ab6b493cb32464582ae2c1c044264a, type: 2}
