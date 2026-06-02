@@ -54,7 +54,17 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
             return false;
         }
 
-        return objectiveFlow.ReportObjectiveProgressServerOnly(ObjectiveId, progress01, instigatorClientId);
+        return objectiveFlow.ReportObjectiveProgressNormalizedServerOnly(ObjectiveId, progress01, instigatorClientId);
+    }
+
+    public bool TryReportProgressAmountServerOnly(float progressAmount, ulong instigatorClientId = 0)
+    {
+        if (!CanReportServerOnly())
+        {
+            return false;
+        }
+
+        return objectiveFlow.ReportObjectiveProgressAmountServerOnly(ObjectiveId, progressAmount, instigatorClientId);
     }
 
     public bool TryCompleteServerOnly(ulong instigatorClientId = 0)

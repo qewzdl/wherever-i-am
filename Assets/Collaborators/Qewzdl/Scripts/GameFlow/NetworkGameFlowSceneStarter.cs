@@ -11,6 +11,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     [Header("Start")]
     [SerializeField] private bool startOnServerSpawn = true;
     [SerializeField] [Min(0)] private int framesToWaitBeforeStart = 1;
+    [SerializeField] private string startReason = "Game scene network spawn completed";
 
     private Coroutine startRoutine;
 
@@ -49,6 +50,11 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     private void OnValidate()
     {
         framesToWaitBeforeStart = Mathf.Max(0, framesToWaitBeforeStart);
+
+        if (string.IsNullOrWhiteSpace(startReason))
+        {
+            startReason = "Game scene network spawn completed";
+        }
     }
 
     private IEnumerator StartMatchAfterNetworkSpawn()
@@ -76,7 +82,10 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             yield break;
         }
 
-        gameFlow.StartMatchServerOnly();
+        if (!gameFlow.StartMatchServerOnly(startReason))
+        {
+            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} failed to start match from scene spawn.", this);
+        }
     }
 
     private bool ValidateSetup()

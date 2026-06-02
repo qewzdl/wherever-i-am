@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -22,17 +23,24 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
 
+    private readonly NetworkVariable<FixedString128Bytes> lastTransitionReason = new NetworkVariable<FixedString128Bytes>(
+        "Not started",
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
     private Coroutine finishCoroutine;
     private bool matchResolvedRaised;
     private bool matchFinishedRaised;
 
     public event Action<GamePhase, GamePhase> PhaseChanged;
     public event Action<GameResultData, GameResultData> ResultChanged;
+    public event Action<FixedString128Bytes, FixedString128Bytes> TransitionReasonChanged;
     public event Action<GameResultData> MatchResolved;
     public event Action<GameResultData> MatchFinished;
 
     public GamePhase CurrentPhase => phase.Value;
     public GameResultData CurrentResult => result.Value;
+    public string LastTransitionReason => lastTransitionReason.Value.ToString();
     public bool IsMatchRunning => phase.Value == GamePhase.Playing;
     public bool IsMatchFinished => IsTerminalPhase(phase.Value);
 
@@ -43,6 +51,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         phase.OnValueChanged += HandlePhaseChanged;
         result.OnValueChanged += HandleResultChanged;
+        lastTransitionReason.OnValueChanged += HandleTransitionReasonChanged;
 
         if (!IsServer)
         {
@@ -59,8 +68,12 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return;
         }
 
+        StopFinishRoutine();
+
         result.Value = GameResultData.None;
         phase.Value = initialPhase;
+        lastTransitionReason.Value = "GameFlow spawned in Waiting phase";
+
         matchResolvedRaised = false;
         matchFinishedRaised = false;
     }
@@ -69,6 +82,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     {
         phase.OnValueChanged -= HandlePhaseChanged;
         result.OnValueChanged -= HandleResultChanged;
+        lastTransitionReason.OnValueChanged -= HandleTransitionReasonChanged;
 
         StopFinishRoutine();
 
@@ -77,6 +91,11 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     }
 
     public bool StartMatchServerOnly()
+    {
+        return StartMatchServerOnly("Match start requested");
+    }
+
+    public bool StartMatchServerOnly(string reason)
     {
         if (!IsServer)
         {
@@ -102,7 +121,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         if (phase.Value == GamePhase.Waiting)
         {
-            if (!TrySetPhaseServerOnly(GamePhase.Starting, true))
+            if (!TrySetPhaseServerOnly(GamePhase.Starting, GetReason(reason, "Match is starting"), true))
             {
                 return false;
             }
@@ -117,10 +136,15 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return false;
         }
 
-        return TrySetPhaseServerOnly(GamePhase.Playing, true);
+        return TrySetPhaseServerOnly(GamePhase.Playing, GetReason(reason, "Match is playing"), true);
     }
 
     public bool CompleteMatchServerOnly(GameResultData matchResult)
+    {
+        return CompleteMatchServerOnly(matchResult, matchResult.Reason.ToString());
+    }
+
+    public bool CompleteMatchServerOnly(GameResultData matchResult, string reason)
     {
         if (!IsServer)
         {
@@ -150,7 +174,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         result.Value = matchResult;
 
-        if (!TrySetPhaseServerOnly(GamePhase.MatchResolved, true))
+        if (!TrySetPhaseServerOnly(GamePhase.MatchResolved, GetReason(reason, "Match resolved"), true))
         {
             return false;
         }
@@ -191,7 +215,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             yield break;
         }
 
-        if (!TrySetPhaseServerOnly(GamePhase.Ending, true))
+        if (!TrySetPhaseServerOnly(GamePhase.Ending, "Match ending delay completed", true))
         {
             finishCoroutine = null;
             yield break;
@@ -204,13 +228,13 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         if (IsServer && phase.Value == GamePhase.Ending)
         {
-            TrySetPhaseServerOnly(GamePhase.Finished, true);
+            TrySetPhaseServerOnly(GamePhase.Finished, "Match finished", true);
         }
 
         finishCoroutine = null;
     }
 
-    private bool TrySetPhaseServerOnly(GamePhase nextPhase, bool logInvalidTransition)
+    private bool TrySetPhaseServerOnly(GamePhase nextPhase, string reason, bool logInvalidTransition)
     {
         GamePhase currentPhase = phase.Value;
 
@@ -231,7 +255,9 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return false;
         }
 
+        lastTransitionReason.Value = GetReason(reason, $"{currentPhase} -> {nextPhase}");
         phase.Value = nextPhase;
+
         return true;
     }
 
@@ -301,6 +327,11 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         }
     }
 
+    private void HandleTransitionReasonChanged(FixedString128Bytes previousValue, FixedString128Bytes newValue)
+    {
+        TransitionReasonChanged?.Invoke(previousValue, newValue);
+    }
+
     private void TryRaiseMatchResolvedOnce()
     {
         if (matchResolvedRaised)
@@ -331,5 +362,10 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         matchFinishedRaised = true;
         MatchFinished?.Invoke(result.Value);
+    }
+
+    private string GetReason(string reason, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(reason) ? fallback : reason;
     }
 }

@@ -61,9 +61,9 @@ public class ObjectiveDefinition : ScriptableObject
             return false;
         }
 
-        if (completionResult == GameResultType.None)
+        if (CompletesGame && completionResult == GameResultType.None)
         {
-            error = $"{nameof(ObjectiveDefinition)} '{objectiveId}' has invalid completion result.";
+            error = $"{nameof(ObjectiveDefinition)} '{objectiveId}' completes game but has invalid completion result.";
             return false;
         }
 
@@ -74,5 +74,10 @@ public class ObjectiveDefinition : ScriptableObject
     protected virtual void OnValidate()
     {
         requiredProgress = Mathf.Max(0.0001f, requiredProgress);
+
+        if (!CompletesGame)
+        {
+            completionResult = GameResultType.None;
+        }
     }
 }

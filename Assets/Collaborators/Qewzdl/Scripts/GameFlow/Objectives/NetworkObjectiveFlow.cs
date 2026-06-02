@@ -1,4 +1,5 @@
 using System;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -17,16 +18,24 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
 
+    private readonly NetworkVariable<FixedString128Bytes> lastObjectiveReason = new NetworkVariable<FixedString128Bytes>(
+        "No objective active",
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
     private ObjectiveSceneBinding activeBinding;
 
     public event Action<ObjectiveNetworkState, ObjectiveNetworkState> ObjectiveStateChanged;
+    public event Action<FixedString128Bytes, FixedString128Bytes> ObjectiveReasonChanged;
 
     public ObjectiveNetworkState CurrentObjective => currentObjective.Value;
+    public string LastObjectiveReason => lastObjectiveReason.Value.ToString();
     public bool HasActiveObjective => currentObjective.Value.State == ObjectiveRuntimeState.Active;
 
     public override void OnNetworkSpawn()
     {
         currentObjective.OnValueChanged += HandleObjectiveStateChanged;
+        lastObjectiveReason.OnValueChanged += HandleObjectiveReasonChanged;
 
         if (!ValidateSetup())
         {
@@ -41,6 +50,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         sceneBindingRegistry.BindAll(this);
         currentObjective.Value = ObjectiveNetworkState.None;
+        lastObjectiveReason.Value = "Objective flow spawned";
 
         gameFlow.PhaseChanged += HandleGamePhaseChanged;
         gameFlow.MatchResolved += HandleMatchResolved;
@@ -54,6 +64,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         currentObjective.OnValueChanged -= HandleObjectiveStateChanged;
+        lastObjectiveReason.OnValueChanged -= HandleObjectiveReasonChanged;
 
         if (IsServer && gameFlow != null)
         {
@@ -87,99 +98,79 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return false;
         }
 
-        return TryActivateObjectiveServerOnly(0);
+        return TryActivateObjectiveServerOnly(0, "Match entered Playing phase");
     }
 
     public bool ReportObjectiveProgressServerOnly(string objectiveId, float progress01, ulong instigatorClientId)
     {
-        if (!IsServer)
-        {
-            Debug.LogError($"{nameof(NetworkObjectiveFlow)} can report objective progress only on server.", this);
-            return false;
-        }
+        return ReportObjectiveProgressNormalizedServerOnly(objectiveId, progress01, instigatorClientId);
+    }
 
-        if (!gameFlow.IsMatchRunning)
-        {
-            return false;
-        }
-
-        ObjectiveNetworkState state = currentObjective.Value;
-
-        if (state.State != ObjectiveRuntimeState.Active)
+    public bool ReportObjectiveProgressAmountServerOnly(string objectiveId, float progressAmount, ulong instigatorClientId)
+    {
+        if (!TryGetActiveObjective(objectiveId, out ObjectiveNetworkState state, out ObjectiveDefinition objective))
         {
             return false;
         }
 
-        if (!string.Equals(state.ObjectiveId.ToString(), objectiveId, StringComparison.Ordinal))
-        {
-            Debug.LogError(
-                $"{nameof(NetworkObjectiveFlow)} rejected progress for objective '{objectiveId}'. Active objective: '{state.ObjectiveId}'.",
-                this);
+        float normalizedProgress = Mathf.Clamp01(progressAmount / objective.RequiredProgress);
+        return ApplyObjectiveProgressServerOnly(state, objective, normalizedProgress, instigatorClientId, "Objective progress amount reported");
+    }
 
-            return false;
-        }
-
-        float clampedProgress = Mathf.Clamp01(progress01);
-
-        if (clampedProgress <= state.Progress01)
+    public bool ReportObjectiveProgressNormalizedServerOnly(string objectiveId, float progress01, ulong instigatorClientId)
+    {
+        if (!TryGetActiveObjective(objectiveId, out ObjectiveNetworkState state, out ObjectiveDefinition objective))
         {
             return false;
         }
 
-        state.Progress01 = clampedProgress;
+        float normalizedProgress = Mathf.Clamp01(progress01);
+        return ApplyObjectiveProgressServerOnly(state, objective, normalizedProgress, instigatorClientId, "Objective normalized progress reported");
+    }
+
+    public bool CompleteObjectiveServerOnly(string objectiveId, ulong instigatorClientId)
+    {
+        if (!TryGetActiveObjective(objectiveId, out ObjectiveNetworkState state, out ObjectiveDefinition objective))
+        {
+            return false;
+        }
+
+        return CompleteObjectiveServerOnly(state, objective, instigatorClientId);
+    }
+
+    private bool ApplyObjectiveProgressServerOnly(
+        ObjectiveNetworkState state,
+        ObjectiveDefinition objective,
+        float normalizedProgress,
+        ulong instigatorClientId,
+        string reason)
+    {
+        if (normalizedProgress <= state.Progress01)
+        {
+            return false;
+        }
+
+        state.Progress01 = normalizedProgress;
         currentObjective.Value = state;
+        lastObjectiveReason.Value = reason;
 
         if (state.Progress01 >= 1f)
         {
-            return CompleteObjectiveServerOnly(objectiveId, instigatorClientId);
+            return CompleteObjectiveServerOnly(state, objective, instigatorClientId);
         }
 
         return true;
     }
 
-    public bool CompleteObjectiveServerOnly(string objectiveId, ulong instigatorClientId)
+    private bool CompleteObjectiveServerOnly(
+        ObjectiveNetworkState state,
+        ObjectiveDefinition objective,
+        ulong instigatorClientId)
     {
-        if (!IsServer)
-        {
-            Debug.LogError($"{nameof(NetworkObjectiveFlow)} can complete objective only on server.", this);
-            return false;
-        }
-
-        if (!gameFlow.IsMatchRunning)
-        {
-            return false;
-        }
-
-        ObjectiveNetworkState state = currentObjective.Value;
-
-        if (state.State != ObjectiveRuntimeState.Active)
-        {
-            return false;
-        }
-
-        if (!string.Equals(state.ObjectiveId.ToString(), objectiveId, StringComparison.Ordinal))
-        {
-            Debug.LogError(
-                $"{nameof(NetworkObjectiveFlow)} rejected completion for objective '{objectiveId}'. Active objective: '{state.ObjectiveId}'.",
-                this);
-
-            return false;
-        }
-
-        ObjectiveDefinition objective = objectiveSequence.GetObjective(state.SequenceIndex);
-
-        if (objective == null)
-        {
-            Debug.LogError(
-                $"{nameof(NetworkObjectiveFlow)} cannot complete objective at index {state.SequenceIndex}: definition is null.",
-                this);
-
-            return false;
-        }
-
         state.State = ObjectiveRuntimeState.Completed;
         state.Progress01 = 1f;
         currentObjective.Value = state;
+        lastObjectiveReason.Value = $"Objective '{objective.ObjectiveId}' completed";
 
         DeactivateActiveBinding();
 
@@ -187,7 +178,16 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (nextIndex < objectiveSequence.Count)
         {
-            return TryActivateObjectiveServerOnly(nextIndex);
+            return TryActivateObjectiveServerOnly(nextIndex, $"Objective '{objective.ObjectiveId}' completed");
+        }
+
+        if (!objective.CompletesGame)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkObjectiveFlow)} sequence ended with objective '{objective.ObjectiveId}' but it does not complete the game.",
+                this);
+
+            return false;
         }
 
         GameResultData result = GameResultData.Create(
@@ -197,10 +197,10 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             objective.CompletionReason,
             instigatorClientId);
 
-        return gameFlow.CompleteMatchServerOnly(result);
+        return gameFlow.CompleteMatchServerOnly(result, objective.CompletionReason);
     }
 
-    private bool TryActivateObjectiveServerOnly(int index)
+    private bool TryActivateObjectiveServerOnly(int index, string reason)
     {
         ObjectiveDefinition objective = objectiveSequence.GetObjective(index);
 
@@ -241,12 +241,60 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         };
 
         currentObjective.Value = nextState;
+        lastObjectiveReason.Value = GetReason(reason, $"Objective '{objective.ObjectiveId}' activated");
 
         activeBinding = binding;
 
         if (activeBinding != null)
         {
             activeBinding.SetActiveState(true);
+        }
+
+        return true;
+    }
+
+    private bool TryGetActiveObjective(
+        string objectiveId,
+        out ObjectiveNetworkState state,
+        out ObjectiveDefinition objective)
+    {
+        state = currentObjective.Value;
+        objective = null;
+
+        if (!IsServer)
+        {
+            Debug.LogError($"{nameof(NetworkObjectiveFlow)} can change objectives only on server.", this);
+            return false;
+        }
+
+        if (!gameFlow.IsMatchRunning)
+        {
+            return false;
+        }
+
+        if (state.State != ObjectiveRuntimeState.Active)
+        {
+            return false;
+        }
+
+        if (!string.Equals(state.ObjectiveId.ToString(), objectiveId, StringComparison.Ordinal))
+        {
+            Debug.LogError(
+                $"{nameof(NetworkObjectiveFlow)} rejected objective update for '{objectiveId}'. Active objective: '{state.ObjectiveId}'.",
+                this);
+
+            return false;
+        }
+
+        objective = objectiveSequence.GetObjective(state.SequenceIndex);
+
+        if (objective == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkObjectiveFlow)} cannot update objective at index {state.SequenceIndex}: definition is null.",
+                this);
+
+            return false;
         }
 
         return true;
@@ -328,5 +376,15 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     private void HandleObjectiveStateChanged(ObjectiveNetworkState previousValue, ObjectiveNetworkState newValue)
     {
         ObjectiveStateChanged?.Invoke(previousValue, newValue);
+    }
+
+    private void HandleObjectiveReasonChanged(FixedString128Bytes previousValue, FixedString128Bytes newValue)
+    {
+        ObjectiveReasonChanged?.Invoke(previousValue, newValue);
+    }
+
+    private string GetReason(string reason, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(reason) ? fallback : reason;
     }
 }

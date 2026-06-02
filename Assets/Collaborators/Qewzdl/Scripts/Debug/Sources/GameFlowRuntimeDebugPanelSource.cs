@@ -9,7 +9,6 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
     [SerializeField] private NetworkObjectiveFlow objectiveFlow;
 
     private bool isSubscribed;
-    private string lastTransitionReason = "No replicated transition observed yet.";
     private string lastGameFlowTransition = "None";
     private string lastObjectiveTransition = "None";
 
@@ -65,19 +64,20 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
             .Row("Is Match Running", ToYesNo(gameFlow.IsMatchRunning))
             .Row("Is Match Finished", ToYesNo(gameFlow.IsMatchFinished))
             .Row("Last GameFlow Transition", lastGameFlowTransition)
+            .Row("GameFlow Reason", gameFlow.LastTransitionReason)
             .Row("Objective Id", GetObjectiveId(objectiveState))
             .Row("Sequence Index", objectiveState.SequenceIndex)
             .Row("Objective State", objectiveState.State)
             .Row("Objective Progress", FormatProgress(objectiveState.Progress01))
             .Row("Has Active Objective", ToYesNo(objectiveFlow.HasActiveObjective))
             .Row("Last Objective Transition", lastObjectiveTransition)
+            .Row("Objective Reason", objectiveFlow.LastObjectiveReason)
             .Row("Has Result", ToYesNo(resultData.HasResult))
             .Row("Result Type", resultData.ResultType)
             .Row("Source", resultData.Source)
             .Row("Source Id", ToDisplayText(resultData.SourceId.ToString()))
             .Row("Reason", ToDisplayText(resultData.Reason.ToString()))
-            .Row("Instigator Client Id", resultData.InstigatorClientId)
-            .Row("Last Transition Reason", ToDisplayText(lastTransitionReason));
+            .Row("Instigator Client Id", resultData.InstigatorClientId);
     }
 
     private void Subscribe()
@@ -89,7 +89,9 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
 
         gameFlow.PhaseChanged += HandlePhaseChanged;
         gameFlow.ResultChanged += HandleResultChanged;
+        gameFlow.TransitionReasonChanged += HandleTransitionReasonChanged;
         objectiveFlow.ObjectiveStateChanged += HandleObjectiveStateChanged;
+        objectiveFlow.ObjectiveReasonChanged += HandleObjectiveReasonChanged;
 
         isSubscribed = true;
     }
@@ -105,11 +107,13 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
         {
             gameFlow.PhaseChanged -= HandlePhaseChanged;
             gameFlow.ResultChanged -= HandleResultChanged;
+            gameFlow.TransitionReasonChanged -= HandleTransitionReasonChanged;
         }
 
         if (objectiveFlow != null)
         {
             objectiveFlow.ObjectiveStateChanged -= HandleObjectiveStateChanged;
+            objectiveFlow.ObjectiveReasonChanged -= HandleObjectiveReasonChanged;
         }
 
         isSubscribed = false;
@@ -118,7 +122,6 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
     private void HandlePhaseChanged(GamePhase previousPhase, GamePhase newPhase)
     {
         lastGameFlowTransition = $"{previousPhase} -> {newPhase}";
-        lastTransitionReason = $"GameFlow phase changed: {previousPhase} -> {newPhase}";
         RequestRefresh();
     }
 
@@ -127,14 +130,17 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
         if (newResult.HasResult)
         {
             lastGameFlowTransition = $"Result: {newResult.ResultType} / {newResult.Source}";
-            lastTransitionReason = newResult.Reason.ToString();
         }
         else
         {
             lastGameFlowTransition = "Result cleared";
-            lastTransitionReason = "Game result cleared";
         }
 
+        RequestRefresh();
+    }
+
+    private void HandleTransitionReasonChanged(Unity.Collections.FixedString128Bytes previousReason, Unity.Collections.FixedString128Bytes newReason)
+    {
         RequestRefresh();
     }
 
@@ -144,8 +150,12 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
         string newObjectiveId = GetObjectiveId(newState);
 
         lastObjectiveTransition = $"{previousObjectiveId} [{previousState.State}] -> {newObjectiveId} [{newState.State}]";
-        lastTransitionReason = $"Objective state changed: {lastObjectiveTransition}";
 
+        RequestRefresh();
+    }
+
+    private void HandleObjectiveReasonChanged(Unity.Collections.FixedString128Bytes previousReason, Unity.Collections.FixedString128Bytes newReason)
+    {
         RequestRefresh();
     }
 
