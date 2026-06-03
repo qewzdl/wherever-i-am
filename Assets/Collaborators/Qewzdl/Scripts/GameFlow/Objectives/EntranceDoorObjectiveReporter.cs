@@ -1,27 +1,28 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class EntranceDoorObjectiveReporter : MonoBehaviour
+public sealed class EntranceDoorObjectiveReporter : ObjectiveReporterBase
 {
-    [SerializeField] private ObjectiveSceneBinding objectiveBinding;
     [SerializeField] private EntranceDoor entranceDoor;
     [SerializeField] private bool reportHandleProgress = true;
     [SerializeField] [Range(0f, 0.99f)] private float maxProgressBeforeUnlock = 0.99f;
 
-    private void Reset()
+    protected override void Reset()
     {
-        ResolveReferences();
+        base.Reset();
+        ResolveEntranceDoor();
     }
 
-    private void OnValidate()
+    protected override void OnValidate()
     {
-        ResolveReferences();
+        base.OnValidate();
+        ResolveEntranceDoor();
         maxProgressBeforeUnlock = Mathf.Clamp(maxProgressBeforeUnlock, 0f, 0.99f);
     }
 
     private void OnEnable()
     {
-        ResolveReferences();
+        ResolveEntranceDoor();
 
         if (entranceDoor == null)
         {
@@ -30,9 +31,8 @@ public sealed class EntranceDoorObjectiveReporter : MonoBehaviour
             return;
         }
 
-        if (objectiveBinding == null)
+        if (!ValidateReporterSetup())
         {
-            Debug.LogError($"{nameof(EntranceDoorObjectiveReporter)} requires assigned {nameof(ObjectiveSceneBinding)}.", this);
             enabled = false;
             return;
         }
@@ -54,7 +54,7 @@ public sealed class EntranceDoorObjectiveReporter : MonoBehaviour
 
     private void HandleDoorHandleInserted(int handleId, int insertedHandleCount, int totalHandleCount, ulong instigatorClientId)
     {
-        if (!reportHandleProgress || !objectiveBinding.IsActive || totalHandleCount <= 0)
+        if (!reportHandleProgress || !IsObjectiveActive || totalHandleCount <= 0)
         {
             return;
         }
@@ -66,23 +66,16 @@ public sealed class EntranceDoorObjectiveReporter : MonoBehaviour
             progress = Mathf.Min(progress, maxProgressBeforeUnlock);
         }
 
-        objectiveBinding.TryReportProgressServerOnly(progress, instigatorClientId);
+        ReportProgress(progress, instigatorClientId);
     }
 
     private void HandleDoorUnlocked(ulong instigatorClientId)
     {
-        objectiveBinding.TryCompleteServerOnly(instigatorClientId);
+        Complete(instigatorClientId);
     }
 
-    private void ResolveReferences()
+    private void ResolveEntranceDoor()
     {
-        if (objectiveBinding == null)
-        {
-            objectiveBinding = GetComponent<ObjectiveSceneBinding>()
-                               ?? GetComponentInParent<ObjectiveSceneBinding>()
-                               ?? GetComponentInChildren<ObjectiveSceneBinding>();
-        }
-
         if (entranceDoor == null)
         {
             entranceDoor = GetComponent<EntranceDoor>()

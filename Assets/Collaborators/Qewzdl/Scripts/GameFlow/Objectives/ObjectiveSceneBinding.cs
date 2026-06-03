@@ -10,6 +10,9 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
     public ObjectiveDefinition Objective => objective;
     public string ObjectiveId => objective == null ? string.Empty : objective.ObjectiveId;
     public bool IsActive => isActive;
+    public bool IsBound => objectiveFlow != null;
+    public bool IsServerBound => objectiveFlow != null && objectiveFlow.IsServer;
+    public bool CanReportServerOnly => IsServerBound && isActive && !string.IsNullOrWhiteSpace(ObjectiveId);
 
     public bool IsConfigured(out string error)
     {
@@ -49,7 +52,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
 
     public bool TryReportProgressServerOnly(float progress01, ulong instigatorClientId = 0)
     {
-        if (!CanReportServerOnly())
+        if (!ValidateCanReportServerOnly())
         {
             return false;
         }
@@ -59,7 +62,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
 
     public bool TryReportProgressAmountServerOnly(float progressAmount, ulong instigatorClientId = 0)
     {
-        if (!CanReportServerOnly())
+        if (!ValidateCanReportServerOnly())
         {
             return false;
         }
@@ -69,7 +72,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
 
     public bool TryCompleteServerOnly(ulong instigatorClientId = 0)
     {
-        if (!CanReportServerOnly())
+        if (!ValidateCanReportServerOnly())
         {
             return false;
         }
@@ -77,7 +80,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
         return objectiveFlow.CompleteObjectiveServerOnly(ObjectiveId, instigatorClientId);
     }
 
-    private bool CanReportServerOnly()
+    private bool ValidateCanReportServerOnly()
     {
         if (objectiveFlow == null)
         {

@@ -713,7 +713,7 @@ MonoBehaviour:
   moveInputDeadZone: 0.1
   rb: {fileID: 7921583413856064293}
   bodyCollider: {fileID: 7461241867225673140}
-  cameraFollow: {fileID: 0}
+  cameraFollow: {fileID: 418672553506409019}
   blockingContactMaxY: 0.7
   gravityMultiplier: 1
   groundLayer:
@@ -769,7 +769,7 @@ MonoBehaviour:
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
-          m_StringArgument:
+          m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
     m_ActionId: 351f2ccd-1f9f-44bf-9bec-d62ac5c5f408
@@ -785,7 +785,7 @@ MonoBehaviour:
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
-          m_StringArgument: ""
+          m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
     m_ActionId: 6b444451-8a00-4d00-a97e-f47457f736a8
