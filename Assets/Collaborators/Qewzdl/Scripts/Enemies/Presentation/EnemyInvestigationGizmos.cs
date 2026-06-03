@@ -31,6 +31,11 @@ public class EnemyInvestigationGizmos : MonoBehaviour
 
     private readonly EnemyInvestigationSearchPlanner previewPlanner = new();
 
+    private void Awake()
+    {
+        RuntimeDebugBuildGuard.DestroyIfDisabled(this);
+    }
+
     private void OnDrawGizmos()
     {
         if (drawOnlyWhenSelected)

@@ -21,6 +21,11 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
             return;
         }
 
+        if (RuntimeDebugBuildGuard.DestroyIfDisabled(this))
+        {
+            return;
+        }
+
         Subscribe();
         RequestRefresh();
     }

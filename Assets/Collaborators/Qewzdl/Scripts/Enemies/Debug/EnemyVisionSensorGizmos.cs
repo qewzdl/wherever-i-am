@@ -25,6 +25,11 @@ public class EnemyVisionSensorGizmos : MonoBehaviour
 
     private void Awake()
     {
+        if (RuntimeDebugBuildGuard.DestroyIfDisabled(this))
+        {
+            return;
+        }
+
         CacheComponents();
     }
 

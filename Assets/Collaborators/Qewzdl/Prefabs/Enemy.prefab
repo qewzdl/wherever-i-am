@@ -539,7 +539,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d4544be4d0762d24da2262d858f5bc3e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attackEffect: {fileID: 11400000, guid: 27a637118f278c44c98a6df94e73d301, type: 2}
+  attackEffect: {fileID: 11400000, guid: 1767a658f3ed42eb9a329d1c6d41c9be, type: 2}
   consumeCooldownOnFailedEffect: 0
 --- !u!114 &4840997165000147843
 MonoBehaviour:

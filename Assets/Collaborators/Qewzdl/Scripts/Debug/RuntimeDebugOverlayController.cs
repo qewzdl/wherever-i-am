@@ -51,6 +51,11 @@ public sealed class RuntimeDebugOverlayController : MonoBehaviour
             return;
         }
 
+        if (RuntimeDebugBuildGuard.DestroyIfDisabled(this))
+        {
+            return;
+        }
+
         if (!ValidateSetup())
         {
             enabled = false;

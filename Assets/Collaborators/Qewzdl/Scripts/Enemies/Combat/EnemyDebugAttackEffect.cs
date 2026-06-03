@@ -8,6 +8,11 @@ public sealed class EnemyDebugAttackEffect : EnemyAttackEffect
 {
     public override bool TryApply(EnemyAttackContext context)
     {
+        if (!RuntimeDebugBuildGuard.IsEnabled)
+        {
+            return false;
+        }
+
         if (!context.IsValid)
         {
             return false;
