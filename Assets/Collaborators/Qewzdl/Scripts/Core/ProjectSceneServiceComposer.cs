@@ -16,7 +16,8 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
     [SerializeField] private ProjectNetworkSceneLoadCompletionTracker networkLoadCompletionTracker;
     [SerializeField] private ProjectScenePostLoadActionRunner postLoadActionRunner;
 
-    private bool compositionAttempted;
+    private bool composing;
+    private bool compositionFailureLogged;
     private bool composed;
 
     public LocalSceneLoader LocalSceneLoader => localSceneLoader;
@@ -33,68 +34,83 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
         if (composed)
             return true;
 
-        if (compositionAttempted)
+        if (composing)
             return false;
 
-        compositionAttempted = true;
+        composing = true;
 
-        if (!HasRequiredReferences(projectContext))
-            return false;
+        try
+        {
+            bool logErrors = !compositionFailureLogged;
 
-        NetworkManager networkManager = projectContext.NetworkManager;
-        GameStateMachine stateMachine = projectContext.StateMachine;
+            if (!HasRequiredReferences(projectContext, logErrors))
+            {
+                compositionFailureLogged = true;
+                return false;
+            }
 
-        localSceneLoader.Construct(projectContext);
-        networkSceneLoader.Construct(projectContext);
-        sceneNavigator.Construct(projectContext, localSceneLoader, networkSceneLoader);
+            NetworkManager networkManager = projectContext.NetworkManager;
+            GameStateMachine stateMachine = projectContext.StateMachine;
 
-        sceneTransitionValidator.Construct(projectContext, networkManager);
-        sceneLoadExecutor.Construct(sceneNavigator, networkManager);
-        networkLoadCompletionTracker.Construct(projectContext, networkManager);
-        postLoadActionRunner.Construct(networkManager);
+            localSceneLoader.Construct(projectContext);
+            networkSceneLoader.Construct(projectContext);
+            sceneNavigator.Construct(projectContext, localSceneLoader, networkSceneLoader);
 
-        sceneFlowService.Construct(
-            projectContext,
-            stateMachine,
-            sceneTransitionValidator,
-            sceneLoadExecutor,
-            networkLoadCompletionTracker,
-            postLoadActionRunner);
+            sceneTransitionValidator.Construct(projectContext, networkManager);
+            sceneLoadExecutor.Construct(sceneNavigator, networkManager);
+            networkLoadCompletionTracker.Construct(projectContext, networkManager);
+            postLoadActionRunner.Construct(networkManager);
 
-        composed = true;
-        return true;
+            sceneFlowService.Construct(
+                projectContext,
+                stateMachine,
+                sceneTransitionValidator,
+                sceneLoadExecutor,
+                networkLoadCompletionTracker,
+                postLoadActionRunner);
+
+            compositionFailureLogged = false;
+            composed = true;
+            return true;
+        }
+        finally
+        {
+            composing = false;
+        }
     }
 
-    private bool HasRequiredReferences(ProjectContext projectContext)
+    private bool HasRequiredReferences(ProjectContext projectContext, bool logErrors)
     {
         bool valid = true;
 
-        valid &= ValidateRequiredReference(projectContext, nameof(projectContext));
+        valid &= ValidateRequiredReference(projectContext, nameof(projectContext), logErrors);
 
         if (projectContext != null)
         {
-            valid &= ValidateRequiredReference(projectContext.NetworkManager, nameof(projectContext.NetworkManager));
-            valid &= ValidateRequiredReference(projectContext.StateMachine, nameof(projectContext.StateMachine));
+            valid &= ValidateRequiredReference(projectContext.NetworkManager, nameof(projectContext.NetworkManager), logErrors);
+            valid &= ValidateRequiredReference(projectContext.StateMachine, nameof(projectContext.StateMachine), logErrors);
         }
 
-        valid &= ValidateRequiredReference(localSceneLoader, nameof(localSceneLoader));
-        valid &= ValidateRequiredReference(networkSceneLoader, nameof(networkSceneLoader));
-        valid &= ValidateRequiredReference(sceneNavigator, nameof(sceneNavigator));
-        valid &= ValidateRequiredReference(sceneFlowService, nameof(sceneFlowService));
-        valid &= ValidateRequiredReference(sceneTransitionValidator, nameof(sceneTransitionValidator));
-        valid &= ValidateRequiredReference(sceneLoadExecutor, nameof(sceneLoadExecutor));
-        valid &= ValidateRequiredReference(networkLoadCompletionTracker, nameof(networkLoadCompletionTracker));
-        valid &= ValidateRequiredReference(postLoadActionRunner, nameof(postLoadActionRunner));
+        valid &= ValidateRequiredReference(localSceneLoader, nameof(localSceneLoader), logErrors);
+        valid &= ValidateRequiredReference(networkSceneLoader, nameof(networkSceneLoader), logErrors);
+        valid &= ValidateRequiredReference(sceneNavigator, nameof(sceneNavigator), logErrors);
+        valid &= ValidateRequiredReference(sceneFlowService, nameof(sceneFlowService), logErrors);
+        valid &= ValidateRequiredReference(sceneTransitionValidator, nameof(sceneTransitionValidator), logErrors);
+        valid &= ValidateRequiredReference(sceneLoadExecutor, nameof(sceneLoadExecutor), logErrors);
+        valid &= ValidateRequiredReference(networkLoadCompletionTracker, nameof(networkLoadCompletionTracker), logErrors);
+        valid &= ValidateRequiredReference(postLoadActionRunner, nameof(postLoadActionRunner), logErrors);
 
         return valid;
     }
 
-    private bool ValidateRequiredReference(Object reference, string fieldName)
+    private bool ValidateRequiredReference(Object reference, string fieldName, bool logError)
     {
         if (reference != null)
             return true;
 
-        Debug.LogError($"{nameof(ProjectSceneServiceComposer)} is missing '{fieldName}'.", this);
+        if (logError)
+            Debug.LogError($"{nameof(ProjectSceneServiceComposer)} is missing '{fieldName}'.", this);
+
         return false;
     }
 }

@@ -81,7 +81,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (sceneBindingRegistry != null)
         {
-            sceneBindingRegistry.DeactivateAll();
+            sceneBindingRegistry.UnbindAll();
         }
 
         activeBinding = null;

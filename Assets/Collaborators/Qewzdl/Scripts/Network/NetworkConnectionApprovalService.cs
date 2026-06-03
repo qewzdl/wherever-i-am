@@ -85,7 +85,7 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour
         response.Approved = false;
         response.Reason = approvalConfig.RemoteClientDeniedReason;
 
-        Debug.Log($"Rejected client {request.ClientNetworkId}: {approvalConfig.RemoteClientDeniedReason}");
+        RuntimeLog.Info($"Rejected client {request.ClientNetworkId}: {approvalConfig.RemoteClientDeniedReason}");
     }
 
     private bool CanAcceptRemoteClientConnection()

@@ -18,7 +18,7 @@ public sealed class EnemyDebugAttackEffect : EnemyAttackEffect
             return false;
         }
 
-        Debug.Log(
+        RuntimeLog.Info(
             $"Enemy attack effect applied to target {context.TargetDebugName}.",
             context.Source
         );

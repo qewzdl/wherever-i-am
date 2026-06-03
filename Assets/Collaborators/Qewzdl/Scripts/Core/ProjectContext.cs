@@ -23,7 +23,8 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private AudioManager audioManager;
 
     private bool referencesValidated;
-    private bool sceneServicesCompositionAttempted;
+    private bool referenceValidationFailureLogged;
+    private bool sceneServicesComposing;
     private bool sceneServicesComposed;
 
     public static ProjectContext Instance => instance;
@@ -182,10 +183,14 @@ public sealed class ProjectContext : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    public void ResolveReferences()
+    public bool ResolveReferences()
     {
-        ValidateReferencesOnce();
-        ComposeSceneServicesOnce();
+        bool referencesReady = ValidateReferences();
+
+        if (!referencesReady)
+            return false;
+
+        return ComposeSceneServices();
     }
 
     public string GetSceneName(ProjectSceneKind sceneKind)
@@ -258,42 +263,62 @@ public sealed class ProjectContext : MonoBehaviour
         return false;
     }
 
-    private void ValidateReferencesOnce()
+    private bool ValidateReferences()
     {
         if (referencesValidated)
-            return;
+            return true;
 
-        referencesValidated = true;
+        bool logErrors = !referenceValidationFailureLogged;
+        bool valid = true;
 
-        ValidateRequiredReference(sceneRegistry, nameof(sceneRegistry));
-        ValidateRequiredReference(sceneServiceComposer, nameof(sceneServiceComposer));
-        ValidateRequiredReference(networkManager, nameof(networkManager));
-        ValidateRequiredReference(stateMachine, nameof(stateMachine));
-        ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator));
-        ValidateRequiredReference(connectionService, nameof(connectionService));
-        ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService));
-        ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager));
-        ValidateRequiredReference(audioManager, nameof(audioManager));
+        valid &= ValidateRequiredReference(sceneRegistry, nameof(sceneRegistry), logErrors);
+        valid &= ValidateRequiredReference(sceneServiceComposer, nameof(sceneServiceComposer), logErrors);
+        valid &= ValidateRequiredReference(networkManager, nameof(networkManager), logErrors);
+        valid &= ValidateRequiredReference(stateMachine, nameof(stateMachine), logErrors);
+        valid &= ValidateRequiredReference(sessionOrchestrator, nameof(sessionOrchestrator), logErrors);
+        valid &= ValidateRequiredReference(connectionService, nameof(connectionService), logErrors);
+        valid &= ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService), logErrors);
+        valid &= ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager), logErrors);
+        valid &= ValidateRequiredReference(audioManager, nameof(audioManager), logErrors);
+
+        referencesValidated = valid;
+        referenceValidationFailureLogged = !valid;
+
+        return valid;
     }
 
-    private void ComposeSceneServicesOnce()
+    private bool ComposeSceneServices()
     {
-        if (sceneServicesComposed || sceneServicesCompositionAttempted)
-            return;
+        if (sceneServicesComposed)
+            return true;
 
-        sceneServicesCompositionAttempted = true;
+        if (sceneServicesComposing)
+            return false;
 
         if (sceneServiceComposer == null)
-            return;
+            return false;
 
-        sceneServicesComposed = sceneServiceComposer.Compose(this);
+        sceneServicesComposing = true;
+
+        try
+        {
+            sceneServicesComposed = sceneServiceComposer.Compose(this);
+            return sceneServicesComposed;
+        }
+        finally
+        {
+            sceneServicesComposing = false;
+        }
     }
 
-    private void ValidateRequiredReference(Object reference, string fieldName)
+    private bool ValidateRequiredReference(Object reference, string fieldName, bool logError)
     {
         if (reference != null)
-            return;
+            return true;
 
-        Debug.LogError($"{nameof(ProjectContext)} is missing '{fieldName}'.", this);
+        if (logError)
+            Debug.LogError($"{nameof(ProjectContext)} is missing '{fieldName}'.", this);
+
+        return false;
     }
 }

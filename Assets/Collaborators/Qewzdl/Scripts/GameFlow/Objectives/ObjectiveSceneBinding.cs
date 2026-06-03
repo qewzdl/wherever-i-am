@@ -45,6 +45,12 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
         SetActiveState(false);
     }
 
+    public void Unbind()
+    {
+        SetActiveState(false);
+        objectiveFlow = null;
+    }
+
     public void SetActiveState(bool active)
     {
         isActive = active;

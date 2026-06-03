@@ -263,7 +263,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
 
         if (logLifecycleCleanup)
         {
-            Debug.Log(
+            RuntimeLog.Info(
                 $"{nameof(GameplayNoiseWorldService)} cleared noise events on {reason}.",
                 this
             );

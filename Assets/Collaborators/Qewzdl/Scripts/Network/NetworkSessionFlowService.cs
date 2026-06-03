@@ -103,7 +103,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
         disconnectHandler.StartListening();
 
-        Debug.Log(result.DebugMessage);
+        RuntimeLog.Info(result.DebugMessage);
     }
 
     public void StartGame()

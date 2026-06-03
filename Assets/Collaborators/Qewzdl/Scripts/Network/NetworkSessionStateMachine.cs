@@ -41,9 +41,9 @@ public sealed class NetworkSessionStateMachine : MonoBehaviour
         StateChanged?.Invoke(previousState, newState);
 
         if (string.IsNullOrWhiteSpace(reason))
-            Debug.Log($"Network session state changed: {previousState} -> {newState}", this);
+            RuntimeLog.Info($"Network session state changed: {previousState} -> {newState}", this);
         else
-            Debug.Log($"Network session state changed: {previousState} -> {newState}. Reason: {reason}", this);
+            RuntimeLog.Info($"Network session state changed: {previousState} -> {newState}. Reason: {reason}", this);
 
         return true;
     }

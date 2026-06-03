@@ -115,6 +115,26 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
         }
     }
 
+    public void UnbindAll()
+    {
+        if (bindings == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < bindings.Length; i++)
+        {
+            ObjectiveSceneBinding binding = bindings[i];
+
+            if (binding == null)
+            {
+                continue;
+            }
+
+            binding.Unbind();
+        }
+    }
+
     public bool TryGetBinding(string objectiveId, out ObjectiveSceneBinding binding)
     {
         binding = null;
