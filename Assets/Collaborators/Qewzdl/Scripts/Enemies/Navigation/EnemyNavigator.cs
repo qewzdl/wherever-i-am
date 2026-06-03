@@ -10,6 +10,7 @@ public class EnemyNavigator : MonoBehaviour
 
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
+    [SerializeField] private EnemyDoorInteractor doorInteractor;
 
     private NavMeshPath pathBuffer;
     private NavMeshPath posturePathBuffer;
@@ -18,6 +19,10 @@ public class EnemyNavigator : MonoBehaviour
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
+
+    private bool hasRequestedNavigation;
+    private Vector3 requestedNavigationDestination;
+    private float requestedNavigationSpeed;
 
     private float nextStandingRecoveryCheckTime;
 
@@ -39,7 +44,9 @@ public class EnemyNavigator : MonoBehaviour
 
         CacheComponents();
 
+        hasRequestedNavigation = false;
         nextStandingRecoveryCheckTime = 0f;
+        doorInteractor?.CancelActiveInteraction();
 
         if (config == null)
         {
@@ -69,6 +76,9 @@ public class EnemyNavigator : MonoBehaviour
     {
         CacheComponents();
 
+        hasRequestedNavigation = false;
+        doorInteractor?.CancelActiveInteraction();
+
         if (agent != null)
         {
             agent.enabled = false;
@@ -77,6 +87,22 @@ public class EnemyNavigator : MonoBehaviour
 
     public bool TryMoveTo(Vector3 destination, float speed)
     {
+        RememberRequestedNavigation(destination, speed);
+
+        if (TryResolveDoorNavigation(destination, out EnemyDoorNavigationResult doorResult))
+        {
+            if (doorResult.ShouldStop)
+            {
+                StopForDoorInteraction();
+                return true;
+            }
+
+            if (doorResult.HasOverrideDestination)
+            {
+                destination = doorResult.OverrideDestination;
+            }
+        }
+
         if (postureController != null && postureController.IsPostureTransitionInProgress)
         {
             StopForPostureTransition();
@@ -91,8 +117,38 @@ public class EnemyNavigator : MonoBehaviour
         return TryMoveToWithCurrentPosture(destination, speed);
     }
 
+    public void TickNavigationGate()
+    {
+        if (doorInteractor == null || !doorInteractor.HasActiveInteraction)
+        {
+            return;
+        }
+
+        if (!hasRequestedNavigation)
+        {
+            doorInteractor.CancelActiveInteraction();
+            return;
+        }
+
+        EnemyDoorNavigationResult doorResult = doorInteractor.EvaluateNavigation(
+            transform.position,
+            requestedNavigationDestination
+        );
+
+        if (doorResult.ShouldStop)
+        {
+            StopForDoorInteraction();
+            return;
+        }
+
+        TryMoveTo(requestedNavigationDestination, requestedNavigationSpeed);
+    }
+
     public void Stop()
     {
+        hasRequestedNavigation = false;
+        doorInteractor?.CancelActiveInteraction();
+
         if (!TryEnsureOnNavMesh())
         {
             return;
@@ -103,6 +159,9 @@ public class EnemyNavigator : MonoBehaviour
 
     public void ResetPath()
     {
+        hasRequestedNavigation = false;
+        doorInteractor?.CancelActiveInteraction();
+
         if (!TryEnsureOnNavMesh())
         {
             return;
@@ -113,6 +172,11 @@ public class EnemyNavigator : MonoBehaviour
 
     public bool HasReached(float reachDistance)
     {
+        if (doorInteractor != null && doorInteractor.HasActiveInteraction)
+        {
+            return false;
+        }
+
         if (!TryEnsureOnNavMesh())
         {
             return false;
@@ -154,6 +218,39 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void RememberRequestedNavigation(Vector3 destination, float speed)
+    {
+        requestedNavigationDestination = destination;
+        requestedNavigationSpeed = speed;
+        hasRequestedNavigation = true;
+    }
+
+    private bool TryResolveDoorNavigation(
+        Vector3 destination,
+        out EnemyDoorNavigationResult doorResult
+    )
+    {
+        doorResult = EnemyDoorNavigationResult.None;
+
+        if (doorInteractor == null)
+        {
+            return false;
+        }
+
+        doorResult = doorInteractor.EvaluateNavigation(transform.position, destination);
+        return doorResult.IsHandled;
+    }
+
+    private void StopForDoorInteraction()
+    {
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+        agent.isStopped = true;
     }
 
     private bool TryMoveWithPosturePriority(Vector3 destination, float speed)
@@ -526,6 +623,11 @@ public class EnemyNavigator : MonoBehaviour
         if (postureController == null)
         {
             postureController = GetComponent<EnemyPostureController>();
+        }
+
+        if (doorInteractor == null)
+        {
+            doorInteractor = GetComponent<EnemyDoorInteractor>();
         }
     }
 

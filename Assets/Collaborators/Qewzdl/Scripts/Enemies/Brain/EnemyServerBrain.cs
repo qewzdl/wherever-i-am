@@ -115,6 +115,8 @@ public sealed class EnemyServerBrain
             return;
         }
 
+        navigator.TickNavigationGate();
+
         context.RefreshPosture();
 
         attackController?.Tick(deltaTime, navigator.Position);

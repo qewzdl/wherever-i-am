@@ -350,6 +350,7 @@ GameObject:
   - component: {fileID: 5748802255991143052}
   - component: {fileID: 732498019463342965}
   - component: {fileID: 1988043157719056020}
+  - component: {fileID: 4936594606328749735}
   m_Layer: 3
   m_Name: Enemy
   m_TagString: Untagged
@@ -527,6 +528,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   agent: {fileID: 7505417439924373614}
   postureController: {fileID: 1705734711893662682}
+  doorInteractor: {fileID: 4936594606328749735}
 --- !u!114 &7387159276498090581
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -884,6 +886,19 @@ MonoBehaviour:
   requireLocalTargetForCombat: 1
   playSuspiciousWithoutLocalTarget: 1
   keepLostTargetOnlyForLocalPlayer: 1
+--- !u!114 &4936594606328749735
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5706861626712077370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d15cf13acd2762b439fd9794c9eb6851, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  config: {fileID: 11400000, guid: fdee169571eda4745a8f1d7ea5ade29d, type: 2}
 --- !u!1 &7180979343815774133
 GameObject:
   m_ObjectHideFlags: 0

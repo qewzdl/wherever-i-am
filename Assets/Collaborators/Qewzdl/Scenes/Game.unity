@@ -228,6 +228,7 @@ MonoBehaviour:
   gameFlow: {fileID: 34402235}
   objectiveFlow: {fileID: 34402234}
   startOnServerSpawn: 1
+  startReason: Game scene network spawn completed
 --- !u!1 &48984701
 GameObject:
   m_ObjectHideFlags: 0

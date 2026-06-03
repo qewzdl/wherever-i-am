@@ -3,55 +3,124 @@ using UnityEngine;
 
 public class DoorInteractableObject : InteractableObject
 {
-    private NetworkVariable<bool> isOpen = new NetworkVariable<bool>();
+    [SerializeField] private Transform doorPivot;
+    [SerializeField] private Vector3 closedEulerAngles;
+    [SerializeField] private Vector3 openEulerAngles = new(0f, -90f, 0f);
+    [SerializeField] private bool useLocalRotation;
+
+    private readonly NetworkVariable<bool> isOpen = new();
 
     private bool isOpenLocal;
 
-    private void OnEnable()
+    public bool IsOpen => IsSpawned ? isOpen.Value : isOpenLocal;
+
+    private void Awake()
     {
-        isOpen.OnValueChanged += Sync;
+        CacheComponents();
+        ApplyOpenState(isOpenLocal);
     }
 
-    private void OnDisable()
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        isOpen.OnValueChanged += Sync;
+        ApplyOpenState(isOpen.Value);
+    }
+
+    public override void OnNetworkDespawn()
     {
         isOpen.OnValueChanged -= Sync;
+
+        base.OnNetworkDespawn();
     }
 
     public override void Interact(InteractionContext context) 
     {
-        SetIsOpen(!isOpenLocal);
-        Door(isOpenLocal);
+        TrySetOpen(!IsOpen);
+    }
+
+    public bool TrySetOpen(bool value)
+    {
+        if (IsOpen == value)
+        {
+            return false;
+        }
+
+        RequestOpenState(value);
+        return true;
     }
 
     private void Sync(bool oldValue, bool newValue)
     {
-        if (newValue == isOpenLocal) return;
+        ApplyOpenState(newValue);
+    }
 
-        if (oldValue != newValue)
-        { 
-;           SetIsOpen(newValue);
-            Door(newValue);
+    private void RequestOpenState(bool value)
+    {
+        if (!IsSpawned || IsServer)
+        {
+            SetOpenStateServer(value);
+            return;
+        }
+
+        SetOpenStateRpc(value);
+    }
+
+    private void SetOpenStateServer(bool value)
+    {
+        if (IsSpawned)
+        {
+            isOpen.Value = value;
+        }
+
+        ApplyOpenState(value);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void SetOpenStateRpc(bool newValue)
+    {
+        SetOpenStateServer(newValue);
+    }
+
+    private void ApplyOpenState(bool value)
+    {
+        isOpenLocal = value;
+        ApplyDoorVisual(value);
+    }
+
+    private void ApplyDoorVisual(bool value)
+    {
+        Transform pivot = doorPivot != null ? doorPivot : transform;
+        Quaternion rotation = Quaternion.Euler(value ? openEulerAngles : closedEulerAngles);
+
+        if (useLocalRotation)
+        {
+            pivot.localRotation = rotation;
+            return;
+        }
+
+        pivot.rotation = rotation;
+    }
+
+    private void CacheComponents()
+    {
+        if (doorPivot == null)
+        {
+            doorPivot = transform;
         }
     }
 
-    private void SetIsOpen(bool value)
+#if UNITY_EDITOR
+    private void Reset()
     {
-        isOpenLocal = value;
-        SetIsOpenRpc(value);
+        CacheComponents();
     }
 
-    [Rpc(SendTo.Server)]
-    private void SetIsOpenRpc(bool newValue)
+    protected override void OnValidate()
     {
-        isOpen.Value = newValue;
+        base.OnValidate();
+        CacheComponents();
     }
-
-    private void Door(bool value)
-    {
-        if (!value)
-            transform.rotation = Quaternion.Euler(new Vector3(0, 0, 0));
-        else
-            transform.rotation = Quaternion.Euler(new Vector3(0, -90, 0));
-    }
-
+#endif
 }
