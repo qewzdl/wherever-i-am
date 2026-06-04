@@ -16,6 +16,6 @@ public class GameStateMachine : MonoBehaviour
 
         StateChanged?.Invoke(previousState, newState);
 
-        Debug.Log($"Game state changed: {previousState} -> {newState}");
+        RuntimeLog.Info($"Game state changed: {previousState} -> {newState}");
     }
 }

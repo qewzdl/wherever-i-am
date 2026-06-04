@@ -90,16 +90,14 @@ public sealed class ProjectNetworkSceneLoadCompletionTracker : MonoBehaviour
         if (loadedScene == ProjectSceneKind.Unknown)
             return;
 
-        if (hasPendingNetworkTransition && loadedScene != pendingNetworkScene)
+        if (!hasPendingNetworkTransition)
             return;
 
-        ProjectSceneServerAction[] actions = null;
+        if (loadedScene != pendingNetworkScene)
+            return;
 
-        if (hasPendingNetworkTransition)
-        {
-            actions = pendingServerActionsAfterLoad;
-            ClearPending();
-        }
+        ProjectSceneServerAction[] actions = pendingServerActionsAfterLoad;
+        ClearPending();
 
         NetworkLoadCompleted?.Invoke(loadedScene, actions);
     }

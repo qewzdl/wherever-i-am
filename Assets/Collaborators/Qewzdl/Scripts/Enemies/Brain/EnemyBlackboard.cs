@@ -3,11 +3,22 @@ using UnityEngine;
 
 public sealed class EnemyBlackboard
 {
+    private EnemyInvestigationDebugData investigationDebugData;
+
     public EnemyTargetMemory TargetMemory { get; } = new();
     public EnemyPerceptionMemory PerceptionMemory { get; } = new();
     public EnemyInvestigationMemory InvestigationMemory { get; } = new();
 
-    public EnemyInvestigationDebugData InvestigationDebugData { get; } = new();
+    public EnemyInvestigationDebugData InvestigationDebugData
+    {
+        get
+        {
+            if (!RuntimeDebugBuildGuard.IsEnabled)
+                return null;
+
+            return investigationDebugData ??= new EnemyInvestigationDebugData();
+        }
+    }
 
     public EnemyTarget CurrentTarget => TargetMemory.CurrentTarget;
 
@@ -86,6 +97,6 @@ public sealed class EnemyBlackboard
         TargetMemory.ClearAll();
         PerceptionMemory.ClearAll();
         InvestigationMemory.ClearAll();
-        InvestigationDebugData.Clear();
+        investigationDebugData?.Clear();
     }
 }

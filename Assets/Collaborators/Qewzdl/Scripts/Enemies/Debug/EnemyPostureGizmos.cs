@@ -21,6 +21,11 @@ public class EnemyPostureGizmos : MonoBehaviour
 
     private void Awake()
     {
+        if (RuntimeDebugBuildGuard.DestroyIfDisabled(this))
+        {
+            return;
+        }
+
         CacheComponents();
     }
 

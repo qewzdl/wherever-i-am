@@ -27,6 +27,11 @@ public class EnemyInvestigationGizmos : MonoBehaviour
 
     private void Awake()
     {
+        if (RuntimeDebugBuildGuard.DestroyIfDisabled(this))
+        {
+            return;
+        }
+
         CacheComponents();
     }
 

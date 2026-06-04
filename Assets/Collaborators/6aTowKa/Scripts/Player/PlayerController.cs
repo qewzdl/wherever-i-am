@@ -15,6 +15,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     [Header("References")]
     [SerializeField] private Rigidbody rb;
     [SerializeField] private CapsuleCollider bodyCollider;
+    [SerializeField] private PlayerAnimation playerAnimation;
     [SerializeField] private CameraFollow cameraFollow;
 
     [Header("Collision")]
@@ -30,6 +31,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     private Vector2 direction;
     private bool isCrouching;
     private bool hasLocalControl;
+    private bool listensToCrouchSync;
 
     private readonly List<Vector3> blockingContactNormals = new(8);
     private readonly RaycastHit[] groundHits = new RaycastHit[8];
@@ -45,8 +47,17 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         if (bodyCollider == null)
             bodyCollider = GetComponentInChildren<CapsuleCollider>();
 
+        if (playerAnimation == null)
+            playerAnimation = GetComponent<PlayerAnimation>();
+
         signals.MoveSignal.Listen(SetDirection);
         signals.CrouchInputSignal.Listen(UpdateIsCrouching);
+
+        if (isMultiplayer && hasLocalControl)
+        {
+            signals.CrouchSyncSignal.Listen(SyncCrouchState);
+            listensToCrouchSync = true;
+        }
 
         if (hasLocalControl)
         {
@@ -61,6 +72,11 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     {
         signals.MoveSignal.Unlisten(SetDirection);
         signals.CrouchInputSignal.Unlisten(UpdateIsCrouching);
+
+        if (listensToCrouchSync)
+            signals.CrouchSyncSignal.Unlisten(SyncCrouchState);
+
+        listensToCrouchSync = false;
     }
 
     public void SetCameraFollow(CameraFollow cameraFollow)
@@ -71,6 +87,11 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     public void SetBodyCollider(CapsuleCollider collider)
     {
         bodyCollider = collider;
+    }
+
+    public void SetPlayerAnimation(PlayerAnimation animation)
+    {
+        playerAnimation = animation;
     }
 
     private void FixedUpdate()
@@ -276,12 +297,36 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
     public void UpdateIsCrouching()
     {
-        isCrouching = !isCrouching;
+        bool nextIsCrouching = !isCrouching;
+
+        if (!nextIsCrouching && !CanStandUp())
+            return;
+
+        SetCrouchState(nextIsCrouching, true);
+    }
+
+    private void SyncCrouchState(bool value)
+    {
+        SetCrouchState(value, false);
+    }
+
+    private void SetCrouchState(bool value, bool notify)
+    {
+        if (isCrouching == value)
+            return;
+
+        isCrouching = value;
 
         if (hasLocalControl && cameraFollow != null)
             cameraFollow.SetCrouching(isCrouching);
 
-        signals.CrouchUpdateSignal.Trigger(isCrouching);
+        if (notify)
+            signals.CrouchUpdateSignal.Trigger(isCrouching);
+    }
+
+    private bool CanStandUp()
+    {
+        return playerAnimation != null && playerAnimation.HasStandingClearance();
     }
 
     public void SetSpeed(float newSpeed)

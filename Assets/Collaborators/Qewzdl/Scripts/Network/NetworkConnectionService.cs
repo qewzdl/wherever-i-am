@@ -112,7 +112,7 @@ public class NetworkConnectionService : MonoBehaviour
         if (connectionResult.Success)
         {
             activeStrategy = strategy;
-            Debug.Log(connectionResult.DebugMessage);
+            RuntimeLog.Info(connectionResult.DebugMessage);
         }
         else
         {
@@ -129,7 +129,7 @@ public class NetworkConnectionService : MonoBehaviour
             activeStrategy.Shutdown();
             activeStrategy = null;
 
-            Debug.Log("Network shutdown by active strategy.");
+            RuntimeLog.Info("Network shutdown by active strategy.");
             return;
         }
 
@@ -145,7 +145,7 @@ public class NetworkConnectionService : MonoBehaviour
 
         networkManager.Shutdown();
 
-        Debug.Log("Network shutdown.");
+        RuntimeLog.Info("Network shutdown.");
     }
 
     private bool TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error)
