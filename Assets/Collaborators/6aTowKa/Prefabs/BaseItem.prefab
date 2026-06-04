@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 3093165708669644586}
   - component: {fileID: 8419499424832175887}
-  - component: {fileID: 3104866664193285155}
   - component: {fileID: 3471246536468971624}
   - component: {fileID: -417227217097235622}
   m_Layer: 10
@@ -62,34 +61,6 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
---- !u!114 &3104866664193285155
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1293627911064682504}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 24b1afe540c646d4eb144e23d6ff11c7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  InteractionSprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
-  mass: 0.5
-  followSpeed: 15
-  maxDragDistance: 6
-  throwVelocitySamples: 5
-  minDistance: 1
-  itemViewModelData: {fileID: 11400000, guid: 7fc8f6f5d53d92c449baa7b4797bf443, type: 2}
-  itemViewModelDataName: Test
-  model: {fileID: 7947910784166457790}
-  renderingLayerMask:
-    serializedVersion: 0
-    m_Bits: 256
-  layerMask:
-    serializedVersion: 2
-    m_Bits: 2048
 --- !u!54 &3471246536468971624
 Rigidbody:
   m_ObjectHideFlags: 0
