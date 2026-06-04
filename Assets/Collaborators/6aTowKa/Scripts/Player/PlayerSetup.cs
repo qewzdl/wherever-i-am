@@ -46,6 +46,7 @@ public class PlayerSetup : NetworkBehaviour
 
         playerController.SetCameraFollow(cameraFollow);
         playerController.SetBodyCollider(bodyCollider);
+        playerController.SetPlayerAnimation(playerAnimation);
         playerAnimation.SetBodyCollider(bodyCollider);
 
         if (isMultiplayer)
