@@ -73,6 +73,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 74219eccc0f08574b9add34499e37204, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   data: {fileID: 11400000, guid: bc84d60be1c7544469634d3a8f5ed034, type: 2}
   doorPivot: {fileID: 126579505407028425}
   closedEulerAngles: {x: 0, y: 0, z: 0}
@@ -90,10 +91,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cfb41f316e0b6040930c0619ba60ebc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   interactionCollider: {fileID: 1246379962694522605}
   linkedDoor: {fileID: 8003554826726783162}
   driveLinkedDoor: 1
-  animatedDoor: {fileID: 0}
+  animatedDoor: {fileID: 6766277499137850087}
   driveAnimatedDoorWhenLinkedDoor: 0
   startsOpen: 0
   closedLocalEulerAngles: {x: 0, y: 0, z: 0}

@@ -4,6 +4,7 @@ using UnityEngine;
 public class DoorInteractableObject : InteractableObject
 {
     [SerializeField] private Transform doorPivot;
+    [SerializeField] private bool startsOpen;
     [SerializeField] private Vector3 closedEulerAngles;
     [SerializeField] private Vector3 openEulerAngles = new(0f, -90f, 0f);
     [SerializeField] private bool useLocalRotation;
@@ -17,12 +18,18 @@ public class DoorInteractableObject : InteractableObject
     private void Awake()
     {
         CacheComponents();
+        isOpenLocal = startsOpen;
         ApplyOpenState(isOpenLocal);
     }
 
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+
+        if (IsServer)
+        {
+            isOpen.Value = startsOpen;
+        }
 
         isOpen.OnValueChanged += Sync;
         ApplyOpenState(isOpen.Value);

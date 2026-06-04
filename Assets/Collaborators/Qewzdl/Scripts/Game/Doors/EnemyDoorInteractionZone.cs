@@ -12,14 +12,6 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
 
     [Header("Door State")]
     [SerializeField] private DoorInteractableObject linkedDoor;
-    [SerializeField] private bool driveLinkedDoor = true;
-
-    [Header("Door Visual")]
-    [SerializeField] private Transform animatedDoor;
-    [SerializeField] private bool driveAnimatedDoorWhenLinkedDoor;
-    [SerializeField] private bool startsOpen;
-    [SerializeField] private Vector3 closedLocalEulerAngles;
-    [SerializeField] private Vector3 openLocalEulerAngles = new(0f, 90f, 0f);
 
     [Header("Enemy Rules")]
     [SerializeField] private bool overrideEnemyAction;
@@ -27,30 +19,15 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
     [SerializeField] private bool enemyCanOpen = true;
     [SerializeField] private bool enemyCanBreak;
 
-    private readonly NetworkVariable<bool> isOpenNetwork = new(
-        false,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
-
-    private bool localIsOpen;
     private bool isBroken;
     private bool isEnemyInteractionInProgress;
 
-    private bool isPreviewingAction;
-    private EnemyDoorActionType previewAction;
-    private float previewStartedAt;
-    private float previewDuration;
-
-    private Quaternion closedLocalRotation;
-    private Quaternion openLocalRotation;
-
     public static IReadOnlyList<EnemyDoorInteractionZone> RegisteredZones => RegisteredDoorZones;
 
-    public bool IsOpen => ShouldUseLinkedDoor ? linkedDoor.IsOpen : IsSpawned ? isOpenNetwork.Value : localIsOpen;
+    public bool IsOpen => linkedDoor != null && linkedDoor.IsOpen;
     public bool IsBroken => isBroken;
     public bool IsEnemyInteractionInProgress => isEnemyInteractionInProgress;
-    public bool IsBlockingNavigation => !IsOpen && !IsBroken;
+    public bool IsBlockingNavigation => linkedDoor != null && !IsOpen && !IsBroken;
 
     public Vector3 InteractionPosition
     {
@@ -65,21 +42,22 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
         }
     }
 
-    private bool ShouldUseLinkedDoor => driveLinkedDoor && linkedDoor != null;
-    private bool ShouldDriveAnimatedDoor => animatedDoor != null && (!ShouldUseLinkedDoor || driveAnimatedDoorWhenLinkedDoor);
-
     private void Awake()
     {
         CacheComponents();
-        CacheRotations();
-
-        localIsOpen = startsOpen;
-        ApplyDoorVisualForState(localIsOpen);
 
         if (interactionCollider == null)
         {
             Debug.LogError(
                 $"{nameof(EnemyDoorInteractionZone)} requires an interaction collider.",
+                this
+            );
+        }
+
+        if (linkedDoor == null)
+        {
+            Debug.LogError(
+                $"{nameof(EnemyDoorInteractionZone)} requires a linked {nameof(DoorInteractableObject)}.",
                 this
             );
         }
@@ -93,52 +71,6 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
     private void OnDisable()
     {
         UnregisterZone(this);
-    }
-
-    public override void OnNetworkSpawn()
-    {
-        isOpenNetwork.OnValueChanged += HandleOpenChanged;
-
-        if (IsServer)
-        {
-            if (ShouldUseLinkedDoor)
-            {
-                if (startsOpen)
-                {
-                    linkedDoor.TrySetOpen(true);
-                }
-            }
-            else
-            {
-                isOpenNetwork.Value = startsOpen;
-            }
-        }
-
-        localIsOpen = IsOpen;
-        ApplyDoorVisualForState(localIsOpen);
-    }
-
-    public override void OnNetworkDespawn()
-    {
-        isOpenNetwork.OnValueChanged -= HandleOpenChanged;
-    }
-
-    private void Update()
-    {
-        if (!isPreviewingAction)
-        {
-            return;
-        }
-
-        float duration = Mathf.Max(0.01f, previewDuration);
-        float progress = Mathf.Clamp01((Time.time - previewStartedAt) / duration);
-
-        ApplyPreview(previewAction, progress);
-
-        if (progress >= 1f)
-        {
-            isPreviewingAction = false;
-        }
     }
 
     public Vector3 GetInteractionPointFor(Vector3 actorPosition)
@@ -165,6 +97,11 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
 
     public bool CanPerformEnemyAction(EnemyDoorActionType action)
     {
+        if (linkedDoor == null)
+        {
+            return false;
+        }
+
         switch (action)
         {
             case EnemyDoorActionType.Open:
@@ -196,7 +133,7 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
         return CanPerformEnemyAction(action);
     }
 
-    public bool TryBeginEnemyAction(EnemyDoorActionType action, float duration)
+    public bool TryBeginEnemyAction(EnemyDoorActionType action)
     {
         if (IsSpawned && !IsServer)
         {
@@ -209,12 +146,6 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
         }
 
         isEnemyInteractionInProgress = true;
-        TryBeginPreview(action, duration);
-
-        if (IsSpawned && IsServer && ShouldDriveAnimatedDoor)
-        {
-            BeginEnemyActionClientRpc(action, duration);
-        }
 
         return true;
     }
@@ -222,7 +153,6 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
     public void CompleteEnemyAction(EnemyDoorActionType action)
     {
         isEnemyInteractionInProgress = false;
-        isPreviewingAction = false;
 
         switch (action)
         {
@@ -252,102 +182,21 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
     public void CancelEnemyAction()
     {
         isEnemyInteractionInProgress = false;
-        isPreviewingAction = false;
-
-        if (!IsOpen)
-        {
-            ApplyDoorVisualForState(false);
-        }
-    }
-
-    [ClientRpc]
-    private void BeginEnemyActionClientRpc(EnemyDoorActionType action, float duration)
-    {
-        TryBeginPreview(action, duration);
-    }
-
-    private void TryBeginPreview(EnemyDoorActionType action, float duration)
-    {
-        if (!ShouldDriveAnimatedDoor)
-        {
-            return;
-        }
-
-        BeginPreview(action, duration);
-    }
-
-    private void BeginPreview(EnemyDoorActionType action, float duration)
-    {
-        previewAction = action;
-        previewStartedAt = Time.time;
-        previewDuration = Mathf.Max(0.01f, duration);
-        isPreviewingAction = true;
-    }
-
-    private void ApplyPreview(EnemyDoorActionType action, float progress)
-    {
-        switch (action)
-        {
-            case EnemyDoorActionType.Open:
-            case EnemyDoorActionType.Break:
-                ApplyDoorVisual(progress);
-                break;
-
-            case EnemyDoorActionType.CloseBehind:
-                ApplyDoorVisual(1f - progress);
-                break;
-        }
     }
 
     private void SetOpenState(bool isOpen)
     {
-        if (ShouldUseLinkedDoor)
+        if (linkedDoor == null)
         {
-            linkedDoor.TrySetOpen(isOpen);
-            localIsOpen = linkedDoor.IsOpen;
-            ApplyDoorVisualForState(localIsOpen);
+            Debug.LogError(
+                $"{nameof(EnemyDoorInteractionZone)} cannot change door state without a linked {nameof(DoorInteractableObject)}.",
+                this
+            );
+
             return;
         }
 
-        localIsOpen = isOpen;
-
-        if (IsSpawned && IsServer)
-        {
-            isOpenNetwork.Value = isOpen;
-        }
-
-        ApplyDoorVisual(isOpen ? 1f : 0f);
-    }
-
-    private void HandleOpenChanged(bool previousValue, bool nextValue)
-    {
-        if (ShouldUseLinkedDoor)
-        {
-            return;
-        }
-
-        localIsOpen = nextValue;
-        isPreviewingAction = false;
-        ApplyDoorVisualForState(nextValue);
-    }
-
-    private void ApplyDoorVisualForState(bool isOpen)
-    {
-        ApplyDoorVisual(isOpen ? 1f : 0f);
-    }
-
-    private void ApplyDoorVisual(float normalizedOpenAmount)
-    {
-        if (!ShouldDriveAnimatedDoor)
-        {
-            return;
-        }
-
-        animatedDoor.localRotation = Quaternion.Lerp(
-            closedLocalRotation,
-            openLocalRotation,
-            Mathf.Clamp01(normalizedOpenAmount)
-        );
+        linkedDoor.TrySetOpen(isOpen);
     }
 
     private void CacheComponents()
@@ -361,12 +210,6 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
         {
             linkedDoor = GetComponentInParent<DoorInteractableObject>();
         }
-    }
-
-    private void CacheRotations()
-    {
-        closedLocalRotation = Quaternion.Euler(closedLocalEulerAngles);
-        openLocalRotation = Quaternion.Euler(openLocalEulerAngles);
     }
 
     private static void RegisterZone(EnemyDoorInteractionZone zone)
@@ -393,19 +236,11 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
         {
             interactionCollider.isTrigger = true;
         }
-
-        if (animatedDoor != null)
-        {
-            closedLocalEulerAngles = animatedDoor.localEulerAngles;
-        }
-
-        CacheRotations();
     }
 
     private void OnValidate()
     {
         CacheComponents();
-        CacheRotations();
     }
 #endif
 }

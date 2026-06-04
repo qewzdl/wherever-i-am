@@ -141,7 +141,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
             return false;
         }
 
-        if (!door.TryBeginEnemyAction(action, config.InteractionDuration))
+        if (!door.TryBeginEnemyAction(action))
         {
             return false;
         }
