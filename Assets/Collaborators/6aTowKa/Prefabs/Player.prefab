@@ -537,6 +537,7 @@ GameObject:
   - component: {fileID: 5747779835893970411}
   - component: {fileID: 7921583413856064293}
   - component: {fileID: 458918862290902195}
+  - component: {fileID: 6106312102613378047}
   m_Layer: 3
   m_Name: Player
   m_TagString: Untagged
@@ -1004,6 +1005,22 @@ MonoBehaviour:
   includeTriggerColliders: 0
   boundsInset: 0.08
   canBeDetected: 1
+--- !u!114 &6106312102613378047
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea3c2706a270444aab6bf141c6d474ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gameFlow: {fileID: 0}
+  hitResult: 2
+  hitReason: A player was caught by an enemy
+  logReceivedAttack: 1
 --- !u!1 &8004139109675559352
 GameObject:
   m_ObjectHideFlags: 0
