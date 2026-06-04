@@ -17,7 +17,9 @@ public class EnemyInvestigationGizmos : MonoBehaviour
     [SerializeField] private bool drawOnlyWhenSelected = true;
     [SerializeField] private bool drawRuntimePlan = true;
     [SerializeField] private bool drawEditorPreview = true;
+#if UNITY_EDITOR
     [SerializeField] private bool drawLabels = true;
+#endif
 
     [Header("Preview")]
     [SerializeField] private float editorPreviewOriginDistance = 4f;

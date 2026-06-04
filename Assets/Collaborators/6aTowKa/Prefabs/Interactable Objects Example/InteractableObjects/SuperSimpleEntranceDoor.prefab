@@ -350,11 +350,21 @@ MonoBehaviour:
   m_GameObject: {fileID: 8696285485542727899}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b387c27320d827f478a2c1a329bd3a85, type: 3}
+  m_Script: {fileID: 11500000, guid: 18314e6fcc78467483269f0422010049, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
   data: {fileID: 11400000, guid: b99076541c365314492a245eb5651ef5, type: 2}
+  requireHandleItem: 0
+  requiredHandleItemId: 0
+  requiredHandleCount: 1
+  consumeInsertedHandle: 0
+  doorPivot: {fileID: 4503064959749503720}
+  useLocalRotation: 1
+  lockedEulerAngles: {x: 0, y: 0, z: 0}
+  unlockedEulerAngles: {x: 0, y: 90, z: 0}
+  startsUnlocked: 0
+  despawnNetworkObjectWhenUnlocked: 1
+  networkObjectToDespawn: {fileID: 6131777152528237173}
 --- !u!1001 &5574026966311357221
 PrefabInstance:
   m_ObjectHideFlags: 0

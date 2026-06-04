@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 126579505407028425}
   - component: {fileID: 605641496217299733}
   - component: {fileID: 8003554826726783162}
+  - component: {fileID: 8003554826726783163}
   - component: {fileID: 664100643105714816}
   m_Layer: 10
   m_Name: SuperSimpleDoor
@@ -69,11 +70,38 @@ MonoBehaviour:
   m_GameObject: {fileID: 6718342252567134587}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1c2554c8b69b044fbc48fa215047c3e, type: 3}
+  m_Script: {fileID: 11500000, guid: 74219eccc0f08574b9add34499e37204, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
   data: {fileID: 11400000, guid: bc84d60be1c7544469634d3a8f5ed034, type: 2}
+  doorPivot: {fileID: 126579505407028425}
+  closedEulerAngles: {x: 0, y: 0, z: 0}
+  openEulerAngles: {x: 0, y: -90, z: 0}
+  useLocalRotation: 1
+--- !u!114 &8003554826726783163
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6718342252567134587}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cfb41f316e0b6040930c0619ba60ebc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  interactionCollider: {fileID: 1246379962694522605}
+  linkedDoor: {fileID: 8003554826726783162}
+  driveLinkedDoor: 1
+  animatedDoor: {fileID: 0}
+  driveAnimatedDoorWhenLinkedDoor: 0
+  startsOpen: 0
+  closedLocalEulerAngles: {x: 0, y: 0, z: 0}
+  openLocalEulerAngles: {x: 0, y: 90, z: 0}
+  overrideEnemyAction: 0
+  enemyActionOverride: 0
+  enemyCanOpen: 1
+  enemyCanBreak: 0
 --- !u!114 &664100643105714816
 MonoBehaviour:
   m_ObjectHideFlags: 0

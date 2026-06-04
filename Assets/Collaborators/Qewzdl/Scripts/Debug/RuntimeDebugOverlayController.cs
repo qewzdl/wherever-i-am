@@ -312,7 +312,7 @@ public sealed class RuntimeDebugOverlayController : MonoBehaviour
         textComponent.color = textColor;
         textComponent.fontSize = fontSize;
         textComponent.alignment = TextAlignmentOptions.TopLeft;
-        textComponent.enableWordWrapping = false;
+        textComponent.textWrappingMode = TextWrappingModes.NoWrap;
         textComponent.overflowMode = TextOverflowModes.Overflow;
         textComponent.text = string.Empty;
     }

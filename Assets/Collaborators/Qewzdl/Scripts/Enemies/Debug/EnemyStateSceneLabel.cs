@@ -13,7 +13,9 @@ public class EnemyStateSceneLabel : MonoBehaviour
 
     [Header("Drawing")]
     [SerializeField] private bool drawOnlyWhenSelected;
+#if UNITY_EDITOR
     [SerializeField] private bool drawTargetInfo = true;
+#endif
     [SerializeField] private Vector3 worldOffset = new(0f, 2.4f, 0f);
 
 #if UNITY_EDITOR

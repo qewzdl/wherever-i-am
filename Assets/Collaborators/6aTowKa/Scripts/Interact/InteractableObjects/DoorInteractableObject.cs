@@ -35,7 +35,7 @@ public class DoorInteractableObject : InteractableObject
         base.OnNetworkDespawn();
     }
 
-    public override void Interact(InteractionContext context) 
+    public override void OnInteract(InteractionContext context)
     {
         TrySetOpen(!IsOpen);
     }
@@ -117,9 +117,8 @@ public class DoorInteractableObject : InteractableObject
         CacheComponents();
     }
 
-    protected override void OnValidate()
+    private void OnValidate()
     {
-        base.OnValidate();
         CacheComponents();
     }
 #endif
