@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -5,6 +6,8 @@ using UnityEngine.Serialization;
 [DisallowMultipleComponent]
 public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 {
+    private const int MaxLineOfSightHits = 32;
+
     [SerializeField] private Transform eyes;
 
     [FormerlySerializedAs("playerMask")]
@@ -21,6 +24,7 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     private Collider[] detectionResults;
     private EnemyTarget[] processedTargets;
+    private readonly RaycastHit[] lineOfSightHits = new RaycastHit[MaxLineOfSightHits];
     private float nextOverflowWarningTime;
     private Vector3[] visibilityPointResults;
 
@@ -327,14 +331,80 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        bool blocked = Physics.Linecast(
+        Vector3 direction = targetPoint - originPosition;
+        float distance = direction.magnitude;
+
+        if (distance <= Mathf.Epsilon)
+        {
+            return true;
+        }
+
+        Ray lineOfSightRay = new(originPosition, direction / distance);
+
+        if (HasDoorLineOfSightBlocker(lineOfSightRay, distance))
+        {
+            return false;
+        }
+
+        int hitCount = Physics.RaycastNonAlloc(
             originPosition,
-            targetPoint,
+            direction / distance,
+            lineOfSightHits,
+            distance,
             obstructionMask,
             QueryTriggerInteraction.Ignore
         );
 
-        return !blocked;
+        if (hitCount <= 0)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hitCollider = lineOfSightHits[i].collider;
+
+            if (hitCollider == null)
+            {
+                continue;
+            }
+
+            DoorInteractableObject door = hitCollider.GetComponentInParent<DoorInteractableObject>();
+
+            if (door != null)
+            {
+                if (door.BlocksLineOfSight)
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (IsLayerInMask(hitCollider.gameObject.layer, obstructionMask))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool HasDoorLineOfSightBlocker(Ray lineOfSightRay, float distance)
+    {
+        IReadOnlyList<DoorInteractableObject> doors = DoorInteractableObject.LineOfSightBlockers;
+
+        for (int i = 0; i < doors.Count; i++)
+        {
+            DoorInteractableObject door = doors[i];
+
+            if (door != null && door.TryBlockLineOfSight(lineOfSightRay, distance))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void RememberLastTargetedVerticalView(
@@ -482,5 +552,10 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
         maxVisibilityPoints = Mathf.Max(1, maxVisibilityPoints);
         EnsureDetectionBuffers();
         ValidateStaticDependencies();
+    }
+
+    private static bool IsLayerInMask(int layer, LayerMask layerMask)
+    {
+        return (layerMask.value & (1 << layer)) != 0;
     }
 }

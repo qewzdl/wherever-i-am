@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class DoorInteractableObject : InteractableObject
 {
+    private static readonly List<DoorInteractableObject> RegisteredLineOfSightBlockers = new();
+
     [SerializeField] private Transform doorPivot;
     [SerializeField] private bool startsOpen;
     [SerializeField] private Vector3 closedEulerAngles;
@@ -33,6 +35,7 @@ public class DoorInteractableObject : InteractableObject
     );
 
     private readonly List<Collider> occupyingActorColliders = new();
+    private readonly List<Collider> lineOfSightColliders = new();
 
     private DoorState localState;
     private DoorState pendingTransitionTarget;
@@ -45,7 +48,10 @@ public class DoorInteractableObject : InteractableObject
     public DoorState CurrentState => IsSpawned ? currentState.Value : localState;
     public DoorReservationState ReservationState =>
         IsSpawned ? reservationState.Value : localReservationState;
+    public static IReadOnlyList<DoorInteractableObject> LineOfSightBlockers =>
+        RegisteredLineOfSightBlockers;
     public bool IsOpen => IsOpenState(CurrentState);
+    public bool BlocksLineOfSight => !IsVisuallyOpen(CurrentState);
     public bool IsReservedByEnemy => ReservationState == DoorReservationState.ReservedByEnemy;
     public bool CanClose => CanCloseState(CurrentState) && !IsReservedByEnemy;
     public float EnemyOpenCloseLockGraceDuration => Mathf.Max(0f, enemyOpenCloseLockGraceDuration);
@@ -58,6 +64,16 @@ public class DoorInteractableObject : InteractableObject
         localReservationState = DoorReservationState.None;
 
         ApplyDoorState(localState);
+    }
+
+    private void OnEnable()
+    {
+        RegisterLineOfSightBlocker(this);
+    }
+
+    private void OnDisable()
+    {
+        UnregisterLineOfSightBlocker(this);
     }
 
     public override void OnNetworkSpawn()
@@ -316,6 +332,39 @@ public class DoorInteractableObject : InteractableObject
 
         occupyingActorColliders.Remove(actorCollider);
         RefreshCloseBlockStateServer();
+    }
+
+    public bool TryBlockLineOfSight(Ray ray, float maxDistance)
+    {
+        if (!BlocksLineOfSight || maxDistance <= Mathf.Epsilon || !isActiveAndEnabled)
+        {
+            return false;
+        }
+
+        PruneLineOfSightColliders();
+
+        if (lineOfSightColliders.Count == 0)
+        {
+            CacheLineOfSightColliders();
+        }
+
+        for (int i = 0; i < lineOfSightColliders.Count; i++)
+        {
+            Collider lineOfSightCollider = lineOfSightColliders[i];
+
+            if (!CanUseLineOfSightCollider(lineOfSightCollider))
+            {
+                continue;
+            }
+
+            if (lineOfSightCollider.bounds.Contains(ray.origin) ||
+                lineOfSightCollider.Raycast(ray, out _, maxDistance))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool TryOpenServer()
@@ -635,6 +684,59 @@ public class DoorInteractableObject : InteractableObject
         {
             doorPivot = transform;
         }
+
+        CacheLineOfSightColliders();
+    }
+
+    private void CacheLineOfSightColliders()
+    {
+        lineOfSightColliders.Clear();
+
+        Collider[] colliders = GetComponentsInChildren<Collider>(true);
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider candidate = colliders[i];
+
+            if (CanUseLineOfSightCollider(candidate))
+            {
+                lineOfSightColliders.Add(candidate);
+            }
+        }
+    }
+
+    private void PruneLineOfSightColliders()
+    {
+        for (int i = lineOfSightColliders.Count - 1; i >= 0; i--)
+        {
+            if (!CanUseLineOfSightCollider(lineOfSightColliders[i]))
+            {
+                lineOfSightColliders.RemoveAt(i);
+            }
+        }
+    }
+
+    private static bool CanUseLineOfSightCollider(Collider candidate)
+    {
+        return candidate != null &&
+               candidate.enabled &&
+               !candidate.isTrigger &&
+               candidate.gameObject.activeInHierarchy;
+    }
+
+    private static void RegisterLineOfSightBlocker(DoorInteractableObject door)
+    {
+        if (door == null || RegisteredLineOfSightBlockers.Contains(door))
+        {
+            return;
+        }
+
+        RegisteredLineOfSightBlockers.Add(door);
+    }
+
+    private static void UnregisterLineOfSightBlocker(DoorInteractableObject door)
+    {
+        RegisteredLineOfSightBlockers.Remove(door);
     }
 
     private static bool IsOpenState(DoorState state)

@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 1855572040304722495}
   - component: {fileID: 2224271158501857387}
   - component: {fileID: 7348397531342054757}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Eye Right
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -117,7 +117,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6277349385977637387}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Eyes
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -150,7 +150,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 331702524649351035}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: EnemyContainer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -184,7 +184,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3713362550768032302}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: CameraTarget
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -218,7 +218,7 @@ GameObject:
   - component: {fileID: 57793020597189457}
   - component: {fileID: 5790924836063164411}
   - component: {fileID: 305319650020945663}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Body
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -350,7 +350,7 @@ GameObject:
   - component: {fileID: 732498019463342965}
   - component: {fileID: 1988043157719056020}
   - component: {fileID: 4936594606328749735}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Enemy
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -884,7 +884,7 @@ GameObject:
   - component: {fileID: 5560765914519110164}
   - component: {fileID: 1162316226584030853}
   - component: {fileID: 4176857996253104319}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Eye Left
   m_TagString: Untagged
   m_Icon: {fileID: 0}
