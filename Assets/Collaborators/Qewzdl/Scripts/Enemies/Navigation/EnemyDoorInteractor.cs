@@ -108,7 +108,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
             return false;
         }
 
-        if (!door.TryBeginEnemyAction(action))
+        if (!door.TryBeginEnemyAction(action, GetReservationDuration()))
         {
             return false;
         }
@@ -492,5 +492,22 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
         ownsActiveDoorAction = false;
         phaseStartedAt = 0f;
         lastActiveTickFrame = -1;
+    }
+
+    private float GetReservationDuration()
+    {
+        if (config == null)
+        {
+            return 0f;
+        }
+
+        return config.InteractionDuration +
+               config.WaitAfterInteractionDuration +
+               0.25f;
+    }
+
+    private void OnDisable()
+    {
+        CancelActiveInteraction();
     }
 }

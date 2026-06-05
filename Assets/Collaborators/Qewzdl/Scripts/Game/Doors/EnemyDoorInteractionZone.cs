@@ -71,6 +71,7 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
 
     private void OnDisable()
     {
+        CancelEnemyAction();
         UnregisterZone(this);
     }
 
@@ -136,6 +137,14 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
 
     public bool TryBeginEnemyAction(EnemyDoorActionType action)
     {
+        return TryBeginEnemyAction(action, 0f);
+    }
+
+    public bool TryBeginEnemyAction(
+        EnemyDoorActionType action,
+        float reservationDuration
+    )
+    {
         if (IsSpawned && !IsServer)
         {
             return false;
@@ -146,7 +155,7 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
             return false;
         }
 
-        if (!TryBeginLinkedDoorAction(action))
+        if (!TryBeginLinkedDoorAction(action, reservationDuration))
         {
             return false;
         }
@@ -206,7 +215,10 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
         isEnemyInteractionInProgress = false;
     }
 
-    private bool TryBeginLinkedDoorAction(EnemyDoorActionType action)
+    private bool TryBeginLinkedDoorAction(
+        EnemyDoorActionType action,
+        float reservationDuration
+    )
     {
         if (linkedDoor == null)
         {
@@ -222,7 +234,7 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
         {
             case EnemyDoorActionType.Open:
             case EnemyDoorActionType.Break:
-                return linkedDoor.TryBeginEnemyOpen();
+                return linkedDoor.TryBeginEnemyOpen(reservationDuration);
 
             case EnemyDoorActionType.CloseBehind:
                 return linkedDoor.TryBeginEnemyClose();

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -15,7 +16,9 @@ public class DoorInteractableObject : InteractableObject
 
     [Header("Enemy Interaction Lock")]
     [Min(0f)]
-    [SerializeField] private float enemyOpenCloseLockGraceDuration = 0.5f;
+    [SerializeField] private float enemyOpenCloseLockGraceDuration = 1.5f;
+    [Min(0.1f)]
+    [SerializeField] private float enemyReservationTimeout = 3f;
 
     private readonly NetworkVariable<DoorState> currentState = new(
         DoorState.Closed,
@@ -23,20 +26,37 @@ public class DoorInteractableObject : InteractableObject
         NetworkVariableWritePermission.Server
     );
 
+    private readonly NetworkVariable<DoorReservationState> reservationState = new(
+        DoorReservationState.None,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private readonly List<Collider> occupyingActorColliders = new();
+
     private DoorState localState;
     private DoorState pendingTransitionTarget;
+    private DoorReservationState localReservationState;
+
     private float transitionCompletesAt;
-    private float forcedOpenLockEndsAt;
+    private float closeLockedUntil;
+    private float enemyReservationExpiresAt;
 
     public DoorState CurrentState => IsSpawned ? currentState.Value : localState;
+    public DoorReservationState ReservationState =>
+        IsSpawned ? reservationState.Value : localReservationState;
     public bool IsOpen => IsOpenState(CurrentState);
-    public bool CanClose => CanCloseState(CurrentState);
+    public bool IsReservedByEnemy => ReservationState == DoorReservationState.ReservedByEnemy;
+    public bool CanClose => CanCloseState(CurrentState) && !IsReservedByEnemy;
     public float EnemyOpenCloseLockGraceDuration => Mathf.Max(0f, enemyOpenCloseLockGraceDuration);
 
     private void Awake()
     {
         CacheComponents();
+
         localState = startsOpen ? DoorState.Open : DoorState.Closed;
+        localReservationState = DoorReservationState.None;
+
         ApplyDoorState(localState);
     }
 
@@ -44,18 +64,27 @@ public class DoorInteractableObject : InteractableObject
     {
         base.OnNetworkSpawn();
 
+        currentState.OnValueChanged += SyncState;
+        reservationState.OnValueChanged += SyncReservation;
+
         if (IsServer)
         {
+            closeLockedUntil = 0f;
+            enemyReservationExpiresAt = 0f;
+            occupyingActorColliders.Clear();
+
+            SetReservationStateServer(DoorReservationState.None);
             SetStateServer(startsOpen ? DoorState.Open : DoorState.Closed);
         }
 
-        currentState.OnValueChanged += Sync;
         ApplyDoorState(currentState.Value);
+        ApplyReservationState(reservationState.Value);
     }
 
     public override void OnNetworkDespawn()
     {
-        currentState.OnValueChanged -= Sync;
+        currentState.OnValueChanged -= SyncState;
+        reservationState.OnValueChanged -= SyncReservation;
 
         base.OnNetworkDespawn();
     }
@@ -67,7 +96,9 @@ public class DoorInteractableObject : InteractableObject
             return;
         }
 
+        TickEnemyReservationTimeout();
         TickStateTimeouts();
+        RefreshCloseBlockStateServer();
     }
 
     public override void OnInteract(InteractionContext context)
@@ -106,7 +137,7 @@ public class DoorInteractableObject : InteractableObject
     {
         if (IsSpawned && !IsServer)
         {
-            if (!CanCloseState(CurrentState))
+            if (!CanClose)
             {
                 return false;
             }
@@ -120,12 +151,22 @@ public class DoorInteractableObject : InteractableObject
 
     public bool TryBeginEnemyOpen()
     {
+        return TryBeginEnemyOpen(0f);
+    }
+
+    public bool TryBeginEnemyOpen(float reservationDuration)
+    {
         if (IsSpawned && !IsServer)
         {
             return false;
         }
 
         if (CurrentState != DoorState.Closed && CurrentState != DoorState.Closing)
+        {
+            return false;
+        }
+
+        if (!TryReserveByEnemyServer(reservationDuration))
         {
             return false;
         }
@@ -142,12 +183,24 @@ public class DoorInteractableObject : InteractableObject
 
     public bool TryCompleteEnemyOpen(float minimumCloseLockDuration)
     {
+        if (IsSpawned && !IsServer)
+        {
+            return false;
+        }
+
+        if (CurrentState != DoorState.Opening)
+        {
+            return false;
+        }
+
         float lockDuration = Mathf.Max(
             EnemyOpenCloseLockGraceDuration,
             Mathf.Max(0f, minimumCloseLockDuration)
         );
 
-        return TryForceOpen(lockDuration);
+        ClearTimedTransition();
+        SetCloseLockedOpenServer(lockDuration, keepEnemyReservation: true);
+        return true;
     }
 
     public bool TryCancelEnemyOpen()
@@ -157,8 +210,13 @@ public class DoorInteractableObject : InteractableObject
             return false;
         }
 
-        if (CurrentState != DoorState.Opening)
+        bool wasOpening = CurrentState == DoorState.Opening;
+
+        ReleaseEnemyReservationServer();
+
+        if (!wasOpening)
         {
+            RefreshCloseBlockStateServer();
             return false;
         }
 
@@ -174,8 +232,9 @@ public class DoorInteractableObject : InteractableObject
             return false;
         }
 
-        if (!CanCloseState(CurrentState))
+        if (!CanCloseState(CurrentState) || IsCloseBlockedServer())
         {
+            RefreshCloseBlockStateServer();
             return false;
         }
 
@@ -214,7 +273,7 @@ public class DoorInteractableObject : InteractableObject
         }
 
         ClearTimedTransition();
-        SetStateServer(DoorState.Open);
+        SetStateServer(HasBlockingOccupantsServer() ? DoorState.Blocked : DoorState.Open);
         return true;
     }
 
@@ -226,24 +285,42 @@ public class DoorInteractableObject : InteractableObject
         }
 
         ClearTimedTransition();
+        SetCloseLockedOpenServer(closeLockDuration, keepEnemyReservation: false);
+        return true;
+    }
 
-        float lockDuration = Mathf.Max(0f, closeLockDuration);
-
-        if (lockDuration <= 0f)
+    public void RegisterOccupyingActor(Collider actorCollider)
+    {
+        if (actorCollider == null || IsSpawned && !IsServer)
         {
-            forcedOpenLockEndsAt = 0f;
-            SetStateServer(DoorState.Open);
-            return true;
+            return;
         }
 
-        forcedOpenLockEndsAt = Time.time + lockDuration;
-        SetStateServer(DoorState.ForcedOpen);
-        return true;
+        PruneOccupyingActors();
+
+        if (occupyingActorColliders.Contains(actorCollider))
+        {
+            return;
+        }
+
+        occupyingActorColliders.Add(actorCollider);
+        RefreshCloseBlockStateServer();
+    }
+
+    public void UnregisterOccupyingActor(Collider actorCollider)
+    {
+        if (actorCollider == null || IsSpawned && !IsServer)
+        {
+            return;
+        }
+
+        occupyingActorColliders.Remove(actorCollider);
+        RefreshCloseBlockStateServer();
     }
 
     private bool TryOpenServer()
     {
-        if (!CanRequestOpen(CurrentState))
+        if (IsReservedByEnemy || !CanRequestOpen(CurrentState))
         {
             return false;
         }
@@ -254,8 +331,9 @@ public class DoorInteractableObject : InteractableObject
 
     private bool TryCloseServer()
     {
-        if (!CanCloseState(CurrentState))
+        if (!CanCloseState(CurrentState) || IsCloseBlockedServer())
         {
+            RefreshCloseBlockStateServer();
             return false;
         }
 
@@ -271,13 +349,36 @@ public class DoorInteractableObject : InteractableObject
 
         if (duration <= 0f)
         {
-            SetStateServer(targetState);
+            SetStateServer(ResolveTargetState(targetState));
             return;
         }
 
         pendingTransitionTarget = targetState;
         transitionCompletesAt = Time.time + duration;
         SetStateServer(transitionState);
+    }
+
+    private void TickEnemyReservationTimeout()
+    {
+        if (!IsReservedByEnemy ||
+            enemyReservationExpiresAt <= 0f ||
+            Time.time < enemyReservationExpiresAt)
+        {
+            return;
+        }
+
+        bool wasOpening = CurrentState == DoorState.Opening;
+
+        ReleaseEnemyReservationServer();
+
+        if (!wasOpening)
+        {
+            RefreshCloseBlockStateServer();
+            return;
+        }
+
+        ClearTimedTransition();
+        SetStateServer(DoorState.Closed);
     }
 
     private void TickStateTimeouts()
@@ -290,16 +391,163 @@ public class DoorInteractableObject : InteractableObject
         {
             DoorState targetState = pendingTransitionTarget;
             ClearTimedTransition();
-            SetStateServer(targetState);
+            SetStateServer(ResolveTargetState(targetState));
             return;
         }
 
         if (state == DoorState.ForcedOpen &&
-            forcedOpenLockEndsAt > 0f &&
-            Time.time >= forcedOpenLockEndsAt)
+            closeLockedUntil > 0f &&
+            Time.time >= closeLockedUntil)
         {
-            forcedOpenLockEndsAt = 0f;
-            SetStateServer(DoorState.Open);
+            closeLockedUntil = 0f;
+            ReleaseEnemyReservationServer();
+            SetStateServer(HasBlockingOccupantsServer() ? DoorState.Blocked : DoorState.Open);
+        }
+    }
+
+    private void RefreshCloseBlockStateServer()
+    {
+        if (IsSpawned && !IsServer)
+        {
+            return;
+        }
+
+        bool hasBlockingOccupants = HasBlockingOccupantsServer();
+        DoorState state = CurrentState;
+
+        if (hasBlockingOccupants)
+        {
+            if (state == DoorState.Open ||
+                state == DoorState.Closing ||
+                state == DoorState.Blocked)
+            {
+                ClearTimedTransition();
+                SetStateServer(DoorState.Blocked);
+            }
+
+            return;
+        }
+
+        if (state == DoorState.Blocked)
+        {
+            SetStateServer(IsCloseLockedServer() ? DoorState.ForcedOpen : DoorState.Open);
+        }
+    }
+
+    private DoorState ResolveTargetState(DoorState targetState)
+    {
+        if (targetState == DoorState.Open && HasBlockingOccupantsServer())
+        {
+            return DoorState.Blocked;
+        }
+
+        return targetState;
+    }
+
+    private void SetCloseLockedOpenServer(
+        float closeLockDuration,
+        bool keepEnemyReservation
+    )
+    {
+        float lockDuration = Mathf.Max(0f, closeLockDuration);
+
+        if (lockDuration <= 0f)
+        {
+            closeLockedUntil = 0f;
+
+            if (!keepEnemyReservation)
+            {
+                ReleaseEnemyReservationServer();
+            }
+
+            SetStateServer(HasBlockingOccupantsServer() ? DoorState.Blocked : DoorState.Open);
+            return;
+        }
+
+        closeLockedUntil = Time.time + lockDuration;
+
+        if (keepEnemyReservation)
+        {
+            ExtendEnemyReservationServer(lockDuration);
+        }
+        else
+        {
+            ReleaseEnemyReservationServer();
+        }
+
+        SetStateServer(DoorState.ForcedOpen);
+    }
+
+    private bool TryReserveByEnemyServer(float reservationDuration)
+    {
+        if (IsReservedByEnemy)
+        {
+            return false;
+        }
+
+        float leaseDuration = Mathf.Max(
+            Mathf.Max(0f, reservationDuration),
+            Mathf.Max(0.1f, enemyReservationTimeout)
+        );
+
+        enemyReservationExpiresAt = Time.time + leaseDuration;
+        SetReservationStateServer(DoorReservationState.ReservedByEnemy);
+        return true;
+    }
+
+    private void ExtendEnemyReservationServer(float reservationDuration)
+    {
+        if (!IsReservedByEnemy)
+        {
+            TryReserveByEnemyServer(reservationDuration);
+            return;
+        }
+
+        float leaseDuration = Mathf.Max(0f, reservationDuration);
+
+        if (leaseDuration <= 0f)
+        {
+            return;
+        }
+
+        float nextExpiresAt = Time.time + leaseDuration;
+        enemyReservationExpiresAt = Mathf.Max(enemyReservationExpiresAt, nextExpiresAt);
+    }
+
+    private void ReleaseEnemyReservationServer()
+    {
+        enemyReservationExpiresAt = 0f;
+        SetReservationStateServer(DoorReservationState.None);
+    }
+
+    private bool IsCloseBlockedServer()
+    {
+        return IsReservedByEnemy || IsCloseLockedServer() || HasBlockingOccupantsServer();
+    }
+
+    private bool IsCloseLockedServer()
+    {
+        return closeLockedUntil > 0f && Time.time < closeLockedUntil;
+    }
+
+    private bool HasBlockingOccupantsServer()
+    {
+        PruneOccupyingActors();
+        return occupyingActorColliders.Count > 0;
+    }
+
+    private void PruneOccupyingActors()
+    {
+        for (int i = occupyingActorColliders.Count - 1; i >= 0; i--)
+        {
+            Collider actorCollider = occupyingActorColliders[i];
+
+            if (actorCollider == null ||
+                !actorCollider.enabled ||
+                !actorCollider.gameObject.activeInHierarchy)
+            {
+                occupyingActorColliders.RemoveAt(i);
+            }
         }
     }
 
@@ -309,9 +557,17 @@ public class DoorInteractableObject : InteractableObject
         transitionCompletesAt = 0f;
     }
 
-    private void Sync(DoorState oldValue, DoorState newValue)
+    private void SyncState(DoorState oldValue, DoorState newValue)
     {
         ApplyDoorState(newValue);
+    }
+
+    private void SyncReservation(
+        DoorReservationState oldValue,
+        DoorReservationState newValue
+    )
+    {
+        ApplyReservationState(newValue);
     }
 
     private void SetStateServer(DoorState state)
@@ -324,6 +580,16 @@ public class DoorInteractableObject : InteractableObject
         }
 
         ApplyDoorState(state);
+    }
+
+    private void SetReservationStateServer(DoorReservationState state)
+    {
+        localReservationState = state;
+
+        if (IsSpawned && IsServer)
+        {
+            reservationState.Value = state;
+        }
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -342,6 +608,11 @@ public class DoorInteractableObject : InteractableObject
     {
         localState = state;
         ApplyDoorVisual(IsVisuallyOpen(state));
+    }
+
+    private void ApplyReservationState(DoorReservationState state)
+    {
+        localReservationState = state;
     }
 
     private void ApplyDoorVisual(bool isVisuallyOpen)
@@ -368,7 +639,9 @@ public class DoorInteractableObject : InteractableObject
 
     private static bool IsOpenState(DoorState state)
     {
-        return state == DoorState.Open || state == DoorState.ForcedOpen;
+        return state == DoorState.Open ||
+               state == DoorState.Blocked ||
+               state == DoorState.ForcedOpen;
     }
 
     private static bool CanRequestOpen(DoorState state)
@@ -384,6 +657,7 @@ public class DoorInteractableObject : InteractableObject
     private static bool IsVisuallyOpen(DoorState state)
     {
         return state == DoorState.Open ||
+               state == DoorState.Blocked ||
                state == DoorState.ForcedOpen ||
                state == DoorState.Closing;
     }
@@ -399,6 +673,7 @@ public class DoorInteractableObject : InteractableObject
         CacheComponents();
         transitionDuration = Mathf.Max(0f, transitionDuration);
         enemyOpenCloseLockGraceDuration = Mathf.Max(0f, enemyOpenCloseLockGraceDuration);
+        enemyReservationTimeout = Mathf.Max(0.1f, enemyReservationTimeout);
     }
 #endif
 }
