@@ -21,6 +21,7 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
 
     private bool isBroken;
     private bool isEnemyInteractionInProgress;
+    private EnemyDoorActionType activeEnemyAction;
 
     public static IReadOnlyList<EnemyDoorInteractionZone> RegisteredZones => RegisteredDoorZones;
 
@@ -111,7 +112,7 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
                 return enemyCanBreak && IsBlockingNavigation;
 
             case EnemyDoorActionType.CloseBehind:
-                return enemyCanOpen && IsOpen && !IsBroken;
+                return enemyCanOpen && linkedDoor.CanClose && !IsBroken;
 
             default:
                 Debug.LogError(
@@ -145,28 +146,41 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
             return false;
         }
 
-        isEnemyInteractionInProgress = true;
+        if (!TryBeginLinkedDoorAction(action))
+        {
+            return false;
+        }
 
+        activeEnemyAction = action;
+        isEnemyInteractionInProgress = true;
         return true;
     }
 
     public void CompleteEnemyAction(EnemyDoorActionType action)
+    {
+        CompleteEnemyAction(action, 0f);
+    }
+
+    public void CompleteEnemyAction(
+        EnemyDoorActionType action,
+        float minimumCloseLockDuration
+    )
     {
         isEnemyInteractionInProgress = false;
 
         switch (action)
         {
             case EnemyDoorActionType.Open:
-                SetOpenState(true);
+                CompleteLinkedDoorOpen(minimumCloseLockDuration);
                 break;
 
             case EnemyDoorActionType.Break:
                 isBroken = true;
-                SetOpenState(true);
+                ForceLinkedDoorOpen();
                 break;
 
             case EnemyDoorActionType.CloseBehind:
-                SetOpenState(false);
+                CompleteLinkedDoorClose();
                 break;
 
             default:
@@ -177,14 +191,22 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
 
                 break;
         }
+
+        activeEnemyAction = default;
     }
 
     public void CancelEnemyAction()
     {
+        if (isEnemyInteractionInProgress)
+        {
+            CancelLinkedDoorAction(activeEnemyAction);
+        }
+
+        activeEnemyAction = default;
         isEnemyInteractionInProgress = false;
     }
 
-    private void SetOpenState(bool isOpen)
+    private bool TryBeginLinkedDoorAction(EnemyDoorActionType action)
     {
         if (linkedDoor == null)
         {
@@ -193,10 +215,76 @@ public sealed class EnemyDoorInteractionZone : NetworkBehaviour
                 this
             );
 
+            return false;
+        }
+
+        switch (action)
+        {
+            case EnemyDoorActionType.Open:
+            case EnemyDoorActionType.Break:
+                return linkedDoor.TryBeginEnemyOpen();
+
+            case EnemyDoorActionType.CloseBehind:
+                return linkedDoor.TryBeginEnemyClose();
+
+            default:
+                Debug.LogError(
+                    $"{nameof(EnemyDoorInteractionZone)} cannot begin unsupported action {action}.",
+                    this
+                );
+
+                return false;
+        }
+    }
+
+    private void CompleteLinkedDoorOpen(float minimumCloseLockDuration)
+    {
+        if (linkedDoor == null)
+        {
             return;
         }
 
-        linkedDoor.TrySetOpen(isOpen);
+        linkedDoor.TryCompleteEnemyOpen(minimumCloseLockDuration);
+    }
+
+    private void ForceLinkedDoorOpen()
+    {
+        if (linkedDoor == null)
+        {
+            return;
+        }
+
+        linkedDoor.TryForceOpen(float.PositiveInfinity);
+    }
+
+    private void CompleteLinkedDoorClose()
+    {
+        if (linkedDoor == null)
+        {
+            return;
+        }
+
+        linkedDoor.TryCompleteEnemyClose();
+    }
+
+    private void CancelLinkedDoorAction(EnemyDoorActionType action)
+    {
+        if (linkedDoor == null)
+        {
+            return;
+        }
+
+        switch (action)
+        {
+            case EnemyDoorActionType.Open:
+            case EnemyDoorActionType.Break:
+                linkedDoor.TryCancelEnemyOpen();
+                break;
+
+            case EnemyDoorActionType.CloseBehind:
+                linkedDoor.TryCancelEnemyClose();
+                break;
+        }
     }
 
     private void CacheComponents()
