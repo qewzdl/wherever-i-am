@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 154ce09e2e6cde142b76522002e687be, type: 3}
   m_Name: EnemyVisionConfig
   m_EditorClassIdentifier: 
-  detectionRadius: 12
+  detectionRadius: 32
   horizontalViewAngle: 180
   verticalViewAngle: 80
-  loseTargetDistance: 16
+  loseTargetDistance: 32
   targetHeightOffset: 1.2
   targetRefreshInterval: 0.25
   visualTargetMemoryDuration: 2

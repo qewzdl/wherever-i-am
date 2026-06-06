@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: EnemyHearingConfig
   m_EditorClassIdentifier: 
   hearingEnabled: 1
-  hearingRadius: 10
+  hearingRadius: 32
   hearingMemoryDuration: 3
   minimumNoiseLoudness: 0.1
