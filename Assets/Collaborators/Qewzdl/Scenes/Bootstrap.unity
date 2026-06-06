@@ -356,6 +356,7 @@ MonoBehaviour:
   connectionApprovalService: {fileID: 481142991}
   uiErrorManager: {fileID: 1020719287}
   audioManager: {fileID: 1269671436}
+  gameplayNoiseWorldService: {fileID: 481143003}
 --- !u!114 &481142987
 MonoBehaviour:
   m_ObjectHideFlags: 0

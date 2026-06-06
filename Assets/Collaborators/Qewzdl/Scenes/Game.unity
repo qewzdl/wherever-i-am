@@ -250,9 +250,7 @@ GameObject:
   - component: {fileID: 212283889}
   - component: {fileID: 212283888}
   - component: {fileID: 212283887}
-  - component: {fileID: 212283891}
   - component: {fileID: 212283892}
-  - component: {fileID: 212283893}
   - component: {fileID: 212283901}
   - component: {fileID: 212283902}
   m_Layer: 0
@@ -331,24 +329,6 @@ MonoBehaviour:
   installOnAwake: 1
   features:
   - {fileID: 212283892}
---- !u!114 &212283891
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 212283884}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: eba7002d86c8b36488e0a1c30f4866d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  maxStoredNoises: 128
-  networkManager: {fileID: 0}
-  clearOnInitialize: 1
-  clearOnDestroy: 1
-  clearWithoutActiveNetworkSession: 1
-  logLifecycleCleanup: 0
 --- !u!114 &212283892
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -364,19 +344,6 @@ MonoBehaviour:
   features:
   - {fileID: 1217186088}
   - {fileID: 1401994673}
---- !u!114 &212283893
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 212283884}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c173576d53b433b48800f2c9df943f7c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  noiseWorldService: {fileID: 212283891}
 --- !u!114 &212283894
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4408,10 +4375,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 499c575302435cb4683f1ba7c9bfbb43, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  noiseWorldService: {fileID: 212283891}
-  noiseEmitters: []
-  hearingSensors:
-  - {fileID: 9079563123122128165}
 --- !u!1 &1409437166
 GameObject:
   m_ObjectHideFlags: 0
@@ -6787,17 +6750,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3b060264512f0394696262ecb7e63a6f, type: 3}
---- !u!114 &9079563123122128165 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7002212260278922464, guid: 3b060264512f0394696262ecb7e63a6f, type: 3}
-  m_PrefabInstance: {fileID: 9079563123122128164}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6bfd1c18b62f42040a9895dd4bb949b5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1001 &9156306484921553307
 PrefabInstance:
   m_ObjectHideFlags: 0

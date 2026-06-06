@@ -1,15 +1,10 @@
-using Unity.Netcode;
 using UnityEngine;
 
 [DefaultExecutionOrder(-950)]
 [DisallowMultipleComponent]
 public sealed class EnemyNoiseWorldServiceBootstrapInstaller : MonoBehaviour
 {
-    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
-
-    private bool missingNoiseWorldServiceLogged;
-    private bool missingProjectContextLogged;
-    private bool missingNetworkManagerLogged;
+    private bool installFailureLogged;
 
     private void Awake()
     {
@@ -18,95 +13,30 @@ public sealed class EnemyNoiseWorldServiceBootstrapInstaller : MonoBehaviour
 
     public bool Install()
     {
-        if (!ValidateNoiseWorldService())
-        {
-            return false;
-        }
-
         ProjectContext context = ProjectContext.Instance;
+        GameplayNoiseWorldService noiseWorldService = context != null
+            ? context.GameplayNoiseWorld
+            : null;
 
-        if (context == null)
+        if (context != null &&
+            noiseWorldService != null &&
+            noiseWorldService.Construct(context.NetworkManager))
         {
-            LogMissingProjectContext();
-            noiseWorldService.enabled = false;
-            return false;
-        }
-
-        NetworkManager networkManager = context.NetworkManager;
-
-        if (networkManager == null)
-        {
-            LogMissingNetworkManager();
-            noiseWorldService.enabled = false;
-            return false;
-        }
-
-        missingProjectContextLogged = false;
-        missingNetworkManagerLogged = false;
-
-        return noiseWorldService.Construct(networkManager);
-    }
-
-    private bool ValidateNoiseWorldService()
-    {
-        if (noiseWorldService != null)
-        {
-            missingNoiseWorldServiceLogged = false;
+            installFailureLogged = false;
             return true;
         }
 
-        if (!missingNoiseWorldServiceLogged)
+        if (!installFailureLogged)
         {
-            missingNoiseWorldServiceLogged = true;
+            installFailureLogged = true;
 
             Debug.LogError(
-                $"{nameof(EnemyNoiseWorldServiceBootstrapInstaller)} requires {nameof(GameplayNoiseWorldService)}.",
+                $"{nameof(EnemyNoiseWorldServiceBootstrapInstaller)} requires initialized " +
+                $"{nameof(GameplayNoiseWorldService)} from {nameof(ProjectContext)}.",
                 this
             );
         }
 
         return false;
     }
-
-    private void LogMissingProjectContext()
-    {
-        if (missingProjectContextLogged)
-        {
-            return;
-        }
-
-        missingProjectContextLogged = true;
-
-        Debug.LogError(
-            $"{nameof(EnemyNoiseWorldServiceBootstrapInstaller)} requires active {nameof(ProjectContext)} " +
-            "from Bootstrap scene before installing enemy hearing services.",
-            this
-        );
-    }
-
-    private void LogMissingNetworkManager()
-    {
-        if (missingNetworkManagerLogged)
-        {
-            return;
-        }
-
-        missingNetworkManagerLogged = true;
-
-        Debug.LogError(
-            $"{nameof(EnemyNoiseWorldServiceBootstrapInstaller)} requires {nameof(ProjectContext)} " +
-            $"with assigned {nameof(NetworkManager)}.",
-            this
-        );
-    }
-
-#if UNITY_EDITOR
-    private void OnValidate()
-    {
-        if (noiseWorldService == null)
-        {
-            noiseWorldService = GetComponent<GameplayNoiseWorldService>();
-        }
-    }
-#endif
 }

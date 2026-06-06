@@ -21,6 +21,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private NetworkConnectionApprovalService connectionApprovalService;
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private AudioManager audioManager;
+    [SerializeField] private GameplayNoiseWorldService gameplayNoiseWorldService;
 
     private bool referencesValidated;
     private bool referenceValidationFailureLogged;
@@ -159,6 +160,15 @@ public sealed class ProjectContext : MonoBehaviour
         }
     }
 
+    public GameplayNoiseWorldService GameplayNoiseWorld
+    {
+        get
+        {
+            ResolveReferences();
+            return gameplayNoiseWorldService;
+        }
+    }
+
     private void Awake()
     {
         if (instance != null && instance != this)
@@ -188,6 +198,9 @@ public sealed class ProjectContext : MonoBehaviour
         bool referencesReady = ValidateReferences();
 
         if (!referencesReady)
+            return false;
+
+        if (!InitializeProjectServices())
             return false;
 
         return ComposeSceneServices();
@@ -280,11 +293,18 @@ public sealed class ProjectContext : MonoBehaviour
         valid &= ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService), logErrors);
         valid &= ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager), logErrors);
         valid &= ValidateRequiredReference(audioManager, nameof(audioManager), logErrors);
+        valid &= ValidateRequiredReference(gameplayNoiseWorldService, nameof(gameplayNoiseWorldService), logErrors);
 
         referencesValidated = valid;
         referenceValidationFailureLogged = !valid;
 
         return valid;
+    }
+
+    private bool InitializeProjectServices()
+    {
+        return gameplayNoiseWorldService != null &&
+               gameplayNoiseWorldService.Construct(networkManager);
     }
 
     private bool ComposeSceneServices()

@@ -590,7 +590,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6bfd1c18b62f42040a9895dd4bb949b5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  noiseWorldService: {fileID: 0}
 --- !u!114 &5660041982996278054
 MonoBehaviour:
   m_ObjectHideFlags: 0

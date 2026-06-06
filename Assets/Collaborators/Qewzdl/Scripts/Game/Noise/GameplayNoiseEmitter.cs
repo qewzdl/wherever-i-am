@@ -1,4 +1,3 @@
-using System.Text;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -13,21 +12,15 @@ public class GameplayNoiseEmitter : NetworkBehaviour
     [SerializeField, Min(0f)] private float serverCooldown = 0.15f;
 
     [Header("References")]
-    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
     [SerializeField] private Transform noiseOrigin;
 
+    private GameplayNoiseWorldService noiseWorldService;
     private float lastServerEmitTime = float.NegativeInfinity;
     private bool invalidConfigurationLogged;
     private bool nonOwnerRequestLogged;
     private bool nonServerEmitLogged;
 
-    public bool IsConfigured => ValidateStaticDependencies(false);
-
-    public void Construct(GameplayNoiseWorldService service)
-    {
-        noiseWorldService = service;
-        invalidConfigurationLogged = false;
-    }
+    public bool IsConfigured => ValidateRuntimeDependencies(false);
 
     public bool TryEmitServer()
     {
@@ -46,7 +39,7 @@ public class GameplayNoiseEmitter : NetworkBehaviour
             return false;
         }
 
-        if (!ValidateStaticDependencies())
+        if (!ValidateRuntimeDependencies())
         {
             return false;
         }
@@ -114,31 +107,44 @@ public class GameplayNoiseEmitter : NetworkBehaviour
             : transform.position;
     }
 
-    private bool ValidateStaticDependencies()
+    private bool ValidateRuntimeDependencies()
     {
-        return ValidateStaticDependencies(true);
+        return ValidateRuntimeDependencies(true);
     }
 
-    private bool ValidateStaticDependencies(bool logErrors)
+    private bool ValidateRuntimeDependencies(bool logErrors)
     {
-        StringBuilder builder = new();
-
-        if (noiseWorldService == null)
+        if (noiseWorldService != null && noiseWorldService.IsInitialized)
         {
-            EnemyValidationLogger.AppendMissingDependency(
-                builder,
-                nameof(noiseWorldService)
+            invalidConfigurationLogged = false;
+            return true;
+        }
+
+        ProjectContext context = ProjectContext.Instance;
+        noiseWorldService = context != null
+            ? context.GameplayNoiseWorld
+            : null;
+
+        if (noiseWorldService != null && noiseWorldService.IsInitialized)
+        {
+            invalidConfigurationLogged = false;
+            return true;
+        }
+
+        noiseWorldService = null;
+
+        if (logErrors && !invalidConfigurationLogged)
+        {
+            invalidConfigurationLogged = true;
+
+            Debug.LogError(
+                $"{nameof(GameplayNoiseEmitter)} requires initialized " +
+                $"{nameof(GameplayNoiseWorldService)} from {nameof(ProjectContext)}.",
+                this
             );
         }
 
-        return EnemyValidationLogger.ValidateAndLog(
-            this,
-            nameof(GameplayNoiseEmitter),
-            builder,
-            ref invalidConfigurationLogged,
-            logErrors,
-            "Gameplay noise emitter is disabled until configured."
-        );
+        return false;
     }
 
     private void LogNonOwnerRequest()
@@ -177,7 +183,6 @@ public class GameplayNoiseEmitter : NetworkBehaviour
         radius = Mathf.Max(0f, radius);
         loudness = Mathf.Max(0f, loudness);
         serverCooldown = Mathf.Max(0f, serverCooldown);
-        ValidateStaticDependencies();
     }
 
     private void OnDrawGizmosSelected()

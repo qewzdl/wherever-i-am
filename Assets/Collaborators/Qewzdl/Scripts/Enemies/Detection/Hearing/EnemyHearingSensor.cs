@@ -3,27 +3,11 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
 {
-    [Header("Gameplay Noise")]
-    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
-
+    private GameplayNoiseWorldService noiseWorldService;
     private bool missingNoiseWorldServiceLogged;
     private bool missingConfigLogged;
 
-    public bool IsConfigured => noiseWorldService != null;
-
-    public void Construct(GameplayNoiseWorldService service)
-    {
-        noiseWorldService = service;
-        missingNoiseWorldServiceLogged = false;
-
-        if (!ValidateRuntimeDependencies())
-        {
-            enabled = false;
-            return;
-        }
-
-        enabled = true;
-    }
+    public bool IsConfigured => TryResolveNoiseWorldService(false);
 
     public bool ValidateStaticDependencies()
     {
@@ -32,13 +16,36 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     public bool ValidateRuntimeDependencies()
     {
-        if (noiseWorldService != null)
+        return TryResolveNoiseWorldService(true);
+    }
+
+    private bool TryResolveNoiseWorldService(bool logErrors)
+    {
+        if (noiseWorldService != null && noiseWorldService.IsInitialized)
         {
             missingNoiseWorldServiceLogged = false;
             return true;
         }
 
-        LogMissingNoiseWorldService();
+        ProjectContext context = ProjectContext.Instance;
+        GameplayNoiseWorldService service = context != null
+            ? context.GameplayNoiseWorld
+            : null;
+
+        if (service != null && service.IsInitialized)
+        {
+            noiseWorldService = service;
+            missingNoiseWorldServiceLogged = false;
+            return true;
+        }
+
+        noiseWorldService = null;
+
+        if (logErrors)
+        {
+            LogMissingNoiseWorldService();
+        }
+
         return false;
     }
 
@@ -114,7 +121,7 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
 
         Debug.LogError(
             $"{nameof(EnemyHearingSensor)} requires {nameof(GameplayNoiseWorldService)}. " +
-            "Assign it through scene composition before perception ticks.",
+            $"Configure it in {nameof(ProjectContext)} before perception ticks.",
             this
         );
     }

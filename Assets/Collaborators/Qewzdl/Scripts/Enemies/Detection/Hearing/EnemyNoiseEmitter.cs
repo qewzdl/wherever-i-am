@@ -8,12 +8,9 @@ public class EnemyNoiseEmitter : MonoBehaviour
     [SerializeField, Min(0f)] private float loudness = 1f;
     [SerializeField] private GameplayNoiseSourceType sourceType = GameplayNoiseSourceType.Player;
     [SerializeField] private EnemyTarget sourceTarget;
-    [SerializeField] private GameplayNoiseWorldService noiseWorldService;
 
-    public void Construct(GameplayNoiseWorldService service)
-    {
-        noiseWorldService = service;
-    }
+    private GameplayNoiseWorldService noiseWorldService;
+    private bool missingNoiseWorldServiceLogged;
 
     public bool RaiseNoiseServer()
     {
@@ -71,13 +68,37 @@ public class EnemyNoiseEmitter : MonoBehaviour
 
     private bool TryGetNoiseWorldService(out GameplayNoiseWorldService service)
     {
-        if (noiseWorldService == null)
+        if (noiseWorldService != null && noiseWorldService.IsInitialized)
         {
-            noiseWorldService = FindFirstObjectByType<GameplayNoiseWorldService>();
+            service = noiseWorldService;
+            return true;
         }
 
+        ProjectContext context = ProjectContext.Instance;
+        noiseWorldService = context != null
+            ? context.GameplayNoiseWorld
+            : null;
+
         service = noiseWorldService;
-        return service != null;
+
+        if (service != null && service.IsInitialized)
+        {
+            missingNoiseWorldServiceLogged = false;
+            return true;
+        }
+
+        if (!missingNoiseWorldServiceLogged)
+        {
+            missingNoiseWorldServiceLogged = true;
+
+            Debug.LogError(
+                $"{nameof(EnemyNoiseEmitter)} requires initialized " +
+                $"{nameof(GameplayNoiseWorldService)} from {nameof(ProjectContext)}.",
+                this
+            );
+        }
+
+        return false;
     }
 
     private ulong GetSourceNetworkObjectId()
