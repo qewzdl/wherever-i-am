@@ -253,6 +253,8 @@ GameObject:
   - component: {fileID: 212283891}
   - component: {fileID: 212283892}
   - component: {fileID: 212283893}
+  - component: {fileID: 212283901}
+  - component: {fileID: 212283902}
   m_Layer: 0
   m_Name: SceneRuntime
   m_TagString: Untagged
@@ -490,6 +492,48 @@ MonoBehaviour:
   entranceDoor: {fileID: 5187373083295460783}
   reportHandleProgress: 1
   maxProgressBeforeUnlock: 0.99
+--- !u!114 &212283901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 212283884}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a308a26b06d09864b91e957268b5dbd3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  visible: 1
+  order: 0
+  gameFlow: {fileID: 212283895}
+  objectiveFlow: {fileID: 212283897}
+--- !u!114 &212283902
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 212283884}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99d6e65315afea44cb27d911e2c130f2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sources:
+  - {fileID: 212283901}
+  showOnStart: 1
+  enableToggleShortcut: 1
+  toggleKey: 96
+  refreshIntervalSeconds: 0.1
+  screenOffset: {x: 16, y: -16}
+  panelWidth: 620
+  minPanelHeight: 120
+  panelPadding: {x: 14, y: 12}
+  sortingOrder: 32760
+  backgroundColor: {r: 0, g: 0, b: 0, a: 0.78}
+  textColor: {r: 1, g: 1, b: 1, a: 1}
+  fontSize: 18
 --- !u!1 &213257118
 GameObject:
   m_ObjectHideFlags: 0
