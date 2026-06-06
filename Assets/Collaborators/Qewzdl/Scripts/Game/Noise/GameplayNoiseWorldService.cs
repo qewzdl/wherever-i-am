@@ -204,7 +204,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
 
             if (now - noise.CreatedAtTime > memoryDuration)
             {
-                noises.RemoveAt(i);
                 continue;
             }
 

@@ -3,7 +3,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
-public class GameplayNoiseEmitter : NetworkBehaviour
+public sealed class GameplayNoiseEmitter : NetworkBehaviour
 {
     [Header("Noise")]
     [SerializeField] private GameplayNoiseSourceType sourceType = GameplayNoiseSourceType.Environment;
@@ -14,20 +14,69 @@ public class GameplayNoiseEmitter : NetworkBehaviour
     [Header("References")]
     [SerializeField] private Transform noiseOrigin;
 
+    [Header("Owner Requests")]
+    [Tooltip("Required for client-owned requests. Leave empty for server-only emission.")]
+    [SerializeField] private MonoBehaviour ownerRequestValidatorBehaviour;
+
     private GameplayNoiseWorldService noiseWorldService;
+    private IGameplayNoiseRequestValidator ownerRequestValidator;
     private float lastServerEmitTime = float.NegativeInfinity;
     private bool invalidConfigurationLogged;
+    private bool invalidOwnerRequestValidatorLogged;
     private bool nonOwnerRequestLogged;
     private bool nonServerEmitLogged;
 
     public bool IsConfigured => ValidateRuntimeDependencies(false);
+    public bool CanRequestFromOwner
+    {
+        get
+        {
+            CacheOwnerRequestValidator();
+            return ownerRequestValidator != null;
+        }
+    }
+
+    private void Awake()
+    {
+        CacheOwnerRequestValidator();
+    }
 
     public bool TryEmitServer()
     {
-        return TryEmitServer(radius, loudness, sourceType);
+        return TryEmitServer(
+            GetNoisePosition(),
+            radius,
+            loudness,
+            sourceType
+        );
     }
 
     public bool TryEmitServer(
+        float noiseRadius,
+        float noiseLoudness,
+        GameplayNoiseSourceType noiseSourceType
+    )
+    {
+        return TryEmitServer(
+            GetNoisePosition(),
+            noiseRadius,
+            noiseLoudness,
+            noiseSourceType
+        );
+    }
+
+    public bool TryEmitServer(Vector3 position)
+    {
+        return TryEmitServer(
+            position,
+            radius,
+            loudness,
+            sourceType
+        );
+    }
+
+    public bool TryEmitServer(
+        Vector3 position,
         float noiseRadius,
         float noiseLoudness,
         GameplayNoiseSourceType noiseSourceType
@@ -52,7 +101,7 @@ public class GameplayNoiseEmitter : NetworkBehaviour
         lastServerEmitTime = Time.time;
 
         return noiseWorldService.TryRaiseNoiseServer(
-            GetNoisePosition(),
+            position,
             noiseRadius,
             noiseLoudness,
             noiseSourceType,
@@ -62,21 +111,27 @@ public class GameplayNoiseEmitter : NetworkBehaviour
         );
     }
 
-    public void RequestEmitFromOwner()
+    public bool RequestEmitFromOwner()
     {
         if (IsServer)
         {
-            TryEmitServer();
-            return;
+            return TryEmitServer();
         }
 
         if (!IsOwner)
         {
             LogNonOwnerRequest();
-            return;
+            return false;
+        }
+
+        if (!CanRequestFromOwner)
+        {
+            LogInvalidOwnerRequestValidator();
+            return false;
         }
 
         RequestEmitFromOwnerServerRpc();
+        return true;
     }
 
     [ServerRpc]
@@ -87,7 +142,44 @@ public class GameplayNoiseEmitter : NetworkBehaviour
             return;
         }
 
+        if (!ValidateRuntimeDependencies() || !CanEmitByCooldown())
+        {
+            return;
+        }
+
+        if (!ValidateOwnerRequestServer(serverRpcParams.Receive.SenderClientId))
+        {
+            return;
+        }
+
         TryEmitServer();
+    }
+
+    private bool ValidateOwnerRequestServer(ulong senderClientId)
+    {
+        CacheOwnerRequestValidator();
+
+        if (ownerRequestValidator == null)
+        {
+            LogInvalidOwnerRequestValidator();
+            return false;
+        }
+
+        return ownerRequestValidator.CanEmitNoiseServer(
+            this,
+            senderClientId
+        );
+    }
+
+    private void CacheOwnerRequestValidator()
+    {
+        ownerRequestValidator =
+            ownerRequestValidatorBehaviour as IGameplayNoiseRequestValidator;
+
+        if (ownerRequestValidator != null)
+        {
+            invalidOwnerRequestValidatorLogged = false;
+        }
     }
 
     private bool CanEmitByCooldown()
@@ -147,6 +239,26 @@ public class GameplayNoiseEmitter : NetworkBehaviour
         return false;
     }
 
+    private void LogInvalidOwnerRequestValidator()
+    {
+        if (invalidOwnerRequestValidatorLogged)
+        {
+            return;
+        }
+
+        invalidOwnerRequestValidatorLogged = true;
+
+        string reason = ownerRequestValidatorBehaviour == null
+            ? "no validator is assigned"
+            : $"assigned component does not implement {nameof(IGameplayNoiseRequestValidator)}";
+
+        Debug.LogWarning(
+            $"{nameof(GameplayNoiseEmitter)} rejected an owner noise request because {reason}. " +
+            "Use direct server emission for authoritative actions or assign a server-side validator.",
+            this
+        );
+    }
+
     private void LogNonOwnerRequest()
     {
         if (nonOwnerRequestLogged)
@@ -183,6 +295,13 @@ public class GameplayNoiseEmitter : NetworkBehaviour
         radius = Mathf.Max(0f, radius);
         loudness = Mathf.Max(0f, loudness);
         serverCooldown = Mathf.Max(0f, serverCooldown);
+        CacheOwnerRequestValidator();
+
+        if (ownerRequestValidatorBehaviour != null &&
+            ownerRequestValidator == null)
+        {
+            LogInvalidOwnerRequestValidator();
+        }
     }
 
     private void OnDrawGizmosSelected()

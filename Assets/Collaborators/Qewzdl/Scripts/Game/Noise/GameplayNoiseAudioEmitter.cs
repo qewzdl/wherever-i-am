@@ -58,8 +58,7 @@ public class GameplayNoiseAudioEmitter : MonoBehaviour
             return noiseEmitter.TryEmitServer();
         }
 
-        noiseEmitter.RequestEmitFromOwner();
-        return true;
+        return noiseEmitter.RequestEmitFromOwner();
     }
 
     private bool TryPlayOneShot(AudioClip clip, float volumeScale)
