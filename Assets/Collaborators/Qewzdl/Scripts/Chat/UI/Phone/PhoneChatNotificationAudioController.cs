@@ -11,6 +11,7 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
     [SerializeField] private SoundEffect incomingWhenOpenedSfx;
     [SerializeField] private bool playIncomingSfxForOwnMessages;
     [SerializeField] private bool playIncomingSfxForSystemMessages = true;
+    [SerializeField] private PhoneAudioCueEventChannel phoneAudioCueEvents;
 
     private bool isOpen;
     private bool isSubscribed;
@@ -24,7 +25,8 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
         SoundEffect openSfx,
         SoundEffect closeSfx,
         bool playIncomingSfxForOwnMessages,
-        bool playIncomingSfxForSystemMessages)
+        bool playIncomingSfxForSystemMessages,
+        PhoneAudioCueEventChannel phoneAudioCueEvents)
     {
         bool shouldResubscribe = isSubscribed;
         Unsubscribe();
@@ -36,6 +38,7 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
         this.closeSfx = closeSfx;
         this.playIncomingSfxForOwnMessages = playIncomingSfxForOwnMessages;
         this.playIncomingSfxForSystemMessages = playIncomingSfxForSystemMessages;
+        this.phoneAudioCueEvents = phoneAudioCueEvents;
 
         if (shouldResubscribe)
         {
@@ -69,12 +72,22 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
 
     public void PlayOpen()
     {
-        PlayOneShot(openSfx);
+        if (TryPlayOneShot(openSfx))
+        {
+            phoneAudioCueEvents?.RaiseCuePlayed(
+                PhoneAudioCueEvent.Open()
+            );
+        }
     }
 
     public void PlayClose()
     {
-        PlayOneShot(closeSfx);
+        if (TryPlayOneShot(closeSfx))
+        {
+            phoneAudioCueEvents?.RaiseCuePlayed(
+                PhoneAudioCueEvent.Close()
+            );
+        }
     }
 
     public void Subscribe()
@@ -106,15 +119,19 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
 
     public void PlayOneShot(SoundEffect sound)
     {
+        TryPlayOneShot(sound);
+    }
+
+    private bool TryPlayOneShot(SoundEffect sound)
+    {
         if (sound == null)
         {
-            return;
+            return false;
         }
 
         if (AudioManager.Instance != null && AudioManager.Instance.UI != null)
         {
-            AudioManager.Instance.UI.Play(sound);
-            return;
+            return AudioManager.Instance.UI.TryPlay(sound);
         }
 
         if (fallbackAudioSource == null)
@@ -126,11 +143,12 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
 
         if (fallbackAudioSource == null || clip == null)
         {
-            return;
+            return false;
         }
 
         fallbackAudioSource.pitch = sound.GetPitch();
         fallbackAudioSource.PlayOneShot(clip, sound.GetVolume());
+        return true;
     }
 
     private void HandleMessageReceived(ChatMessageReceivedEvent messageEvent)
@@ -149,6 +167,14 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
             ? incomingWhenOpenedSfx
             : incomingWhenClosedSfx;
 
-        PlayOneShot(incomingSfx);
+        if (!TryPlayOneShot(incomingSfx) ||
+            !uint.TryParse(messageEvent.MessageId, out uint messageId))
+        {
+            return;
+        }
+
+        phoneAudioCueEvents?.RaiseCuePlayed(
+            PhoneAudioCueEvent.IncomingNotification(messageId)
+        );
     }
 }

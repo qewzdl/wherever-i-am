@@ -13,9 +13,11 @@ public sealed class PhoneChatWindowHost : MonoBehaviour
 
     [Header("Audio")]
     [SerializeField] private SoundEffect inputSfx;
+    [SerializeField] private PhoneAudioCueEventChannel phoneAudioCueEvents;
 
     private GameObject spawnedChatWindow;
     private ChatWindowUI chatWindow;
+    private UiInputSound inputSound;
     private bool isSubscribed;
 
     public event Action Opened;
@@ -24,10 +26,14 @@ public sealed class PhoneChatWindowHost : MonoBehaviour
     public GameObject SpawnedChatWindow => spawnedChatWindow;
     public ChatWindowUI ChatWindow => chatWindow;
 
-    public void Configure(ChatEventChannel chatEvents, SoundEffect inputSfx)
+    public void Configure(
+        ChatEventChannel chatEvents,
+        SoundEffect inputSfx,
+        PhoneAudioCueEventChannel phoneAudioCueEvents)
     {
         this.chatEvents = chatEvents;
         this.inputSfx = inputSfx;
+        this.phoneAudioCueEvents = phoneAudioCueEvents;
 
         ApplyEventChannel();
         ApplyInputSfx();
@@ -74,6 +80,7 @@ public sealed class PhoneChatWindowHost : MonoBehaviour
         ApplyEventChannel(chatEvents);
         DisableSpawnedChatMessageNotificationAudio();
         ApplyInputSfx();
+        ResolveInputSound();
 
         return true;
     }
@@ -112,6 +119,7 @@ public sealed class PhoneChatWindowHost : MonoBehaviour
 
         chatWindow.Opened += HandleChatWindowOpened;
         chatWindow.Closed += HandleChatWindowClosed;
+        SubscribeToInputSound();
         isSubscribed = true;
     }
 
@@ -124,6 +132,7 @@ public sealed class PhoneChatWindowHost : MonoBehaviour
 
         chatWindow.Opened -= HandleChatWindowOpened;
         chatWindow.Closed -= HandleChatWindowClosed;
+        UnsubscribeFromInputSound();
         isSubscribed = false;
     }
 
@@ -140,6 +149,44 @@ public sealed class PhoneChatWindowHost : MonoBehaviour
     private void HandleChatWindowClosed()
     {
         Closed?.Invoke();
+    }
+
+    private void ResolveInputSound()
+    {
+        if (inputSound != null || spawnedChatWindow == null)
+        {
+            return;
+        }
+
+        inputSound = spawnedChatWindow.GetComponentInChildren<UiInputSound>(true);
+    }
+
+    private void SubscribeToInputSound()
+    {
+        ResolveInputSound();
+
+        if (inputSound == null)
+        {
+            return;
+        }
+
+        inputSound.InputSoundPlayed -= HandleInputSoundPlayed;
+        inputSound.InputSoundPlayed += HandleInputSoundPlayed;
+    }
+
+    private void UnsubscribeFromInputSound()
+    {
+        if (inputSound != null)
+        {
+            inputSound.InputSoundPlayed -= HandleInputSoundPlayed;
+        }
+    }
+
+    private void HandleInputSoundPlayed()
+    {
+        phoneAudioCueEvents?.RaiseCuePlayed(
+            PhoneAudioCueEvent.Input()
+        );
     }
 
     private void DisableSpawnedChatMessageNotificationAudio()

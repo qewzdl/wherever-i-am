@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc7ce6b365054f93886e6e217c8c0497, type: 3}
+  m_Name: PhoneGameplayNoiseProfile_Default
+  m_EditorClassIdentifier: 
+  entries:
+  - cueType: 1
+    preset: {fileID: 11400000, guid: be84901419a54a90af1b5f50f1ab6b5c, type: 2}
+  - cueType: 2
+    preset: {fileID: 11400000, guid: 39e04b4dedfa4a279f626baad62ef6c7, type: 2}
+  - cueType: 3
+    preset: {fileID: 11400000, guid: 5b2830df73434c06a4f2f3bacea37345, type: 2}
+  - cueType: 4
+    preset: {fileID: 11400000, guid: f1ceafc4a6ee4b86b87c2c445445c10c, type: 2}

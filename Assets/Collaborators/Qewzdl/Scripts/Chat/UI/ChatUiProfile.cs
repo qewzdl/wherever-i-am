@@ -25,6 +25,9 @@ public class ChatUiProfile : ScriptableObject
     [SerializeField] private bool playPhoneIncomingSfxForOwnMessages;
     [SerializeField] private bool playPhoneIncomingSfxForSystemMessages = true;
 
+    [Header("Phone Gameplay")]
+    [SerializeField] private PhoneAudioCueEventChannel phoneAudioCueEvents;
+
     public ChatEventChannel ChatEvents => chatEvents;
     public SoundEffect LobbyInputSfx => lobbyInputSfx;
     public SoundEffect LobbyMessageWhileChatClosedSfx => lobbyMessageWhileChatClosedSfx;
@@ -41,4 +44,5 @@ public class ChatUiProfile : ScriptableObject
     public ChatTypographyProfile PhoneTypography => phoneTypography;
     public bool PlayPhoneIncomingSfxForOwnMessages => playPhoneIncomingSfxForOwnMessages;
     public bool PlayPhoneIncomingSfxForSystemMessages => playPhoneIncomingSfxForSystemMessages;
+    public PhoneAudioCueEventChannel PhoneAudioCueEvents => phoneAudioCueEvents;
 }

@@ -538,6 +538,8 @@ GameObject:
   - component: {fileID: 7921583413856064293}
   - component: {fileID: 458918862290902195}
   - component: {fileID: 6106312102613378047}
+  - component: {fileID: 867530900123456790}
+  - component: {fileID: 867530900123456789}
   m_Layer: 3
   m_Name: Player
   m_TagString: Untagged
@@ -1028,6 +1030,38 @@ MonoBehaviour:
   hitResult: 2
   hitReason: A player was caught by an enemy
   logReceivedAttack: 1
+--- !u!114 &867530900123456789
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 840f4c57aa4549aaa2a40d10f9ba70f7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  phoneAudioCueEvents: {fileID: 11400000, guid: bfbce4984ff843d99085cbefc497e33d, type: 2}
+  chatUiProfile: {fileID: 11400000, guid: 741a50ced37236b428fe2a0f56b61645, type: 2}
+  noiseProfile: {fileID: 11400000, guid: 6412b07045b54b98aa04fbe5d3998b08, type: 2}
+  noiseEmitter: {fileID: 867530900123456790}
+--- !u!114 &867530900123456790
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a707c84b32ccdbe4998282e46dfe490c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  defaultPreset: {fileID: 0}
+  noiseOrigin: {fileID: 9134326554751017068}
+  ownerRequestValidatorBehaviour: {fileID: 0}
+  ownerRequestPresets: []
 --- !u!1 &8004139109675559352
 GameObject:
   m_ObjectHideFlags: 0

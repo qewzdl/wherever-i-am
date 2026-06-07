@@ -194,6 +194,33 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         return messages[index];
     }
 
+    public bool TryGetMessage(
+        uint messageId,
+        out ChatMessageData message)
+    {
+        message = default;
+
+        if (messageId == 0 || messages == null)
+        {
+            return false;
+        }
+
+        for (int i = messages.Count - 1; i >= 0; i--)
+        {
+            ChatMessageData candidate = messages[i];
+
+            if (candidate.MessageId != messageId)
+            {
+                continue;
+            }
+
+            message = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
     public void SubmitMessage(string text)
     {
         HandleSendRequested(new ChatSendRequest(text, CurrentChannel.ToString()));

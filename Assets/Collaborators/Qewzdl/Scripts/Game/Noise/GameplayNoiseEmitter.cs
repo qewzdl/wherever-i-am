@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -5,11 +6,8 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 public sealed class GameplayNoiseEmitter : NetworkBehaviour
 {
-    [Header("Noise")]
-    [SerializeField] private GameplayNoiseSourceType sourceType = GameplayNoiseSourceType.Environment;
-    [SerializeField, Min(0f)] private float radius = 8f;
-    [SerializeField, Min(0f)] private float loudness = 1f;
-    [SerializeField, Min(0f)] private float serverCooldown = 0.15f;
+    [Header("Default Noise")]
+    [SerializeField] private GameplayNoisePreset defaultPreset;
 
     [Header("References")]
     [SerializeField] private Transform noiseOrigin;
@@ -17,16 +15,21 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
     [Header("Owner Requests")]
     [Tooltip("Required for client-owned requests. Leave empty for server-only emission.")]
     [SerializeField] private MonoBehaviour ownerRequestValidatorBehaviour;
+    [Tooltip("Additional presets the owner is allowed to request. The default preset is always included.")]
+    [SerializeField] private List<GameplayNoisePreset> ownerRequestPresets = new();
 
+    private readonly Dictionary<GameplayNoisePreset, float> lastPresetEmitTimes = new();
     private GameplayNoiseWorldService noiseWorldService;
     private IGameplayNoiseRequestValidator ownerRequestValidator;
-    private float lastServerEmitTime = float.NegativeInfinity;
+    private float lastRawEmitTime = float.NegativeInfinity;
     private bool invalidConfigurationLogged;
+    private bool invalidPresetLogged;
     private bool invalidOwnerRequestValidatorLogged;
     private bool nonOwnerRequestLogged;
     private bool nonServerEmitLogged;
 
     public bool IsConfigured => ValidateRuntimeDependencies(false);
+    public GameplayNoisePreset DefaultPreset => defaultPreset;
     public bool CanRequestFromOwner
     {
         get
@@ -41,13 +44,42 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
         CacheOwnerRequestValidator();
     }
 
+    public override void OnNetworkSpawn()
+    {
+        ResetCooldowns();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        ResetCooldowns();
+    }
+
     public bool TryEmitServer()
     {
-        return TryEmitServer(
-            GetNoisePosition(),
-            radius,
-            loudness,
-            sourceType
+        return TryEmitServer(defaultPreset);
+    }
+
+    public bool TryEmitServer(GameplayNoisePreset preset)
+    {
+        return TryEmitServer(GetNoisePosition(), preset);
+    }
+
+    public bool TryEmitServer(
+        Vector3 position,
+        GameplayNoisePreset preset)
+    {
+        if (!ValidatePreset(preset))
+        {
+            return false;
+        }
+
+        return TryEmitServerInternal(
+            position,
+            preset.Radius,
+            preset.Loudness,
+            preset.SourceType,
+            preset.ServerCooldown,
+            preset
         );
     }
 
@@ -69,9 +101,7 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
     {
         return TryEmitServer(
             position,
-            radius,
-            loudness,
-            sourceType
+            defaultPreset
         );
     }
 
@@ -81,6 +111,28 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
         float noiseLoudness,
         GameplayNoiseSourceType noiseSourceType
     )
+    {
+        float cooldown = defaultPreset != null
+            ? defaultPreset.ServerCooldown
+            : 0f;
+
+        return TryEmitServerInternal(
+            position,
+            noiseRadius,
+            noiseLoudness,
+            noiseSourceType,
+            cooldown,
+            null
+        );
+    }
+
+    private bool TryEmitServerInternal(
+        Vector3 position,
+        float noiseRadius,
+        float noiseLoudness,
+        GameplayNoiseSourceType noiseSourceType,
+        float serverCooldown,
+        GameplayNoisePreset preset)
     {
         if (!IsServer)
         {
@@ -93,14 +145,12 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
             return false;
         }
 
-        if (!CanEmitByCooldown())
+        if (!CanEmitByCooldown(preset, serverCooldown))
         {
             return false;
         }
 
-        lastServerEmitTime = Time.time;
-
-        return noiseWorldService.TryRaiseNoiseServer(
+        bool emitted = noiseWorldService.TryRaiseNoiseServer(
             position,
             noiseRadius,
             noiseLoudness,
@@ -109,13 +159,25 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
             OwnerClientId,
             this
         );
+
+        if (emitted)
+        {
+            RecordEmitTime(preset);
+        }
+
+        return emitted;
     }
 
     public bool RequestEmitFromOwner()
     {
+        return RequestEmitFromOwner(defaultPreset);
+    }
+
+    public bool RequestEmitFromOwner(GameplayNoisePreset preset)
+    {
         if (IsServer)
         {
-            return TryEmitServer();
+            return TryEmitServer(preset);
         }
 
         if (!IsOwner)
@@ -130,32 +192,45 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
             return false;
         }
 
-        RequestEmitFromOwnerServerRpc();
+        if (!TryGetOwnerPresetIndex(preset, out int presetIndex))
+        {
+            LogInvalidPreset(preset);
+            return false;
+        }
+
+        RequestEmitFromOwnerRpc(presetIndex);
         return true;
     }
 
-    [ServerRpc]
-    private void RequestEmitFromOwnerServerRpc(ServerRpcParams serverRpcParams = default)
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+    private void RequestEmitFromOwnerRpc(
+        int presetIndex,
+        RpcParams rpcParams = default)
     {
-        if (serverRpcParams.Receive.SenderClientId != OwnerClientId)
+        if (rpcParams.Receive.SenderClientId != OwnerClientId ||
+            !TryGetOwnerPreset(presetIndex, out GameplayNoisePreset preset))
         {
             return;
         }
 
-        if (!ValidateRuntimeDependencies() || !CanEmitByCooldown())
+        if (!ValidateRuntimeDependencies())
         {
             return;
         }
 
-        if (!ValidateOwnerRequestServer(serverRpcParams.Receive.SenderClientId))
+        if (!ValidateOwnerRequestServer(
+                preset,
+                rpcParams.Receive.SenderClientId))
         {
             return;
         }
 
-        TryEmitServer();
+        TryEmitServer(preset);
     }
 
-    private bool ValidateOwnerRequestServer(ulong senderClientId)
+    private bool ValidateOwnerRequestServer(
+        GameplayNoisePreset preset,
+        ulong senderClientId)
     {
         CacheOwnerRequestValidator();
 
@@ -167,6 +242,7 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
 
         return ownerRequestValidator.CanEmitNoiseServer(
             this,
+            preset,
             senderClientId
         );
     }
@@ -182,14 +258,111 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
         }
     }
 
-    private bool CanEmitByCooldown()
+    private bool CanEmitByCooldown(
+        GameplayNoisePreset preset,
+        float serverCooldown)
     {
         if (serverCooldown <= 0f)
         {
             return true;
         }
 
-        return Time.time - lastServerEmitTime >= serverCooldown;
+        float lastEmitTime = lastRawEmitTime;
+
+        if (preset != null)
+        {
+            lastEmitTime = lastPresetEmitTimes.TryGetValue(
+                preset,
+                out float presetEmitTime)
+                ? presetEmitTime
+                : float.NegativeInfinity;
+        }
+
+        return Time.time - lastEmitTime >= serverCooldown;
+    }
+
+    private void RecordEmitTime(GameplayNoisePreset preset)
+    {
+        if (preset != null)
+        {
+            lastPresetEmitTimes[preset] = Time.time;
+            return;
+        }
+
+        lastRawEmitTime = Time.time;
+    }
+
+    private bool TryGetOwnerPresetIndex(
+        GameplayNoisePreset preset,
+        out int presetIndex)
+    {
+        presetIndex = -1;
+
+        if (!ValidatePreset(preset))
+        {
+            return false;
+        }
+
+        if (preset == defaultPreset)
+        {
+            presetIndex = 0;
+            return true;
+        }
+
+        if (ownerRequestPresets == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < ownerRequestPresets.Count; i++)
+        {
+            if (ownerRequestPresets[i] != preset)
+            {
+                continue;
+            }
+
+            presetIndex = i + 1;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryGetOwnerPreset(
+        int presetIndex,
+        out GameplayNoisePreset preset)
+    {
+        preset = null;
+
+        if (presetIndex == 0)
+        {
+            preset = defaultPreset;
+            return ValidatePreset(preset);
+        }
+
+        int additionalIndex = presetIndex - 1;
+
+        if (ownerRequestPresets == null ||
+            additionalIndex < 0 ||
+            additionalIndex >= ownerRequestPresets.Count)
+        {
+            return false;
+        }
+
+        preset = ownerRequestPresets[additionalIndex];
+        return ValidatePreset(preset);
+    }
+
+    private bool ValidatePreset(GameplayNoisePreset preset)
+    {
+        if (preset != null && preset.IsValid)
+        {
+            invalidPresetLogged = false;
+            return true;
+        }
+
+        LogInvalidPreset(preset);
+        return false;
     }
 
     private Vector3 GetNoisePosition()
@@ -197,6 +370,12 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
         return noiseOrigin != null
             ? noiseOrigin.position
             : transform.position;
+    }
+
+    private void ResetCooldowns()
+    {
+        lastPresetEmitTimes.Clear();
+        lastRawEmitTime = float.NegativeInfinity;
     }
 
     private bool ValidateRuntimeDependencies()
@@ -259,6 +438,25 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
         );
     }
 
+    private void LogInvalidPreset(GameplayNoisePreset preset)
+    {
+        if (invalidPresetLogged)
+        {
+            return;
+        }
+
+        invalidPresetLogged = true;
+
+        string reason = preset == null
+            ? "no preset is assigned"
+            : $"preset '{preset.name}' has an unknown source type, zero radius, or zero loudness";
+
+        Debug.LogWarning(
+            $"{nameof(GameplayNoiseEmitter)} cannot emit noise because {reason}.",
+            this
+        );
+    }
+
     private void LogNonOwnerRequest()
     {
         if (nonOwnerRequestLogged)
@@ -292,9 +490,6 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        radius = Mathf.Max(0f, radius);
-        loudness = Mathf.Max(0f, loudness);
-        serverCooldown = Mathf.Max(0f, serverCooldown);
         CacheOwnerRequestValidator();
 
         if (ownerRequestValidatorBehaviour != null &&
@@ -307,6 +502,11 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.cyan;
+
+        float radius = defaultPreset != null
+            ? defaultPreset.Radius
+            : 0f;
+
         Gizmos.DrawWireSphere(
             noiseOrigin != null ? noiseOrigin.position : transform.position,
             radius

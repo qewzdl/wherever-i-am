@@ -69,30 +69,40 @@ public class UiSoundManager : MonoBehaviour
 
     public void Play(UiSoundType type)
     {
+        TryPlay(type);
+    }
+
+    public bool TryPlay(UiSoundType type)
+    {
         if (activeTheme == null)
         {
-            return;
+            return false;
         }
 
         if (!activeTheme.TryGetSound(type, out SoundEffect sound))
         {
-            return;
+            return false;
         }
 
-        Play(sound);
+        return TryPlay(sound);
     }
 
     public void Play(SoundEffect sound)
     {
+        TryPlay(sound);
+    }
+
+    public bool TryPlay(SoundEffect sound)
+    {
         if (sound == null)
         {
-            return;
+            return false;
         }
 
         if (source == null)
         {
             Debug.LogWarning("UiSoundManager: AudioSource is missing.");
-            return;
+            return false;
         }
 
         AudioClip clip = sound.GetClip();
@@ -100,11 +110,12 @@ public class UiSoundManager : MonoBehaviour
         if (clip == null)
         {
             Debug.LogWarning("UiSoundManager: SoundEffect has no AudioClip.");
-            return;
+            return false;
         }
 
         source.pitch = sound.GetPitch();
         source.PlayOneShot(clip, sound.GetVolume() * masterVolume);
+        return true;
     }
 
     public void SetMasterVolume(float volume)

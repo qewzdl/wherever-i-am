@@ -46,6 +46,7 @@ public sealed class ServerObservedMovementNoiseValidator :
 
     public bool CanEmitNoiseServer(
         GameplayNoiseEmitter emitter,
+        GameplayNoisePreset preset,
         ulong senderClientId
     )
     {

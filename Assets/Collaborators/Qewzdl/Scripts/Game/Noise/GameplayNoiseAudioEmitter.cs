@@ -35,18 +35,44 @@ public class GameplayNoiseAudioEmitter : MonoBehaviour
 
     public bool PlayOneShotAndEmit(AudioClip clip, float volumeScale)
     {
+        return PlayOneShotAndEmit(
+            clip,
+            volumeScale,
+            noiseEmitter != null ? noiseEmitter.DefaultPreset : null
+        );
+    }
+
+    public bool PlayOneShotAndEmit(
+        AudioClip clip,
+        GameplayNoisePreset preset)
+    {
+        return PlayOneShotAndEmit(clip, defaultVolumeScale, preset);
+    }
+
+    public bool PlayOneShotAndEmit(
+        AudioClip clip,
+        float volumeScale,
+        GameplayNoisePreset preset)
+    {
         if (!ValidateStaticDependencies())
         {
             return false;
         }
 
         bool played = TryPlayOneShot(clip, volumeScale);
-        bool emitted = !emitNoise || TryEmitNoise();
+        bool emitted = !emitNoise || TryEmitNoise(preset);
 
         return played && emitted;
     }
 
     public bool TryEmitNoise()
+    {
+        return TryEmitNoise(
+            noiseEmitter != null ? noiseEmitter.DefaultPreset : null
+        );
+    }
+
+    public bool TryEmitNoise(GameplayNoisePreset preset)
     {
         if (!ValidateStaticDependencies())
         {
@@ -55,10 +81,10 @@ public class GameplayNoiseAudioEmitter : MonoBehaviour
 
         if (noiseEmitter.IsServer)
         {
-            return noiseEmitter.TryEmitServer();
+            return noiseEmitter.TryEmitServer(preset);
         }
 
-        return noiseEmitter.RequestEmitFromOwner();
+        return noiseEmitter.RequestEmitFromOwner(preset);
     }
 
     private bool TryPlayOneShot(AudioClip clip, float volumeScale)

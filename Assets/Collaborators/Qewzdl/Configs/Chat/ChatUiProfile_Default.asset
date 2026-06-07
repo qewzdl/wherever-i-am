@@ -28,3 +28,4 @@ MonoBehaviour:
   phoneAnimation: {fileID: 11400000, guid: f2e091f48362083458d5b05a9ed3a171, type: 2}
   playPhoneIncomingSfxForOwnMessages: 0
   playPhoneIncomingSfxForSystemMessages: 1
+  phoneAudioCueEvents: {fileID: 11400000, guid: bfbce4984ff843d99085cbefc497e33d, type: 2}

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
@@ -18,6 +19,8 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     private TMP_InputField inputField;
     private string previousText = "";
     private float lastInputSoundTime;
+
+    public event Action InputSoundPlayed;
 
     private void Awake()
     {
@@ -89,9 +92,13 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
 
         lastInputSoundTime = Time.unscaledTime;
 
-        if (inputSoundOverride != null)
-            AudioManager.Instance.UI.Play(inputSoundOverride);
-        else
-            AudioManager.Instance.UI.PlayInput();
+        bool played = inputSoundOverride != null
+            ? AudioManager.Instance.UI.TryPlay(inputSoundOverride)
+            : AudioManager.Instance.UI.TryPlay(UiSoundType.Input);
+
+        if (played)
+        {
+            InputSoundPlayed?.Invoke();
+        }
     }
 } 

@@ -106,6 +106,7 @@ public class ChatUiManager : MonoBehaviour
             profile.PhoneCloseSfx,
             profile.PlayPhoneIncomingSfxForOwnMessages,
             profile.PlayPhoneIncomingSfxForSystemMessages,
+            profile.PhoneAudioCueEvents,
             profile.PhoneTypography,
             profile.PhoneAnimation
         );

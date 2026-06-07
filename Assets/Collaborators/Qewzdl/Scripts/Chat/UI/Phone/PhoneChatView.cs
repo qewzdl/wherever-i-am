@@ -94,6 +94,7 @@ public class PhoneChatView : MonoBehaviour
         SoundEffect closeSfx,
         bool playIncomingSfxForOwnMessages,
         bool playIncomingSfxForSystemMessages,
+        PhoneAudioCueEventChannel phoneAudioCueEvents,
         ChatTypographyProfile typographyProfile,
         PhoneSpriteAnimationProfile spriteAnimationProfile)
     {
@@ -106,6 +107,7 @@ public class PhoneChatView : MonoBehaviour
             closeSfx,
             playIncomingSfxForOwnMessages,
             playIncomingSfxForSystemMessages,
+            phoneAudioCueEvents,
             typographyProfile,
             spriteAnimationProfile);
 
@@ -121,12 +123,16 @@ public class PhoneChatView : MonoBehaviour
         SoundEffect closeSfx,
         bool playIncomingSfxForOwnMessages,
         bool playIncomingSfxForSystemMessages,
+        PhoneAudioCueEventChannel phoneAudioCueEvents,
         ChatTypographyProfile typographyProfile,
         PhoneSpriteAnimationProfile spriteAnimationProfile)
     {
         EnsureControllers();
 
-        chatWindowHost?.Configure(chatEvents, inputSfx);
+        chatWindowHost?.Configure(
+            chatEvents,
+            inputSfx,
+            phoneAudioCueEvents);
         notificationAudioController?.Configure(
             chatEvents,
             incomingWhenClosedSfx,
@@ -134,7 +140,8 @@ public class PhoneChatView : MonoBehaviour
             openSfx,
             closeSfx,
             playIncomingSfxForOwnMessages,
-            playIncomingSfxForSystemMessages);
+            playIncomingSfxForSystemMessages,
+            phoneAudioCueEvents);
         shellPresentationController?.SetSpriteAnimationProfile(spriteAnimationProfile);
 
         this.typographyProfile = typographyProfile;
