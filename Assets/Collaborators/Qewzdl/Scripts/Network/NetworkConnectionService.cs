@@ -31,6 +31,7 @@ public class NetworkConnectionService : MonoBehaviour
             return;
         }
 
+        ApplyProtocolVersion();
         InitializeStrategies();
     }
 
@@ -69,6 +70,8 @@ public class NetworkConnectionService : MonoBehaviour
             Debug.LogError(validationResult.DebugMessage);
             return validationResult;
         }
+
+        ApplyProtocolVersion();
 
         if (!strategies.TryGetValue(config.Mode, out IConnectionStrategy strategy))
         {
@@ -246,6 +249,11 @@ public class NetworkConnectionService : MonoBehaviour
         IConnectionStrategy lanStrategy = new LanConnectionStrategy(networkManager, transport);
 
         strategies.Add(lanStrategy.Mode, lanStrategy);
+    }
+
+    private void ApplyProtocolVersion()
+    {
+        networkManager.NetworkConfig.ProtocolVersion = connectionConfig.ProtocolVersion;
     }
 
     private ConnectionResult CanStartConnection()

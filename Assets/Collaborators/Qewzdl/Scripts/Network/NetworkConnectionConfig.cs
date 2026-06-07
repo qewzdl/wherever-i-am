@@ -3,12 +3,18 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "Wherever I Am/Network/Connection Config", fileName = "NetworkConnectionConfig")]
 public sealed class NetworkConnectionConfig : ScriptableObject
 {
+    [Header("Compatibility")]
+    [Min(1)]
+    [Tooltip("Increment when network prefabs, RPC contracts, or in-scene NetworkObjects become incompatible with previous builds.")]
+    [SerializeField] private ushort protocolVersion = 2;
+
     [Header("LAN")]
     [SerializeField] private string hostAddress;
     [SerializeField] private ushort port;
     [SerializeField] private string listenAddress;
     [SerializeField] private float clientConnectionTimeoutSeconds;
 
+    public ushort ProtocolVersion => protocolVersion;
     public string HostAddress => hostAddress;
     public ushort Port => port;
     public string ListenAddress => listenAddress;
@@ -17,6 +23,12 @@ public sealed class NetworkConnectionConfig : ScriptableObject
     public bool Validate(Object context)
     {
         bool valid = true;
+
+        if (protocolVersion == 0)
+        {
+            Debug.LogError($"{nameof(NetworkConnectionConfig)} has invalid protocol version.", context);
+            valid = false;
+        }
 
         if (string.IsNullOrWhiteSpace(hostAddress))
         {

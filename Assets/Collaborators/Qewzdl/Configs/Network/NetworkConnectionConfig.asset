@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0694a3209af3b024eb2c1aa42d8e14e2, type: 3}
   m_Name: NetworkConnectionConfig
   m_EditorClassIdentifier: 
+  protocolVersion: 2
   hostAddress: 127.0.0.1
   port: 7777
   listenAddress: 0.0.0.0
