@@ -908,6 +908,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae59aaec3e0378547a1671839305a4be, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  targetDspBufferSize: 256
   music: {fileID: 2055177487}
   ui: {fileID: 1456822184}
   gameplay: {fileID: 1399656583}

@@ -120,6 +120,7 @@ GameObject:
   - component: {fileID: 2123218557846309260}
   - component: {fileID: 556025320029943838}
   - component: {fileID: 8198523088433781421}
+  - component: {fileID: 675344195382181120}
   m_Layer: 10
   m_Name: BaseDraggableObject
   m_TagString: Untagged
@@ -241,3 +242,20 @@ MonoBehaviour:
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &675344195382181120
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8244192866405551670}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d4b393cd8164857a9df2d0102cc7749, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  profile: {fileID: 0}
+  sourceRigidbody: {fileID: 556025320029943838}
+  soundOrigin: {fileID: 0}
+  maxClientReportDistance: 3
+  maxAcceptedClientImpactSpeed: 35

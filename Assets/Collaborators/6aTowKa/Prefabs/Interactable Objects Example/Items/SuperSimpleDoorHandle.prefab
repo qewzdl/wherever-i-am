@@ -152,6 +152,7 @@ GameObject:
   - component: {fileID: 8998273607362953323}
   - component: {fileID: 5308444255433816660}
   - component: {fileID: 4901471879262847777}
+  - component: {fileID: 216185344177279360}
   m_Layer: 10
   m_Name: SuperSimpleDoorHandle
   m_TagString: Untagged
@@ -289,3 +290,20 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   data: {fileID: 11400000, guid: 7c7c246243ba19846b6497f2e36fcf61, type: 2}
   model: {fileID: 3843751976853862871}
+--- !u!114 &216185344177279360
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4190984451600123658}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d4b393cd8164857a9df2d0102cc7749, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  profile: {fileID: 0}
+  sourceRigidbody: {fileID: 8998273607362953323}
+  soundOrigin: {fileID: 0}
+  maxClientReportDistance: 3
+  maxAcceptedClientImpactSpeed: 35

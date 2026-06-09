@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7ecd4af83654fb4aa3b9a79655e585b, type: 3}
+  m_Name: Sfx_CardboardLightThud
+  m_EditorClassIdentifier: 
+  clips:
+  - {fileID: 8300000, guid: 6af75f46860356b48b56196927b3f43f, type: 3}
+  volume: 0.4
+  randomizeVolume: 0
+  minVolume: 0.9
+  maxVolume: 1
+  randomizePitch: 1
+  minPitch: 0.95
+  maxPitch: 1.05
+  spatialBlend: 1
+  minDistance: 1
+  maxDistance: 25

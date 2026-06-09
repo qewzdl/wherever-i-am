@@ -1,0 +1,396 @@
+using Unity.Netcode;
+using UnityEngine;
+
+[DisallowMultipleComponent]
+[RequireComponent(typeof(NetworkObject))]
+[RequireComponent(typeof(Rigidbody))]
+public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
+{
+    private const ulong NoPredictedClientId = ulong.MaxValue;
+
+    [Header("Config")]
+    [SerializeField] private ItemImpactSoundProfile profile;
+    [SerializeField] private Rigidbody sourceRigidbody;
+    [SerializeField] private Transform soundOrigin;
+
+    [Header("Client Report Validation")]
+    [SerializeField, Min(0f)] private float maxClientReportDistance = 3f;
+    [SerializeField, Min(0f)] private float maxAcceptedClientImpactSpeed = 35f;
+
+    private Vector3 previousVelocity;
+    private bool hasVelocitySample;
+    private float lastLocalReportTime = float.NegativeInfinity;
+    private float lastServerRelayTime = float.NegativeInfinity;
+
+    private void Awake()
+    {
+        CacheComponents();
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        ResetRuntimeState();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        ResetRuntimeState();
+    }
+
+    private void FixedUpdate()
+    {
+        if (sourceRigidbody == null)
+        {
+            return;
+        }
+
+        previousVelocity = sourceRigidbody.linearVelocity;
+        hasVelocitySample = true;
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (IsNetworkActive() && !HasAuthority)
+        {
+            return;
+        }
+
+        if (!TryBuildImpactReport(
+                collision,
+                out Vector3 position,
+                out float impactSpeed,
+                out float downwardSpeed,
+                out bool hasLandingContact,
+                out ItemImpactSoundId soundId))
+        {
+            return;
+        }
+
+        if (!CanPassLocalReportCooldown())
+        {
+            return;
+        }
+
+        lastLocalReportTime = Time.time;
+
+        if (!IsNetworkActive())
+        {
+            PlayLocalImpact(position, soundId);
+            return;
+        }
+
+        if (IsServer)
+        {
+            TryRelayImpactServer(
+                position,
+                impactSpeed,
+                downwardSpeed,
+                hasLandingContact,
+                NoPredictedClientId);
+            return;
+        }
+
+        PlayLocalImpact(position, soundId);
+        ReportImpactSoundServerRpc(position, impactSpeed, downwardSpeed, hasLandingContact);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void ReportImpactSoundServerRpc(
+        Vector3 reportedPosition,
+        float reportedImpactSpeed,
+        float reportedDownwardSpeed,
+        bool reportedLandingContact,
+        RpcParams rpcParams = default)
+    {
+        if (!TryValidateClientReport(
+                reportedPosition,
+                reportedImpactSpeed,
+                reportedDownwardSpeed,
+                rpcParams.Receive.SenderClientId,
+                out float impactSpeed,
+                out float downwardSpeed))
+        {
+            return;
+        }
+
+        TryRelayImpactServer(
+            reportedPosition,
+            impactSpeed,
+            downwardSpeed,
+            reportedLandingContact,
+            rpcParams.Receive.SenderClientId);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void PlayImpactSoundClientRpc(
+        Vector3 position,
+        byte soundIdValue,
+        ulong predictedClientId)
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+
+        if (predictedClientId != NoPredictedClientId &&
+            networkManager != null &&
+            networkManager.LocalClientId == predictedClientId)
+        {
+            return;
+        }
+
+        PlayLocalImpact(position, (ItemImpactSoundId)soundIdValue);
+    }
+
+    private bool TryBuildImpactReport(
+        Collision collision,
+        out Vector3 position,
+        out float impactSpeed,
+        out float downwardSpeed,
+        out bool hasLandingContact,
+        out ItemImpactSoundId soundId)
+    {
+        position = GetCollisionPosition(collision);
+        Vector3 velocityBeforeImpact = GetVelocityBeforeImpact();
+        soundId = ItemImpactSoundId.None;
+
+        impactSpeed = Mathf.Max(
+            collision.relativeVelocity.magnitude,
+            velocityBeforeImpact.magnitude);
+        downwardSpeed = Mathf.Max(0f, -velocityBeforeImpact.y);
+        hasLandingContact = HasLandingContact(collision);
+
+        return profile != null &&
+               profile.TryResolveSound(
+                   impactSpeed,
+                   downwardSpeed,
+                   hasLandingContact,
+                   out soundId);
+    }
+
+    private bool TryRelayImpactServer(
+        Vector3 position,
+        float impactSpeed,
+        float downwardSpeed,
+        bool hasLandingContact,
+        ulong predictedClientId)
+    {
+        if (!IsServer ||
+            profile == null ||
+            !profile.TryResolveSound(
+                impactSpeed,
+                downwardSpeed,
+                hasLandingContact,
+                out ItemImpactSoundId soundId))
+        {
+            return false;
+        }
+
+        if (!CanPassServerRelayCooldown())
+        {
+            return false;
+        }
+
+        lastServerRelayTime = Time.time;
+        PlayImpactSoundClientRpc(
+            position,
+            (byte)soundId,
+            predictedClientId);
+        return true;
+    }
+
+    private bool TryValidateClientReport(
+        Vector3 reportedPosition,
+        float reportedImpactSpeed,
+        float reportedDownwardSpeed,
+        ulong senderClientId,
+        out float impactSpeed,
+        out float downwardSpeed)
+    {
+        impactSpeed = 0f;
+        downwardSpeed = 0f;
+
+        if (!IsServer ||
+            profile == null ||
+            !profile.HasAnySound ||
+            !IsFinite(reportedPosition) ||
+            !IsFinite(reportedImpactSpeed) ||
+            !IsFinite(reportedDownwardSpeed) ||
+            senderClientId == NetworkManager.ServerClientId)
+        {
+            return false;
+        }
+
+        impactSpeed = ClampReportedSpeed(reportedImpactSpeed);
+        downwardSpeed = ClampReportedSpeed(reportedDownwardSpeed);
+
+        if (impactSpeed < profile.MinimumImpactSpeed)
+        {
+            return false;
+        }
+
+        return IsReportedPositionNearItem(reportedPosition);
+    }
+
+    private void PlayLocalImpact(
+        Vector3 position,
+        ItemImpactSoundId soundId)
+    {
+        if (profile == null ||
+            !profile.TryGetSound(soundId, out SoundEffect sound))
+        {
+            return;
+        }
+
+        AudioManager audioManager = AudioManager.Instance;
+
+        if (audioManager == null || audioManager.Gameplay == null)
+        {
+            return;
+        }
+
+        audioManager.Gameplay.PlayAtPosition(sound, position);
+    }
+
+    private bool CanPassLocalReportCooldown()
+    {
+        return CanPassCooldown(lastLocalReportTime);
+    }
+
+    private bool CanPassServerRelayCooldown()
+    {
+        return CanPassCooldown(lastServerRelayTime);
+    }
+
+    private bool CanPassCooldown(float lastTime)
+    {
+        float cooldown = profile != null ? profile.Cooldown : 0f;
+        return cooldown <= 0f || Time.time - lastTime >= cooldown;
+    }
+
+    private bool IsNetworkActive()
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+        return networkManager != null &&
+               networkManager.IsListening &&
+               IsSpawned;
+    }
+
+    private bool IsReportedPositionNearItem(Vector3 reportedPosition)
+    {
+        float maxDistance = Mathf.Max(0f, maxClientReportDistance);
+
+        if (maxDistance <= 0f)
+        {
+            return true;
+        }
+
+        Vector3 referencePosition = soundOrigin != null
+            ? soundOrigin.position
+            : transform.position;
+
+        return Vector3.Distance(referencePosition, reportedPosition) <= maxDistance;
+    }
+
+    private float ClampReportedSpeed(float speed)
+    {
+        float maxSpeed = Mathf.Max(0f, maxAcceptedClientImpactSpeed);
+
+        if (maxSpeed <= 0f)
+        {
+            return Mathf.Max(0f, speed);
+        }
+
+        return Mathf.Clamp(speed, 0f, maxSpeed);
+    }
+
+    private Vector3 GetCollisionPosition(Collision collision)
+    {
+        int contactCount = collision.contactCount;
+
+        if (contactCount <= 0)
+        {
+            return soundOrigin != null ? soundOrigin.position : transform.position;
+        }
+
+        Vector3 position = Vector3.zero;
+
+        for (int i = 0; i < contactCount; i++)
+        {
+            position += collision.GetContact(i).point;
+        }
+
+        return position / contactCount;
+    }
+
+    private bool HasLandingContact(Collision collision)
+    {
+        if (profile == null)
+        {
+            return false;
+        }
+
+        float minimumNormalY = profile.MinimumLandingNormalY;
+
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            if (collision.GetContact(i).normal.y >= minimumNormalY)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Vector3 GetVelocityBeforeImpact()
+    {
+        if (hasVelocitySample)
+        {
+            return previousVelocity;
+        }
+
+        return sourceRigidbody != null
+            ? sourceRigidbody.linearVelocity
+            : Vector3.zero;
+    }
+
+    private static bool IsFinite(Vector3 value)
+    {
+        return IsFinite(value.x) &&
+               IsFinite(value.y) &&
+               IsFinite(value.z);
+    }
+
+    private static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private void CacheComponents()
+    {
+        if (sourceRigidbody == null)
+        {
+            sourceRigidbody = GetComponent<Rigidbody>();
+        }
+    }
+
+    private void ResetRuntimeState()
+    {
+        previousVelocity = Vector3.zero;
+        hasVelocitySample = false;
+        lastLocalReportTime = float.NegativeInfinity;
+        lastServerRelayTime = float.NegativeInfinity;
+    }
+
+#if UNITY_EDITOR
+    private void Reset()
+    {
+        CacheComponents();
+    }
+
+    private void OnValidate()
+    {
+        CacheComponents();
+        maxClientReportDistance = Mathf.Max(0f, maxClientReportDistance);
+        maxAcceptedClientImpactSpeed = Mathf.Max(0f, maxAcceptedClientImpactSpeed);
+    }
+#endif
+}
