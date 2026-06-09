@@ -55,6 +55,11 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
             return;
         }
 
+        if (IsPlayerCollision(collision))
+        {
+            return;
+        }
+
         if (!TryBuildImpactReport(
                 collision,
                 out Vector3 position,
@@ -92,6 +97,15 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
 
         PlayLocalImpact(position, soundId);
         ReportImpactSoundServerRpc(position, impactSpeed, downwardSpeed, hasLandingContact);
+    }
+
+    private static bool IsPlayerCollision(Collision collision)
+    {
+        Collider otherCollider = collision.collider;
+
+        return otherCollider != null &&
+               (otherCollider.GetComponentInParent<PlayerNetwork>() != null ||
+                otherCollider.GetComponentInParent<PlayerController>() != null);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
