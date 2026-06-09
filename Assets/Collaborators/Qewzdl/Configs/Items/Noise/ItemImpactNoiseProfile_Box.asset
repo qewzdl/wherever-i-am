@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0ab31aa73a24977bb0c97a205c0f5a8, type: 3}
+  m_Name: ItemImpactNoiseProfile_Box
+  m_EditorClassIdentifier:
+  lightImpactNoise: {fileID: 11400000, guid: 1cbfbfa8a5204de6926b4862f832200a, type: 2}
+  mediumImpactNoise: {fileID: 11400000, guid: 0c81ee63909c4404b35a70f7a03b3121, type: 2}
+  heavyImpactNoise: {fileID: 11400000, guid: c08489f30d884ed49f5baf69b0ffedf3, type: 2}
+  landingNoise: {fileID: 11400000, guid: a3b64dbe151245f99fb37c2acaa2b03b, type: 2}

@@ -1,3 +1,4 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -7,6 +8,7 @@ using UnityEngine;
 public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
 {
     private const ulong NoPredictedClientId = ulong.MaxValue;
+    private const ulong NoFormerOwnerClientId = ulong.MaxValue;
 
     [Header("Config")]
     [SerializeField] private ItemImpactSoundProfile profile;
@@ -16,11 +18,16 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
     [Header("Client Report Validation")]
     [SerializeField, Min(0f)] private float maxClientReportDistance = 3f;
     [SerializeField, Min(0f)] private float maxAcceptedClientImpactSpeed = 35f;
+    [SerializeField, Min(0f)] private float formerOwnerReportGracePeriod = 1.5f;
 
     private Vector3 previousVelocity;
     private bool hasVelocitySample;
     private float lastLocalReportTime = float.NegativeInfinity;
     private float lastServerRelayTime = float.NegativeInfinity;
+    private ulong formerOwnerClientId = NoFormerOwnerClientId;
+    private float ownershipChangedAtTime = float.NegativeInfinity;
+
+    public event Action<Vector3, ItemImpactSoundId> ServerImpactAccepted;
 
     private void Awake()
     {
@@ -35,6 +42,19 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         ResetRuntimeState();
+    }
+
+    protected override void OnOwnershipChanged(ulong previous, ulong current)
+    {
+        base.OnOwnershipChanged(previous, current);
+
+        if (!IsServer)
+        {
+            return;
+        }
+
+        formerOwnerClientId = previous;
+        ownershipChangedAtTime = Time.time;
     }
 
     private void FixedUpdate()
@@ -203,6 +223,7 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
         }
 
         lastServerRelayTime = Time.time;
+        ServerImpactAccepted?.Invoke(position, soundId);
         PlayImpactSoundClientRpc(
             position,
             (byte)soundId,
@@ -227,7 +248,7 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
             !IsFinite(reportedPosition) ||
             !IsFinite(reportedImpactSpeed) ||
             !IsFinite(reportedDownwardSpeed) ||
-            senderClientId == NetworkManager.ServerClientId)
+            !IsAuthorizedReporter(senderClientId))
         {
             return false;
         }
@@ -315,6 +336,25 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
         return Mathf.Clamp(speed, 0f, maxSpeed);
     }
 
+    private bool IsAuthorizedReporter(ulong senderClientId)
+    {
+        if (senderClientId == NetworkManager.ServerClientId)
+        {
+            return false;
+        }
+
+        if (senderClientId == OwnerClientId)
+        {
+            return true;
+        }
+
+        float gracePeriod = Mathf.Max(0f, formerOwnerReportGracePeriod);
+
+        return gracePeriod > 0f &&
+               senderClientId == formerOwnerClientId &&
+               Time.time - ownershipChangedAtTime <= gracePeriod;
+    }
+
     private Vector3 GetCollisionPosition(Collision collision)
     {
         int contactCount = collision.contactCount;
@@ -392,6 +432,8 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
         hasVelocitySample = false;
         lastLocalReportTime = float.NegativeInfinity;
         lastServerRelayTime = float.NegativeInfinity;
+        formerOwnerClientId = NoFormerOwnerClientId;
+        ownershipChangedAtTime = float.NegativeInfinity;
     }
 
 #if UNITY_EDITOR
@@ -405,6 +447,7 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
         CacheComponents();
         maxClientReportDistance = Mathf.Max(0f, maxClientReportDistance);
         maxAcceptedClientImpactSpeed = Mathf.Max(0f, maxAcceptedClientImpactSpeed);
+        formerOwnerReportGracePeriod = Mathf.Max(0f, formerOwnerReportGracePeriod);
     }
 #endif
 }
