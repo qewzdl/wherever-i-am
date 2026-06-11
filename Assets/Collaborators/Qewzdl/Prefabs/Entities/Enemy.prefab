@@ -451,7 +451,7 @@ NavMeshAgent:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5706861626712077370}
-  m_Enabled: 1
+  m_Enabled: 0
   m_AgentTypeID: 1479372276
   m_Radius: 0.5
   m_Speed: 3.5
@@ -556,6 +556,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   navMeshBuilder: {fileID: 0}
   waitForRuntimeNavMesh: 1
+  placementSampleRadius: 2
+  agent: {fileID: 7505417439924373614}
 --- !u!114 &3681341265359804249
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -155,6 +155,7 @@ GameObject:
   - component: {fileID: 481143000}
   - component: {fileID: 481142999}
   - component: {fileID: 481143003}
+  - component: {fileID: 481143005}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -357,6 +358,7 @@ MonoBehaviour:
   uiErrorManager: {fileID: 1020719287}
   audioManager: {fileID: 1269671436}
   gameplayNoiseWorldService: {fileID: 481143003}
+  gameMapService: {fileID: 481143005}
 --- !u!114 &481142987
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -413,6 +415,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   ownershipService: {fileID: 481142999}
+  gameMapService: {fileID: 481143005}
   playerPrefab: {fileID: 7794562563572243936, guid: b5f4cc28932077f4583b92fda1ad9a88, type: 3}
 --- !u!114 &481142991
 MonoBehaviour:
@@ -447,6 +450,8 @@ MonoBehaviour:
   sceneLoadExecutor: {fileID: 481142996}
   networkLoadCompletionTracker: {fileID: 481142997}
   postLoadActionRunner: {fileID: 481142998}
+  completionGates:
+  - {fileID: 481143005}
 --- !u!114 &481142993
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -604,6 +609,7 @@ MonoBehaviour:
   disconnectHandler: {fileID: 481143001}
   failureHandler: {fileID: 481143000}
   errorManager: {fileID: 1020719287}
+  gameMapService: {fileID: 481143005}
 --- !u!114 &481143003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -912,6 +918,20 @@ MonoBehaviour:
   music: {fileID: 2055177487}
   ui: {fileID: 1456822184}
   gameplay: {fileID: 1399656583}
+--- !u!114 &481143005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f4c7cd6e72b43e9ba1e14175ca10404, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  networkManager: {fileID: 481142982}
+  catalog: {fileID: 11400000, guid: 2582fe9c6f7445d3a79d8f6fb8491304, type: 2}
 --- !u!4 &1269671437
 Transform:
   m_ObjectHideFlags: 0

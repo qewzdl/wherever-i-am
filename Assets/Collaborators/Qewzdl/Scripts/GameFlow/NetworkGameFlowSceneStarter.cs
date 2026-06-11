@@ -7,6 +7,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     [Header("Dependencies")]
     [SerializeField] private NetworkGameFlow gameFlow;
     [SerializeField] private NetworkObjectiveFlow objectiveFlow;
+    [SerializeField] private GameMapService gameMapService;
 
     [Header("Start")]
     [SerializeField] private bool startOnServerSpawn = true;
@@ -76,7 +77,9 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             return false;
         }
 
-        if (!gameFlow.IsServerReady || !objectiveFlow.IsServerReady)
+        if (!gameFlow.IsServerReady ||
+            !objectiveFlow.IsServerReady ||
+            !gameMapService.IsReadyForMatch)
         {
             return false;
         }
@@ -104,6 +107,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
 
         gameFlow.ServerReady += HandleDependencyReady;
         objectiveFlow.ServerReady += HandleDependencyReady;
+        gameMapService.MapReady += HandleDependencyReady;
         isSubscribed = true;
     }
 
@@ -124,6 +128,11 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             objectiveFlow.ServerReady -= HandleDependencyReady;
         }
 
+        if (gameMapService != null)
+        {
+            gameMapService.MapReady -= HandleDependencyReady;
+        }
+
         isSubscribed = false;
     }
 
@@ -139,6 +148,12 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
 
     private bool ValidateSetup()
     {
+        if (gameMapService == null)
+        {
+            ProjectContext context = ProjectContext.Instance;
+            gameMapService = context != null ? context.GameMaps : null;
+        }
+
         if (gameFlow == null)
         {
             Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires assigned {nameof(NetworkGameFlow)}.", this);
@@ -148,6 +163,12 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
         if (objectiveFlow == null)
         {
             Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires assigned {nameof(NetworkObjectiveFlow)}.", this);
+            return false;
+        }
+
+        if (gameMapService == null)
+        {
+            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires {nameof(GameMapService)}.", this);
             return false;
         }
 

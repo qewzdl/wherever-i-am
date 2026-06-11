@@ -112,6 +112,7 @@ public class EnemyPrefabContractValidator : AssetPostprocessor
         ValidateRequiredRootComponent<EnemyServerRuntime>(prefabRoot, errors);
         ValidateRequiredRootComponent<EnemyNavigator>(prefabRoot, errors);
         ValidateRequiredRootComponent<NavMeshAgent>(prefabRoot, errors);
+        ValidateNavMeshAgentStartsDisabled(prefabRoot, errors);
 
         int missingScriptCount = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(
             prefabRoot
@@ -155,6 +156,20 @@ public class EnemyPrefabContractValidator : AssetPostprocessor
         }
 
         errors.Add($"{typeof(TComponent).Name} must be attached to the enemy prefab root.");
+    }
+
+    private static void ValidateNavMeshAgentStartsDisabled(
+        GameObject prefabRoot,
+        List<string> errors)
+    {
+        NavMeshAgent agent = prefabRoot.GetComponent<NavMeshAgent>();
+
+        if (agent != null && agent.enabled)
+        {
+            errors.Add(
+                $"{nameof(NavMeshAgent)} must start disabled and be enabled by " +
+                $"{nameof(EnemyNavMeshStartupGate)} after runtime NavMesh build.");
+        }
     }
 
     private static string BuildErrorMessage(string prefabPath, List<string> errors)

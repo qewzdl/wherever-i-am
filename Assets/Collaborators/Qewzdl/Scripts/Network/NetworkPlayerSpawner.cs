@@ -7,6 +7,7 @@ public sealed class NetworkPlayerSpawner : MonoBehaviour, IProjectSceneFlowServe
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private NetworkPlayerOwnershipService ownershipService;
+    [SerializeField] private GameMapService gameMapService;
 
     [Header("Player")]
     [SerializeField] private GameObject playerPrefab;
@@ -55,10 +56,21 @@ public sealed class NetworkPlayerSpawner : MonoBehaviour, IProjectSceneFlowServe
         if (!ownershipService.CanSpawnPlayerObjectFor(clientId))
             return;
 
+        Vector3 spawnPosition = playerPrefab.transform.position;
+        Quaternion spawnRotation = playerPrefab.transform.rotation;
+
+        if (!gameMapService.TryGetPlayerSpawn(clientId, out spawnPosition, out spawnRotation))
+        {
+            Debug.LogWarning(
+                $"Map '{gameMapService.ActiveMap?.DisplayName}' has no valid spawn point for client {clientId}. " +
+                "Using the player prefab transform.",
+                gameMapService);
+        }
+
         NetworkObject playerInstance = Instantiate(
             playerPrefabNetworkObject,
-            playerPrefab.transform.position,
-            playerPrefab.transform.rotation);
+            spawnPosition,
+            spawnRotation);
 
         if (ownershipService.TrySpawnAsPlayerObject(playerInstance, clientId))
             return;
@@ -94,6 +106,7 @@ public sealed class NetworkPlayerSpawner : MonoBehaviour, IProjectSceneFlowServe
 
         valid &= ValidateRequiredReference(networkManager, nameof(networkManager));
         valid &= ValidateRequiredReference(ownershipService, nameof(ownershipService));
+        valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService));
         valid &= ValidateRequiredReference(playerPrefab, nameof(playerPrefab));
 
         if (playerPrefab != null && playerPrefabNetworkObject == null)

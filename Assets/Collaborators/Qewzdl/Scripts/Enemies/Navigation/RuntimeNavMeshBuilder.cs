@@ -12,6 +12,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     [Header("Build")]
     [SerializeField] private RuntimeNavMeshBuildMode buildMode = RuntimeNavMeshBuildMode.ServerOnly;
     [SerializeField] private float serverWaitTimeout = 5f;
+    [SerializeField] private bool waitForGameMap = true;
 
     [Header("Surface")]
     [SerializeField] private NavMeshSurface surface;
@@ -21,6 +22,8 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     private NavMeshSurface[] surfaces;
     private bool hasBuilt;
     private Coroutine buildWhenServerReadyCoroutine;
+    private GameMapService gameMapService;
+    private bool subscribedToGameMap;
 
     public bool HasBuilt => hasBuilt;
     public NavMeshSurface Surface => surface;
@@ -36,6 +39,17 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
             return;
         }
 
+        if (ShouldWaitForGameMap())
+        {
+            SubscribeToGameMap();
+            return;
+        }
+
+        StartBuildFlow();
+    }
+
+    private void StartBuildFlow()
+    {
         if (ShouldBuildImmediately())
         {
             BuildNavMesh();
@@ -46,6 +60,41 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         {
             StartBuildWhenServerIsReady();
         }
+    }
+
+    private bool ShouldWaitForGameMap()
+    {
+        if (!waitForGameMap)
+            return false;
+
+        ProjectContext context = ProjectContext.Instance;
+        gameMapService = context != null ? context.GameMaps : null;
+
+        return gameMapService != null && !gameMapService.IsReadyForMatch;
+    }
+
+    private void SubscribeToGameMap()
+    {
+        if (subscribedToGameMap || gameMapService == null)
+            return;
+
+        gameMapService.MapReady += HandleGameMapReady;
+        subscribedToGameMap = true;
+    }
+
+    private void UnsubscribeFromGameMap()
+    {
+        if (!subscribedToGameMap || gameMapService == null)
+            return;
+
+        gameMapService.MapReady -= HandleGameMapReady;
+        subscribedToGameMap = false;
+    }
+
+    private void HandleGameMapReady()
+    {
+        UnsubscribeFromGameMap();
+        StartBuildFlow();
     }
 
     public bool BuildIfAllowed()
@@ -245,6 +294,11 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void OnDisable()
+    {
+        UnsubscribeFromGameMap();
     }
 
 #if UNITY_EDITOR

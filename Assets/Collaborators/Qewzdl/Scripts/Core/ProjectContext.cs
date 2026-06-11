@@ -22,6 +22,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private AudioManager audioManager;
     [SerializeField] private GameplayNoiseWorldService gameplayNoiseWorldService;
+    [SerializeField] private GameMapService gameMapService;
 
     private bool referencesValidated;
     private bool referenceValidationFailureLogged;
@@ -169,6 +170,15 @@ public sealed class ProjectContext : MonoBehaviour
         }
     }
 
+    public GameMapService GameMaps
+    {
+        get
+        {
+            ResolveReferences();
+            return gameMapService;
+        }
+    }
+
     private void Awake()
     {
         if (instance != null && instance != this)
@@ -294,6 +304,7 @@ public sealed class ProjectContext : MonoBehaviour
         valid &= ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager), logErrors);
         valid &= ValidateRequiredReference(audioManager, nameof(audioManager), logErrors);
         valid &= ValidateRequiredReference(gameplayNoiseWorldService, nameof(gameplayNoiseWorldService), logErrors);
+        valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService), logErrors);
 
         referencesValidated = valid;
         referenceValidationFailureLogged = !valid;

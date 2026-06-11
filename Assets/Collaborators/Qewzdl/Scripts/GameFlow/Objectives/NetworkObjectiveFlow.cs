@@ -24,6 +24,9 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         NetworkVariableWritePermission.Server);
 
     private ObjectiveSceneBinding activeBinding;
+    private ObjectiveSequenceDefinition activeObjectiveSequence;
+    private GameMapService gameMapService;
+    private bool subscribedToGameMap;
     private bool serverReady;
 
     public event Action ServerReady;
@@ -41,7 +44,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         currentObjective.OnValueChanged += HandleObjectiveStateChanged;
         lastObjectiveReason.OnValueChanged += HandleObjectiveReasonChanged;
 
-        if (!ValidateSetup())
+        if (!ValidateStaticSetup())
         {
             enabled = false;
             return;
@@ -49,6 +52,30 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (!IsServer)
         {
+            return;
+        }
+
+        ResolveGameMapService();
+
+        if (gameMapService != null && !gameMapService.IsReadyForMatch)
+        {
+            SubscribeToGameMap();
+            return;
+        }
+
+        InitializeServer();
+    }
+
+    private void InitializeServer()
+    {
+        if (!IsServer || serverReady)
+            return;
+
+        ResolveMapDependencies();
+
+        if (!ValidateRuntimeSetup())
+        {
+            enabled = false;
             return;
         }
 
@@ -72,6 +99,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     {
         currentObjective.OnValueChanged -= HandleObjectiveStateChanged;
         lastObjectiveReason.OnValueChanged -= HandleObjectiveReasonChanged;
+        UnsubscribeFromGameMap();
 
         if (IsServer && gameFlow != null)
         {
@@ -184,7 +212,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         int nextIndex = state.SequenceIndex + 1;
 
-        if (nextIndex < objectiveSequence.Count)
+        if (nextIndex < activeObjectiveSequence.Count)
         {
             return TryActivateObjectiveServerOnly(nextIndex, $"Objective '{objective.ObjectiveId}' completed");
         }
@@ -210,7 +238,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
     private bool TryActivateObjectiveServerOnly(int index, string reason)
     {
-        ObjectiveDefinition objective = objectiveSequence.GetObjective(index);
+        ObjectiveDefinition objective = activeObjectiveSequence.GetObjective(index);
 
         if (objective == null)
         {
@@ -294,7 +322,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return false;
         }
 
-        objective = objectiveSequence.GetObjective(state.SequenceIndex);
+        objective = activeObjectiveSequence.GetObjective(state.SequenceIndex);
 
         if (objective == null)
         {
@@ -308,7 +336,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         return true;
     }
 
-    private bool ValidateSetup()
+    private bool ValidateStaticSetup()
     {
         if (gameFlow == null)
         {
@@ -322,7 +350,18 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return false;
         }
 
-        if (!objectiveSequence.IsValid(out string sequenceError))
+        return true;
+    }
+
+    private bool ValidateRuntimeSetup()
+    {
+        if (activeObjectiveSequence == null)
+        {
+            Debug.LogError($"{nameof(NetworkObjectiveFlow)} has no active objective sequence.", this);
+            return false;
+        }
+
+        if (!activeObjectiveSequence.IsValid(out string sequenceError))
         {
             Debug.LogError($"{nameof(NetworkObjectiveFlow)} has invalid objective sequence: {sequenceError}", this);
             return false;
@@ -334,13 +373,64 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return false;
         }
 
-        if (!sceneBindingRegistry.IsValidForSequence(objectiveSequence, out string bindingError))
+        if (!sceneBindingRegistry.IsValidForSequence(activeObjectiveSequence, out string bindingError))
         {
             Debug.LogError($"{nameof(NetworkObjectiveFlow)} has invalid scene bindings: {bindingError}", this);
             return false;
         }
 
         return true;
+    }
+
+    private void ResolveMapDependencies()
+    {
+        activeObjectiveSequence = objectiveSequence;
+
+        if (gameMapService == null)
+            return;
+
+        GameMapDefinition map = gameMapService.ActiveMap;
+
+        if (map != null && map.ObjectiveSequenceOverride != null)
+            activeObjectiveSequence = map.ObjectiveSequenceOverride;
+
+        ObjectiveSceneBindingRegistry mapBindings =
+            gameMapService.ActiveMapRoot != null
+                ? gameMapService.ActiveMapRoot.ObjectiveBindingRegistry
+                : null;
+
+        if (mapBindings != null)
+            sceneBindingRegistry = mapBindings;
+    }
+
+    private void ResolveGameMapService()
+    {
+        ProjectContext context = ProjectContext.Instance;
+        gameMapService = context != null ? context.GameMaps : null;
+    }
+
+    private void SubscribeToGameMap()
+    {
+        if (subscribedToGameMap || gameMapService == null)
+            return;
+
+        gameMapService.MapReady += HandleGameMapReady;
+        subscribedToGameMap = true;
+    }
+
+    private void UnsubscribeFromGameMap()
+    {
+        if (!subscribedToGameMap || gameMapService == null)
+            return;
+
+        gameMapService.MapReady -= HandleGameMapReady;
+        subscribedToGameMap = false;
+    }
+
+    private void HandleGameMapReady()
+    {
+        UnsubscribeFromGameMap();
+        InitializeServer();
     }
 
     private void HandleGamePhaseChanged(GamePhase previousPhase, GamePhase newPhase)

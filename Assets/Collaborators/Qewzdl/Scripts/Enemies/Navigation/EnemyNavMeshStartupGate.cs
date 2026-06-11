@@ -1,32 +1,40 @@
 using System;
 using UnityEngine;
+using UnityEngine.AI;
 
 [DisallowMultipleComponent]
+[RequireComponent(typeof(NavMeshAgent))]
 public class EnemyNavMeshStartupGate : MonoBehaviour
 {
     [SerializeField] private RuntimeNavMeshBuilder navMeshBuilder;
     [SerializeField] private bool waitForRuntimeNavMesh = true;
+    [SerializeField] [Min(0.05f)] private float placementSampleRadius = 2f;
+    [SerializeField] private NavMeshAgent agent;
 
     private bool subscribedToNavMeshBuilder;
 
     private event Action Ready;
 
+    private void Awake()
+    {
+        CacheComponents();
+
+        if (waitForRuntimeNavMesh && agent != null)
+            agent.enabled = false;
+    }
+
     public bool TryMakeReadyServer()
     {
+        CacheComponents();
+
         if (!waitForRuntimeNavMesh || navMeshBuilder == null)
-        {
-            return true;
-        }
+            return TryEnableAgentOnNavMesh();
 
         if (navMeshBuilder.HasBuilt)
-        {
-            return true;
-        }
+            return TryEnableAgentOnNavMesh();
 
         if (navMeshBuilder.BuildIfAllowed())
-        {
-            return true;
-        }
+            return TryEnableAgentOnNavMesh();
 
         SubscribeToNavMeshBuilder();
         return false;
@@ -60,7 +68,15 @@ public class EnemyNavMeshStartupGate : MonoBehaviour
 
     private bool IsReady()
     {
-        return !waitForRuntimeNavMesh || navMeshBuilder == null || navMeshBuilder.HasBuilt;
+        bool navMeshReady =
+            !waitForRuntimeNavMesh ||
+            navMeshBuilder == null ||
+            navMeshBuilder.HasBuilt;
+
+        return navMeshReady &&
+               agent != null &&
+               agent.enabled &&
+               agent.isOnNavMesh;
     }
 
     private void SubscribeToNavMeshBuilder()
@@ -88,7 +104,16 @@ public class EnemyNavMeshStartupGate : MonoBehaviour
     private void OnRuntimeNavMeshBuilt(RuntimeNavMeshBuilder builder)
     {
         UnsubscribeFromNavMeshBuilder();
-        Ready?.Invoke();
+
+        if (TryEnableAgentOnNavMesh())
+        {
+            Ready?.Invoke();
+            return;
+        }
+
+        Debug.LogError(
+            $"{nameof(EnemyNavMeshStartupGate)} could not place '{name}' on the built NavMesh.",
+            this);
     }
 
     private void OnDisable()
@@ -96,4 +121,55 @@ public class EnemyNavMeshStartupGate : MonoBehaviour
         UnsubscribeFromNavMeshBuilder();
         Ready = null;
     }
+
+    private bool TryEnableAgentOnNavMesh()
+    {
+        CacheComponents();
+
+        if (agent == null || !agent.gameObject.activeInHierarchy)
+            return false;
+
+        if (agent.enabled && agent.isOnNavMesh)
+            return true;
+
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = agent.agentTypeID,
+            areaMask = agent.areaMask
+        };
+
+        if (!NavMesh.SamplePosition(
+                transform.position,
+                out NavMeshHit hit,
+                Mathf.Max(0.05f, placementSampleRadius),
+                filter))
+        {
+            return false;
+        }
+
+        agent.enabled = false;
+        transform.position = hit.position;
+        agent.enabled = true;
+
+        return agent.isOnNavMesh;
+    }
+
+    private void CacheComponents()
+    {
+        if (agent == null)
+            agent = GetComponent<NavMeshAgent>();
+    }
+
+#if UNITY_EDITOR
+    private void Reset()
+    {
+        CacheComponents();
+    }
+
+    private void OnValidate()
+    {
+        placementSampleRadius = Mathf.Max(0.05f, placementSampleRadius);
+        CacheComponents();
+    }
+#endif
 }

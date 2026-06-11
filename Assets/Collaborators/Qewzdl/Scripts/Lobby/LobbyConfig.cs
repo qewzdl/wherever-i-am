@@ -10,14 +10,14 @@ public class LobbyConfig : ScriptableObject
 
     [Header("Allowed Selections")]
     [SerializeField] private int[] gameModeIds = { 0 };
-    [SerializeField] private int[] mapIds = { 0 };
+    [SerializeField] private GameMapCatalog mapCatalog;
 
     public int MinPlayersToStart => minPlayersToStart;
     public int MaxPlayers => maxPlayers;
     public bool RequireAllPlayersReady => requireAllPlayersReady;
 
     public int DefaultGameModeId => GetFirstOrDefault(gameModeIds);
-    public int DefaultMapId => GetFirstOrDefault(mapIds);
+    public int DefaultMapId => mapCatalog != null ? mapCatalog.DefaultMapId : 0;
 
     public bool IsValidGameModeId(int gameModeId)
     {
@@ -26,7 +26,7 @@ public class LobbyConfig : ScriptableObject
 
     public bool IsValidMapId(int mapId)
     {
-        return ContainsId(mapIds, mapId);
+        return mapCatalog != null && mapCatalog.IsValidMapId(mapId);
     }
 
     private static int GetFirstOrDefault(int[] ids)
@@ -54,5 +54,8 @@ public class LobbyConfig : ScriptableObject
     {
         maxPlayers = Mathf.Max(1, maxPlayers);
         minPlayersToStart = Mathf.Clamp(minPlayersToStart, 1, maxPlayers);
+
+        if (mapCatalog == null)
+            Debug.LogError($"{nameof(LobbyConfig)} requires assigned {nameof(GameMapCatalog)}.", this);
     }
 }

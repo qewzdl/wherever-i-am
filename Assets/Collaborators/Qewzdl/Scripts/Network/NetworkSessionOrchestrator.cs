@@ -44,12 +44,12 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         return sessionFlowService.JoinLanAsync(ip);
     }
 
-    public void StartGame()
+    public void StartGame(int mapId)
     {
         if (!HasRequiredReferences())
             return;
 
-        sessionFlowService.StartGame();
+        sessionFlowService.StartGame(mapId);
     }
 
     public void ShutdownToMainMenu()

@@ -17,6 +17,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Collaborators/Qewzdl/Scenes/Game.unity
     guid: c0b4f9334ba04fa4491335b1eb431f9f
+  - enabled: 1
+    path: Assets/Collaborators/Qewzdl/Scenes/Maps/Map_Prototype.unity
+    guid: 34f0fbad6e204e15ad64f12e249f1202
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

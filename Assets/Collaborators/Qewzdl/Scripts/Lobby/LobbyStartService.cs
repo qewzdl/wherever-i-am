@@ -48,7 +48,7 @@ public class LobbyStartService
         lobbyState.Phase.Value = LobbyPhase.Starting;
         lobbyState.CanStartGame.Value = false;
 
-        sessionService.StartGame();
+        sessionService.StartGame(lobbyState.Settings.Value.MapId);
     }
 
     private bool HasLobbyState()

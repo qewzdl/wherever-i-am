@@ -15,6 +15,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     [SerializeField] private NetworkSessionDisconnectHandler disconnectHandler;
     [SerializeField] private NetworkSessionFailureHandler failureHandler;
     [SerializeField] private UiErrorManager errorManager;
+    [SerializeField] private GameMapService gameMapService;
 
     private Coroutine shutdownRoutine;
 
@@ -106,7 +107,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         RuntimeLog.Info(result.DebugMessage);
     }
 
-    public void StartGame()
+    public void StartGame(int mapId)
     {
         if (!HasRequiredReferences())
             return;
@@ -119,6 +120,17 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
         if (!sessionStateMachine.TryChangeState(NetworkSessionState.LoadingGame, "Server requested game start."))
             return;
+
+        if (!gameMapService.SelectMap(mapId))
+        {
+            Fail(ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to select the game map.",
+                $"Invalid game map id: {mapId}.",
+                true
+            ));
+            return;
+        }
 
         if (!sceneFlowService.LoadScene(ProjectSceneKind.Game))
         {
@@ -193,6 +205,22 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         }
     }
 
+    private void HandleSceneLoadFailed(ProjectSceneKind scene)
+    {
+        if (scene != ProjectSceneKind.Game ||
+            sessionStateMachine.CurrentState != NetworkSessionState.LoadingGame)
+        {
+            return;
+        }
+
+        Fail(ConnectionResult.Fail(
+            ConnectionErrorCode.Unknown,
+            "Failed to load the selected map.",
+            "Game map loading did not complete.",
+            true
+        ));
+    }
+
     private void Fail(ConnectionResult result)
     {
         disconnectHandler.StopListening();
@@ -215,6 +243,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
         subscribedSceneFlowService = sceneFlowService;
         subscribedSceneFlowService.SceneLoadCompleted += HandleSceneLoadCompleted;
+        subscribedSceneFlowService.SceneLoadFailed += HandleSceneLoadFailed;
         sceneFlowSubscribed = true;
     }
 
@@ -224,7 +253,10 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
 
         if (subscribedSceneFlowService != null)
+        {
             subscribedSceneFlowService.SceneLoadCompleted -= HandleSceneLoadCompleted;
+            subscribedSceneFlowService.SceneLoadFailed -= HandleSceneLoadFailed;
+        }
 
         subscribedSceneFlowService = null;
         sceneFlowSubscribed = false;
@@ -242,6 +274,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         valid &= ValidateRequiredReference(disconnectHandler, nameof(disconnectHandler));
         valid &= ValidateRequiredReference(failureHandler, nameof(failureHandler));
         valid &= ValidateRequiredReference(errorManager, nameof(errorManager));
+        valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService));
 
         return valid;
     }

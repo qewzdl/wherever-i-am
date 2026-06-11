@@ -5,6 +5,6 @@ public interface INetworkSessionService
     Task HostLanAsync();
     Task JoinLanAsync(string ip);
 
-    void StartGame();
+    void StartGame(int mapId);
     void ShutdownToMainMenu();
 }

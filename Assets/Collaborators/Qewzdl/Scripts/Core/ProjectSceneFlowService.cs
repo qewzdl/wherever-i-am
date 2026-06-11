@@ -11,11 +11,13 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
     [SerializeField] private ProjectSceneLoadExecutor sceneLoadExecutor;
     [SerializeField] private ProjectNetworkSceneLoadCompletionTracker networkLoadCompletionTracker;
     [SerializeField] private ProjectScenePostLoadActionRunner postLoadActionRunner;
+    [SerializeField] private MonoBehaviour[] completionGates;
 
     private ProjectNetworkSceneLoadCompletionTracker subscribedNetworkLoadCompletionTracker;
     private bool networkLoadCompletionSubscribed;
 
     public event Action<ProjectSceneKind> SceneLoadCompleted;
+    public event Action<ProjectSceneKind> SceneLoadFailed;
 
     private void Awake()
     {
@@ -67,6 +69,9 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         if (!postLoadActionRunner.Validate(transition.ServerActionsAfterLoad))
             return false;
 
+        if (!ValidateCompletionGates(scene.Kind))
+            return false;
+
         bool shouldTrackNetworkCompletion = sceneLoadExecutor.ShouldTrackNetworkCompletion(transition);
 
         if (shouldTrackNetworkCompletion &&
@@ -86,7 +91,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         if (shouldTrackNetworkCompletion)
             return true;
 
-        CompleteLoad(scene.Kind, transition.ServerActionsAfterLoad);
+        BeginCompletion(scene.Kind, transition.ServerActionsAfterLoad, 0);
         return true;
     }
 
@@ -97,16 +102,104 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         if (!HasRequiredReferences())
             return;
 
-        CompleteLoad(loadedScene, serverActionsAfterLoad);
+        BeginCompletion(loadedScene, serverActionsAfterLoad, 0);
     }
 
-    private void CompleteLoad(
+    private void BeginCompletion(
+        ProjectSceneKind loadedScene,
+        ProjectSceneServerAction[] serverActionsAfterLoad,
+        int startIndex)
+    {
+        if (completionGates != null)
+        {
+            for (int i = startIndex; i < completionGates.Length; i++)
+            {
+                MonoBehaviour behaviour = completionGates[i];
+
+                if (behaviour is not IProjectSceneLoadCompletionGate gate ||
+                    !gate.CanHandle(loadedScene))
+                {
+                    continue;
+                }
+
+                int nextIndex = i + 1;
+                bool callbackInvoked = false;
+                bool started = gate.BeginWait(
+                    loadedScene,
+                    success =>
+                    {
+                        callbackInvoked = true;
+
+                        if (success)
+                        {
+                            BeginCompletion(loadedScene, serverActionsAfterLoad, nextIndex);
+                            return;
+                        }
+
+                        FailCompletion(loadedScene, gate);
+                    });
+
+                if (!started && !callbackInvoked)
+                    FailCompletion(loadedScene, gate);
+
+                return;
+            }
+        }
+
+        CompleteLoadNow(loadedScene, serverActionsAfterLoad);
+    }
+
+    private void CompleteLoadNow(
         ProjectSceneKind loadedScene,
         ProjectSceneServerAction[] serverActionsAfterLoad)
     {
         ApplyTargetState(loadedScene);
         postLoadActionRunner.Run(loadedScene, serverActionsAfterLoad);
         SceneLoadCompleted?.Invoke(loadedScene);
+    }
+
+    private bool ValidateCompletionGates(ProjectSceneKind sceneKind)
+    {
+        if (completionGates == null || completionGates.Length == 0)
+            return true;
+
+        for (int i = 0; i < completionGates.Length; i++)
+        {
+            MonoBehaviour behaviour = completionGates[i];
+
+            if (behaviour == null)
+            {
+                Debug.LogError($"{nameof(ProjectSceneFlowService)} has an empty completion gate at index {i}.", this);
+                return false;
+            }
+
+            if (behaviour is not IProjectSceneLoadCompletionGate gate)
+            {
+                Debug.LogError(
+                    $"{behaviour.name} does not implement {nameof(IProjectSceneLoadCompletionGate)}.",
+                    behaviour);
+
+                return false;
+            }
+
+            if (gate.CanHandle(sceneKind) && !gate.Validate(sceneKind, out string error))
+            {
+                Debug.LogError(error, behaviour);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void FailCompletion(ProjectSceneKind sceneKind, IProjectSceneLoadCompletionGate gate)
+    {
+        Debug.LogError(
+            $"{nameof(ProjectSceneFlowService)} completion gate '{gate.GetType().Name}' failed for scene '{sceneKind}'.",
+            this);
+
+        stateMachine.ChangeState(GameState.Error);
+        SceneLoadFailed?.Invoke(sceneKind);
     }
 
     private void ApplyTargetState(ProjectSceneKind sceneKind)

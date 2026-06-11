@@ -9,14 +9,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d41435c3dc3c8bb43a9f0f2bf34af6d1, type: 3}
-  m_Name: LobbyConfig
+  m_Script: {fileID: 11500000, guid: 8f4c7cd6e72b43e9ba1e14175ca10402, type: 3}
+  m_Name: GameMapCatalog
   m_EditorClassIdentifier: 
-  minPlayersToStart: 1
-  maxPlayers: 4
-  requireAllPlayersReady: 1
-  gameModeIds:
-  - 0
-  mapCatalog: {fileID: 11400000, guid: 2582fe9c6f7445d3a79d8f6fb8491304, type: 2}
-  characterIds:
-  - 0
+  defaultMapId: 0
+  maps:
+  - {fileID: 11400000, guid: 2582fe9c6f7445d3a79d8f6fb8491303, type: 2}
