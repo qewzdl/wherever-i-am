@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [CreateAssetMenu(
@@ -109,6 +110,14 @@ public sealed class GameMapCatalog : ScriptableObject
     }
 
 #if UNITY_EDITOR
+    public GameMapDefinition GetMapAt(int index)
+    {
+        if (maps == null || index < 0 || index >= maps.Length)
+            return null;
+
+        return maps[index];
+    }
+
     public bool AddMapEditor(GameMapDefinition map)
     {
         if (map == null || TryGetMap(map.MapId, out _))
@@ -122,11 +131,93 @@ public sealed class GameMapCatalog : ScriptableObject
 
         nextMaps[currentCount] = map;
         maps = nextMaps;
+        Array.Sort(maps, CompareMaps);
 
         if (currentCount == 0)
             defaultMapId = map.MapId;
 
         return true;
+    }
+
+    public int GetNextAvailableMapIdEditor()
+    {
+        int candidate = 0;
+
+        while (TryGetMap(candidate, out _))
+            candidate++;
+
+        return candidate;
+    }
+
+    public bool SetDefaultMapEditor(int mapId)
+    {
+        if (!TryGetMap(mapId, out _))
+            return false;
+
+        defaultMapId = mapId;
+        return true;
+    }
+
+    public bool RemoveMapEditor(int mapId)
+    {
+        if (maps == null || maps.Length == 0)
+            return false;
+
+        for (int i = 0; i < maps.Length; i++)
+        {
+            if (maps[i] != null && maps[i].MapId == mapId)
+                return RemoveMapAtEditor(i);
+        }
+
+        return false;
+    }
+
+    public bool RemoveMapAtEditor(int index)
+    {
+        if (maps == null || index < 0 || index >= maps.Length)
+            return false;
+
+        int removedMapId = maps[index] == null ? -1 : maps[index].MapId;
+        GameMapDefinition[] nextMaps = new GameMapDefinition[maps.Length - 1];
+
+        for (int sourceIndex = 0, targetIndex = 0; sourceIndex < maps.Length; sourceIndex++)
+        {
+            if (sourceIndex == index)
+                continue;
+
+            nextMaps[targetIndex] = maps[sourceIndex];
+            targetIndex++;
+        }
+
+        maps = nextMaps;
+
+        if (maps.Length > 0 && (defaultMapId == removedMapId || !TryGetMap(defaultMapId, out _)))
+        {
+            for (int i = 0; i < maps.Length; i++)
+            {
+                if (maps[i] == null)
+                    continue;
+
+                defaultMapId = maps[i].MapId;
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    private static int CompareMaps(GameMapDefinition left, GameMapDefinition right)
+    {
+        if (ReferenceEquals(left, right))
+            return 0;
+
+        if (left == null)
+            return 1;
+
+        if (right == null)
+            return -1;
+
+        return left.MapId.CompareTo(right.MapId);
     }
 
     private void OnValidate()
