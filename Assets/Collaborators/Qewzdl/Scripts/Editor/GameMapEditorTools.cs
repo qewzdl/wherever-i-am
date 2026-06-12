@@ -261,6 +261,17 @@ public sealed class GameMapManagerWindow : EditorWindow
         if (map == null)
             return;
 
+        MapValidationEntry validationEntry = validationEntries.Find(entry => entry.Map == map);
+
+        if (validationEntry != null && validationEntry.Errors.Count > 0)
+        {
+            EditorUtility.DisplayDialog(
+                "Set Default Game Map",
+                $"Map '{map.DisplayName}' has configuration errors and cannot be the default map.",
+                "OK");
+            return;
+        }
+
         Undo.RecordObject(catalog, "Set Default Game Map");
 
         if (!catalog.SetDefaultMapEditor(map.MapId))
@@ -552,8 +563,16 @@ public sealed class GameMapManagerWindow : EditorWindow
         if (!catalog.IsValid(out catalogError))
             catalogError = $"Catalog: {catalogError}";
 
+        ObjectiveSequenceDefinition defaultObjectiveSequence =
+            GameMapEditorUtility.LoadDefaultObjectiveSequence();
+
         for (int i = 0; i < catalog.Count; i++)
-            validationEntries.Add(GameMapEditorUtility.Validate(catalog.GetMapAt(i)));
+        {
+            validationEntries.Add(
+                GameMapEditorUtility.Validate(
+                    catalog.GetMapAt(i),
+                    defaultObjectiveSequence));
+        }
     }
 }
 
@@ -630,7 +649,16 @@ internal static class GameMapEditorUtility
             firstSpawn.transform.SetParent(spawnPointsRoot.transform);
             firstSpawn.transform.localPosition = Vector3.up;
 
-            mapRoot.ConfigureEditor(new[] { firstSpawn.transform });
+            GameObject objectivesRoot = new GameObject("Map Objectives");
+            objectivesRoot.transform.SetParent(mapRootObject.transform);
+
+            ObjectiveSceneBindingRegistry bindingRegistry =
+                objectivesRoot.AddComponent<ObjectiveSceneBindingRegistry>();
+            bindingRegistry.ConfigureEditor(Array.Empty<ObjectiveSceneBinding>());
+
+            mapRoot.ConfigureEditor(
+                new[] { firstSpawn.transform },
+                bindingRegistry);
 
             if (!EditorSceneManager.SaveScene(mapScene, scenePath))
                 throw new InvalidOperationException($"Failed to save map scene at '{scenePath}'.");
@@ -668,7 +696,9 @@ internal static class GameMapEditorUtility
         }
     }
 
-    public static MapValidationEntry Validate(GameMapDefinition map)
+    public static MapValidationEntry Validate(
+        GameMapDefinition map,
+        ObjectiveSequenceDefinition defaultObjectiveSequence)
     {
         MapValidationEntry entry = new MapValidationEntry(map);
 
@@ -708,8 +738,52 @@ internal static class GameMapEditorUtility
         if (!entry.SceneEnabledInBuildSettings)
             entry.Errors.Add("Scene is missing or disabled in Build Settings.");
 
-        ValidateSceneContents(map.ScenePath, entry.Errors);
+        ObjectiveSequenceDefinition activeSequence =
+            map.ObjectiveSequenceOverride != null
+                ? map.ObjectiveSequenceOverride
+                : defaultObjectiveSequence;
+
+        if (activeSequence == null)
+            entry.Errors.Add("No objective sequence is configured for this map.");
+
+        ValidateSceneContents(map.ScenePath, activeSequence, entry.Errors);
         return entry;
+    }
+
+    public static ObjectiveSequenceDefinition LoadDefaultObjectiveSequence()
+    {
+        if (!SceneAssetExists(GameScenePath))
+            return null;
+
+        Scene scene = SceneManager.GetSceneByPath(GameScenePath);
+        bool closePreviewScene = false;
+
+        try
+        {
+            if (!scene.IsValid() || !scene.isLoaded)
+            {
+                scene = EditorSceneManager.OpenPreviewScene(GameScenePath);
+                closePreviewScene = true;
+            }
+
+            GameObject[] rootObjects = scene.GetRootGameObjects();
+
+            for (int i = 0; i < rootObjects.Length; i++)
+            {
+                NetworkObjectiveFlow flow =
+                    rootObjects[i].GetComponentInChildren<NetworkObjectiveFlow>(true);
+
+                if (flow != null)
+                    return flow.DefaultObjectiveSequenceEditor;
+            }
+
+            return null;
+        }
+        finally
+        {
+            if (closePreviewScene && scene.IsValid())
+                EditorSceneManager.ClosePreviewScene(scene);
+        }
     }
 
     public static bool SceneAssetExists(string scenePath)
@@ -831,7 +905,10 @@ internal static class GameMapEditorUtility
         return false;
     }
 
-    private static void ValidateSceneContents(string scenePath, List<string> errors)
+    private static void ValidateSceneContents(
+        string scenePath,
+        ObjectiveSequenceDefinition activeSequence,
+        List<string> errors)
     {
         Scene scene = SceneManager.GetSceneByPath(scenePath);
         bool closePreviewScene = false;
@@ -870,6 +947,23 @@ internal static class GameMapEditorUtility
 
             if (mapRoots[0].PlayerSpawnPointCount == 0)
                 errors.Add($"{nameof(GameMapRoot)} has no player spawn points.");
+
+            ObjectiveSceneBindingRegistry bindingRegistry =
+                mapRoots[0].ObjectiveBindingRegistry;
+
+            if (bindingRegistry == null)
+            {
+                errors.Add(
+                    $"{nameof(GameMapRoot)} has no assigned " +
+                    $"{nameof(ObjectiveSceneBindingRegistry)}.");
+                return;
+            }
+
+            if (activeSequence != null &&
+                !bindingRegistry.IsValidForSequence(activeSequence, out string bindingError))
+            {
+                errors.Add(bindingError);
+            }
         }
         catch (Exception exception)
         {

@@ -38,6 +38,10 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     public bool HasActiveObjective => currentObjective.Value.State == ObjectiveRuntimeState.Active;
     public bool IsServerReady => IsSpawned && IsServer && serverReady;
 
+#if UNITY_EDITOR
+    public ObjectiveSequenceDefinition DefaultObjectiveSequenceEditor => objectiveSequence;
+#endif
+
     public override void OnNetworkSpawn()
     {
         serverReady = false;
@@ -369,7 +373,14 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (sceneBindingRegistry == null)
         {
-            Debug.LogError($"{nameof(NetworkObjectiveFlow)} requires assigned {nameof(ObjectiveSceneBindingRegistry)}.", this);
+            string mapName = gameMapService != null && gameMapService.ActiveMap != null
+                ? gameMapService.ActiveMap.DisplayName
+                : "unknown";
+
+            Debug.LogError(
+                $"{nameof(NetworkObjectiveFlow)} cannot initialize map '{mapName}': " +
+                $"{nameof(GameMapRoot)} has no assigned {nameof(ObjectiveSceneBindingRegistry)}.",
+                this);
             return false;
         }
 
@@ -399,8 +410,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
                 ? gameMapService.ActiveMapRoot.ObjectiveBindingRegistry
                 : null;
 
-        if (mapBindings != null)
-            sceneBindingRegistry = mapBindings;
+        sceneBindingRegistry = mapBindings;
     }
 
     private void ResolveGameMapService()

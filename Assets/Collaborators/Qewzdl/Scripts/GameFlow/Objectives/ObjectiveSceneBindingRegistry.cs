@@ -162,4 +162,11 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
 
         return false;
     }
+
+#if UNITY_EDITOR
+    public void ConfigureEditor(ObjectiveSceneBinding[] sceneBindings)
+    {
+        bindings = sceneBindings ?? Array.Empty<ObjectiveSceneBinding>();
+    }
+#endif
 }

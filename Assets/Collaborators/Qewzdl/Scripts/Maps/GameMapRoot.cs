@@ -37,9 +37,12 @@ public sealed class GameMapRoot : MonoBehaviour
     }
 
 #if UNITY_EDITOR
-    public void ConfigureEditor(Transform[] spawnPoints)
+    public void ConfigureEditor(
+        Transform[] spawnPoints,
+        ObjectiveSceneBindingRegistry bindingRegistry)
     {
         playerSpawnPoints = spawnPoints;
+        objectiveBindingRegistry = bindingRegistry;
     }
 #endif
 }
