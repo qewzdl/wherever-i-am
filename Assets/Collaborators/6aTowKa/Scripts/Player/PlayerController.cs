@@ -15,8 +15,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     [Header("References")]
     [SerializeField] private Rigidbody rb;
     [SerializeField] private CapsuleCollider bodyCollider;
-    [SerializeField] private PlayerAnimation playerAnimation;
-    [SerializeField] private CameraFollow cameraFollow;
+    [SerializeField] private PlayerPostureController playerPosture;
 
     [Header("Collision")]
     [SerializeField, Range(0f, 1f)] private float blockingContactMaxY = 0.7f;
@@ -47,8 +46,8 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         if (bodyCollider == null)
             bodyCollider = GetComponentInChildren<CapsuleCollider>();
 
-        if (playerAnimation == null)
-            playerAnimation = GetComponent<PlayerAnimation>();
+        if (playerPosture == null)
+            playerPosture = GetComponent<PlayerPostureController>();
 
         signals.MoveSignal.Listen(SetDirection);
         signals.CrouchInputSignal.Listen(UpdateIsCrouching);
@@ -57,14 +56,6 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         {
             signals.CrouchSyncSignal.Listen(SyncCrouchState);
             listensToCrouchSync = true;
-        }
-
-        if (hasLocalControl)
-        {
-            if (cameraFollow == null)
-                Debug.LogError($"{nameof(PlayerController)} requires assigned {nameof(CameraFollow)} for local crouch camera height.", this);
-            else
-                cameraFollow.SetCrouching(isCrouching);
         }
     }
 
@@ -79,19 +70,14 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         listensToCrouchSync = false;
     }
 
-    public void SetCameraFollow(CameraFollow cameraFollow)
-    {
-        this.cameraFollow = cameraFollow;
-    }
-
     public void SetBodyCollider(CapsuleCollider collider)
     {
         bodyCollider = collider;
     }
 
-    public void SetPlayerAnimation(PlayerAnimation animation)
+    public void SetPlayerPosture(PlayerPostureController posture)
     {
-        playerAnimation = animation;
+        playerPosture = posture;
     }
 
     private void FixedUpdate()
@@ -317,16 +303,13 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
         isCrouching = value;
 
-        if (hasLocalControl && cameraFollow != null)
-            cameraFollow.SetCrouching(isCrouching);
-
         if (notify)
             signals.CrouchUpdateSignal.Trigger(isCrouching);
     }
 
     private bool CanStandUp()
     {
-        return playerAnimation != null && playerAnimation.HasStandingClearance();
+        return playerPosture != null && playerPosture.HasStandingClearance();
     }
 
     public void SetSpeed(float newSpeed)

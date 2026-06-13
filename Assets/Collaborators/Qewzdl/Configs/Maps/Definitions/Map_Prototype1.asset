@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mapId: 1
   displayName: New Map
-  sceneName: Map_New_Map
+  sceneName: Map_Prototype1
   scenePath: Assets/Collaborators/Qewzdl/Scenes/Maps/Map_Prototype1.unity
   objectiveSequenceOverride: {fileID: 0}

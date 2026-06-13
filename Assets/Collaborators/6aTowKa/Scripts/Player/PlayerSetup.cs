@@ -24,7 +24,7 @@ public class PlayerSetup : NetworkBehaviour
         NetworkObject networkObject = RequireComponentOnPlayer<NetworkObject>();
         NetworkTransform networkTransform = RequireComponentOnPlayer<NetworkTransform>();
         PlayerNetwork playerNetwork = RequireComponentOnPlayer<PlayerNetwork>();
-        PlayerAnimation playerAnimation = RequireComponentOnPlayer<PlayerAnimation>();
+        PlayerPostureController playerPosture = RequireComponentOnPlayer<PlayerPostureController>();
         PlayerInput playerInput = RequireComponentOnPlayer<PlayerInput>();
         PlayerInputHandler playerInputHandler = RequireComponentOnPlayer<PlayerInputHandler>();
         PlayerController playerController = RequireComponentOnPlayer<PlayerController>();
@@ -33,7 +33,6 @@ public class PlayerSetup : NetworkBehaviour
         PlayerOrchestrator playerOrchestrator = RequireComponentOnPlayer<PlayerOrchestrator>();
 
         CameraLook cameraLook = RequireComponentInPlayerChildren<CameraLook>();
-        CameraFollow cameraFollow = RequireComponentInPlayerChildren<CameraFollow>();
         Camera playerCamera = RequireComponentInPlayerChildren<Camera>();
         AudioListener audioListener = RequireComponentInPlayerChildren<AudioListener>();
         CapsuleCollider bodyCollider = RequireComponentInPlayerChildren<CapsuleCollider>();
@@ -44,10 +43,10 @@ public class PlayerSetup : NetworkBehaviour
             return;
         }
 
-        playerController.SetCameraFollow(cameraFollow);
         playerController.SetBodyCollider(bodyCollider);
-        playerController.SetPlayerAnimation(playerAnimation);
-        playerAnimation.SetBodyCollider(bodyCollider);
+        playerController.SetPlayerPosture(playerPosture);
+        playerPosture.SetBodyCollider(bodyCollider);
+        playerPosture.SetCameraPivot(cameraLook.transform);
 
         if (isMultiplayer)
         {
@@ -55,7 +54,7 @@ public class PlayerSetup : NetworkBehaviour
             networkTransform.enabled = true;
 
             playerNetwork.enabled = true;
-            playerAnimation.enabled = true;
+            playerPosture.enabled = true;
 
             if (isLocalControl)
             {
@@ -65,11 +64,9 @@ public class PlayerSetup : NetworkBehaviour
                 playerInteraction.enabled = true;
                 playerUI.enabled = true;
 
-                cameraFollow.enabled = true;
                 playerCamera.enabled = true;
                 audioListener.enabled = true;
 
-                cameraFollow.SetLocalControl(true);
                 cameraLook.SetLocalControl(true);
             }
             else
@@ -79,12 +76,9 @@ public class PlayerSetup : NetworkBehaviour
                 AddDestroyingComponent(playerController);
                 AddDestroyingComponent(playerInteraction);
                 AddDestroyingComponent(playerUI);
-                AddDestroyingComponent(cameraFollow);
-
                 playerCamera.enabled = false;
                 audioListener.enabled = false;
 
-                cameraFollow.SetLocalControl(false);
                 cameraLook.SetLocalControl(false);
             }
         }
@@ -97,15 +91,13 @@ public class PlayerSetup : NetworkBehaviour
             playerInput.enabled = true;
             playerInputHandler.enabled = true;
             playerController.enabled = true;
-            playerAnimation.enabled = true;
+            playerPosture.enabled = true;
             playerInteraction.enabled = true;
             playerUI.enabled = true;
 
-            cameraFollow.enabled = true;
             playerCamera.enabled = true;
             audioListener.enabled = true;
 
-            cameraFollow.SetLocalControl(true);
             cameraLook.SetLocalControl(true);
         }
 

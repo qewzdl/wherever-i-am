@@ -3,7 +3,8 @@
     "rootNamespace": "",
     "references": [
         "WhereverIAm.Qewzdl",
-        "Unity.Netcode.Runtime"
+        "Unity.Netcode.Runtime",
+        "Unity.ProBuilder"
     ],
     "includePlatforms": [
         "Editor"

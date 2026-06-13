@@ -5,15 +5,15 @@ public class PlayerNetwork : PlayerNetworkComponent, IPlayerSignalListener
 {
     public NetworkVariable<bool> PlayerIsCrouching = new NetworkVariable<bool>();
 
-    [SerializeField] private PlayerAnimation playerAnimation;
+    [SerializeField] private PlayerPostureController playerPosture;
 
     private bool listensToLocalCrouch;
     private bool listensToNetworkCrouch;
 
     protected override void OnPostInit(PlayerOrchestrator orch)
     {
-        if (playerAnimation == null)
-            playerAnimation = GetComponent<PlayerAnimation>();
+        if (playerPosture == null)
+            playerPosture = GetComponent<PlayerPostureController>();
 
         PlayerIsCrouching.OnValueChanged += TriggerCrouchSyncSignal;
         listensToNetworkCrouch = true;
@@ -66,6 +66,6 @@ public class PlayerNetwork : PlayerNetworkComponent, IPlayerSignalListener
 
     private bool CanStandUp()
     {
-        return playerAnimation != null && playerAnimation.HasStandingClearance();
+        return playerPosture != null && playerPosture.HasStandingClearance();
     }
 }
