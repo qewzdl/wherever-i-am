@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8f4c7cd6e72b43e9ba1e14175ca10402, type: 3}
   m_Name: GameMapCatalog
   m_EditorClassIdentifier: 
-  defaultMapId: 1
+  defaultMapId: 0
   maps:
   - {fileID: 11400000, guid: 2582fe9c6f7445d3a79d8f6fb8491303, type: 2}
   - {fileID: 11400000, guid: 3938ceb41510f664783161fab2b5cd70, type: 2}

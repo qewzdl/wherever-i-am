@@ -60,11 +60,17 @@ public class ViewmodelItemEntry
     public Vector3 rotation; // эйлеровы углы
     public Vector3 scale = Vector3.one;
 
-    // Удобный метод для применения к трансформу
     public void ApplyTo(Transform t)
     {
         t.localPosition = position;
         t.localRotation = Quaternion.Euler(rotation);
         t.localScale = scale;
+    }
+
+    public void SetFrom(Transform t)
+    {
+        position = t.localPosition;
+        rotation = t.localRotation.eulerAngles;
+        scale = t.localScale;
     }
 }

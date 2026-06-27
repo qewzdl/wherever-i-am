@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem.HID;
 
 public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 {

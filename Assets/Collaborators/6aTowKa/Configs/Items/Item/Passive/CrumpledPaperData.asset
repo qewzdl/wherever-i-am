@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c00c3afa0932df4c917aa70cd53b19b, type: 3}
+  m_Name: CrumpledPaperData
+  m_EditorClassIdentifier: 
+  InteractionSprite: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
+  Mass: 1
+  MaxFollowSpeed: 15
+  FollowSpeedMultiplier: 2
+  MaxDragDistance: 6
+  ThrowVelocitySamples: 5
+  MinDistance: 1
+  ItemID: 2
+  ViewmodelData:
+    itemName: 
+    position: {x: 0.722, y: -0.35399997, z: 0.908}
+    rotation: {x: 19.897217, y: 66.80254, z: 71.65292}
+    scale: {x: 1.0000001, y: 1.0000001, z: 1}
