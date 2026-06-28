@@ -39,12 +39,6 @@ public partial class ItemCreatorWindow
     {
         DrawSeparator();
 
-        EditorGUILayout.LabelField("Viewmodel", EditorStyles.boldLabel);
-        if (GUILayout.Button("Open Viewmodel Preview", GUILayout.Height(26)))
-            ViewmodelPreviewSceneCreator.OpenOrCreatePreviewScene();
-
-        DrawSeparator();
-
         explorerFoldout = EditorGUILayout.Foldout(explorerFoldout, "Explorer", true, EditorStyles.foldoutHeader);
         if (!explorerFoldout) return;
 
@@ -118,6 +112,8 @@ public partial class ItemCreatorWindow
             if (GUILayout.Button("Prefab")) PingInProject(entry.Prefab);
             using (new EditorGUI.DisabledScope(entry.Data == null))
                 if (GUILayout.Button("Data")) PingInProject(entry.Data);
+            if (GUILayout.Button("Preview"))
+                ViewmodelPreviewSceneCreator.OpenOrCreatePreviewScene(entry.Prefab);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(2);

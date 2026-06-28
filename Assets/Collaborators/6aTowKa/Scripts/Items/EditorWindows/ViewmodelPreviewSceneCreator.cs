@@ -6,12 +6,68 @@ public static class ViewmodelPreviewSceneCreator
 {
     private const string ScenePath = "Assets/Collaborators/6aTowKa/Scenes/ViewmodelPreview.unity";
 
-    public static void OpenOrCreatePreviewScene()
+    public static void OpenOrCreatePreviewScene(GameObject itemPrefab = null)
     {
         if (!System.IO.File.Exists(ScenePath))
             CreateScene();
         else
             EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        if (itemPrefab != null)
+            PlaceItemInScene(itemPrefab);
+    }
+
+    private static void PlaceItemInScene(GameObject prefab)
+    {
+        var setup = UnityEngine.Object.FindFirstObjectByType<ViewmodelPreviewSetup>();
+        if (setup == null) return;
+
+        var container = setup.transform;
+
+        for (int i = container.childCount - 1; i >= 0; i--)
+            Undo.DestroyObjectImmediate(container.GetChild(i).gameObject);
+
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, container);
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale    = Vector3.one;
+        Undo.RegisterCreatedObjectUndo(instance, "Place Item in Viewmodel Preview");
+
+        setup.Refresh();
+
+        if (setup.targetAsset != null)
+            ApplySavedViewmodelTransform(instance, setup.targetAsset);
+
+        EditorSceneManager.MarkSceneDirty(setup.gameObject.scene);
+    }
+
+    private static void ApplySavedViewmodelTransform(GameObject itemInstance, PickupItemData data)
+    {
+        var comp = itemInstance.GetComponentInChildren<PickupItem>(true);
+        if (comp == null) return;
+
+        var so = new SerializedObject(comp);
+        var modelGO = so.FindProperty("model")?.objectReferenceValue as GameObject;
+        if (modelGO == null) return;
+
+        var vmData = data.ViewmodelData;
+
+        // savedMatrix: model's desired local transform relative to the container
+        // (matches the runtime setup where model is a direct child of viewModelContainer).
+        var savedMatrix = Matrix4x4.TRS(vmData.position, Quaternion.Euler(vmData.rotation), vmData.scale);
+
+        // modelInItemRoot: model's current local transform relative to item root.
+        // Since item root is placed at identity (localPos=0) relative to container right now,
+        // this equals container.worldToLocal * model.localToWorld = just the prefab-local offset.
+        var modelInItemRoot = itemInstance.transform.worldToLocalMatrix * modelGO.transform.localToWorldMatrix;
+
+        // Solve: itemMatrix * modelInItemRoot = savedMatrix  →  itemMatrix = savedMatrix * modelInItemRoot⁻¹
+        var itemMatrix = savedMatrix * modelInItemRoot.inverse;
+
+        Undo.RecordObject(itemInstance.transform, "Apply Viewmodel Transform");
+        itemInstance.transform.localPosition = itemMatrix.GetColumn(3);
+        itemInstance.transform.localRotation = itemMatrix.rotation;
+        itemInstance.transform.localScale    = itemMatrix.lossyScale;
     }
 
     private static void CreateScene()

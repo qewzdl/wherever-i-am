@@ -221,6 +221,10 @@ public partial class ItemCreatorWindow : EditorWindow
         EditorGUILayout.Space(2);
         DrawSpriteField("Default icon", ref defaultInteractionSprite, PrefDefaultSprite);
 
+        EditorGUILayout.Space(4);
+        if (GUILayout.Button("Open Viewmodel Preview Scene"))
+            ViewmodelPreviewSceneCreator.OpenOrCreatePreviewScene();
+
         EditorGUI.indentLevel--;
     }
 
