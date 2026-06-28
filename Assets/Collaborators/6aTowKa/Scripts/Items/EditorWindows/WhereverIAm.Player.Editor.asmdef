@@ -3,7 +3,8 @@
     "rootNamespace": "",
     "references": [
         "WhereverIAm.Player",
-        "WhereverIAm.Shared"
+        "WhereverIAm.Shared",
+        "Unity.Netcode.Runtime"
     ],
     "includePlatforms": [
         "Editor"

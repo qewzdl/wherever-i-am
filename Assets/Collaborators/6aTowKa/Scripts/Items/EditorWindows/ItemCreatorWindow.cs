@@ -84,7 +84,7 @@ public static class ItemCreatorPostCompile
     }
 }
 
-public class ItemCreatorWindow : EditorWindow
+public partial class ItemCreatorWindow : EditorWindow
 {
     // ── EditorPrefs keys ──────────────────────────────────────────────────────
     private const string PrefScriptDir   = "ItemCreator_ScriptDir";
@@ -165,11 +165,15 @@ public class ItemCreatorWindow : EditorWindow
         defaultInteractionSprite = LoadSpriteFromPrefs(PrefDefaultSprite);
 
         RefreshItemId();
+
+        EditorApplication.projectChanged += MarkExplorerDirty;
     }
 
     private void OnDisable()
     {
         SaveSettings();
+        DisposeExplorer();
+        EditorApplication.projectChanged -= MarkExplorerDirty;
     }
 
     // ── Draw ──────────────────────────────────────────────────────────────────
@@ -179,7 +183,7 @@ public class ItemCreatorWindow : EditorWindow
         scroll = EditorGUILayout.BeginScrollView(scroll);
 
         DrawSettings();
-        EditorGUILayout.Space(6);
+        DrawSeparator();
         DrawNameField();
         EditorGUILayout.Space(4);
         DrawArchetypeButtons();
@@ -191,6 +195,7 @@ public class ItemCreatorWindow : EditorWindow
         DrawAutoSection();
         EditorGUILayout.Space(8);
         DrawCreateButton();
+        DrawExplorerSection();
 
         EditorGUILayout.EndScrollView();
     }
@@ -304,15 +309,19 @@ public class ItemCreatorWindow : EditorWindow
 
     private void DrawArchetypeButton(string label, Archetype target)
     {
-        var style = archetype == target ? _archetypeButtonActiveStyle : _archetypeButtonStyle;
-        if (GUILayout.Button(label, style))
+        bool active = archetype == target;
+        var style = active ? _archetypeButtonActiveStyle : _archetypeButtonStyle;
+
+        var prevBg = GUI.backgroundColor;
+        if (active) GUI.backgroundColor = SelectionColor;
+        bool clicked = GUILayout.Button(label, style);
+        GUI.backgroundColor = prevBg;
+
+        if (clicked && archetype != target)
         {
-            if (archetype != target)
-            {
-                archetype = target;
-                ResetAbilities();
-                if (target == Archetype.Item) RefreshItemId();
-            }
+            archetype = target;
+            ResetAbilities();
+            if (target == Archetype.Item) RefreshItemId();
         }
     }
 
@@ -674,23 +683,10 @@ $@"public class {className} : {baseClass}
         _archetypeButtonActiveStyle = new GUIStyle(GUI.skin.button)
         {
             fontStyle = FontStyle.Bold,
-            fixedHeight = 28,
-            normal  = { textColor = Color.white },
-            hover   = { textColor = Color.white }
+            fixedHeight = 28
         };
-        _archetypeButtonActiveStyle.normal.background  = MakeTexture(2, 2, new Color(0.25f, 0.50f, 0.90f, 1f));
-        _archetypeButtonActiveStyle.hover.background   = MakeTexture(2, 2, new Color(0.30f, 0.55f, 0.95f, 1f));
 
         _headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
     }
 
-    private static Texture2D MakeTexture(int w, int h, Color color)
-    {
-        var tex = new Texture2D(w, h);
-        var pixels = new Color[w * h];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
-        tex.SetPixels(pixels);
-        tex.Apply();
-        return tex;
-    }
 }

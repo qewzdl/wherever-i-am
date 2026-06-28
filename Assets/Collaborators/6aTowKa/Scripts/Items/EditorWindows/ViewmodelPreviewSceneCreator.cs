@@ -6,7 +6,6 @@ public static class ViewmodelPreviewSceneCreator
 {
     private const string ScenePath = "Assets/Collaborators/6aTowKa/Scenes/ViewmodelPreview.unity";
 
-    [MenuItem("Tools/Wherever I Am/Open Viewmodel Preview Scene")]
     public static void OpenOrCreatePreviewScene()
     {
         if (!System.IO.File.Exists(ScenePath))
