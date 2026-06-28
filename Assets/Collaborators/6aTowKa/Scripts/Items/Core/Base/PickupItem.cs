@@ -4,7 +4,7 @@ using UnityEngine;
 public abstract class PickupItem : DraggableObject
 {
     const int VIEWMODEL_LAYER_INDEX = 11;
-    const int VIEWMODEL_RENDERING_LAYER_INDEX = 8;
+    const uint VIEWMODEL_RENDERING_LAYER_INDEX = (1u << 8);
 
     private bool isPickedUpServer = false;
 
