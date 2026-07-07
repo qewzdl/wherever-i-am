@@ -6,7 +6,11 @@ public abstract class PickupItem : DraggableObject
     const int VIEWMODEL_LAYER_INDEX = 11;
     const uint VIEWMODEL_RENDERING_LAYER_INDEX = (1u << 8);
 
-    private bool isPickedUpServer = false;
+    private NetworkVariable<bool> netIsPickedUp = new(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
     [SerializeField] private GameObject model;
 
@@ -14,6 +18,15 @@ public abstract class PickupItem : DraggableObject
     private GameObject viewModel;
     private Vector3 hiddenPosition = new Vector3(0, -1000, 0);
     private PickUpContext context;
+    private MeshRenderer meshRenderer;
+    private Vector3 spawnPosition;
+    private Quaternion spawnRotation;
+
+    private void Awake()
+    {
+        spawnPosition = transform.position;
+        spawnRotation = transform.rotation;
+    }
 
     private void OnValidate()
     {
@@ -22,6 +35,36 @@ public abstract class PickupItem : DraggableObject
             if (data is not PickupItemData)
                 Debug.LogError($"Data for {name} must be of type PickupItemData!", this);
         }
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        if (IsServer)
+            NetworkManager.OnClientDisconnectCallback += HandlePickupOwnerDisconnect;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        base.OnNetworkDespawn();
+
+        if (IsServer)
+            NetworkManager.OnClientDisconnectCallback -= HandlePickupOwnerDisconnect;
+    }
+
+    private void HandlePickupOwnerDisconnect(ulong clientId)
+    {
+        if (!netIsPickedUp.Value) return;
+        if (clientId != OwnerClientId) return;
+
+        GetComponent<NetworkObject>().ChangeOwnership(NetworkManager.ServerClientId);
+        netIsPickedUp.Value = false;
+
+        rb.position = spawnPosition;
+        rb.rotation = spawnRotation;
+
+        DropClientRpc();
     }
 
     //OnInteract here is dragging.
@@ -36,6 +79,11 @@ public abstract class PickupItem : DraggableObject
         Drop();
     }
 
+    protected override bool CanStartDragging()
+    {
+        return !netIsPickedUp.Value;
+    }
+
     private void PickUp(PickUpContext context)
     {
         if (!NetworkManager.Singleton) return;
@@ -47,7 +95,10 @@ public abstract class PickupItem : DraggableObject
     {
         if (ownerTransform == null) return;
 
-        GetComponentInChildren<MeshRenderer>().enabled = true;
+        var renderer = GetMeshRenderer();
+        if (renderer != null)
+            renderer.enabled = true;
+
         rb.isKinematic = false;
         rb.rotation = Quaternion.identity;
         rb.position = ownerTransform.position;
@@ -65,34 +116,50 @@ public abstract class PickupItem : DraggableObject
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void DropServerRpc()
     {
-        isPickedUpServer = false;
+        netIsPickedUp.Value = false;
         DropClientRpc();
     }
 
 
     [Rpc(SendTo.Server)]
-    private void RequestPickUpItemServerRpc(ulong ownerId)
+    private void RequestPickUpItemServerRpc(ulong ownerId, RpcParams rpcParams = default)
     {
-        if (isPickedUpServer) return;
-        isPickedUpServer = true;
+        if (netIsPickedUp.Value || netIsDragging.Value)
+        {
+            DenyPickupRpc(RpcTarget.Single(rpcParams.Receive.SenderClientId, RpcTargetUse.Temp));
+            return;
+        }
+        netIsPickedUp.Value = true;
         PickUpServer(ownerId);
+    }
+
+    [Rpc(SendTo.SpecifiedInParams)]
+    private void DenyPickupRpc(RpcParams rpcParams = default)
+    {
+        context.PlayerInteraction.DenyPickup();
+        context = null;
     }
 
     // Client RPCs
 
     [Rpc(SendTo.ClientsAndHost)]
-    private void PickUpClientRpc()
+    private void HidePickupClientRpc()
     {
-        GetComponentInChildren<MeshRenderer>().enabled = false;
+        var renderer = GetMeshRenderer();
+        if (renderer != null)
+            renderer.enabled = false;
+
         rb.isKinematic = true;
         rb.position = hiddenPosition;
+    }
 
-        if (IsOwner)
-        {
-            playerInteraction = context.PlayerInteraction;
-            ownerTransform = context.OwnerTransform;
-            MakeViewModel(context.ViewModelContainer);
-        }
+    [Rpc(SendTo.Owner)]
+    private void ConfirmPickupOwnerRpc()
+    {
+        playerInteraction = context.PlayerInteraction;
+        ownerTransform = context.OwnerTransform;
+        MakeViewModel(context.ViewModelContainer);
+        playerInteraction.SetCurrentItem(this);
 
         context = null;
     }
@@ -102,7 +169,10 @@ public abstract class PickupItem : DraggableObject
     {
         if (IsOwner) return;
 
-        GetComponentInChildren<MeshRenderer>().enabled = true;
+        var renderer = GetMeshRenderer();
+        if (renderer != null)
+            renderer.enabled = true;
+
         rb.isKinematic = false;
     }
 
@@ -112,10 +182,19 @@ public abstract class PickupItem : DraggableObject
         if (OwnerClientId != ownerId)
             GetComponent<NetworkObject>().ChangeOwnership(ownerId);
 
-        PickUpClientRpc();
+        HidePickupClientRpc();
+        ConfirmPickupOwnerRpc();
     }
 
     // Client
+    private MeshRenderer GetMeshRenderer()
+    {
+        if (meshRenderer == null)
+            meshRenderer = GetComponentInChildren<MeshRenderer>();
+
+        return meshRenderer;
+    }
+
     private void MakeViewModel(Transform viewModelContainer)
     {
         viewModel = Instantiate(model, viewModelContainer);
@@ -123,15 +202,22 @@ public abstract class PickupItem : DraggableObject
         {
             foreach (Transform child in viewModel.transform)
             {
-                child.GetComponent<MeshRenderer>().renderingLayerMask = VIEWMODEL_RENDERING_LAYER_INDEX;
-                child.GetComponent<MeshRenderer>().enabled = true;
+                var childRenderer = child.GetComponent<MeshRenderer>();
+                if (childRenderer == null) continue;
+
+                childRenderer.renderingLayerMask = VIEWMODEL_RENDERING_LAYER_INDEX;
+                childRenderer.enabled = true;
                 child.gameObject.layer = VIEWMODEL_LAYER_INDEX;
             }
         }
         else
         {
-            viewModel.GetComponent<MeshRenderer>().renderingLayerMask = VIEWMODEL_RENDERING_LAYER_INDEX;
-            viewModel.GetComponent<MeshRenderer>().enabled = true;
+            var viewModelRenderer = viewModel.GetComponent<MeshRenderer>();
+            if (viewModelRenderer != null)
+            {
+                viewModelRenderer.renderingLayerMask = VIEWMODEL_RENDERING_LAYER_INDEX;
+                viewModelRenderer.enabled = true;
+            }
         }
 
         viewModel.layer = VIEWMODEL_LAYER_INDEX;

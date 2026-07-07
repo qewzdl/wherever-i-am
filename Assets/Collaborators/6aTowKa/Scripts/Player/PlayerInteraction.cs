@@ -19,7 +19,10 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     private InteractableObject focusedInteractable;
     private PickupItem currentItem;
     private DraggableObject currentDraggable;
-    
+
+    private bool dragRequestPending;
+    private bool pickupRequestPending;
+
     private GameObject HitPoint;
     private bool crosshairIsDefualt;
 
@@ -95,7 +98,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private bool CanFocus()
     {
-        if (states.IsDragging) return false;
+        if (states.IsDragging || dragRequestPending) return false;
         return true;
     }
 
@@ -130,9 +133,8 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
         {
             HitPoint.transform.position = hit.point;
 
+            dragRequestPending = true;
             draggingObject.OnInteract(ctx);
-            states.IsDragging = true;
-            currentDraggable = draggingObject;
         }
         else
         {
@@ -162,9 +164,11 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     {
         if (currentDraggable != null)
         {
-            currentDraggable.OnUninteract();
-            states.IsDragging = false;
+            DraggableObject draggable = currentDraggable;
             currentDraggable = null;
+            states.IsDragging = false;
+
+            draggable.OnUninteract();
         }
     }
 
@@ -176,8 +180,8 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
         PickUpContext pickUpContext = BuildPickUpContext();
 
+        pickupRequestPending = true;
         item.OnPickup(pickUpContext);
-        SetCurrentItem(item);
     }
 
     private void Drop()
@@ -190,14 +194,15 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private bool CanPickUp()
     {
-        if (states.IsCarrying) return false;
+        if (states.IsCarrying || pickupRequestPending) return false;
         if (states.IsDragging) return false;
         return true;
     }
 
 
-    private void SetCurrentItem(PickupItem item)
+    public void SetCurrentItem(PickupItem item)
     {
+        pickupRequestPending = false;
         currentItem = item;
         states.IsCarrying = item != null;
     }
@@ -216,6 +221,23 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     public void SetIsCarrying(bool value)
     {
         states.IsCarrying = value;
+    }
+
+    public void ConfirmDragging(DraggableObject draggable)
+    {
+        dragRequestPending = false;
+        currentDraggable = draggable;
+        states.IsDragging = true;
+    }
+
+    public void DenyDragging()
+    {
+        dragRequestPending = false;
+    }
+
+    public void DenyPickup()
+    {
+        pickupRequestPending = false;
     }
 
     //debug

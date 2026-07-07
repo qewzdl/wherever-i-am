@@ -41,7 +41,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
         rb = GetComponent<Rigidbody>();
         rb.interpolation = RigidbodyInterpolation.Interpolate;
-        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezeRotationZ;
 
         if (bodyCollider == null)
             bodyCollider = GetComponentInChildren<CapsuleCollider>();

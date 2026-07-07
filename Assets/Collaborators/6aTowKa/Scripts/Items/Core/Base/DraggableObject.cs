@@ -4,10 +4,10 @@ using UnityEngine;
 
 public abstract class DraggableObject : InteractableObject
 {
-    private NetworkVariable<bool> netIsDragging = new(
+    protected NetworkVariable<bool> netIsDragging = new(
         false,
         NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Owner
+        NetworkVariableWritePermission.Server
     );
 
     protected Rigidbody rb { get; private set; }
@@ -21,6 +21,7 @@ public abstract class DraggableObject : InteractableObject
     private Vector3[] velocityBuffer;
     private int velocityBufferIndex;
     private Vector3 previousPosition;
+    private InteractionContext draggableContext;
 
     private void OnValidate()
     {
@@ -45,15 +46,50 @@ public abstract class DraggableObject : InteractableObject
     {
         if (!netIsDragging.Value) return;
 
-        if (IsClient && IsOwner)
-        {
+        if (IsClient && IsOwner && holdPointTransform != null)
             TickDragging();
-        }
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        if (IsServer)
+            NetworkManager.OnClientDisconnectCallback += HandleClientDisconnect;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (IsServer)
+            NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnect;
+    }
+
+    private void HandleClientDisconnect(ulong clientId)
+    {
+        if (!netIsDragging.Value) return;
+
+        if (clientId != OwnerClientId) return;
+
+        GetComponent<NetworkObject>().ChangeOwnership(NetworkManager.ServerClientId);
+        netIsDragging.Value = false;
     }
 
     public override void OnInteract(InteractionContext context)
     {
-        Interact(context);
+        if (netIsDragging.Value) return;
+
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogWarning("NetworkManager is not initialized. Cannot interact with draggable object.");
+            return;
+        }
+
+        if (context.HitPoint == null)
+        {
+            Debug.LogWarning("HitPoint is null in InteractionContext. Cannot interact with draggable object.");
+            return;
+        }
+
+        draggableContext = context;
+        RequestOwnershipServerRpc();
     }
 
     public void OnUninteract()
@@ -63,11 +99,6 @@ public abstract class DraggableObject : InteractableObject
 
     private void Interact(InteractionContext context)
     {
-        if (netIsDragging.Value) return;
-        if (NetworkManager.Singleton == null) return;
-
-        if (context.HitPoint == null) return;
-
         if (holdPointTransform == null)
         {
             var go = new GameObject("HoldPoint_Local");
@@ -82,19 +113,12 @@ public abstract class DraggableObject : InteractableObject
 
         playerController = context.PlayerController;
         SetupPlayerBeforeDragging();
-
-        if (!IsOwner) // change ownership
-        {
-            RequestOwnershipServerRpc(NetworkManager.Singleton.LocalClientId);
-        }
-        else
-        {
-            StartDragging();
-        }
     }
 
     private void Uninteract()
     {
+        if (!IsOwner) return;
+
         if (netIsDragging.Value)
             StopDragging(applyThrow: true);
     }
@@ -123,37 +147,61 @@ public abstract class DraggableObject : InteractableObject
         }
     }
 
-    // ServerRpc 
+    #region ServerLogic
+
+    //RPC
 
     [Rpc(SendTo.Server)]
-    private void RequestOwnershipServerRpc(ulong requestingClientId)
+    private void RequestOwnershipServerRpc(RpcParams rpcParams = default)
     {
-        if (netIsDragging.Value) return;
+        if (netIsDragging.Value || !CanStartDragging())
+        {
+            DenyDraggingRpc(RpcTarget.Single(rpcParams.Receive.SenderClientId, RpcTargetUse.Temp));
+            return;
+        }
 
-        GetComponent<NetworkObject>().ChangeOwnership(requestingClientId);
+        GetComponent<NetworkObject>().ChangeOwnership(rpcParams.Receive.SenderClientId);
+        netIsDragging.Value = true;
         StartDraggingOwnerRpc();
     }
 
-    [Rpc(SendTo.Server)]
-    private void RequestResetOwnershipServerRpc()
+    // Overridable by subclasses that need to reject a drag start (e.g. item already picked up).
+    protected virtual bool CanStartDragging()
     {
-        GetComponent<NetworkObject>().ChangeOwnership(NetworkManager.ServerClientId);
+        return true;
+    }
+
+    [Rpc(SendTo.SpecifiedInParams)]
+    private void DenyDraggingRpc(RpcParams rpcParams = default)
+    {
+        draggableContext.PlayerInteraction.DenyDragging();
+    }
+
+    [Rpc(SendTo.Server)]
+    private void ResetNetIsDraggingServerRpc(RpcParams rpcParams = default)
+    {
+        var networkObject = GetComponent<NetworkObject>();
+
+        if (networkObject.OwnerClientId != rpcParams.Receive.SenderClientId)
+            return;
+
+        netIsDragging.Value = false;
     }
 
     [Rpc(SendTo.Owner)]
     private void StartDraggingOwnerRpc()
     {
+        Interact(draggableContext);
         StartDragging();
+        playerInteraction.ConfirmDragging(this);
     }
 
+    #endregion
 
     // Client Logic 
 
     private void StartDragging()
     {
-        if (netIsDragging.Value) return;
-
-        netIsDragging.Value = true;
         rb.useGravity = false;
         rb.linearDamping = 5f;
         rb.angularDamping = 10f;
@@ -192,7 +240,6 @@ public abstract class DraggableObject : InteractableObject
     {
         StopAllCoroutines();
 
-        netIsDragging.Value = false;
         rb.useGravity = true;
         rb.linearDamping = 0f;
         rb.angularDamping = 0.05f;
@@ -210,10 +257,10 @@ public abstract class DraggableObject : InteractableObject
         RestorePlayerAfterDragging();
         CleanupHoldPoint();
         playerInteraction.Undrag();
-        RequestResetOwnershipServerRpc();
+        ResetNetIsDraggingServerRpc();
     }
 
-    // Coroutines 
+    // Coroutines
 
     private IEnumerator LerpMassCoroutine(float from, float to, float duration)
     {
