@@ -19,6 +19,8 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
     [Header("Collision")]
     [SerializeField, Range(0f, 1f)] private float blockingContactMaxY = 0.7f;
+    [SerializeField, Min(0f)] private float itemPushSpeed = 1.5f;
+    [SerializeField, Min(0f)] private float itemPushMassInfluence = 0.3f;
 
     [Header("Gravity Settings")]
     [SerializeField, Min(1f)] private float gravityMultiplier = 1f;
@@ -33,6 +35,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     private bool listensToCrouchSync;
 
     private readonly List<Vector3> blockingContactNormals = new(8);
+    private readonly List<(Vector3 normal, float allowedIntoSpeed)> itemVelocityConstraints = new(8);
     private readonly RaycastHit[] groundHits = new RaycastHit[8];
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
@@ -84,9 +87,11 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     {
         bool isGrounded = IsGrounded();
 
+        CacheDraggedItemConstraints();
         Move(isGrounded);
         ApplyExtraGravity(isGrounded);
         blockingContactNormals.Clear();
+        itemVelocityConstraints.Clear();
     }
 
     private void Move(bool isGrounded)
@@ -108,6 +113,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         );
 
         horizontalVelocity = ClipVelocityAgainstBlockingContacts(horizontalVelocity);
+        horizontalVelocity = ApplyItemVelocityConstraints(horizontalVelocity);
 
         rb.linearVelocity = new Vector3(
             horizontalVelocity.x,
@@ -125,6 +131,32 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
             if (intoSurfaceSpeed < 0f)
                 velocity -= normal * intoSurfaceSpeed;
+        }
+
+        velocity.y = 0f;
+        return velocity;
+    }
+
+    // How fast the player may press into a given item: heavier items are pushed slower
+    // (same falloff shape the drag speed penalty uses).
+    private float GetItemPushSpeed(DraggableObject item)
+    {
+        return itemPushSpeed / (1f + item.Mass * itemPushMassInfluence);
+    }
+
+    // Same projection as the wall clip, but against a moving limit: the player may keep moving
+    // toward a draggable item as fast as the item itself is yielding (plus a push allowance for
+    // resting items). Pushing works and following a lagging carried item doesn't stutter.
+    // The constraint only removes velocity, it never adds any (allowedIntoSpeed <= 0).
+    private Vector3 ApplyItemVelocityConstraints(Vector3 velocity)
+    {
+        for (int i = 0; i < itemVelocityConstraints.Count; i++)
+        {
+            (Vector3 normal, float allowedIntoSpeed) constraint = itemVelocityConstraints[i];
+            float intoSpeed = Vector3.Dot(velocity, constraint.normal);
+
+            if (intoSpeed < constraint.allowedIntoSpeed)
+                velocity -= constraint.normal * (intoSpeed - constraint.allowedIntoSpeed);
         }
 
         velocity.y = 0f;
@@ -256,8 +288,101 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
         CacheBlockingContactNormals(collision);
     }
 
+    // Carried DraggableObjects have their physical contact with players disabled, so collision
+    // callbacks never fire for them. Detect them via overlap queries instead and constrain the
+    // player's velocity: approach no faster than the item actually yields (0 when it's pinned
+    // against a wall — brace and slide, no solver push, no stutter while it retreats).
+    private void CacheDraggedItemConstraints()
+    {
+        // Below this measured speed the item counts as pinned rather than yielding.
+        const float minItemYieldSpeed = 0.1f;
+
+        if (bodyCollider == null)
+            return;
+
+        List<DraggableObject> draggedObjects = DraggableObject.ActiveDraggedObjects;
+
+        if (draggedObjects.Count == 0)
+            return;
+
+        Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        Vector3 predictedOffset = horizontalVelocity * Time.fixedDeltaTime;
+        Transform bodyTransform = bodyCollider.transform;
+
+        for (int i = 0; i < draggedObjects.Count; i++)
+        {
+            DraggableObject draggedObject = draggedObjects[i];
+
+            if (draggedObject == null)
+                continue;
+
+            Collider[] itemColliders = draggedObject.Colliders;
+
+            for (int c = 0; c < itemColliders.Length; c++)
+            {
+                Collider itemCollider = itemColliders[c];
+
+                if (itemCollider == null || itemCollider.isTrigger)
+                    continue;
+
+                // Test the pose the player would reach next tick, so the clip kicks in
+                // before the capsule actually enters the item.
+                bool overlapped = Physics.ComputePenetration(
+                    bodyCollider,
+                    bodyTransform.position + predictedOffset,
+                    bodyTransform.rotation,
+                    itemCollider,
+                    itemCollider.transform.position,
+                    itemCollider.transform.rotation,
+                    out Vector3 direction,
+                    out float distance
+                );
+
+                if (!overlapped)
+                    continue;
+
+                // direction points from the item toward the player — same convention
+                // as collision contact normals cached below.
+                Vector3 normal = direction;
+
+                if (normal.y > blockingContactMaxY)
+                    continue;
+
+                normal.y = 0f;
+
+                if (normal.sqrMagnitude <= Mathf.Epsilon)
+                    continue;
+
+                normal = normal.normalized;
+
+                // Item's real speed away from the player along the contact normal.
+                float retreatSpeed = -Vector3.Dot(draggedObject.CurrentVelocity, normal);
+                float allowedIntoSpeed;
+
+                if (retreatSpeed > minItemYieldSpeed)
+                {
+                    // The item is yielding: allow pressing into it slightly faster than it moves —
+                    // the item's own separation push then carries it along (bulldozing).
+                    allowedIntoSpeed = -(retreatSpeed + GetItemPushSpeed(draggedObject));
+                }
+                else
+                {
+                    // The item is pinned (e.g. against a wall): hard brace, no sinking in.
+                    allowedIntoSpeed = Mathf.Min(-retreatSpeed, 0f);
+                }
+
+                itemVelocityConstraints.Add((normal, allowedIntoSpeed));
+            }
+        }
+    }
+
     private void CacheBlockingContactNormals(Collision collision)
     {
+        // Resting draggable items are not hard walls: instead of a full stop, the player gets a
+        // velocity constraint with a push allowance, so the body can shove them while still
+        // sliding along their surface.
+        DraggableObject draggable = collision.collider.GetComponentInParent<DraggableObject>();
+
         for (int i = 0; i < collision.contactCount; i++)
         {
             Vector3 normal = collision.GetContact(i).normal;
@@ -270,7 +395,21 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
             if (normal.sqrMagnitude <= Mathf.Epsilon)
                 continue;
 
-            blockingContactNormals.Add(normal.normalized);
+            normal = normal.normalized;
+
+            if (draggable != null)
+            {
+                float allowedIntoSpeed = Vector3.Dot(draggable.CurrentVelocity, normal) - GetItemPushSpeed(draggable);
+
+                if (allowedIntoSpeed > 0f)
+                    allowedIntoSpeed = 0f;
+
+                itemVelocityConstraints.Add((normal, allowedIntoSpeed));
+            }
+            else
+            {
+                blockingContactNormals.Add(normal);
+            }
         }
     }
 

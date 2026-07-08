@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -23,6 +24,45 @@ public abstract class DraggableObject : InteractableObject
     private Vector3 previousPosition;
     private InteractionContext draggableContext;
 
+    // Items currently being dragged on this client. PlayerController clips its velocity against
+    // them (physical contact is disabled while dragging, so the solver can't do it).
+    public static readonly List<DraggableObject> ActiveDraggedObjects = new(4);
+
+    public Collider[] Colliders
+    {
+        get { return itemColliders; }
+    }
+
+    // Real velocity of the item for player-side clipping. While dragged, rb.linearVelocity holds
+    // the commanded follow speed (nonzero even when a wall blocks the item), so the measured
+    // per-tick displacement is used instead.
+    public Vector3 CurrentVelocity
+    {
+        get
+        {
+            if (rb == null)
+                return Vector3.zero;
+
+            if (netIsDragging.Value)
+                return measuredVelocity;
+
+            return rb.linearVelocity;
+        }
+    }
+
+    private Vector3 measuredVelocity;
+
+    // Configured mass from data (rb.mass is temporarily lowered while a drag starts).
+    public float Mass
+    {
+        get { return originalMass; }
+    }
+
+    private Collider[] itemColliders;
+    private int playerLayerMask;
+    private readonly List<(Collider item, Collider player)> ignoredCollisionPairs = new(16);
+    private readonly Collider[] nearbyPlayerColliders = new Collider[8];
+
     private void OnValidate()
     {
         if (data != null)
@@ -32,14 +72,17 @@ public abstract class DraggableObject : InteractableObject
         }
     }
 
-    private void Awake()
-    {        
+    protected virtual void Awake()
+    {
         rb = GetComponent<Rigidbody>();
         rb.mass = ((DraggableObjectData)data).Mass;
         originalMass = ((DraggableObjectData)data).Mass;
 
         int samples = Mathf.Max(1, (int)((DraggableObjectData)data).ThrowVelocitySamples);
         velocityBuffer = new Vector3[samples]; //create buffer
+
+        itemColliders = GetComponentsInChildren<Collider>(true);
+        playerLayerMask = LayerMask.GetMask("Player");
     }
 
     private void FixedUpdate()
@@ -50,16 +93,253 @@ public abstract class DraggableObject : InteractableObject
             TickDragging();
     }
 
+    // Safety net: if a player still collides while dragging (spawned mid-drag, or IgnoreCollision
+    // got reset by a collider toggle), ignore that pair on the spot.
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!netIsDragging.Value) return;
+
+        if (collision.collider.GetComponentInParent<PlayerController>() == null) return;
+
+        IgnoreCollisionWith(collision.collider);
+    }
+
+    // While carried, the item must not physically touch players at all: any real contact either
+    // pushes the player (solver impulses, depenetration) or stops them (their blocking-normal clip).
+    // Collisions are ignored pairwise and the item slides around players manually instead.
+    private void HandleDraggingCollisionChanged(bool previousValue, bool newValue)
+    {
+        if (newValue)
+            EnableDraggedPhysicsMode();
+        else
+            DisableDraggedPhysicsMode();
+    }
+
+    private void EnableDraggedPhysicsMode()
+    {
+        IgnoreCollisionWithAllPlayers();
+
+        if (!ActiveDraggedObjects.Contains(this))
+            ActiveDraggedObjects.Add(this);
+    }
+
+    private void DisableDraggedPhysicsMode()
+    {
+        RestoreIgnoredCollisions();
+        ActiveDraggedObjects.Remove(this);
+    }
+
+    private void IgnoreCollisionWithAllPlayers()
+    {
+        PlayerController[] players = FindObjectsByType<PlayerController>(FindObjectsSortMode.None);
+
+        for (int i = 0; i < players.Length; i++)
+        {
+            Collider[] playerColliders = players[i].GetComponentsInChildren<Collider>();
+
+            for (int j = 0; j < playerColliders.Length; j++)
+                IgnoreCollisionWith(playerColliders[j]);
+        }
+    }
+
+    private void IgnoreCollisionWith(Collider playerCollider)
+    {
+        if (playerCollider.isTrigger) return;
+
+        for (int i = 0; i < itemColliders.Length; i++)
+        {
+            Collider itemCollider = itemColliders[i];
+
+            if (itemCollider.isTrigger) continue;
+
+            if (ignoredCollisionPairs.Contains((itemCollider, playerCollider))) continue;
+
+            Physics.IgnoreCollision(itemCollider, playerCollider, true);
+            ignoredCollisionPairs.Add((itemCollider, playerCollider));
+        }
+    }
+
+    private void RestoreIgnoredCollisions()
+    {
+        for (int i = 0; i < ignoredCollisionPairs.Count; i++)
+        {
+            (Collider item, Collider player) pair = ignoredCollisionPairs[i];
+
+            if (pair.item != null && pair.player != null)
+                Physics.IgnoreCollision(pair.item, pair.player, false);
+        }
+
+        ignoredCollisionPairs.Clear();
+    }
+
+    // Manual collide-and-slide against player capsules (same projection math the player uses
+    // against walls). Runs on the owner only, on the velocity the script is about to apply.
+    private Vector3 SlideAroundPlayers(Vector3 velocity)
+    {
+        float deltaTime = Time.fixedDeltaTime;
+        Bounds bounds = GetCombinedColliderBounds();
+        float searchRadius = bounds.extents.magnitude + velocity.magnitude * deltaTime + 0.1f;
+
+        int count = Physics.OverlapSphereNonAlloc(
+            bounds.center,
+            searchRadius,
+            nearbyPlayerColliders,
+            playerLayerMask,
+            QueryTriggerInteraction.Ignore
+        );
+
+        if (count == 0)
+            return velocity;
+
+        // Two passes handle being squeezed between two players (clipping against one may
+        // redirect the velocity into the other).
+        for (int iteration = 0; iteration < 2; iteration++)
+        {
+            bool clippedAny = false;
+            Vector3 predictedOffset = velocity * deltaTime;
+
+            for (int p = 0; p < count; p++)
+            {
+                Collider playerCollider = nearbyPlayerColliders[p];
+
+                if (playerCollider == null) continue;
+
+                for (int i = 0; i < itemColliders.Length; i++)
+                {
+                    Collider itemCollider = itemColliders[i];
+
+                    if (itemCollider.isTrigger) continue;
+
+                    Transform itemColliderTransform = itemCollider.transform;
+
+                    // Test the pose the item would have next tick, so entry is prevented
+                    // before any real overlap happens.
+                    bool overlapped = Physics.ComputePenetration(
+                        itemCollider,
+                        itemColliderTransform.position + predictedOffset,
+                        itemColliderTransform.rotation,
+                        playerCollider,
+                        playerCollider.transform.position,
+                        playerCollider.transform.rotation,
+                        out Vector3 separationDirection,
+                        out float separationDistance
+                    );
+
+                    if (!overlapped) continue;
+
+                    // separationDirection points away from the player, toward the item.
+                    float intoPlayerSpeed = Vector3.Dot(velocity, separationDirection);
+
+                    if (intoPlayerSpeed < 0f)
+                    {
+                        velocity -= separationDirection * intoPlayerSpeed;
+                        clippedAny = true;
+                    }
+                }
+            }
+
+            if (!clippedAny)
+                break;
+        }
+
+        velocity += ComputePlayerSeparationVelocity(count, deltaTime);
+
+        return velocity;
+    }
+
+    // If the item is already overlapping a player right now (lag, teleport), gently push
+    // the item out. The player is never moved.
+    private Vector3 ComputePlayerSeparationVelocity(int nearbyCount, float deltaTime)
+    {
+        const float maxSeparationSpeed = 2f;
+        Vector3 separationVelocity = Vector3.zero;
+
+        for (int p = 0; p < nearbyCount; p++)
+        {
+            Collider playerCollider = nearbyPlayerColliders[p];
+
+            if (playerCollider == null) continue;
+
+            for (int i = 0; i < itemColliders.Length; i++)
+            {
+                Collider itemCollider = itemColliders[i];
+
+                if (itemCollider.isTrigger) continue;
+
+                Transform itemColliderTransform = itemCollider.transform;
+
+                bool overlapped = Physics.ComputePenetration(
+                    itemCollider,
+                    itemColliderTransform.position,
+                    itemColliderTransform.rotation,
+                    playerCollider,
+                    playerCollider.transform.position,
+                    playerCollider.transform.rotation,
+                    out Vector3 separationDirection,
+                    out float separationDistance
+                );
+
+                if (!overlapped) continue;
+
+                float separationSpeed = Mathf.Min(separationDistance / deltaTime, maxSeparationSpeed);
+                separationVelocity += separationDirection * separationSpeed;
+            }
+        }
+
+        return Vector3.ClampMagnitude(separationVelocity, maxSeparationSpeed);
+    }
+
+    private Bounds GetCombinedColliderBounds()
+    {
+        Bounds bounds = new Bounds(rb.position, Vector3.zero);
+        bool hasBounds = false;
+
+        for (int i = 0; i < itemColliders.Length; i++)
+        {
+            Collider itemCollider = itemColliders[i];
+
+            if (itemCollider.isTrigger) continue;
+
+            if (hasBounds)
+            {
+                bounds.Encapsulate(itemCollider.bounds);
+            }
+            else
+            {
+                bounds = itemCollider.bounds;
+                hasBounds = true;
+            }
+        }
+
+        return bounds;
+    }
+
     public override void OnNetworkSpawn()
     {
         if (IsServer)
             NetworkManager.OnClientDisconnectCallback += HandleClientDisconnect;
+
+        // Runs on every client: non-owner proxies are kinematic (NetworkRigidbody) and would
+        // shove local players via the solver unless the pairs are ignored locally too.
+        netIsDragging.OnValueChanged += HandleDraggingCollisionChanged;
+
+        if (netIsDragging.Value)
+            EnableDraggedPhysicsMode();
     }
 
     public override void OnNetworkDespawn()
     {
         if (IsServer)
             NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnect;
+
+        netIsDragging.OnValueChanged -= HandleDraggingCollisionChanged;
+    }
+
+    public override void OnDestroy()
+    {
+        RestoreIgnoredCollisions();
+        ActiveDraggedObjects.Remove(this);
+        base.OnDestroy();
     }
 
     private void HandleClientDisconnect(ulong clientId)
@@ -210,6 +490,7 @@ public abstract class DraggableObject : InteractableObject
         rb.mass = 0.1f;
 
         previousPosition = rb.position;
+        measuredVelocity = Vector3.zero;
         ResetVelocityBuffer();
 
         StartCoroutine(LerpMassCoroutine(from: rb.mass, to: originalMass, duration: 0.4f));
@@ -230,10 +511,15 @@ public abstract class DraggableObject : InteractableObject
         velocityBuffer[velocityBufferIndex % velocityBuffer.Length] = frameVelocity;
         velocityBufferIndex++;
         previousPosition = rb.position;
+        measuredVelocity = frameVelocity;
 
         Vector3 delta = targetPos - rb.position;
         Vector3 desiredSpeed = delta * ((DraggableObjectData)data).FollowSpeedMultiplier;
-        rb.linearVelocity = Vector3.ClampMagnitude(desiredSpeed, ((DraggableObjectData)data).MaxFollowSpeed);
+
+        Vector3 followVelocity = Vector3.ClampMagnitude(desiredSpeed, ((DraggableObjectData)data).MaxFollowSpeed);
+        followVelocity = SlideAroundPlayers(followVelocity);
+
+        rb.linearVelocity = followVelocity;
     }
 
     private void StopDragging(bool applyThrow)

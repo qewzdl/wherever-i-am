@@ -22,8 +22,10 @@ public abstract class PickupItem : DraggableObject
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
 
-    private void Awake()
+    protected override void Awake()
     {
+        base.Awake();
+
         spawnPosition = transform.position;
         spawnRotation = transform.rotation;
     }

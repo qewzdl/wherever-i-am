@@ -233,6 +233,7 @@ public class CameraLook : MonoBehaviour
 
         if (pauseService != null && pauseService.IsPaused)
             return false;
+            
 
         if (requireLockedCursorToLook && Cursor.lockState != CursorLockMode.Locked)
             return false;
