@@ -64,3 +64,16 @@ Global (ProjectContext: Ready -> Dispose)
 8. Новый код не использует `Find*`, `Resources.Load`, `ProjectContext.Instance`, `AudioManager.Instance` или `NetworkManager.Singleton` как fallback service resolution.
 9. Static `Instance` у существующих классов считается migration API и не входит в контракт `G`.
 10. `G` не определяет network authority: каждый contract сохраняет server/client правила из ownership table.
+
+## ServiceScope semantics
+
+- `IServiceResolver` предоставляет только `Resolve` и `TryResolve`; регистрировать зависимости может только владелец `ServiceScope`.
+- Contract обязан быть interface. Регистрация concrete-типа завершается ошибкой.
+- Duplicate contract внутри одного scope всегда запрещён.
+- Shadowing parent contract запрещён по умолчанию. Он разрешается только явным `ServiceShadowingPolicy.Allow`; local service тогда имеет приоритет только внутри этого child scope.
+- `UnityOwned` service при unregister только удаляется из resolver. Его Unity lifecycle остаётся у scene, prefab или bootstrap owner.
+- `ScopeOwned` service получает cleanup ровно один раз. Он обязан реализовывать `IDisposable` либо получить явный cleanup callback. Один instance может предоставлять несколько interfaces внутри одного scope, но не может принадлежать двум scopes.
+- Registration handle позволяет удалить динамический NetworkObject service до закрытия всего scope.
+- Registration transaction откатывает все выполненные в ней регистрации в обратном порядке, если не был вызван `Commit`.
+- Dispose parent scope сначала закрывает child scopes в обратном порядке, затем собственные registrations.
+- После начала Dispose scope больше не разрешает Resolve, Register, создание child scope или новой transaction.
