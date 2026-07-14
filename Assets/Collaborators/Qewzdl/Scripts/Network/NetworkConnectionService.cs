@@ -6,7 +6,7 @@ using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 
-public class NetworkConnectionService : MonoBehaviour
+public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 {
     [Header("Network References")]
     [SerializeField] private NetworkManager networkManager;

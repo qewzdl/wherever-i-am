@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
 
-public class GameplaySoundManager : MonoBehaviour
+public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService
 {
     [Header("Mixer")]
     [SerializeField] private AudioMixerGroup gameplayMixerGroup;

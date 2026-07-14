@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
-public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionGate
+public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IProjectSceneLoadCompletionGate
 {
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
@@ -29,6 +29,8 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
     public GameMapDefinition ActiveMap => activeMap;
     public GameMapRoot ActiveMapRoot => activeMapRoot;
     public bool IsReadyForMatch => readyForMatch;
+
+    IGameMapCatalog IGameMapSessionService.Catalog => catalog;
 
     private void Awake()
     {

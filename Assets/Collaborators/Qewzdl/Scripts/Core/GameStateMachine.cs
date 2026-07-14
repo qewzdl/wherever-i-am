@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-public class GameStateMachine : MonoBehaviour
+public class GameStateMachine : MonoBehaviour, IGameStateService
 {
     public GameState CurrentState { get; private set; } = GameState.Bootstrapping;
 

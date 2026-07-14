@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class AudioManager : MonoBehaviour
+public class AudioManager : MonoBehaviour, IAudioService
 {
     public static AudioManager Instance { get; private set; }
 
@@ -15,6 +15,10 @@ public class AudioManager : MonoBehaviour
     public MusicManager Music => music;
     public UiSoundManager UI => ui;
     public GameplaySoundManager Gameplay => gameplay;
+
+    IMusicService IAudioService.Music => music;
+    IUiSoundService IAudioService.UI => ui;
+    IGameplaySoundService IAudioService.Gameplay => gameplay;
 
     private void Awake()
     {

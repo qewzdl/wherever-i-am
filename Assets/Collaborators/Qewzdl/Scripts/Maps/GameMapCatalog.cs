@@ -4,7 +4,7 @@ using UnityEngine;
 [CreateAssetMenu(
     fileName = "GameMapCatalog",
     menuName = "Wherever I Am/Maps/Game Map Catalog")]
-public sealed class GameMapCatalog : ScriptableObject
+public sealed class GameMapCatalog : ScriptableObject, IGameMapCatalog
 {
     [SerializeField] [Min(0)] private int defaultMapId;
     [SerializeField] private GameMapDefinition[] maps;

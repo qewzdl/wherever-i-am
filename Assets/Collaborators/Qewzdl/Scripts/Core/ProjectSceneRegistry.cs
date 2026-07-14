@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
-public sealed class ProjectSceneRegistry : MonoBehaviour
+public sealed class ProjectSceneRegistry : MonoBehaviour, IProjectSceneRegistry
 {
     [Header("Configuration")]
     [SerializeField] private ProjectSettings settings;

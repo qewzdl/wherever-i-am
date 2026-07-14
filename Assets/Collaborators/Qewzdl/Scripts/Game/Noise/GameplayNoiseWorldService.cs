@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
-public sealed class GameplayNoiseWorldService : MonoBehaviour
+public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseService
 {
     [Header("Storage")]
     [SerializeField, Min(1)] private int maxStoredNoises = 128;

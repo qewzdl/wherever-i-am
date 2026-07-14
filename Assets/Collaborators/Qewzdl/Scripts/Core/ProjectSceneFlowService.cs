@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class ProjectSceneFlowService : MonoBehaviour
+public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowService
 {
     [Header("References")]
     [SerializeField] private ProjectContext projectContext;

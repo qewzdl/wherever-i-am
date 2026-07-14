@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Audio;
 
-public class UiSoundManager : MonoBehaviour
+public class UiSoundManager : MonoBehaviour, IUiSoundService
 {
     [Header("Mixer")]
     [SerializeField] private AudioMixerGroup uiMixerGroup;
