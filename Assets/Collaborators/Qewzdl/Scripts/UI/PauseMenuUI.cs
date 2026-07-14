@@ -34,12 +34,20 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
         Construct(pauseService, sessionService);
     }
 
-    private void OnDestroy()
+    public void Dispose()
     {
         if (pauseService != null && pauseService.IsPaused)
             SetPlayerInputActive(true);
 
         Unsubscribe();
+        Hide();
+        pauseService = null;
+        sessionService = null;
+    }
+
+    private void OnDestroy()
+    {
+        Dispose();
     }
 
     private void Subscribe()
@@ -100,20 +108,19 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
     private void Show()
     {
         if (root != null)
-        {
             root.SetActive(true);
-            hudUI.HideHUD();
-        }
 
+        if (hudUI != null)
+            hudUI.HideHUD();
     }
 
     private void Hide()
     {
         if (root != null)
-        {
             root.SetActive(false);
+
+        if (hudUI != null)
             hudUI.ShowHUD();    
-        }
     }
 
     private void SetPlayerInputActive(bool value)
@@ -132,11 +139,6 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
             return playerInputHandler;
 
         playerInputHandler = PlayerInputHandler.Active;
-
-        if (playerInputHandler != null)
-            return playerInputHandler;
-
-        playerInputHandler = FindFirstObjectByType<PlayerInputHandler>();
         return playerInputHandler;
     }
 }

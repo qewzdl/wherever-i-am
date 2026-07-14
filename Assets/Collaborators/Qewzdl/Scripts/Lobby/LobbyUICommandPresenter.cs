@@ -10,6 +10,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
 
     private ILobbyReadService readService;
     private ILobbyCommandService commandService;
+    private bool constructed;
     private bool isSubscribed;
 
     public void Construct(
@@ -22,13 +23,26 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         this.lobbyUI = lobbyUI;
         this.readService = readService;
         this.commandService = commandService;
+        constructed = true;
 
         if (isActiveAndEnabled)
             Subscribe();
     }
 
+    public void Dispose()
+    {
+        Unsubscribe();
+        constructed = false;
+        lobbyUI = null;
+        readService = null;
+        commandService = null;
+    }
+
     private void OnEnable()
     {
+        if (!constructed)
+            return;
+
         ResolveSerializedSources();
         Subscribe();
     }
@@ -49,7 +63,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
 
     private void Subscribe()
     {
-        if (isSubscribed)
+        if (!constructed || isSubscribed)
             return;
 
         if (!HasRequiredReferences())

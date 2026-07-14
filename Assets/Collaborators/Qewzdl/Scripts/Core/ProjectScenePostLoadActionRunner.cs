@@ -15,6 +15,11 @@ public sealed class ProjectScenePostLoadActionRunner : MonoBehaviour
         networkManager = manager;
     }
 
+    public void DisposeComposition()
+    {
+        networkManager = null;
+    }
+
     public bool Validate(ProjectSceneServerAction[] actions)
     {
         if (actions == null || actions.Length == 0)

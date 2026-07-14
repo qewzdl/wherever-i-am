@@ -36,6 +36,9 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
 
     public bool Construct(NetworkManager manager)
     {
+        if (networkManager != manager && initialized)
+            Shutdown();
+
         networkManager = manager;
         invalidConfigurationLogged = false;
 
@@ -45,6 +48,23 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
         }
 
         return Initialize();
+    }
+
+    public void Shutdown()
+    {
+        if (clearOnDestroy)
+            Clear("shutdown");
+
+        SceneManager.sceneUnloaded -= HandleSceneUnloaded;
+        UnsubscribeFromNetworkCallbacks();
+        initialized = false;
+    }
+
+    public void DisposeRuntime()
+    {
+        Shutdown();
+        networkManager = null;
+        invalidConfigurationLogged = false;
     }
 
     public bool Initialize()
@@ -80,16 +100,6 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
         ValidateRuntimeDependencies();
     }
 
-    private void Start()
-    {
-        if (initialized)
-        {
-            return;
-        }
-
-        Initialize();
-    }
-
     private void OnEnable()
     {
         if (!initialized)
@@ -111,15 +121,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (clearOnDestroy)
-        {
-            Clear("destroy");
-        }
-
-        SceneManager.sceneUnloaded -= HandleSceneUnloaded;
-        UnsubscribeFromNetworkCallbacks();
-
-        initialized = false;
+        DisposeRuntime();
     }
 
     public bool ValidateRuntimeDependencies()

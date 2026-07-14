@@ -13,27 +13,68 @@ public class LobbyController : NetworkBehaviour
     private LobbyPlayerCustomizationService playerCustomizationService;
     private LobbySettingsService settingsService;
     private LobbyStartService startService;
+    private NetworkManager subscribedNetworkManager;
+    private bool networkCallbacksSubscribed;
 
     private void Awake()
     {
         ResolveReferences();
     }
 
-    public void Construct(INetworkSessionService sessionService)
+    public bool ValidateConfiguration()
     {
         ResolveReferences();
+
+        bool valid = true;
+
+        if (lobbyState == null)
+        {
+            Debug.LogError($"{nameof(LobbyController)} is missing {nameof(lobbyState)}.", this);
+            valid = false;
+        }
+
+        if (lobbyConfig == null)
+        {
+            Debug.LogError($"{nameof(LobbyController)} is missing {nameof(lobbyConfig)}.", this);
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    public bool Construct(INetworkSessionService sessionService)
+    {
+        if (!ValidateConfiguration())
+            return false;
 
         if (sessionService == null)
         {
             Debug.LogError("Network session service is missing.");
-            return;
+            return false;
         }
 
         if (this.sessionService == sessionService && IsConstructed(false))
-            return;
+            return true;
 
         this.sessionService = sessionService;
         CreateServices();
+
+        if (IsSpawned && IsServer)
+            InitializeServerRuntime();
+
+        return true;
+    }
+
+    public void Dispose()
+    {
+        UnsubscribeFromNetworkCallbacks();
+
+        sessionService = null;
+        ownershipService = null;
+        playerRegistry = null;
+        playerCustomizationService = null;
+        settingsService = null;
+        startService = null;
     }
 
     public override void OnNetworkSpawn()
@@ -42,30 +83,18 @@ public class LobbyController : NetworkBehaviour
 
         if (!IsConstructed()) return;
 
-        settingsService.InitializeFromConfig();
-
-        NetworkManager.OnClientConnectedCallback += HandleClientConnected;
-        NetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
-
-        playerRegistry.TryAddPlayer(NetworkManager.LocalClientId);
-        startService.RefreshCanStartGame();
+        InitializeServerRuntime();
     }
 
     public override void OnNetworkDespawn()
     {
-        if (NetworkManager == null || !IsServer) return;
-
-        NetworkManager.OnClientConnectedCallback -= HandleClientConnected;
-        NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+        UnsubscribeFromNetworkCallbacks();
     }
 
     private void ResolveReferences()
     {
         if (lobbyState == null)
             lobbyState = GetComponent<LobbyState>();
-
-        if (lobbyConfig == null)
-            Debug.LogError("LobbyConfig is not assigned.");
     }
 
     private void CreateServices()
@@ -77,6 +106,51 @@ public class LobbyController : NetworkBehaviour
         playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState);
         settingsService = new LobbySettingsService(lobbyState, lobbyConfig);
         startService = new LobbyStartService(lobbyState, startRules, sessionService);
+    }
+
+    private void InitializeServerRuntime()
+    {
+        if (!IsConstructed() || NetworkManager == null)
+            return;
+
+        settingsService.InitializeFromConfig();
+        SubscribeToNetworkCallbacks();
+
+        playerRegistry.TryAddPlayer(NetworkManager.LocalClientId);
+        startService.RefreshCanStartGame();
+    }
+
+    private void SubscribeToNetworkCallbacks()
+    {
+        NetworkManager manager = NetworkManager;
+
+        if (manager == null)
+            return;
+
+        if (networkCallbacksSubscribed && subscribedNetworkManager == manager)
+            return;
+
+        UnsubscribeFromNetworkCallbacks();
+
+        subscribedNetworkManager = manager;
+        subscribedNetworkManager.OnClientConnectedCallback += HandleClientConnected;
+        subscribedNetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+        networkCallbacksSubscribed = true;
+    }
+
+    private void UnsubscribeFromNetworkCallbacks()
+    {
+        if (!networkCallbacksSubscribed)
+            return;
+
+        if (subscribedNetworkManager != null)
+        {
+            subscribedNetworkManager.OnClientConnectedCallback -= HandleClientConnected;
+            subscribedNetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+        }
+
+        subscribedNetworkManager = null;
+        networkCallbacksSubscribed = false;
     }
 
     private bool IsConstructed()

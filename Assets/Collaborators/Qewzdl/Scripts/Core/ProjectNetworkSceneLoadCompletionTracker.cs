@@ -21,20 +21,33 @@ public sealed class ProjectNetworkSceneLoadCompletionTracker : MonoBehaviour
     public event Action<long, ProjectSceneKind, ProjectSceneServerAction[]> NetworkLoadCompleted;
     public event Action<long, ProjectSceneKind> NetworkLoadFailed;
 
-    private void Awake()
-    {
-        HasRequiredReferences();
-    }
-
     private void OnDisable()
     {
-        CancelPending();
+        Shutdown();
     }
 
     public void Construct(ProjectContext context, NetworkManager manager)
     {
+        Shutdown();
         projectContext = context;
         networkManager = manager;
+    }
+
+    public bool Initialize()
+    {
+        return HasRequiredReferences();
+    }
+
+    public void Shutdown()
+    {
+        CancelPending();
+    }
+
+    public void DisposeComposition()
+    {
+        Shutdown();
+        projectContext = null;
+        networkManager = null;
     }
 
     public bool Track(

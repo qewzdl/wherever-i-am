@@ -15,6 +15,12 @@ public class MainMenuUI : MonoBehaviour
         this.errorService = errorService;
     }
 
+    public void Dispose()
+    {
+        sessionService = null;
+        errorService = null;
+    }
+
     public async void OnCreateLobbyButtonClicked()
     {
         HideError();
@@ -68,16 +74,6 @@ public class MainMenuUI : MonoBehaviour
     private bool TryGetErrorService(out IUiErrorService service)
     {
         service = errorService;
-
-        if (service != null)
-            return true;
-
-        if (!UiErrorManager.TryGetInstance(out UiErrorManager uiErrorManager))
-            return false;
-
-        errorService = uiErrorManager;
-        service = errorService;
-
-        return true;
+        return service != null;
     }
 }

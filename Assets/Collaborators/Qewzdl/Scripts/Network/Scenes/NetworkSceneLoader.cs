@@ -14,6 +14,11 @@ public sealed class NetworkSceneLoader : MonoBehaviour
         projectContext = context;
     }
 
+    public void DisposeComposition()
+    {
+        projectContext = null;
+    }
+
     public bool LoadLobby()
     {
         return Load(ProjectSceneKind.Lobby);

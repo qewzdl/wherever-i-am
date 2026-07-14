@@ -1,10 +1,14 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class GameSceneFeature : SceneRuntimeFeature
 {
     [SerializeField] private SceneRuntimeFeature[] features;
 
-    protected override bool InstallFeature(ProjectContext context)
+    private SceneRuntimeFeature[] installedFeatures;
+    private int installedFeatureCount;
+
+    protected override bool ValidateFeature(ProjectContext context)
     {
         SceneRuntimeFeature[] sceneFeatures = ResolveFeatures();
 
@@ -14,6 +18,7 @@ public sealed class GameSceneFeature : SceneRuntimeFeature
             return false;
         }
 
+        HashSet<SceneRuntimeFeature> uniqueFeatures = new();
         bool valid = true;
 
         for (int i = 0; i < sceneFeatures.Length; i++)
@@ -34,17 +39,70 @@ public sealed class GameSceneFeature : SceneRuntimeFeature
                 continue;
             }
 
-            if (!feature.Install(context))
+            if (!uniqueFeatures.Add(feature))
             {
                 Debug.LogError(
-                    $"{nameof(GameSceneFeature)} failed to install gameplay feature '{feature.GetType().Name}'.",
+                    $"Gameplay feature '{feature.GetType().Name}' is registered more than once.",
                     feature);
 
                 valid = false;
+                continue;
             }
+
+            if (!feature.Validate(context))
+                valid = false;
         }
 
         return valid;
+    }
+
+    protected override bool InstallFeature(ProjectContext context)
+    {
+        installedFeatures = ResolveFeatures();
+        installedFeatureCount = 0;
+
+        for (int i = 0; i < installedFeatures.Length; i++)
+        {
+            SceneRuntimeFeature feature = installedFeatures[i];
+
+            if (feature != null && feature.Install(context))
+            {
+                installedFeatureCount++;
+                continue;
+            }
+
+            Debug.LogError(
+                $"{nameof(GameSceneFeature)} failed to install gameplay feature " +
+                $"'{(feature != null ? feature.GetType().Name : "Missing")}'.",
+                feature);
+
+            UninstallInstalledFeatures();
+            return false;
+        }
+
+        return true;
+    }
+
+    protected override void UninstallFeature()
+    {
+        UninstallInstalledFeatures();
+    }
+
+    private void UninstallInstalledFeatures()
+    {
+        if (installedFeatures == null)
+            return;
+
+        for (int i = installedFeatureCount - 1; i >= 0; i--)
+        {
+            SceneRuntimeFeature feature = installedFeatures[i];
+
+            if (feature != null)
+                feature.Uninstall();
+        }
+
+        installedFeatureCount = 0;
+        installedFeatures = null;
     }
 
     private SceneRuntimeFeature[] ResolveFeatures()

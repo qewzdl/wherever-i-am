@@ -15,6 +15,11 @@ public sealed class LocalSceneLoader : MonoBehaviour
         projectContext = context;
     }
 
+    public void DisposeComposition()
+    {
+        projectContext = null;
+    }
+
     public bool Load(ProjectSceneKind sceneKind)
     {
         if (!HasProjectContext())

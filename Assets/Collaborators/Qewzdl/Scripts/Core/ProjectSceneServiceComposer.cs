@@ -1,8 +1,9 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class ProjectSceneServiceComposer : MonoBehaviour
+public sealed class ProjectSceneServiceComposer : MonoBehaviour, IDisposable
 {
     [Header("Scene Services")]
     [SerializeField] private LocalSceneLoader localSceneLoader;
@@ -16,9 +17,11 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
     [SerializeField] private ProjectNetworkSceneLoadCompletionTracker networkLoadCompletionTracker;
     [SerializeField] private ProjectScenePostLoadActionRunner postLoadActionRunner;
 
+    private ProjectContext composedContext;
     private bool composing;
     private bool compositionFailureLogged;
     private bool composed;
+    private bool initialized;
 
     public LocalSceneLoader LocalSceneLoader => localSceneLoader;
     public NetworkSceneLoader NetworkSceneLoader => networkSceneLoader;
@@ -28,11 +31,27 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
     public ProjectSceneLoadExecutor SceneLoadExecutor => sceneLoadExecutor;
     public ProjectNetworkSceneLoadCompletionTracker NetworkLoadCompletionTracker => networkLoadCompletionTracker;
     public ProjectScenePostLoadActionRunner PostLoadActionRunner => postLoadActionRunner;
+    public bool IsComposed => composed;
+    public bool IsInitialized => initialized;
+
+    public bool Validate(ProjectContext projectContext, bool logErrors = true)
+    {
+        return HasRequiredReferences(projectContext, logErrors);
+    }
 
     public bool Compose(ProjectContext projectContext)
     {
         if (composed)
-            return true;
+        {
+            if (composedContext == projectContext)
+                return true;
+
+            Debug.LogError(
+                $"{nameof(ProjectSceneServiceComposer)} is already composed with another context.",
+                this);
+
+            return false;
+        }
 
         if (composing)
             return false;
@@ -43,7 +62,7 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
         {
             bool logErrors = !compositionFailureLogged;
 
-            if (!HasRequiredReferences(projectContext, logErrors))
+            if (!Validate(projectContext, logErrors))
             {
                 compositionFailureLogged = true;
                 return false;
@@ -69,6 +88,7 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
                 networkLoadCompletionTracker,
                 postLoadActionRunner);
 
+            composedContext = projectContext;
             compositionFailureLogged = false;
             composed = true;
             return true;
@@ -76,6 +96,68 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
         finally
         {
             composing = false;
+        }
+    }
+
+    public bool Initialize()
+    {
+        if (initialized)
+            return true;
+
+        if (!composed)
+        {
+            Debug.LogError($"{nameof(ProjectSceneServiceComposer)} must be composed before initialize.", this);
+            return false;
+        }
+
+        if (!networkLoadCompletionTracker.Initialize())
+            return false;
+
+        if (!sceneFlowService.Initialize())
+        {
+            networkLoadCompletionTracker.Shutdown();
+            return false;
+        }
+
+        initialized = true;
+        return true;
+    }
+
+    public void Shutdown()
+    {
+        RunCleanup(() => sceneFlowService?.Shutdown(), sceneFlowService);
+        RunCleanup(() => networkLoadCompletionTracker?.Shutdown(), networkLoadCompletionTracker);
+        initialized = false;
+    }
+
+    public void Dispose()
+    {
+        Shutdown();
+
+        RunCleanup(() => sceneFlowService?.DisposeComposition(), sceneFlowService);
+        RunCleanup(() => postLoadActionRunner?.DisposeComposition(), postLoadActionRunner);
+        RunCleanup(() => networkLoadCompletionTracker?.DisposeComposition(), networkLoadCompletionTracker);
+        RunCleanup(() => sceneLoadExecutor?.DisposeComposition(), sceneLoadExecutor);
+        RunCleanup(() => sceneTransitionValidator?.DisposeComposition(), sceneTransitionValidator);
+        RunCleanup(() => sceneNavigator?.DisposeComposition(), sceneNavigator);
+        RunCleanup(() => networkSceneLoader?.DisposeComposition(), networkSceneLoader);
+        RunCleanup(() => localSceneLoader?.DisposeComposition(), localSceneLoader);
+
+        composedContext = null;
+        composed = false;
+        composing = false;
+        compositionFailureLogged = false;
+    }
+
+    private void RunCleanup(Action cleanup, UnityEngine.Object owner)
+    {
+        try
+        {
+            cleanup?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, owner != null ? owner : this);
         }
     }
 
@@ -103,7 +185,7 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour
         return valid;
     }
 
-    private bool ValidateRequiredReference(Object reference, string fieldName, bool logError)
+    private bool ValidateRequiredReference(UnityEngine.Object reference, string fieldName, bool logError)
     {
         if (reference != null)
             return true;

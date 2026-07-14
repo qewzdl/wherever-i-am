@@ -21,6 +21,13 @@ public sealed class ProjectSceneNavigator : MonoBehaviour
         networkSceneLoader = networkLoader;
     }
 
+    public void DisposeComposition()
+    {
+        projectContext = null;
+        localSceneLoader = null;
+        networkSceneLoader = null;
+    }
+
     public bool Load(ProjectSceneKind sceneKind, ProjectSceneLoadMode loadMode)
     {
         if (!TryGetScene(sceneKind, out ProjectSceneDefinition scene))

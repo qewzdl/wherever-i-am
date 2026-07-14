@@ -6,7 +6,7 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
     [SerializeField] private PauseMenuUI pauseMenu;
     [SerializeField] private PauseServiceConsumer[] pauseConsumers;
 
-    protected override bool InstallFeature(ProjectContext context)
+    protected override bool ValidateFeature(ProjectContext context)
     {
         GameStateMachine stateMachine = context.StateMachine;
         INetworkSessionService sessionService = context.SessionService;
@@ -17,8 +17,19 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         valid &= RequireReference(stateMachine, nameof(ProjectContext.StateMachine));
         valid &= RequireService(sessionService, nameof(ProjectContext.SessionService));
 
-        if (!valid)
-            return false;
+        if (pauseConsumers != null)
+        {
+            for (int i = 0; i < pauseConsumers.Length; i++)
+                valid &= RequireReference(pauseConsumers[i], $"{nameof(pauseConsumers)}[{i}]");
+        }
+
+        return valid;
+    }
+
+    protected override bool InstallFeature(ProjectContext context)
+    {
+        GameStateMachine stateMachine = context.StateMachine;
+        INetworkSessionService sessionService = context.SessionService;
 
         pauseService.Construct(stateMachine);
         pauseMenu.Construct(pauseService, sessionService);
@@ -26,27 +37,38 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         return InstallPauseConsumers();
     }
 
+    protected override void UninstallFeature()
+    {
+        if (pauseConsumers != null)
+        {
+            for (int i = pauseConsumers.Length - 1; i >= 0; i--)
+            {
+                PauseServiceConsumer consumer = pauseConsumers[i];
+
+                if (consumer != null)
+                    RunCleanup(() => consumer.BindPauseService(null), consumer);
+            }
+        }
+
+        RunCleanup(() => pauseMenu?.Dispose(), pauseMenu);
+        RunCleanup(() => pauseService?.Dispose(), pauseService);
+    }
+
     private bool InstallPauseConsumers()
     {
         if (pauseConsumers == null)
             return true;
-
-        bool valid = true;
 
         for (int i = 0; i < pauseConsumers.Length; i++)
         {
             PauseServiceConsumer consumer = pauseConsumers[i];
 
             if (consumer == null)
-            {
-                LogMissingReference($"{nameof(pauseConsumers)}[{i}]");
-                valid = false;
                 continue;
-            }
 
             consumer.BindPauseService(pauseService);
         }
 
-        return valid;
+        return true;
     }
 }

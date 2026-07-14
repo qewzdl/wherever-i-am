@@ -24,6 +24,13 @@ public sealed class GamePauseService : MonoBehaviour, IPauseService
         SubscribeToStateMachine();
     }
 
+    public void Dispose()
+    {
+        Resume();
+        UnsubscribeFromStateMachine();
+        stateMachine = null;
+    }
+
     private void OnEnable()
     {
         SubscribeToStateMachine();

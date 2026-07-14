@@ -1,6 +1,6 @@
 public sealed class EnemyHearingSceneFeature : SceneRuntimeFeature
 {
-    protected override bool InstallFeature(ProjectContext context)
+    protected override bool ValidateFeature(ProjectContext context)
     {
         GameplayNoiseWorldService noiseWorldService = context.GameplayNoiseWorld;
 
@@ -18,6 +18,11 @@ public sealed class EnemyHearingSceneFeature : SceneRuntimeFeature
             return false;
         }
 
+        return true;
+    }
+
+    protected override bool InstallFeature(ProjectContext context)
+    {
         return true;
     }
 }

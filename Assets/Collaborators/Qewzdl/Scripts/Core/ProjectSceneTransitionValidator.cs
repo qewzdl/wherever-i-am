@@ -13,6 +13,12 @@ public sealed class ProjectSceneTransitionValidator : MonoBehaviour
         networkManager = manager;
     }
 
+    public void DisposeComposition()
+    {
+        projectContext = null;
+        networkManager = null;
+    }
+
     public bool TryGetTransition(
         ProjectSceneKind targetScene,
         out ProjectSceneDefinition scene,

@@ -19,11 +19,15 @@ public sealed class AppRuntime : MonoBehaviour
     [Header("Context")]
     [SerializeField] private ProjectContext context;
 
+    private readonly SceneRuntimeScopeRegistry sceneScopes = new();
     private ProjectSceneKind startupSceneOverride = ProjectSceneKind.Unknown;
     private bool runtimeStarted;
     private bool sceneEventsSubscribed;
+    private bool ownsRuntime;
 
     public static AppRuntime Instance => instance;
+    public bool IsRuntimeStarted => runtimeStarted;
+    public int SceneScopeCount => sceneScopes.Count;
 
     private void Awake()
     {
@@ -34,6 +38,7 @@ public sealed class AppRuntime : MonoBehaviour
         }
 
         instance = this;
+        ownsRuntime = true;
 
         if (!EnsureContext())
             return;
@@ -52,6 +57,11 @@ public sealed class AppRuntime : MonoBehaviour
     {
         UnsubscribeFromSceneEvents();
 
+        if (!ownsRuntime)
+            return;
+
+        ShutdownRuntime();
+
         if (instance == this)
             instance = null;
     }
@@ -62,22 +72,46 @@ public sealed class AppRuntime : MonoBehaviour
         startupSceneOverride = startupScene;
     }
 
-    public void StartRuntime()
+    public bool StartRuntime()
     {
         if (runtimeStarted)
-            return;
+            return context != null && context.IsReady;
 
         if (!EnsureContext())
-            return;
+            return false;
+
+        if (!context.StartRuntime())
+            return false;
 
         runtimeStarted = true;
 
-        context.ResolveReferences();
         ApplyStateForScene(SceneManager.GetActiveScene());
-        SceneRuntime.InstallActiveScene(context);
+        sceneScopes.Install(SceneManager.GetActiveScene(), context);
 
         if (loadStartupScene)
             LoadStartupSceneIfNeeded();
+
+        return true;
+    }
+
+    public void ShutdownRuntime()
+    {
+        DisposeSceneScopes();
+
+        if (context == null)
+            return;
+
+        context.ShutdownRuntime();
+        context.DisposeRuntime();
+    }
+
+    internal void DisposeSceneScopes(ProjectContext projectContext = null)
+    {
+        if (projectContext != null && projectContext != context)
+            return;
+
+        runtimeStarted = false;
+        sceneScopes.Dispose();
     }
 
     public void LoadScene(ProjectSceneKind sceneKind)
@@ -110,6 +144,7 @@ public sealed class AppRuntime : MonoBehaviour
             return;
 
         SceneManager.sceneLoaded += HandleSceneLoaded;
+        SceneManager.sceneUnloaded += HandleSceneUnloaded;
         sceneEventsSubscribed = true;
     }
 
@@ -119,6 +154,7 @@ public sealed class AppRuntime : MonoBehaviour
             return;
 
         SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneUnloaded -= HandleSceneUnloaded;
         sceneEventsSubscribed = false;
     }
 
@@ -183,8 +219,44 @@ public sealed class AppRuntime : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode loadMode)
     {
+        if (!runtimeStarted || context == null || !context.IsReady)
+            return;
+
         ApplyStateForScene(scene);
-        SceneRuntime.InstallScene(scene, context);
+        sceneScopes.Install(scene, context);
+    }
+
+    private void HandleSceneUnloaded(Scene scene)
+    {
+        sceneScopes.Uninstall(scene.handle);
+    }
+
+    internal bool InstallSceneScope(Scene scene, ProjectContext projectContext)
+    {
+        if (!runtimeStarted || context == null || !context.IsReady)
+        {
+            Debug.LogError(
+                $"Cannot install scene scope '{scene.name}' before {nameof(AppRuntime)} is ready.",
+                this);
+
+            return false;
+        }
+
+        if (projectContext != context)
+        {
+            Debug.LogError(
+                $"Cannot install scene scope '{scene.name}' with another {nameof(ProjectContext)}.",
+                this);
+
+            return false;
+        }
+
+        return sceneScopes.Install(scene, context);
+    }
+
+    internal bool UninstallSceneScope(int sceneHandle)
+    {
+        return sceneScopes.Uninstall(sceneHandle);
     }
 
     private void ApplyStateForScene(Scene scene)

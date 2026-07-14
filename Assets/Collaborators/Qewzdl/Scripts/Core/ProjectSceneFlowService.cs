@@ -15,6 +15,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
 
     private ProjectNetworkSceneLoadCompletionTracker subscribedNetworkLoadCompletionTracker;
     private bool networkLoadCompletionSubscribed;
+    private bool initialized;
     private long nextOperationId;
     private long activeOperationId;
     private bool hasActiveOperation;
@@ -24,20 +25,21 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
     public event Action<ProjectSceneKind> SceneLoadCompleted;
     public event Action<ProjectSceneKind> SceneLoadFailed;
 
-    private void Awake()
-    {
-        HasRequiredReferences();
-    }
-
     private void OnEnable()
     {
-        SubscribeToNetworkLoadCompletion();
+        if (initialized)
+        {
+            SubscribeToNetworkLoadCompletion();
+            return;
+        }
+
+        if (projectContext != null && projectContext.IsReady)
+            Initialize();
     }
 
     private void OnDisable()
     {
-        CancelPendingOperations(ProjectOperationCancelReason.OwnerDisabled);
-        UnsubscribeFromNetworkLoadCompletion();
+        Shutdown();
     }
 
     public void Construct(
@@ -48,7 +50,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         ProjectNetworkSceneLoadCompletionTracker loadCompletionTracker,
         ProjectScenePostLoadActionRunner actionRunner)
     {
-        UnsubscribeFromNetworkLoadCompletion();
+        Shutdown();
 
         projectContext = context;
         stateMachine = gameStateMachine;
@@ -57,12 +59,50 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         networkLoadCompletionTracker = loadCompletionTracker;
         postLoadActionRunner = actionRunner;
 
+    }
+
+    public bool Initialize()
+    {
+        if (initialized)
+            return true;
+
+        if (!HasRequiredReferences())
+            return false;
+
+        initialized = true;
+
         if (isActiveAndEnabled)
             SubscribeToNetworkLoadCompletion();
+
+        return true;
+    }
+
+    public void Shutdown()
+    {
+        CancelPendingOperations(ProjectOperationCancelReason.OwnerDisabled);
+        UnsubscribeFromNetworkLoadCompletion();
+        initialized = false;
+    }
+
+    public void DisposeComposition()
+    {
+        Shutdown();
+        projectContext = null;
+        stateMachine = null;
+        transitionValidator = null;
+        sceneLoadExecutor = null;
+        networkLoadCompletionTracker = null;
+        postLoadActionRunner = null;
     }
 
     public bool LoadScene(ProjectSceneKind targetScene)
     {
+        if (!initialized)
+        {
+            Debug.LogError($"{nameof(ProjectSceneFlowService)} is not initialized.", this);
+            return false;
+        }
+
         if (!HasRequiredReferences())
             return false;
 

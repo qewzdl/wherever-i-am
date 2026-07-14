@@ -1,9 +1,10 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
 [DefaultExecutionOrder(-1100)]
 [DisallowMultipleComponent]
-public sealed class ProjectContext : MonoBehaviour
+public sealed class ProjectContext : MonoBehaviour, IDisposable
 {
     private static ProjectContext instance;
 
@@ -26,158 +27,38 @@ public sealed class ProjectContext : MonoBehaviour
 
     private bool referencesValidated;
     private bool referenceValidationFailureLogged;
-    private bool sceneServicesComposing;
-    private bool sceneServicesComposed;
+    private bool ownsRuntimeContext;
 
     public static ProjectContext Instance => instance;
+    public ProjectRuntimeLifecycleState LifecycleState { get; private set; }
+    public bool IsReady => LifecycleState == ProjectRuntimeLifecycleState.Ready;
 
-    public ProjectSceneRegistry SceneRegistry
-    {
-        get
-        {
-            ResolveReferences();
-            return sceneRegistry;
-        }
-    }
-
-    public ProjectSettings Settings
-    {
-        get
-        {
-            ResolveReferences();
-            return sceneRegistry != null ? sceneRegistry.Settings : null;
-        }
-    }
-
-    public ProjectSceneFlow SceneFlow
-    {
-        get
-        {
-            ResolveReferences();
-            return sceneRegistry != null ? sceneRegistry.SceneFlow : null;
-        }
-    }
-
-    public NetworkManager NetworkManager
-    {
-        get
-        {
-            ResolveReferences();
-            return networkManager;
-        }
-    }
-
+    public ProjectSceneRegistry SceneRegistry => sceneRegistry;
+    public ProjectSettings Settings => sceneRegistry != null ? sceneRegistry.Settings : null;
+    public ProjectSceneFlow SceneFlow => sceneRegistry != null ? sceneRegistry.SceneFlow : null;
+    public NetworkManager NetworkManager => networkManager;
     public INetworkSessionService SessionService => SessionOrchestrator;
-
-    public GameStateMachine StateMachine
-    {
-        get
-        {
-            ResolveReferences();
-            return stateMachine;
-        }
-    }
-
-    public NetworkSessionOrchestrator SessionOrchestrator
-    {
-        get
-        {
-            ResolveReferences();
-            return sessionOrchestrator;
-        }
-    }
-
-    public NetworkConnectionService ConnectionService
-    {
-        get
-        {
-            ResolveReferences();
-            return connectionService;
-        }
-    }
-
-    public NetworkConnectionApprovalService ConnectionApprovalService
-    {
-        get
-        {
-            ResolveReferences();
-            return connectionApprovalService;
-        }
-    }
-
-    public LocalSceneLoader LocalSceneLoader
-    {
-        get
-        {
-            ResolveReferences();
-            return sceneServiceComposer != null ? sceneServiceComposer.LocalSceneLoader : null;
-        }
-    }
-
-    public NetworkSceneLoader NetworkSceneLoader
-    {
-        get
-        {
-            ResolveReferences();
-            return sceneServiceComposer != null ? sceneServiceComposer.NetworkSceneLoader : null;
-        }
-    }
-
+    public GameStateMachine StateMachine => stateMachine;
+    public NetworkSessionOrchestrator SessionOrchestrator => sessionOrchestrator;
+    public NetworkConnectionService ConnectionService => connectionService;
+    public NetworkConnectionApprovalService ConnectionApprovalService => connectionApprovalService;
+    public LocalSceneLoader LocalSceneLoader => sceneServiceComposer != null
+        ? sceneServiceComposer.LocalSceneLoader
+        : null;
+    public NetworkSceneLoader NetworkSceneLoader => sceneServiceComposer != null
+        ? sceneServiceComposer.NetworkSceneLoader
+        : null;
     public NetworkSceneLoader SceneLoader => NetworkSceneLoader;
-
-    public ProjectSceneNavigator SceneNavigator
-    {
-        get
-        {
-            ResolveReferences();
-            return sceneServiceComposer != null ? sceneServiceComposer.SceneNavigator : null;
-        }
-    }
-
-    public ProjectSceneFlowService SceneFlowService
-    {
-        get
-        {
-            ResolveReferences();
-            return sceneServiceComposer != null ? sceneServiceComposer.SceneFlowService : null;
-        }
-    }
-
-    public UiErrorManager UiErrors
-    {
-        get
-        {
-            ResolveReferences();
-            return uiErrorManager;
-        }
-    }
-
-    public AudioManager Audio
-    {
-        get
-        {
-            ResolveReferences();
-            return audioManager;
-        }
-    }
-
-    public GameplayNoiseWorldService GameplayNoiseWorld
-    {
-        get
-        {
-            ResolveReferences();
-            return gameplayNoiseWorldService;
-        }
-    }
-
-    public GameMapService GameMaps
-    {
-        get
-        {
-            ResolveReferences();
-            return gameMapService;
-        }
-    }
+    public ProjectSceneNavigator SceneNavigator => sceneServiceComposer != null
+        ? sceneServiceComposer.SceneNavigator
+        : null;
+    public ProjectSceneFlowService SceneFlowService => sceneServiceComposer != null
+        ? sceneServiceComposer.SceneFlowService
+        : null;
+    public UiErrorManager UiErrors => uiErrorManager;
+    public AudioManager Audio => audioManager;
+    public GameplayNoiseWorldService GameplayNoiseWorld => gameplayNoiseWorldService;
+    public GameMapService GameMaps => gameMapService;
 
     private void Awake()
     {
@@ -188,11 +69,22 @@ public sealed class ProjectContext : MonoBehaviour
         }
 
         instance = this;
-        ResolveReferences();
+        ownsRuntimeContext = true;
     }
 
     private void OnDestroy()
     {
+        if (!ownsRuntimeContext)
+            return;
+
+        AppRuntime runtime = AppRuntime.Instance;
+
+        if (runtime != null)
+            runtime.DisposeSceneScopes(this);
+
+        ShutdownRuntime();
+        DisposeRuntime();
+
         if (instance == this)
             instance = null;
     }
@@ -203,17 +95,85 @@ public sealed class ProjectContext : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    public bool ResolveReferences()
+    public bool StartRuntime()
     {
-        bool referencesReady = ValidateReferences();
+        if (IsReady)
+            return true;
 
-        if (!referencesReady)
+        if (IsLifecycleTransitionInProgress())
+        {
+            Debug.LogError(
+                $"{nameof(ProjectContext)} cannot start while lifecycle state is {LifecycleState}.",
+                this);
+
             return false;
+        }
 
-        if (!InitializeProjectServices())
-            return false;
+        try
+        {
+            LifecycleState = ProjectRuntimeLifecycleState.Validating;
 
-        return ComposeSceneServices();
+            if (!ValidateReferences())
+                return FailStartup("Validate");
+
+            LifecycleState = ProjectRuntimeLifecycleState.Composing;
+
+            if (!ComposeProjectServices())
+                return FailStartup("Compose");
+
+            LifecycleState = ProjectRuntimeLifecycleState.Initializing;
+
+            if (!InitializeProjectServices())
+                return FailStartup("Initialize");
+
+            LifecycleState = ProjectRuntimeLifecycleState.Ready;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+            return FailStartup(LifecycleState.ToString());
+        }
+    }
+
+    public void ShutdownRuntime()
+    {
+        if (LifecycleState == ProjectRuntimeLifecycleState.None ||
+            LifecycleState == ProjectRuntimeLifecycleState.Disposed ||
+            LifecycleState == ProjectRuntimeLifecycleState.ShuttingDown ||
+            LifecycleState == ProjectRuntimeLifecycleState.Disposing)
+        {
+            return;
+        }
+
+        LifecycleState = ProjectRuntimeLifecycleState.ShuttingDown;
+        ShutdownProjectServices();
+    }
+
+    public void Shutdown()
+    {
+        ShutdownRuntime();
+    }
+
+    public void DisposeRuntime()
+    {
+        if (LifecycleState == ProjectRuntimeLifecycleState.Disposed)
+            return;
+
+        if (LifecycleState != ProjectRuntimeLifecycleState.ShuttingDown)
+            ShutdownRuntime();
+
+        LifecycleState = ProjectRuntimeLifecycleState.Disposing;
+        DisposeProjectServices();
+
+        referencesValidated = false;
+        referenceValidationFailureLogged = false;
+        LifecycleState = ProjectRuntimeLifecycleState.Disposed;
+    }
+
+    public void Dispose()
+    {
+        DisposeRuntime();
     }
 
     public string GetSceneName(ProjectSceneKind sceneKind)
@@ -306,43 +266,93 @@ public sealed class ProjectContext : MonoBehaviour
         valid &= ValidateRequiredReference(gameplayNoiseWorldService, nameof(gameplayNoiseWorldService), logErrors);
         valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService), logErrors);
 
+        if (valid)
+            valid = sceneServiceComposer.Validate(this, logErrors);
+
         referencesValidated = valid;
         referenceValidationFailureLogged = !valid;
 
         return valid;
     }
 
+    private bool ComposeProjectServices()
+    {
+        return sceneServiceComposer != null && sceneServiceComposer.Compose(this);
+    }
+
     private bool InitializeProjectServices()
     {
+        if (sceneServiceComposer == null || !sceneServiceComposer.Initialize())
+            return false;
+
         return gameplayNoiseWorldService != null &&
                gameplayNoiseWorldService.Construct(networkManager);
     }
 
-    private bool ComposeSceneServices()
+    private void ShutdownProjectServices()
     {
-        if (sceneServicesComposed)
-            return true;
-
-        if (sceneServicesComposing)
-            return false;
-
-        if (sceneServiceComposer == null)
-            return false;
-
-        sceneServicesComposing = true;
+        try
+        {
+            gameplayNoiseWorldService?.Shutdown();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, gameplayNoiseWorldService);
+        }
 
         try
         {
-            sceneServicesComposed = sceneServiceComposer.Compose(this);
-            return sceneServicesComposed;
+            sceneServiceComposer?.Shutdown();
         }
-        finally
+        catch (Exception exception)
         {
-            sceneServicesComposing = false;
+            Debug.LogException(exception, sceneServiceComposer);
         }
     }
 
-    private bool ValidateRequiredReference(Object reference, string fieldName, bool logError)
+    private void DisposeProjectServices()
+    {
+        try
+        {
+            gameplayNoiseWorldService?.DisposeRuntime();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, gameplayNoiseWorldService);
+        }
+
+        try
+        {
+            sceneServiceComposer?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, sceneServiceComposer);
+        }
+    }
+
+    private bool FailStartup(string phase)
+    {
+        Debug.LogError($"{nameof(ProjectContext)} failed during {phase}. Rolling back bootstrap.", this);
+
+        ShutdownProjectServices();
+        DisposeProjectServices();
+
+        referencesValidated = false;
+        LifecycleState = ProjectRuntimeLifecycleState.Disposed;
+        return false;
+    }
+
+    private bool IsLifecycleTransitionInProgress()
+    {
+        return LifecycleState == ProjectRuntimeLifecycleState.Validating ||
+               LifecycleState == ProjectRuntimeLifecycleState.Composing ||
+               LifecycleState == ProjectRuntimeLifecycleState.Initializing ||
+               LifecycleState == ProjectRuntimeLifecycleState.ShuttingDown ||
+               LifecycleState == ProjectRuntimeLifecycleState.Disposing;
+    }
+
+    private bool ValidateRequiredReference(UnityEngine.Object reference, string fieldName, bool logError)
     {
         if (reference != null)
             return true;

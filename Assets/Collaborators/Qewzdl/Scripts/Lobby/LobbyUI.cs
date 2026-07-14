@@ -34,6 +34,14 @@ public class LobbyUI : MonoBehaviour
         Refresh();
     }
 
+    public void Dispose()
+    {
+        if (readService != null)
+            readService.LobbyChanged -= Refresh;
+
+        readService = null;
+    }
+
     private void Awake()
     {
         CacheReadyButtonLabel();
@@ -64,8 +72,7 @@ public class LobbyUI : MonoBehaviour
         if (leaveButton != null)
             leaveButton.onClick.RemoveListener(HandleLeaveLobbyClicked);
 
-        if (readService != null)
-            readService.LobbyChanged -= Refresh;
+        Dispose();
     }
 
     private void HandleReadyClicked()

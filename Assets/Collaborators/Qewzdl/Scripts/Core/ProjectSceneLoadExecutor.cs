@@ -13,6 +13,12 @@ public sealed class ProjectSceneLoadExecutor : MonoBehaviour
         networkManager = manager;
     }
 
+    public void DisposeComposition()
+    {
+        sceneNavigator = null;
+        networkManager = null;
+    }
+
     public bool ShouldTrackNetworkCompletion(ProjectSceneTransitionDefinition transition)
     {
         if (!HasRequiredReferences())

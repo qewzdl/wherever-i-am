@@ -8,6 +8,7 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     [SerializeField] private LobbyController lobbyController;
 
     private INetworkSessionService sessionService;
+    private bool constructed;
     private bool isSubscribedToLobbyState;
 
     public event Action LobbyChanged;
@@ -53,6 +54,9 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
 
     private void OnEnable()
     {
+        if (!constructed)
+            return;
+
         ResolveReferences();
         SubscribeToLobbyState();
     }
@@ -72,11 +76,21 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         this.lobbyState = lobbyState;
         this.lobbyController = lobbyController;
         this.sessionService = sessionService;
+        constructed = true;
 
         if (isActiveAndEnabled)
             SubscribeToLobbyState();
 
         RaiseLobbyChanged();
+    }
+
+    public void Dispose()
+    {
+        UnsubscribeFromLobbyState();
+        constructed = false;
+        lobbyState = null;
+        lobbyController = null;
+        sessionService = null;
     }
 
     public LobbyPlayerData GetPlayer(int index)
@@ -178,7 +192,7 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
 
     private void SubscribeToLobbyState()
     {
-        if (isSubscribedToLobbyState || lobbyState == null)
+        if (!constructed || isSubscribedToLobbyState || lobbyState == null)
             return;
 
         lobbyState.LobbyChanged += HandleLobbyChanged;
