@@ -17,5 +17,6 @@ public enum ConnectionErrorCode
 
     LobbySceneLoadFailed,
 
-    Unknown
+    Unknown,
+    Cancelled
 }

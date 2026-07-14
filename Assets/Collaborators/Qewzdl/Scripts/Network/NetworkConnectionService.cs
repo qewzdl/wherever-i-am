@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -12,16 +14,25 @@ public class NetworkConnectionService : MonoBehaviour
 
     [Header("Configuration")]
     [SerializeField] private NetworkConnectionConfig connectionConfig;
+    [SerializeField, Min(1f)] private float shutdownWarningTimeoutSeconds = 15f;
 
     private readonly Dictionary<ConnectionMode, IConnectionStrategy> strategies = new Dictionary<ConnectionMode, IConnectionStrategy>();
 
-    private IConnectionStrategy activeStrategy;
+    private CancellationTokenSource connectionAttemptCancellation;
+    private Task connectionAttemptTask = Task.CompletedTask;
+    private Task shutdownTask = Task.CompletedTask;
+    private bool immediateShutdownRequested;
 
     public bool IsHost => networkManager != null && networkManager.IsHost;
     public bool IsClient => networkManager != null && networkManager.IsClient;
     public bool IsServer => networkManager != null && networkManager.IsServer;
     public bool IsConnected => networkManager != null && networkManager.IsConnectedClient;
     public bool IsListening => networkManager != null && networkManager.IsListening;
+    public bool IsRunning => networkManager != null && !IsFullyStopped(networkManager);
+    public bool IsConnectionReady => networkManager != null &&
+                                     !networkManager.ShutdownInProgress &&
+                                     IsListening &&
+                                     (IsHost || IsServer || (IsClient && IsConnected));
 
     private void Awake()
     {
@@ -86,69 +97,243 @@ public class NetworkConnectionService : MonoBehaviour
             return result;
         }
 
+        CancellationTokenSource attemptCancellation = new CancellationTokenSource();
+        TaskCompletionSource<bool> attemptFinishedSource = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        connectionAttemptCancellation = attemptCancellation;
+        connectionAttemptTask = attemptFinishedSource.Task;
+
         ConnectionResult connectionResult;
+        bool attemptCancelled;
 
-        switch (config.Role)
+        try
         {
-            case ConnectionRole.Host:
-                connectionResult = await strategy.StartHostAsync(config);
-                break;
+            switch (config.Role)
+            {
+                case ConnectionRole.Host:
+                    connectionResult = await strategy.StartHostAsync(config, attemptCancellation.Token);
+                    break;
 
-            case ConnectionRole.Client:
-                connectionResult = await strategy.StartClientAsync(config);
-                break;
+                case ConnectionRole.Client:
+                    connectionResult = await strategy.StartClientAsync(config, attemptCancellation.Token);
+                    break;
 
-            case ConnectionRole.Server:
-                connectionResult = await strategy.StartServerAsync(config);
-                break;
+                case ConnectionRole.Server:
+                    connectionResult = await strategy.StartServerAsync(config, attemptCancellation.Token);
+                    break;
 
-            default:
-                connectionResult = ConnectionResult.Fail(
-                    ConnectionErrorCode.UnsupportedConnectionRole,
-                    "Failed to start the connection.",
-                    $"Unsupported connection role: {config.Role}.",
-                    false
-                );
-                break;
+                default:
+                    connectionResult = ConnectionResult.Fail(
+                        ConnectionErrorCode.UnsupportedConnectionRole,
+                        "Failed to start the connection.",
+                        $"Unsupported connection role: {config.Role}.",
+                        false
+                    );
+                    break;
+            }
         }
+        catch (OperationCanceledException)
+        {
+            connectionResult = CreateCancelledResult();
+        }
+        finally
+        {
+            attemptCancelled = attemptCancellation.IsCancellationRequested;
+
+            if (connectionAttemptCancellation == attemptCancellation)
+                connectionAttemptCancellation = null;
+
+            attemptCancellation.Dispose();
+            attemptFinishedSource.TrySetResult(true);
+
+            if (connectionAttemptTask == attemptFinishedSource.Task)
+                connectionAttemptTask = Task.CompletedTask;
+        }
+
+        if (attemptCancelled)
+            return CreateCancelledResult();
 
         if (connectionResult.Success)
         {
-            activeStrategy = strategy;
             RuntimeLog.Info(connectionResult.DebugMessage);
         }
         else
         {
             Debug.LogError(connectionResult.DebugMessage);
+
+            if (IsRunning)
+            {
+                try
+                {
+                    await ShutdownAndWaitAsync(NetworkShutdownMode.Immediate);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception, this);
+                }
+            }
         }
 
         return connectionResult;
     }
 
-    public void Shutdown()
+    public Task ShutdownAndWaitAsync(
+        NetworkShutdownMode mode = NetworkShutdownMode.Graceful)
     {
-        if (activeStrategy != null)
-        {
-            activeStrategy.Shutdown();
-            activeStrategy = null;
-
-            RuntimeLog.Info("Network shutdown by active strategy.");
-            return;
-        }
+        CancelPendingConnectionAttempt();
 
         if (networkManager == null)
-            return;
-
-        if (!networkManager.IsListening &&
-            !networkManager.IsClient &&
-            !networkManager.IsServer)
         {
+            return Task.FromException(
+                new InvalidOperationException(
+                    $"{nameof(NetworkConnectionService)} is missing {nameof(NetworkManager)}."));
+        }
+
+        if (!shutdownTask.IsCompleted)
+        {
+            if (mode == NetworkShutdownMode.Immediate && !immediateShutdownRequested)
+            {
+                immediateShutdownRequested = true;
+                networkManager.Shutdown(discardMessageQueue: true);
+            }
+
+            return shutdownTask;
+        }
+
+        Task pendingConnectionAttempt = connectionAttemptTask;
+
+        if (IsFullyStopped(networkManager) && pendingConnectionAttempt.IsCompleted)
+            return Task.CompletedTask;
+
+        immediateShutdownRequested = mode == NetworkShutdownMode.Immediate;
+        shutdownTask = ShutdownCoreAsync(networkManager, pendingConnectionAttempt);
+        return shutdownTask;
+    }
+
+    private async Task ShutdownCoreAsync(
+        NetworkManager manager,
+        Task pendingConnectionAttempt)
+    {
+        bool clientStopPending = manager.IsClient;
+        bool serverStopPending = manager.IsServer;
+
+        if (!clientStopPending && !serverStopPending)
+        {
+            manager.Shutdown(immediateShutdownRequested);
+            await WaitUntilFullyStoppedAsync(manager);
+            await pendingConnectionAttempt;
+            RuntimeLog.Info("Network shutdown.");
             return;
         }
 
-        networkManager.Shutdown();
+        TaskCompletionSource<bool> stoppedSource = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
+        void TryComplete()
+        {
+            if (!clientStopPending && !serverStopPending)
+                stoppedSource.TrySetResult(true);
+        }
+
+        void HandleClientStopped(bool wasHost)
+        {
+            clientStopPending = false;
+            TryComplete();
+        }
+
+        void HandleServerStopped(bool wasHost)
+        {
+            serverStopPending = false;
+            TryComplete();
+        }
+
+        manager.OnClientStopped += HandleClientStopped;
+        manager.OnServerStopped += HandleServerStopped;
+
+        try
+        {
+            if (IsFullyStopped(manager))
+                return;
+
+            manager.Shutdown(immediateShutdownRequested);
+            TryComplete();
+
+            Task fullyStoppedTask = WaitUntilFullyStoppedAsync(manager);
+            Task completedTask = await Task.WhenAny(stoppedSource.Task, fullyStoppedTask);
+
+            if (stoppedSource.Task.IsCompleted)
+            {
+                await stoppedSource.Task;
+            }
+            else
+            {
+                await completedTask;
+
+                Debug.LogWarning(
+                    "NetworkManager stopped without all expected OnClientStopped/OnServerStopped callbacks. " +
+                    $"Client stop pending: {clientStopPending}. Server stop pending: {serverStopPending}.",
+                    this);
+            }
+
+            await fullyStoppedTask;
+        }
+        finally
+        {
+            if (manager != null)
+            {
+                manager.OnClientStopped -= HandleClientStopped;
+                manager.OnServerStopped -= HandleServerStopped;
+            }
+        }
+
+        await pendingConnectionAttempt;
         RuntimeLog.Info("Network shutdown.");
+    }
+
+    private async Task WaitUntilFullyStoppedAsync(NetworkManager manager)
+    {
+        DateTime warningTime = DateTime.UtcNow.AddSeconds(shutdownWarningTimeoutSeconds);
+        bool warningLogged = false;
+
+        while (!IsFullyStopped(manager))
+        {
+            if (!warningLogged && DateTime.UtcNow >= warningTime)
+            {
+                warningLogged = true;
+                Debug.LogError(
+                    $"Network shutdown is still pending after {shutdownWarningTimeoutSeconds} seconds.",
+                    this);
+            }
+
+            await Task.Yield();
+        }
+    }
+
+    private void CancelPendingConnectionAttempt()
+    {
+        if (connectionAttemptCancellation == null)
+            return;
+
+        connectionAttemptCancellation.Cancel();
+    }
+
+    private static ConnectionResult CreateCancelledResult()
+    {
+        return ConnectionResult.Fail(
+            ConnectionErrorCode.Cancelled,
+            "Connection attempt was cancelled.",
+            "Network connection attempt was cancelled because the session is shutting down.",
+            true);
+    }
+
+    private static bool IsFullyStopped(NetworkManager manager)
+    {
+        return manager == null ||
+               (!manager.IsListening &&
+                !manager.IsClient &&
+                !manager.IsServer &&
+                !manager.ShutdownInProgress);
     }
 
     private bool TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error)
@@ -298,13 +483,33 @@ public class NetworkConnectionService : MonoBehaviour
             );
         }
 
-        if (networkManager.IsListening)
+        if (!IsFullyStopped(networkManager))
         {
             return ConnectionResult.Fail(
                 ConnectionErrorCode.NetworkAlreadyRunning,
                 "The network session is already running.",
                 "Network is already running.",
                 false
+            );
+        }
+
+        if (connectionAttemptCancellation != null)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.NetworkAlreadyRunning,
+                "A network connection attempt is already in progress.",
+                "Network connection attempt is already in progress.",
+                true
+            );
+        }
+
+        if (!shutdownTask.IsCompleted)
+        {
+            return ConnectionResult.Fail(
+                ConnectionErrorCode.NetworkAlreadyRunning,
+                "The previous network session is still shutting down.",
+                "Cannot start a connection while network shutdown is in progress.",
+                true
             );
         }
 

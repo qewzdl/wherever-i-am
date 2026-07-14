@@ -7,4 +7,5 @@ public interface INetworkSessionService
 
     void StartGame(int mapId);
     void ShutdownToMainMenu();
+    Task ShutdownToMainMenuAsync();
 }

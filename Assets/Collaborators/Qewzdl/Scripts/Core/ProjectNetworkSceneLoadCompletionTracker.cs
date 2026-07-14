@@ -14,36 +14,31 @@ public sealed class ProjectNetworkSceneLoadCompletionTracker : MonoBehaviour
     private bool networkSceneCallbackSubscribed;
 
     private bool hasPendingNetworkTransition;
+    private long pendingOperationId;
     private ProjectSceneKind pendingNetworkScene;
     private ProjectSceneServerAction[] pendingServerActionsAfterLoad;
 
-    public event Action<ProjectSceneKind, ProjectSceneServerAction[]> NetworkLoadCompleted;
+    public event Action<long, ProjectSceneKind, ProjectSceneServerAction[]> NetworkLoadCompleted;
+    public event Action<long, ProjectSceneKind> NetworkLoadFailed;
 
     private void Awake()
     {
         HasRequiredReferences();
     }
 
-    private void OnEnable()
-    {
-        TrySubscribeToNetworkSceneCallback(false);
-    }
-
     private void OnDisable()
     {
-        UnsubscribeFromNetworkSceneCallback();
+        CancelPending();
     }
 
     public void Construct(ProjectContext context, NetworkManager manager)
     {
         projectContext = context;
         networkManager = manager;
-
-        if (isActiveAndEnabled)
-            TrySubscribeToNetworkSceneCallback(false);
     }
 
     public bool Track(
+        long operationId,
         ProjectSceneKind scene,
         ProjectSceneServerAction[] serverActionsAfterLoad)
     {
@@ -59,9 +54,19 @@ public sealed class ProjectNetworkSceneLoadCompletionTracker : MonoBehaviour
             return false;
         }
 
+        if (hasPendingNetworkTransition)
+        {
+            Debug.LogError(
+                $"Cannot track network scene '{scene}' because another network transition is still pending.",
+                this);
+
+            return false;
+        }
+
         if (!TrySubscribeToNetworkSceneCallback(true))
             return false;
 
+        pendingOperationId = operationId;
         pendingNetworkScene = scene;
         pendingServerActionsAfterLoad = serverActionsAfterLoad;
         hasPendingNetworkTransition = true;
@@ -69,11 +74,18 @@ public sealed class ProjectNetworkSceneLoadCompletionTracker : MonoBehaviour
         return true;
     }
 
-    public void ClearPending()
+    private void ClearPending()
     {
+        pendingOperationId = 0;
         pendingNetworkScene = ProjectSceneKind.Unknown;
         pendingServerActionsAfterLoad = null;
         hasPendingNetworkTransition = false;
+    }
+
+    public void CancelPending()
+    {
+        ClearPending();
+        UnsubscribeFromNetworkSceneCallback();
     }
 
     private void HandleNetworkLoadEventCompleted(
@@ -96,10 +108,22 @@ public sealed class ProjectNetworkSceneLoadCompletionTracker : MonoBehaviour
         if (loadedScene != pendingNetworkScene)
             return;
 
+        long operationId = pendingOperationId;
         ProjectSceneServerAction[] actions = pendingServerActionsAfterLoad;
-        ClearPending();
+        bool clientsFailedToLoad = clientsTimedOut != null && clientsTimedOut.Count > 0;
+        CancelPending();
 
-        NetworkLoadCompleted?.Invoke(loadedScene, actions);
+        if (clientsFailedToLoad)
+        {
+            Debug.LogError(
+                $"Network scene '{loadedScene}' timed out for {clientsTimedOut.Count} client(s).",
+                this);
+
+            NetworkLoadFailed?.Invoke(operationId, loadedScene);
+            return;
+        }
+
+        NetworkLoadCompleted?.Invoke(operationId, loadedScene, actions);
     }
 
     private bool TrySubscribeToNetworkSceneCallback(bool logErrors)

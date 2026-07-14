@@ -38,8 +38,18 @@ public sealed class NetworkSceneLoader : MonoBehaviour
         if (!CanLoadNetworkScene())
             return false;
 
-        NetworkManager.Singleton.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
-        return true;
+        SceneEventProgressStatus status = NetworkManager.Singleton.SceneManager.LoadScene(
+            sceneName,
+            LoadSceneMode.Single);
+
+        if (status == SceneEventProgressStatus.Started)
+            return true;
+
+        Debug.LogError(
+            $"Failed to start network scene load for '{sceneKind}'. Status: {status}.",
+            this);
+
+        return false;
     }
 
     private bool TryGetSceneName(ProjectSceneKind sceneKind, out string sceneName)

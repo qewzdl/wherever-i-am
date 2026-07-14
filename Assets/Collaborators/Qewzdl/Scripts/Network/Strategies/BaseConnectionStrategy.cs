@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -15,39 +16,37 @@ public abstract class BaseConnectionStrategy : IConnectionStrategy
         this.transport = transport;
     }
 
-    public Task<ConnectionResult> StartHostAsync(ConnectionConfig config)
+    public Task<ConnectionResult> StartHostAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken)
     {
         ConnectionResult validationResult = Validate();
 
         if (!validationResult.Success) return Task.FromResult(validationResult);
 
-        return StartHostInternalAsync(config);
+        return StartHostInternalAsync(config, cancellationToken);
     }
 
-    public Task<ConnectionResult> StartClientAsync(ConnectionConfig config)
+    public Task<ConnectionResult> StartClientAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken)
     {
         ConnectionResult validationResult = Validate();
 
         if (!validationResult.Success) return Task.FromResult(validationResult);
 
-        return StartClientInternalAsync(config);
+        return StartClientInternalAsync(config, cancellationToken);
     }
 
-    public Task<ConnectionResult> StartServerAsync(ConnectionConfig config)
+    public Task<ConnectionResult> StartServerAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken)
     {
         ConnectionResult validationResult = Validate();
 
         if (!validationResult.Success) return Task.FromResult(validationResult);
 
-        return StartServerInternalAsync(config);
-    }
-
-    public virtual void Shutdown()
-    {
-        if (networkManager != null && networkManager.IsListening)
-        {
-            networkManager.Shutdown();
-        }
+        return StartServerInternalAsync(config, cancellationToken);
     }
 
     protected virtual ConnectionResult Validate()
@@ -99,7 +98,15 @@ public abstract class BaseConnectionStrategy : IConnectionStrategy
         ));
     }
 
-    protected abstract Task<ConnectionResult> StartHostInternalAsync(ConnectionConfig config);
-    protected abstract Task<ConnectionResult> StartClientInternalAsync(ConnectionConfig config);
-    protected abstract Task<ConnectionResult> StartServerInternalAsync(ConnectionConfig config);
+    protected abstract Task<ConnectionResult> StartHostInternalAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken);
+
+    protected abstract Task<ConnectionResult> StartClientInternalAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken);
+
+    protected abstract Task<ConnectionResult> StartServerInternalAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken);
 }

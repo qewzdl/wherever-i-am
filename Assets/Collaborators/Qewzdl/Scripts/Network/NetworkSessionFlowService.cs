@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -13,11 +12,9 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     [SerializeField] private NetworkConnectionService connectionService;
     [SerializeField] private ProjectSceneFlowService sceneFlowService;
     [SerializeField] private NetworkSessionDisconnectHandler disconnectHandler;
-    [SerializeField] private NetworkSessionFailureHandler failureHandler;
+    [SerializeField] private NetworkSessionShutdownCoordinator shutdownCoordinator;
     [SerializeField] private UiErrorManager errorManager;
     [SerializeField] private GameMapService gameMapService;
-
-    private Coroutine shutdownRoutine;
 
     private ProjectSceneFlowService subscribedSceneFlowService;
     private bool sceneFlowSubscribed;
@@ -50,24 +47,37 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
-        if (!sessionStateMachine.TryChangeState(NetworkSessionState.StartingHost, "Host LAN requested."))
+        if (!TryBeginSession(NetworkSessionState.StartingHost, "Host LAN requested."))
             return;
 
         stateMachine.ChangeState(GameState.Connecting);
+        disconnectHandler.StartListening();
 
         ConnectionResult result = await connectionService.StartHostAsync();
 
         if (!result.Success)
         {
-            Fail(result);
+            if (result.ErrorCode != ConnectionErrorCode.Cancelled)
+                await FailAsync(result);
+
             return;
         }
 
-        disconnectHandler.StartListening();
+        if (!connectionService.IsConnectionReady)
+        {
+            await FailAsync(CreateConnectionLostDuringStartupResult());
+            return;
+        }
+
+        if (!connectionService.IsConnectionReady)
+        {
+            await FailAsync(CreateConnectionLostDuringStartupResult());
+            return;
+        }
 
         if (!sceneFlowService.LoadScene(ProjectSceneKind.Lobby))
         {
-            Fail(ConnectionResult.Fail(
+            await FailAsync(ConnectionResult.Fail(
                 ConnectionErrorCode.LobbySceneLoadFailed,
                 "Failed to load the lobby.",
                 "Failed to load lobby scene.",
@@ -89,20 +99,33 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
-        if (!sessionStateMachine.TryChangeState(NetworkSessionState.StartingClient, "Join LAN requested."))
+        if (!TryBeginSession(NetworkSessionState.StartingClient, "Join LAN requested."))
             return;
 
         stateMachine.ChangeState(GameState.Connecting);
+        disconnectHandler.StartListening();
 
         ConnectionResult result = await connectionService.StartClientAsync(ip);
 
         if (!result.Success)
         {
-            Fail(result);
+            if (result.ErrorCode != ConnectionErrorCode.Cancelled)
+                await FailAsync(result);
+
             return;
         }
 
-        disconnectHandler.StartListening();
+        if (!connectionService.IsConnectionReady)
+        {
+            await FailAsync(CreateConnectionLostDuringStartupResult());
+            return;
+        }
+
+        if (!connectionService.IsConnectionReady)
+        {
+            await FailAsync(CreateConnectionLostDuringStartupResult());
+            return;
+        }
 
         RuntimeLog.Info(result.DebugMessage);
     }
@@ -123,7 +146,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
         if (!gameMapService.SelectMap(mapId))
         {
-            Fail(ConnectionResult.Fail(
+            _ = FailAsync(ConnectionResult.Fail(
                 ConnectionErrorCode.Unknown,
                 "Failed to select the game map.",
                 $"Invalid game map id: {mapId}.",
@@ -134,7 +157,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
         if (!sceneFlowService.LoadScene(ProjectSceneKind.Game))
         {
-            Fail(ConnectionResult.Fail(
+            _ = FailAsync(ConnectionResult.Fail(
                 ConnectionErrorCode.Unknown,
                 "Failed to load the game.",
                 "Failed to load game scene.",
@@ -145,37 +168,15 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
     public void ShutdownToMainMenu()
     {
-        if (!HasRequiredReferences())
-            return;
-
-        if (shutdownRoutine != null)
-            return;
-
-        shutdownRoutine = StartCoroutine(ShutdownToMainMenuRoutine());
+        _ = ShutdownToMainMenuAsync();
     }
 
-    private IEnumerator ShutdownToMainMenuRoutine()
+    public Task ShutdownToMainMenuAsync()
     {
-        if (!sessionStateMachine.TryChangeState(NetworkSessionState.Disconnecting, "Shutdown to main menu requested."))
-        {
-            shutdownRoutine = null;
-            yield break;
-        }
+        if (!HasRequiredReferences())
+            return Task.CompletedTask;
 
-        stateMachine.ChangeState(GameState.Disconnecting);
-
-        disconnectHandler.StopListening();
-        connectionService.Shutdown();
-
-        yield return null;
-
-        if (!sceneFlowService.LoadScene(ProjectSceneKind.MainMenu))
-        {
-            sessionStateMachine.TryChangeState(NetworkSessionState.Failed, "Failed to load main menu after network shutdown.");
-            Debug.LogError("Failed to load main menu after network shutdown.", this);
-        }
-
-        shutdownRoutine = null;
+        return shutdownCoordinator.ShutdownAndWaitAsync(NetworkShutdownMode.Graceful);
     }
 
     private void HandleSceneLoadCompleted(ProjectSceneKind scene)
@@ -207,13 +208,25 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
     private void HandleSceneLoadFailed(ProjectSceneKind scene)
     {
-        if (scene != ProjectSceneKind.Game ||
-            sessionStateMachine.CurrentState != NetworkSessionState.LoadingGame)
+        NetworkSessionState state = sessionStateMachine.CurrentState;
+
+        if (scene == ProjectSceneKind.Lobby &&
+            (state == NetworkSessionState.StartingHost ||
+             state == NetworkSessionState.StartingClient))
         {
+            _ = FailAsync(ConnectionResult.Fail(
+                ConnectionErrorCode.LobbySceneLoadFailed,
+                "Failed to load the lobby.",
+                "Lobby scene loading did not complete for all clients.",
+                true));
+
             return;
         }
 
-        Fail(ConnectionResult.Fail(
+        if (scene != ProjectSceneKind.Game || state != NetworkSessionState.LoadingGame)
+            return;
+
+        _ = FailAsync(ConnectionResult.Fail(
             ConnectionErrorCode.Unknown,
             "Failed to load the selected map.",
             "Game map loading did not complete.",
@@ -221,14 +234,44 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         ));
     }
 
-    private void Fail(ConnectionResult result)
+    private Task FailAsync(ConnectionResult result)
     {
-        disconnectHandler.StopListening();
+        return shutdownCoordinator.ShutdownAndWaitAsync(result);
+    }
 
-        if (sessionStateMachine.CurrentState != NetworkSessionState.Failed)
-            sessionStateMachine.TryChangeState(NetworkSessionState.Failed, result.DebugMessage);
+    private static ConnectionResult CreateConnectionLostDuringStartupResult()
+    {
+        return ConnectionResult.Fail(
+            ConnectionErrorCode.ConnectionFailed,
+            "Connection was interrupted while the session was starting.",
+            "NetworkManager stopped between connection completion and session callback registration.",
+            true);
+    }
 
-        failureHandler.FailAndReturnToMainMenu(result);
+    private bool TryBeginSession(NetworkSessionState startingState, string reason)
+    {
+        if (!sessionStateMachine.CanStartConnection)
+        {
+            Debug.LogWarning(
+                $"Cannot start a network session from state '{sessionStateMachine.CurrentState}'.",
+                this);
+
+            return false;
+        }
+
+        if (!shutdownCoordinator.TryOpenSessionScope())
+            return false;
+
+        if (sessionStateMachine.TryChangeState(startingState, reason))
+            return true;
+
+        _ = shutdownCoordinator.ShutdownAndWaitAsync(ConnectionResult.Fail(
+            ConnectionErrorCode.Unknown,
+            "Failed to start the network session.",
+            $"Failed to enter session state '{startingState}'.",
+            true));
+
+        return false;
     }
 
     private void SubscribeToSceneFlowService()
@@ -272,7 +315,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         valid &= ValidateRequiredReference(connectionService, nameof(connectionService));
         valid &= ValidateRequiredReference(sceneFlowService, nameof(sceneFlowService));
         valid &= ValidateRequiredReference(disconnectHandler, nameof(disconnectHandler));
-        valid &= ValidateRequiredReference(failureHandler, nameof(failureHandler));
+        valid &= ValidateRequiredReference(shutdownCoordinator, nameof(shutdownCoordinator));
         valid &= ValidateRequiredReference(errorManager, nameof(errorManager));
         valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService));
 

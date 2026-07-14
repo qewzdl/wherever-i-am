@@ -1,14 +1,10 @@
+using System.Threading.Tasks;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 public sealed class NetworkSessionFailureHandler : MonoBehaviour
 {
-    [Header("References")]
-    [SerializeField] private GameStateMachine stateMachine;
-    [SerializeField] private NetworkSessionStateMachine sessionStateMachine;
-    [SerializeField] private NetworkConnectionService connectionService;
-    [SerializeField] private ProjectSceneFlowService sceneFlowService;
-    [SerializeField] private UiErrorManager errorManager;
+    [SerializeField] private NetworkSessionShutdownCoordinator shutdownCoordinator;
 
     private void Awake()
     {
@@ -24,40 +20,27 @@ public sealed class NetworkSessionFailureHandler : MonoBehaviour
             true
         );
 
-        FailAndReturnToMainMenu(result);
+        _ = FailAndReturnToMainMenuAsync(result);
     }
 
     public void FailAndReturnToMainMenu(ConnectionResult result)
     {
+        _ = FailAndReturnToMainMenuAsync(result);
+    }
+
+    public Task FailAndReturnToMainMenuAsync(ConnectionResult result)
+    {
         if (!HasRequiredReferences())
-            return;
+            return Task.CompletedTask;
 
-        Debug.LogWarning(result.DebugMessage, this);
-
-        if (sessionStateMachine.CurrentState != NetworkSessionState.Failed)
-            sessionStateMachine.TryChangeState(NetworkSessionState.Failed, result.DebugMessage);
-
-        stateMachine.ChangeState(GameState.Error);
-
-        connectionService.Shutdown();
-
-        if (!sceneFlowService.LoadScene(ProjectSceneKind.MainMenu))
-            Debug.LogError("Failed to load main menu after network failure.", this);
-
-        errorManager.ShowError(result.UserMessage);
+        return shutdownCoordinator.ShutdownAndWaitAsync(result);
     }
 
     private bool HasRequiredReferences()
     {
-        bool valid = true;
+        ResolveReferences();
 
-        valid &= ValidateRequiredReference(stateMachine, nameof(stateMachine));
-        valid &= ValidateRequiredReference(sessionStateMachine, nameof(sessionStateMachine));
-        valid &= ValidateRequiredReference(connectionService, nameof(connectionService));
-        valid &= ValidateRequiredReference(sceneFlowService, nameof(sceneFlowService));
-        valid &= ValidateRequiredReference(errorManager, nameof(errorManager));
-
-        return valid;
+        return ValidateRequiredReference(shutdownCoordinator, nameof(shutdownCoordinator));
     }
 
     private bool ValidateRequiredReference(Object reference, string fieldName)
@@ -68,4 +51,17 @@ public sealed class NetworkSessionFailureHandler : MonoBehaviour
         Debug.LogError($"{nameof(NetworkSessionFailureHandler)} is missing '{fieldName}'.", this);
         return false;
     }
+
+    private void ResolveReferences()
+    {
+        if (shutdownCoordinator == null)
+            shutdownCoordinator = GetComponent<NetworkSessionShutdownCoordinator>();
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        ResolveReferences();
+    }
+#endif
 }

@@ -15,6 +15,11 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
 
     private ProjectNetworkSceneLoadCompletionTracker subscribedNetworkLoadCompletionTracker;
     private bool networkLoadCompletionSubscribed;
+    private long nextOperationId;
+    private long activeOperationId;
+    private bool hasActiveOperation;
+
+    public bool HasPendingOperation => hasActiveOperation;
 
     public event Action<ProjectSceneKind> SceneLoadCompleted;
     public event Action<ProjectSceneKind> SceneLoadFailed;
@@ -31,6 +36,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
 
     private void OnDisable()
     {
+        CancelPendingOperations(ProjectOperationCancelReason.OwnerDisabled);
         UnsubscribeFromNetworkLoadCompletion();
     }
 
@@ -60,6 +66,15 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         if (!HasRequiredReferences())
             return false;
 
+        if (hasActiveOperation)
+        {
+            Debug.LogError(
+                $"Cannot load scene '{targetScene}' because another project scene operation is still pending.",
+                this);
+
+            return false;
+        }
+
         if (!transitionValidator.TryGetTransition(
                 targetScene,
                 out ProjectSceneDefinition scene,
@@ -72,44 +87,91 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         if (!ValidateCompletionGates(scene.Kind))
             return false;
 
+        long operationId = BeginOperation();
+
         bool shouldTrackNetworkCompletion = sceneLoadExecutor.ShouldTrackNetworkCompletion(transition);
 
         if (shouldTrackNetworkCompletion &&
-            !networkLoadCompletionTracker.Track(scene.Kind, transition.ServerActionsAfterLoad))
+            !networkLoadCompletionTracker.Track(
+                operationId,
+                scene.Kind,
+                transition.ServerActionsAfterLoad))
+        {
+            EndOperation(operationId);
             return false;
+        }
 
         stateMachine.ChangeState(transition.StateBeforeLoad);
 
         if (!sceneLoadExecutor.Load(scene, transition))
         {
             if (shouldTrackNetworkCompletion)
-                networkLoadCompletionTracker.ClearPending();
+                networkLoadCompletionTracker.CancelPending();
 
+            EndOperation(operationId);
             return false;
         }
 
         if (shouldTrackNetworkCompletion)
             return true;
 
-        BeginCompletion(scene.Kind, transition.ServerActionsAfterLoad, 0);
+        BeginCompletion(operationId, scene.Kind, transition.ServerActionsAfterLoad, 0);
         return true;
     }
 
+    public void CancelPendingOperations(ProjectOperationCancelReason reason)
+    {
+        long cancelledOperationId = activeOperationId;
+        hasActiveOperation = false;
+        activeOperationId = 0;
+
+        if (networkLoadCompletionTracker != null)
+        {
+            try
+            {
+                networkLoadCompletionTracker.CancelPending();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception, networkLoadCompletionTracker);
+            }
+        }
+
+        CancelCompletionGates(reason);
+
+        if (cancelledOperationId != 0)
+        {
+            RuntimeLog.Info(
+                $"Cancelled project scene operation {cancelledOperationId}. Reason: {reason}.",
+                this);
+        }
+    }
+
     private void HandleNetworkLoadCompleted(
+        long operationId,
         ProjectSceneKind loadedScene,
         ProjectSceneServerAction[] serverActionsAfterLoad)
     {
         if (!HasRequiredReferences())
             return;
 
-        BeginCompletion(loadedScene, serverActionsAfterLoad, 0);
+        BeginCompletion(operationId, loadedScene, serverActionsAfterLoad, 0);
+    }
+
+    private void HandleNetworkLoadFailed(long operationId, ProjectSceneKind loadedScene)
+    {
+        FailCompletion(operationId, loadedScene, nameof(ProjectNetworkSceneLoadCompletionTracker));
     }
 
     private void BeginCompletion(
+        long operationId,
         ProjectSceneKind loadedScene,
         ProjectSceneServerAction[] serverActionsAfterLoad,
         int startIndex)
     {
+        if (!IsOperationActive(operationId))
+            return;
+
         if (completionGates != null)
         {
             for (int i = startIndex; i < completionGates.Length; i++)
@@ -130,29 +192,40 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
                     {
                         callbackInvoked = true;
 
+                        if (!IsOperationActive(operationId))
+                            return;
+
                         if (success)
                         {
-                            BeginCompletion(loadedScene, serverActionsAfterLoad, nextIndex);
+                            BeginCompletion(
+                                operationId,
+                                loadedScene,
+                                serverActionsAfterLoad,
+                                nextIndex);
                             return;
                         }
 
-                        FailCompletion(loadedScene, gate);
+                        FailCompletion(operationId, loadedScene, gate.GetType().Name);
                     });
 
                 if (!started && !callbackInvoked)
-                    FailCompletion(loadedScene, gate);
+                    FailCompletion(operationId, loadedScene, gate.GetType().Name);
 
                 return;
             }
         }
 
-        CompleteLoadNow(loadedScene, serverActionsAfterLoad);
+        CompleteLoadNow(operationId, loadedScene, serverActionsAfterLoad);
     }
 
     private void CompleteLoadNow(
+        long operationId,
         ProjectSceneKind loadedScene,
         ProjectSceneServerAction[] serverActionsAfterLoad)
     {
+        if (!EndOperation(operationId))
+            return;
+
         ApplyTargetState(loadedScene);
         postLoadActionRunner.Run(loadedScene, serverActionsAfterLoad);
         SceneLoadCompleted?.Invoke(loadedScene);
@@ -192,10 +265,18 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
         return true;
     }
 
-    private void FailCompletion(ProjectSceneKind sceneKind, IProjectSceneLoadCompletionGate gate)
+    private void FailCompletion(
+        long operationId,
+        ProjectSceneKind sceneKind,
+        string sourceName)
     {
+        if (!EndOperation(operationId))
+            return;
+
+        networkLoadCompletionTracker.CancelPending();
+
         Debug.LogError(
-            $"{nameof(ProjectSceneFlowService)} completion gate '{gate.GetType().Name}' failed for scene '{sceneKind}'.",
+            $"{nameof(ProjectSceneFlowService)} completion source '{sourceName}' failed for scene '{sceneKind}'.",
             this);
 
         stateMachine.ChangeState(GameState.Error);
@@ -226,6 +307,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
 
         subscribedNetworkLoadCompletionTracker = networkLoadCompletionTracker;
         subscribedNetworkLoadCompletionTracker.NetworkLoadCompleted += HandleNetworkLoadCompleted;
+        subscribedNetworkLoadCompletionTracker.NetworkLoadFailed += HandleNetworkLoadFailed;
         networkLoadCompletionSubscribed = true;
     }
 
@@ -235,10 +317,63 @@ public sealed class ProjectSceneFlowService : MonoBehaviour
             return;
 
         if (subscribedNetworkLoadCompletionTracker != null)
+        {
             subscribedNetworkLoadCompletionTracker.NetworkLoadCompleted -= HandleNetworkLoadCompleted;
+            subscribedNetworkLoadCompletionTracker.NetworkLoadFailed -= HandleNetworkLoadFailed;
+        }
 
         subscribedNetworkLoadCompletionTracker = null;
         networkLoadCompletionSubscribed = false;
+    }
+
+    private long BeginOperation()
+    {
+        nextOperationId++;
+
+        if (nextOperationId == 0)
+            nextOperationId++;
+
+        activeOperationId = nextOperationId;
+        hasActiveOperation = true;
+        return activeOperationId;
+    }
+
+    private bool EndOperation(long operationId)
+    {
+        if (!IsOperationActive(operationId))
+            return false;
+
+        hasActiveOperation = false;
+        activeOperationId = 0;
+        return true;
+    }
+
+    private bool IsOperationActive(long operationId)
+    {
+        return hasActiveOperation &&
+               operationId != 0 &&
+               activeOperationId == operationId;
+    }
+
+    private void CancelCompletionGates(ProjectOperationCancelReason reason)
+    {
+        if (completionGates == null)
+            return;
+
+        for (int i = 0; i < completionGates.Length; i++)
+        {
+            if (completionGates[i] is IProjectSceneLoadCompletionGate gate)
+            {
+                try
+                {
+                    gate.CancelPending(reason);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception, completionGates[i]);
+                }
+            }
+        }
     }
 
     private bool HasRequiredReferences()

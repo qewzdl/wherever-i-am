@@ -34,6 +34,7 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
 
         subscribedNetworkManager = networkManager;
         subscribedNetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+        subscribedNetworkManager.OnTransportFailure += HandleTransportFailure;
         networkCallbacksSubscribed = true;
     }
 
@@ -43,7 +44,10 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
             return;
 
         if (subscribedNetworkManager != null)
+        {
             subscribedNetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+            subscribedNetworkManager.OnTransportFailure -= HandleTransportFailure;
+        }
 
         subscribedNetworkManager = null;
         networkCallbacksSubscribed = false;
@@ -81,6 +85,24 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
             StopListening();
             failureHandler.FailAndReturnToMainMenu("Disconnected from network session.");
         }
+    }
+
+    private void HandleTransportFailure()
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        NetworkSessionState state = sessionStateMachine.CurrentState;
+
+        if (state == NetworkSessionState.Disconnecting ||
+            state == NetworkSessionState.Failed ||
+            state == NetworkSessionState.Offline)
+        {
+            return;
+        }
+
+        StopListening();
+        failureHandler.FailAndReturnToMainMenu("Network transport failed.");
     }
 
     private bool HasRequiredReferences()

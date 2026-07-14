@@ -14,10 +14,13 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
     private GameMapDefinition selectedMap;
     private GameMapDefinition activeMap;
     private GameMapRoot activeMapRoot;
+    private readonly HashSet<string> cancelledMapLoads = new HashSet<string>(
+        StringComparer.OrdinalIgnoreCase);
     private Action<bool> pendingCompletion;
     private bool localLoadRequested;
     private bool networkLoadSubscribed;
     private bool readyForMatch;
+    private int operationVersion;
 
     public event Action MapReady;
 
@@ -42,8 +45,7 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
     {
         SceneManager.sceneLoaded -= HandleUnitySceneLoaded;
         SceneManager.sceneUnloaded -= HandleUnitySceneUnloaded;
-        UnsubscribeFromNetworkLoad();
-        CompletePending(false);
+        CancelPending(ProjectOperationCancelReason.OwnerDisabled);
     }
 
     public bool SelectMap(int mapId)
@@ -134,6 +136,8 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
 
         pendingCompletion = completed;
         readyForMatch = false;
+        operationVersion++;
+        cancelledMapLoads.Remove(selectedMap.SceneName);
         SubscribeToNetworkLoad();
 
         SceneEventProgressStatus status = networkManager.SceneManager.LoadScene(
@@ -185,13 +189,21 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
         pendingCompletion = completed;
         readyForMatch = false;
         localLoadRequested = true;
+        int requestedOperationVersion = ++operationVersion;
+        GameMapDefinition requestedMap = selectedMap;
+        cancelledMapLoads.Remove(requestedMap.SceneName);
 
         AsyncOperation operation = SceneManager.LoadSceneAsync(
             selectedMap.SceneName,
             LoadSceneMode.Additive);
 
         if (operation != null)
+        {
+            operation.completed += _ =>
+                HandleLocalLoadOperationCompleted(requestedOperationVersion, requestedMap);
+
             return true;
+        }
 
         localLoadRequested = false;
         CompletePending(false);
@@ -203,19 +215,21 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
         if (catalog != null &&
             catalog.TryGetMap(scene.name, scene.path, out GameMapDefinition loadedMap))
         {
-            CacheLoadedMap(scene, loadedMap);
-
-            if (networkManager == null || !networkManager.IsListening)
+            if (cancelledMapLoads.Remove(scene.name))
             {
-                localLoadRequested = false;
-                bool success = activeMapRoot != null;
-                readyForMatch = success;
-                CompletePending(success);
+                AsyncOperation unloadOperation = SceneManager.UnloadSceneAsync(scene);
 
-                if (success)
-                    MapReady?.Invoke();
+                if (unloadOperation == null)
+                {
+                    Debug.LogError(
+                        $"Failed to unload cancelled map scene '{scene.name}'.",
+                        this);
+                }
+
+                return;
             }
 
+            CacheLoadedMap(scene, loadedMap);
             return;
         }
 
@@ -260,7 +274,8 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
         List<ulong> clientsCompleted,
         List<ulong> clientsTimedOut)
     {
-        if (selectedMap == null ||
+        if (pendingCompletion == null ||
+            selectedMap == null ||
             loadSceneMode != LoadSceneMode.Additive ||
             !string.Equals(sceneName, selectedMap.SceneName, StringComparison.OrdinalIgnoreCase))
         {
@@ -287,6 +302,56 @@ public sealed class GameMapService : MonoBehaviour, IProjectSceneLoadCompletionG
         Debug.LogError(
             $"Network map load for '{selectedMap.DisplayName}' did not complete successfully for all clients.",
             this);
+    }
+
+    public void CancelPending(ProjectOperationCancelReason reason)
+    {
+        bool hadPendingOperation = pendingCompletion != null ||
+                                   localLoadRequested ||
+                                   networkLoadSubscribed;
+
+        if (hadPendingOperation && selectedMap != null)
+            cancelledMapLoads.Add(selectedMap.SceneName);
+
+        operationVersion++;
+        localLoadRequested = false;
+        readyForMatch = false;
+        pendingCompletion = null;
+        UnsubscribeFromNetworkLoad();
+
+        if (hadPendingOperation && activeMap == selectedMap && !readyForMatch)
+        {
+            activeMap = null;
+            activeMapRoot = null;
+        }
+
+        if (hadPendingOperation)
+            RuntimeLog.Info($"Cancelled pending game map operation. Reason: {reason}.", this);
+    }
+
+    private void HandleLocalLoadOperationCompleted(
+        int requestedOperationVersion,
+        GameMapDefinition requestedMap)
+    {
+        if (requestedOperationVersion != operationVersion ||
+            !localLoadRequested ||
+            pendingCompletion == null ||
+            requestedMap == null)
+        {
+            return;
+        }
+
+        localLoadRequested = false;
+
+        Scene loadedScene = SceneManager.GetSceneByName(requestedMap.SceneName);
+        CacheLoadedMap(loadedScene, requestedMap);
+
+        bool success = activeMapRoot != null;
+        readyForMatch = success;
+        CompletePending(success);
+
+        if (success)
+            MapReady?.Invoke();
     }
 
     private void CacheLoadedMap(Scene scene)

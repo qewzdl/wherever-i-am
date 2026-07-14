@@ -151,6 +151,7 @@ GameObject:
   - component: {fileID: 481142998}
   - component: {fileID: 481143004}
   - component: {fileID: 481143002}
+  - component: {fileID: 481143006}
   - component: {fileID: 481143001}
   - component: {fileID: 481143000}
   - component: {fileID: 481142999}
@@ -231,6 +232,7 @@ MonoBehaviour:
   networkManager: {fileID: 481142982}
   transport: {fileID: 481142983}
   connectionConfig: {fileID: 11400000, guid: beb199e8898ed1a4c98f5c4cc163236d, type: 2}
+  shutdownWarningTimeoutSeconds: 15
 --- !u!114 &481142982
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -569,11 +571,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 18924964e5370c64dacf3218936dc478, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  stateMachine: {fileID: 481142978}
-  sessionStateMachine: {fileID: 481143004}
-  connectionService: {fileID: 481142981}
-  sceneFlowService: {fileID: 481142992}
-  errorManager: {fileID: 1020719287}
+  shutdownCoordinator: {fileID: 481143006}
 --- !u!114 &481143001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -607,9 +605,27 @@ MonoBehaviour:
   connectionService: {fileID: 481142981}
   sceneFlowService: {fileID: 481142992}
   disconnectHandler: {fileID: 481143001}
-  failureHandler: {fileID: 481143000}
+  shutdownCoordinator: {fileID: 481143006}
   errorManager: {fileID: 1020719287}
   gameMapService: {fileID: 481143005}
+--- !u!114 &481143006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4147914c86a4e74b46e3830488f7b6c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  stateMachine: {fileID: 481142978}
+  sessionStateMachine: {fileID: 481143004}
+  connectionService: {fileID: 481142981}
+  sceneFlowService: {fileID: 481142992}
+  disconnectHandler: {fileID: 481143001}
+  errorManager: {fileID: 1020719287}
 --- !u!114 &481143003
 MonoBehaviour:
   m_ObjectHideFlags: 0

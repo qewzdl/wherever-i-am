@@ -60,6 +60,14 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         sessionFlowService.ShutdownToMainMenu();
     }
 
+    public Task ShutdownToMainMenuAsync()
+    {
+        if (!HasRequiredReferences())
+            return Task.CompletedTask;
+
+        return sessionFlowService.ShutdownToMainMenuAsync();
+    }
+
     private bool HasRequiredReferences()
     {
         ResolveReferences();

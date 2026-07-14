@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -11,8 +12,13 @@ public class LanConnectionStrategy : BaseConnectionStrategy
 
     public LanConnectionStrategy(NetworkManager networkManager, UnityTransport transport) : base(networkManager, transport) {}
 
-    protected override Task<ConnectionResult> StartHostInternalAsync(ConnectionConfig config)
+    protected override Task<ConnectionResult> StartHostInternalAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromResult(CreateCancelledResult());
+
         transport.SetConnectionData(
             config.Address,
             config.Port,
@@ -31,7 +37,9 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             );
     }
 
-    protected override async Task<ConnectionResult> StartClientInternalAsync(ConnectionConfig config)
+    protected override async Task<ConnectionResult> StartClientInternalAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(config.Address))
         {
@@ -63,12 +71,18 @@ public class LanConnectionStrategy : BaseConnectionStrategy
         return await StartClientAndWaitForConnectionAsync(
             ip,
             config.Port,
-            config.ClientConnectionTimeoutSeconds
+            config.ClientConnectionTimeoutSeconds,
+            cancellationToken
         );
     }
 
-    protected override Task<ConnectionResult> StartServerInternalAsync(ConnectionConfig config)
+    protected override Task<ConnectionResult> StartServerInternalAsync(
+        ConnectionConfig config,
+        CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromResult(CreateCancelledResult());
+
         transport.SetConnectionData(
             config.Address,
             config.Port,
@@ -90,9 +104,11 @@ public class LanConnectionStrategy : BaseConnectionStrategy
     private async Task<ConnectionResult> StartClientAndWaitForConnectionAsync(
         string ip,
         ushort port,
-        float timeoutSeconds)
+        float timeoutSeconds,
+        CancellationToken cancellationToken)
     {
-        TaskCompletionSource<ConnectionResult> completion = new TaskCompletionSource<ConnectionResult>();
+        TaskCompletionSource<ConnectionResult> completion = new TaskCompletionSource<ConnectionResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
         void HandleClientConnected(ulong clientId)
         {
@@ -122,11 +138,37 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             ));
         }
 
+        void HandleTransportFailure()
+        {
+            completion.TrySetResult(ConnectionResult.Fail(
+                ConnectionErrorCode.ConnectionFailed,
+                "Network transport failed while connecting.",
+                $"LAN transport failed while connecting to {ip}:{port}.",
+                true));
+        }
+
+        void HandleClientStopped(bool wasHost)
+        {
+            completion.TrySetResult(ConnectionResult.Fail(
+                ConnectionErrorCode.ConnectionFailed,
+                "Connection stopped while the session was starting.",
+                $"LAN client stopped while connecting to {ip}:{port}.",
+                true));
+        }
+
         networkManager.OnClientConnectedCallback += HandleClientConnected;
         networkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+        networkManager.OnTransportFailure += HandleTransportFailure;
+        networkManager.OnClientStopped += HandleClientStopped;
+
+        using CancellationTokenRegistration cancellationRegistration = cancellationToken.Register(
+            () => completion.TrySetResult(CreateCancelledResult()));
 
         try
         {
+            if (cancellationToken.IsCancellationRequested)
+                return CreateCancelledResult();
+
             bool started = networkManager.StartClient();
 
             if (!started)
@@ -146,8 +188,11 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             if (completedTask == completion.Task)
                 return await completion.Task;
 
-            if (networkManager.IsListening)
-                networkManager.Shutdown();
+            if (completion.Task.IsCompleted)
+                return await completion.Task;
+
+            if (cancellationToken.IsCancellationRequested)
+                return CreateCancelledResult();
 
             return ConnectionResult.Fail(
                 ConnectionErrorCode.ConnectionTimeout,
@@ -160,6 +205,8 @@ public class LanConnectionStrategy : BaseConnectionStrategy
         {
             networkManager.OnClientConnectedCallback -= HandleClientConnected;
             networkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+            networkManager.OnTransportFailure -= HandleTransportFailure;
+            networkManager.OnClientStopped -= HandleClientStopped;
         }
     }
 
@@ -196,5 +243,14 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             return string.Empty;
 
         return reason;
+    }
+
+    private static ConnectionResult CreateCancelledResult()
+    {
+        return ConnectionResult.Fail(
+            ConnectionErrorCode.Cancelled,
+            "Connection attempt was cancelled.",
+            "LAN connection attempt was cancelled because the session is shutting down.",
+            true);
     }
 }
