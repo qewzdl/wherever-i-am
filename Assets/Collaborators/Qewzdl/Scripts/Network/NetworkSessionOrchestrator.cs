@@ -57,6 +57,17 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         return sessionFlowService.ShutdownToMainMenuAsync();
     }
 
+    internal Task ShutdownAfterFailureAsync(ConnectionResult failure)
+    {
+        if (failure == null)
+            throw new ArgumentNullException(nameof(failure));
+
+        if (!HasRequiredReferences())
+            return Task.CompletedTask;
+
+        return sessionFlowService.ShutdownAfterFailureAsync(failure);
+    }
+
     internal bool ConfigureSessionScopeController(
         ServiceScope globalScope,
         IGameMapSessionService gameMapService,

@@ -184,6 +184,17 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         return shutdownCoordinator.ShutdownAndWaitAsync(NetworkShutdownMode.Graceful);
     }
 
+    internal Task ShutdownAfterFailureAsync(ConnectionResult failure)
+    {
+        if (failure == null)
+            throw new ArgumentNullException(nameof(failure));
+
+        if (!HasRequiredReferences())
+            return Task.CompletedTask;
+
+        return shutdownCoordinator.ShutdownAndWaitAsync(failure);
+    }
+
     internal bool ConfigureSessionScopeController(
         ServiceScope globalScope,
         IGameMapSessionService maps,

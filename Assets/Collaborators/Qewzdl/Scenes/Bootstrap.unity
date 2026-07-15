@@ -436,6 +436,7 @@ MonoBehaviour:
   networkLoadCompletionTracker: {fileID: 481142997}
   postLoadActionRunner: {fileID: 481142998}
   completionGates:
+  - {fileID: 481142987}
   - {fileID: 481143005}
 --- !u!114 &481142993
 MonoBehaviour:

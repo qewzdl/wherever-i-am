@@ -252,16 +252,29 @@ public sealed class ProjectContext : MonoBehaviour
             return false;
         }
 
+        bool isMapScene = IsGameMapScene(scene);
+
+        if (!ProjectSceneScopePolicy.TryGetRequirements(
+                sceneKind,
+                isMapScene,
+                out ProjectSceneScopeRequirements requirements))
+        {
+            Debug.LogError(
+                $"Scene '{GetSceneLabel(scene)}' has no service scope policy. " +
+                $"Configured kind: {sceneKind}.",
+                this);
+
+            return false;
+        }
+
+        scopeParent = requirements.Parent;
         ServiceScope parentScope;
 
-        if (sceneKind == ProjectSceneKind.MainMenu)
+        if (scopeParent == SceneServiceScopeParent.Global)
         {
             parentScope = globalServiceScope;
-            scopeParent = SceneServiceScopeParent.Global;
         }
-        else if (sceneKind == ProjectSceneKind.Lobby ||
-                 sceneKind == ProjectSceneKind.Game ||
-                 IsGameMapScene(scene))
+        else
         {
             if (sessionOrchestrator == null ||
                 !sessionOrchestrator.TryGetSessionServiceScope(out parentScope))
@@ -273,17 +286,6 @@ public sealed class ProjectContext : MonoBehaviour
 
                 return false;
             }
-
-            scopeParent = SceneServiceScopeParent.Session;
-        }
-        else
-        {
-            Debug.LogError(
-                $"Scene '{GetSceneLabel(scene)}' has no service scope parent policy. " +
-                $"Configured kind: {sceneKind}.",
-                this);
-
-            return false;
         }
 
         if (parentScope == null || parentScope.IsDisposed)

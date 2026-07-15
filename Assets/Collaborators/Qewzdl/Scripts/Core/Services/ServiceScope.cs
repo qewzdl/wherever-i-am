@@ -217,6 +217,15 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
         return false;
     }
 
+    internal bool HasLocalRegistration<TContract>() where TContract : class
+    {
+        EnsureActive();
+
+        Type contractType = typeof(TContract);
+        ValidateContractType(contractType);
+        return services.ContainsKey(contractType);
+    }
+
     public void Dispose()
     {
         DisposeInternal(true);

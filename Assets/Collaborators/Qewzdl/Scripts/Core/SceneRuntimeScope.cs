@@ -19,6 +19,7 @@ internal sealed class SceneRuntimeScope : IDisposable
     private readonly SceneServiceRegistrar serviceRegistrar;
     private readonly SceneFeatureContext featureContext;
     private readonly SceneRuntimeFeature[] features;
+    private readonly Func<ServiceScope, bool> readyValidator;
     private AudioServiceComposition audioComposition;
     private int installedFeatureCount;
     private bool disposed;
@@ -31,7 +32,8 @@ internal sealed class SceneRuntimeScope : IDisposable
         SceneServiceScopeParent parent,
         ServiceScope services,
         SceneRuntimeFeature[] sceneFeatures,
-        Func<SceneFeatureContext, bool> scopeUninstallRequest = null)
+        Func<SceneFeatureContext, bool> scopeUninstallRequest = null,
+        Func<ServiceScope, bool> scopeReadyValidator = null)
         : this(
             runtimeScene,
             runtimeScene.handle,
@@ -40,7 +42,8 @@ internal sealed class SceneRuntimeScope : IDisposable
             parent,
             services,
             sceneFeatures,
-            scopeUninstallRequest)
+            scopeUninstallRequest,
+            scopeReadyValidator)
     {
     }
 
@@ -51,7 +54,8 @@ internal sealed class SceneRuntimeScope : IDisposable
         SceneServiceScopeParent parent,
         ServiceScope services,
         SceneRuntimeFeature[] sceneFeatures,
-        Func<SceneFeatureContext, bool> scopeUninstallRequest = null)
+        Func<SceneFeatureContext, bool> scopeUninstallRequest = null,
+        Func<ServiceScope, bool> scopeReadyValidator = null)
         : this(
             default,
             handle,
@@ -60,7 +64,8 @@ internal sealed class SceneRuntimeScope : IDisposable
             parent,
             services,
             sceneFeatures,
-            scopeUninstallRequest)
+            scopeUninstallRequest,
+            scopeReadyValidator)
     {
     }
 
@@ -72,7 +77,8 @@ internal sealed class SceneRuntimeScope : IDisposable
         SceneServiceScopeParent parent,
         ServiceScope services,
         SceneRuntimeFeature[] sceneFeatures,
-        Func<SceneFeatureContext, bool> scopeUninstallRequest)
+        Func<SceneFeatureContext, bool> scopeUninstallRequest,
+        Func<ServiceScope, bool> scopeReadyValidator)
     {
         scene = runtimeScene;
         sceneHandle = handle;
@@ -87,6 +93,7 @@ internal sealed class SceneRuntimeScope : IDisposable
             serviceRegistrar,
             scopeUninstallRequest);
         features = sceneFeatures ?? throw new ArgumentNullException(nameof(sceneFeatures));
+        readyValidator = scopeReadyValidator;
     }
 
     public int SceneHandle => sceneHandle;
@@ -175,6 +182,14 @@ internal sealed class SceneRuntimeScope : IDisposable
 
         try
         {
+            if (readyValidator != null && !readyValidator(serviceScope))
+            {
+                Debug.LogError(
+                    $"Scene scope readiness validation failed for '{sceneLabel}' ({sceneHandle}).");
+
+                return FailInstall(registrationTransaction);
+            }
+
             registrationTransaction.Commit();
             serviceRegistrar.CloseRegistration();
             ready = true;
@@ -381,6 +396,17 @@ internal sealed class SceneRuntimeScopeRegistry : IDisposable
         out SceneRuntimeScope scope)
     {
         scope = null;
+        ProjectSceneKind sceneKind = context.GetSceneKind(scene.name, scene.path);
+        bool isMapScene = context.IsGameMapScene(scene);
+
+        if (!ProjectSceneScopePolicy.TryGetRequirements(
+                sceneKind,
+                isMapScene,
+                out ProjectSceneScopeRequirements requirements))
+        {
+            return false;
+        }
+
         List<SceneRuntimeFeature> features = new();
         HashSet<SceneRuntimeFeature> uniqueFeatures = new();
         bool foundRuntime = false;
@@ -444,24 +470,16 @@ internal sealed class SceneRuntimeScopeRegistry : IDisposable
             }
         }
 
-        ProjectSceneKind sceneKind = context.GetSceneKind(scene.name, scene.path);
-        bool isMapScene = context.IsGameMapScene(scene);
-
         if (!foundRuntime)
         {
-            bool hasSceneScopePolicy = sceneKind == ProjectSceneKind.MainMenu ||
-                                       sceneKind == ProjectSceneKind.Lobby ||
-                                       sceneKind == ProjectSceneKind.Game ||
-                                       isMapScene;
-
-            if (!hasSceneScopePolicy)
-                return false;
-
-            if (!isMapScene)
+            if (requirements.RequiresSceneRuntime)
             {
-                Debug.LogWarning(
-                    $"Scene '{scene.name}' has no {nameof(SceneRuntime)}. " +
-                    "An empty scene service scope will be installed.");
+                Debug.LogError(
+                    $"Scene '{GetSceneLabel(scene)}' ({sceneKind}) requires " +
+                    $"{nameof(SceneRuntime)} with feature " +
+                    $"'{requirements.RequiredFeatureName}'.");
+
+                return false;
             }
         }
 
@@ -472,6 +490,9 @@ internal sealed class SceneRuntimeScopeRegistry : IDisposable
 
             return false;
         }
+
+        if (!requirements.ValidateConfiguredFeatures(features, GetSceneLabel(scene)))
+            return false;
 
         if (!context.TryCreateSceneServiceScope(
                 scene,
@@ -491,7 +512,10 @@ internal sealed class SceneRuntimeScopeRegistry : IDisposable
                 parent,
                 sceneServiceScope,
                 features.ToArray(),
-                TryUninstallRequestedScope);
+                TryUninstallRequestedScope,
+                services => requirements.ValidateReadyServices(
+                    services,
+                    GetSceneLabel(scene)));
 
             return true;
         }

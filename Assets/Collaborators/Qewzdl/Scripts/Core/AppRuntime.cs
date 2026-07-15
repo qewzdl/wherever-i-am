@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -7,7 +9,7 @@ using UnityEditor;
 
 [DefaultExecutionOrder(-1000)]
 [DisallowMultipleComponent]
-public sealed class AppRuntime : MonoBehaviour
+public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
 {
     public const string EditorStartupScenePathKey = "WhereverIAm.AppRuntime.EditorStartupScenePath";
 
@@ -19,8 +21,12 @@ public sealed class AppRuntime : MonoBehaviour
 
     private readonly SceneRuntimeScopeRegistry sceneScopes = new();
     private ProjectSceneKind startupSceneOverride = ProjectSceneKind.Unknown;
+    private Task failedSessionShutdownTask = Task.CompletedTask;
+    private Action<bool> pendingSceneActivation;
+    private ProjectSceneKind pendingSceneActivationKind = ProjectSceneKind.Unknown;
     private bool runtimeStarted;
     private bool sceneEventsSubscribed;
+    private bool sceneActivationHealthy = true;
     public int SceneScopeCount => sceneScopes.Count;
 
     private void Awake()
@@ -54,7 +60,7 @@ public sealed class AppRuntime : MonoBehaviour
     public bool StartRuntime()
     {
         if (runtimeStarted)
-            return context != null && context.IsReady;
+            return context != null && context.IsReady && sceneActivationHealthy;
 
         if (!EnsureContext())
             return false;
@@ -66,9 +72,10 @@ public sealed class AppRuntime : MonoBehaviour
             return false;
 
         runtimeStarted = true;
+        sceneActivationHealthy = true;
 
-        ApplyStateForScene(SceneManager.GetActiveScene());
-        sceneScopes.Install(SceneManager.GetActiveScene(), context);
+        if (!TryActivateScene(SceneManager.GetActiveScene()))
+            return false;
 
         if (loadStartupScene)
             LoadStartupSceneIfNeeded();
@@ -91,6 +98,8 @@ public sealed class AppRuntime : MonoBehaviour
     private void DisposeSceneScopes()
     {
         runtimeStarted = false;
+        sceneActivationHealthy = true;
+        ClearPendingSceneActivation();
         sceneScopes.Dispose();
     }
 
@@ -202,8 +211,7 @@ public sealed class AppRuntime : MonoBehaviour
         if (!runtimeStarted || context == null || !context.IsReady)
             return;
 
-        ApplyStateForScene(scene);
-        sceneScopes.Install(scene, context);
+        TryActivateScene(scene);
     }
 
     private void HandleSceneUnloaded(Scene scene)
@@ -211,13 +219,35 @@ public sealed class AppRuntime : MonoBehaviour
         sceneScopes.Uninstall(scene.handle);
     }
 
-    private void ApplyStateForScene(Scene scene)
+    private bool TryActivateScene(Scene scene)
     {
-        if (context == null)
-            return;
+        if (context == null || !scene.IsValid() || !scene.isLoaded)
+            return false;
 
         ProjectSceneKind sceneKind = context.GetSceneKind(scene.name, scene.path);
+        bool isMapScene = context.IsGameMapScene(scene);
 
+        if (ProjectSceneScopePolicy.TryGetRequirements(
+                sceneKind,
+                isMapScene,
+                out ProjectSceneScopeRequirements requirements))
+        {
+            if (!sceneScopes.Install(scene, context))
+            {
+                HandleSceneActivationFailure(scene, sceneKind, requirements);
+                return false;
+            }
+
+            sceneActivationHealthy = true;
+            CompletePendingSceneActivation(sceneKind, true);
+        }
+
+        ApplyStateForScene(sceneKind);
+        return true;
+    }
+
+    private void ApplyStateForScene(ProjectSceneKind sceneKind)
+    {
         if (sceneKind == ProjectSceneKind.Unknown)
             return;
 
@@ -228,6 +258,185 @@ public sealed class AppRuntime : MonoBehaviour
 
         GameState sceneState = context.GetStateForScene(sceneKind);
         stateMachine.ChangeState(sceneState);
+    }
+
+    private void HandleSceneActivationFailure(
+        Scene scene,
+        ProjectSceneKind sceneKind,
+        ProjectSceneScopeRequirements requirements)
+    {
+        sceneActivationHealthy = false;
+        string sceneLabel = GetSceneLabel(scene);
+
+        Debug.LogError(
+            $"Scene scope activation failed for '{sceneLabel}' " +
+            $"({sceneKind}, handle {scene.handle}). Gameplay activation was blocked.",
+            this);
+
+        context.SceneFlowService?.CancelPendingOperations(
+            ProjectOperationCancelReason.SceneScopeActivationFailed);
+        context.StateMachine?.ChangeState(GameState.Error);
+
+        if (requirements.Parent != SceneServiceScopeParent.Session)
+            return;
+
+        if (!failedSessionShutdownTask.IsCompleted)
+            return;
+
+        ConnectionResult failure = ConnectionResult.Fail(
+            ConnectionErrorCode.SceneScopeActivationFailed,
+            "Failed to initialize the game scene.",
+            $"Required scene scope activation failed for '{sceneLabel}' " +
+            $"({sceneKind}, handle {scene.handle}).",
+            true);
+
+        failedSessionShutdownTask = ShutdownFailedSessionAsync(failure);
+    }
+
+    bool IProjectSceneLoadCompletionGate.CanHandle(ProjectSceneKind sceneKind)
+    {
+        return ProjectSceneScopePolicy.TryGetRequirements(
+            sceneKind,
+            false,
+            out _);
+    }
+
+    bool IProjectSceneLoadCompletionGate.Validate(
+        ProjectSceneKind sceneKind,
+        out string error)
+    {
+        if (!ProjectSceneScopePolicy.TryGetRequirements(sceneKind, false, out _))
+        {
+            error = $"{nameof(AppRuntime)} cannot gate scene kind '{sceneKind}'.";
+            return false;
+        }
+
+        if (context == null || !runtimeStarted || !context.IsReady)
+        {
+            error = $"{nameof(AppRuntime)} is not ready to activate scene '{sceneKind}'.";
+            return false;
+        }
+
+        if (pendingSceneActivation != null)
+        {
+            error = $"{nameof(AppRuntime)} is already waiting for scene " +
+                    $"'{pendingSceneActivationKind}' activation.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    bool IProjectSceneLoadCompletionGate.BeginWait(
+        ProjectSceneKind sceneKind,
+        Action<bool> completed)
+    {
+        if (completed == null ||
+            !ProjectSceneScopePolicy.TryGetRequirements(sceneKind, false, out _))
+        {
+            return false;
+        }
+
+        if (pendingSceneActivation != null)
+        {
+            Debug.LogError(
+                $"{nameof(AppRuntime)} is already waiting for scene " +
+                $"'{pendingSceneActivationKind}' activation.",
+                this);
+
+            return false;
+        }
+
+        if (IsProjectSceneScopeReady(sceneKind))
+        {
+            completed(true);
+            return true;
+        }
+
+        pendingSceneActivationKind = sceneKind;
+        pendingSceneActivation = completed;
+        return true;
+    }
+
+    void IProjectSceneLoadCompletionGate.CancelPending(ProjectOperationCancelReason reason)
+    {
+        ClearPendingSceneActivation();
+    }
+
+    private bool IsProjectSceneScopeReady(ProjectSceneKind sceneKind)
+    {
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene scene = SceneManager.GetSceneAt(i);
+
+            if (!scene.IsValid() || !scene.isLoaded ||
+                context.GetSceneKind(scene.name, scene.path) != sceneKind)
+            {
+                continue;
+            }
+
+            if (sceneScopes.TryGetScope(scene.handle, out SceneRuntimeScope scope) &&
+                scope.IsReady)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void CompletePendingSceneActivation(
+        ProjectSceneKind sceneKind,
+        bool success)
+    {
+        if (pendingSceneActivation == null ||
+            pendingSceneActivationKind != sceneKind)
+        {
+            return;
+        }
+
+        Action<bool> completed = pendingSceneActivation;
+        pendingSceneActivation = null;
+        pendingSceneActivationKind = ProjectSceneKind.Unknown;
+        completed(success);
+    }
+
+    private void ClearPendingSceneActivation()
+    {
+        pendingSceneActivation = null;
+        pendingSceneActivationKind = ProjectSceneKind.Unknown;
+    }
+
+    private async Task ShutdownFailedSessionAsync(ConnectionResult failure)
+    {
+        try
+        {
+            NetworkSessionOrchestrator sessionOrchestrator = context.SessionOrchestrator;
+
+            if (sessionOrchestrator == null)
+                throw new InvalidOperationException(
+                    $"{nameof(NetworkSessionOrchestrator)} is not configured.");
+
+            await sessionOrchestrator.ShutdownAfterFailureAsync(failure);
+        }
+        catch (Exception exception)
+        {
+            context?.StateMachine?.ChangeState(GameState.Error);
+            Debug.LogError("Failed to shut down a session after scene scope activation failure.", this);
+            Debug.LogException(exception, this);
+        }
+    }
+
+    private static string GetSceneLabel(Scene scene)
+    {
+        if (!string.IsNullOrWhiteSpace(scene.path))
+            return scene.path;
+
+        if (!string.IsNullOrWhiteSpace(scene.name))
+            return scene.name;
+
+        return $"handle {scene.handle}";
     }
 
     private bool TryGetSceneNavigator(out ProjectSceneNavigator navigator)

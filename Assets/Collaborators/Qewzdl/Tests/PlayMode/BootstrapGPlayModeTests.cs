@@ -53,6 +53,12 @@ public sealed class BootstrapGPlayModeTests
         Assert.That(G.IsReady, Is.True);
         AssertGlobalContractsAvailable();
 
+        AppRuntime appRuntime = GetSinglePersistentComponent<AppRuntime>();
+        Assert.That(appRuntime.SceneScopeCount, Is.EqualTo(1));
+        Assert.That(
+            runtimeContext.StateMachine.CurrentState,
+            Is.EqualTo(GameState.MainMenu));
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         GlobalServiceDiagnostics diagnostics = G.Diagnostics;
 

@@ -18,5 +18,7 @@ public enum ConnectionErrorCode
     LobbySceneLoadFailed,
 
     Unknown,
-    Cancelled
+    Cancelled,
+
+    SceneScopeActivationFailed
 }

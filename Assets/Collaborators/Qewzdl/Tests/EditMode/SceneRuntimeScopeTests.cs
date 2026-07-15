@@ -24,6 +24,50 @@ internal sealed class SceneScopeTestOwnedService : ISceneScopeTestOwnedService
 {
 }
 
+internal sealed class SceneScopePauseRegistrationFeature :
+    SceneRuntimeFeature,
+    IPauseService
+{
+    public bool IsPaused { get; private set; }
+
+    public event Action<bool> PauseStateChanged;
+
+    protected override bool ValidateFeature(SceneFeatureContext context)
+    {
+        return context.Services.TryResolve(out ISceneScopeTestParentService _);
+    }
+
+    protected override bool InstallFeature(SceneFeatureContext context)
+    {
+        context.Registrar.Register<IPauseService>(this);
+        return true;
+    }
+
+    public void Pause()
+    {
+        SetPaused(true);
+    }
+
+    public void Resume()
+    {
+        SetPaused(false);
+    }
+
+    public void TogglePause()
+    {
+        SetPaused(!IsPaused);
+    }
+
+    private void SetPaused(bool paused)
+    {
+        if (IsPaused == paused)
+            return;
+
+        IsPaused = paused;
+        PauseStateChanged?.Invoke(paused);
+    }
+}
+
 internal sealed class SceneScopeTrackingFeature :
     SceneRuntimeFeature,
     ISceneScopeTestRegisteredService
@@ -95,6 +139,212 @@ internal sealed class SceneScopeTrackingFeature :
 
 public sealed class SceneRuntimeScopeTests
 {
+    [Test]
+    public void ProjectPolicy_DefinesRequiredFeaturesContractsAndParents()
+    {
+        Assert.That(
+            ProjectSceneScopePolicy.TryGetRequirements(
+                ProjectSceneKind.Bootstrap,
+                false,
+                out _),
+            Is.False);
+        Assert.That(
+            ProjectSceneScopePolicy.TryGetRequirements(
+                ProjectSceneKind.GameplayTest,
+                false,
+                out _),
+            Is.False);
+
+        GameObject mainMenuObject = new("Main menu feature");
+        GameObject lobbyObject = new("Lobby feature");
+        GameObject gameObject = new("Game feature");
+
+        try
+        {
+            MainMenuSceneFeature mainMenu =
+                mainMenuObject.AddComponent<MainMenuSceneFeature>();
+            LobbySceneFeature lobby = lobbyObject.AddComponent<LobbySceneFeature>();
+            GameSceneFeature game = gameObject.AddComponent<GameSceneFeature>();
+
+            Assert.That(
+                ProjectSceneScopePolicy.TryGetRequirements(
+                    ProjectSceneKind.MainMenu,
+                    false,
+                    out ProjectSceneScopeRequirements mainMenuRequirements),
+                Is.True);
+            Assert.That(
+                mainMenuRequirements.Parent,
+                Is.EqualTo(SceneServiceScopeParent.Global));
+            Assert.That(mainMenuRequirements.RequiresSceneRuntime, Is.True);
+            Assert.That(
+                mainMenuRequirements.ValidateConfiguredFeatures(
+                    new SceneRuntimeFeature[] { mainMenu },
+                    "Main menu scene"),
+                Is.True);
+
+            Assert.That(
+                ProjectSceneScopePolicy.TryGetRequirements(
+                    ProjectSceneKind.Lobby,
+                    false,
+                    out ProjectSceneScopeRequirements lobbyRequirements),
+                Is.True);
+            Assert.That(
+                lobbyRequirements.Parent,
+                Is.EqualTo(SceneServiceScopeParent.Session));
+            Assert.That(lobbyRequirements.RequiresSceneRuntime, Is.True);
+            Assert.That(
+                lobbyRequirements.ValidateConfiguredFeatures(
+                    new SceneRuntimeFeature[] { lobby },
+                    "Lobby scene"),
+                Is.True);
+
+            Assert.That(
+                ProjectSceneScopePolicy.TryGetRequirements(
+                    ProjectSceneKind.Game,
+                    false,
+                    out ProjectSceneScopeRequirements gameRequirements),
+                Is.True);
+            Assert.That(
+                gameRequirements.Parent,
+                Is.EqualTo(SceneServiceScopeParent.Session));
+            Assert.That(gameRequirements.RequiresSceneRuntime, Is.True);
+            Assert.That(
+                gameRequirements.ValidateConfiguredFeatures(
+                    new SceneRuntimeFeature[] { game },
+                    "Game scene"),
+                Is.True);
+
+            Assert.That(
+                ProjectSceneScopePolicy.TryGetRequirements(
+                    ProjectSceneKind.Unknown,
+                    true,
+                    out ProjectSceneScopeRequirements mapRequirements),
+                Is.True);
+            Assert.That(
+                mapRequirements.Parent,
+                Is.EqualTo(SceneServiceScopeParent.Session));
+            Assert.That(mapRequirements.RequiresSceneRuntime, Is.False);
+            Assert.That(
+                mapRequirements.ValidateConfiguredFeatures(
+                    Array.Empty<SceneRuntimeFeature>(),
+                    "Map scene"),
+                Is.True);
+
+            LogAssert.Expect(
+                LogType.Error,
+                "Scene 'Lobby scene' (Lobby) requires feature " +
+                "'LobbySceneFeature', but it is not configured.");
+            Assert.That(
+                lobbyRequirements.ValidateConfiguredFeatures(
+                    new SceneRuntimeFeature[] { mainMenu },
+                    "Lobby scene"),
+                Is.False);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(gameObject);
+            UnityEngine.Object.DestroyImmediate(lobbyObject);
+            UnityEngine.Object.DestroyImmediate(mainMenuObject);
+        }
+    }
+
+    [Test]
+    public void RequiredContractValidation_RollsBackBeforeScopeCommit()
+    {
+        List<string> events = new();
+        ServiceScope globalScope = new("Global");
+        globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
+        GameObject inheritedPauseObject = new("Inherited pause service");
+        SceneScopePauseRegistrationFeature inheritedPause =
+            inheritedPauseObject.AddComponent<SceneScopePauseRegistrationFeature>();
+        globalScope.Register<IPauseService>(inheritedPause);
+        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[95]");
+        GameObject featureObject = new("Missing pause registration feature");
+        SceneRuntimeScope runtimeScope = null;
+
+        try
+        {
+            SceneScopeTrackingFeature feature =
+                featureObject.AddComponent<SceneScopeTrackingFeature>();
+            feature.Configure("missing-pause", events, registersService: true);
+            ProjectSceneScopePolicy.TryGetRequirements(
+                ProjectSceneKind.Game,
+                false,
+                out ProjectSceneScopeRequirements requirements);
+            runtimeScope = new SceneRuntimeScope(
+                95,
+                "Missing pause scene",
+                ProjectSceneKind.Game,
+                SceneServiceScopeParent.Session,
+                sceneServiceScope,
+                new SceneRuntimeFeature[] { feature },
+                scopeReadyValidator: services =>
+                    requirements.ValidateReadyServices(services, "Missing pause scene"));
+
+            LogAssert.Expect(
+                LogType.Error,
+                "Scene scope 'Missing pause scene' is missing required local contract " +
+                "'IPauseService'.");
+            LogAssert.Expect(
+                LogType.Error,
+                "Scene scope readiness validation failed for 'Missing pause scene' (95).");
+
+            Assert.That(runtimeScope.Install(), Is.False);
+
+            CollectionAssert.AreEqual(
+                new[] { "install:missing-pause", "uninstall:missing-pause" },
+                events);
+            Assert.That(feature.ResolvedRegistrationDuringUninstall, Is.True);
+            Assert.That(sceneServiceScope.IsDisposed, Is.True);
+            Assert.That(globalScope.ChildScopeCount, Is.Zero);
+        }
+        finally
+        {
+            runtimeScope?.Dispose();
+            UnityEngine.Object.DestroyImmediate(featureObject);
+            UnityEngine.Object.DestroyImmediate(inheritedPauseObject);
+            globalScope.Dispose();
+        }
+    }
+
+    [Test]
+    public void RequiredContractValidation_CommitsOnlyAfterLocalContractExists()
+    {
+        using ServiceScope globalScope = new("Global");
+        globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
+        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[96]");
+        GameObject featureObject = new("Pause registration feature");
+        SceneRuntimeScope runtimeScope = null;
+
+        try
+        {
+            SceneScopePauseRegistrationFeature feature =
+                featureObject.AddComponent<SceneScopePauseRegistrationFeature>();
+            ProjectSceneScopePolicy.TryGetRequirements(
+                ProjectSceneKind.Game,
+                false,
+                out ProjectSceneScopeRequirements requirements);
+            runtimeScope = new SceneRuntimeScope(
+                96,
+                "Ready game scene",
+                ProjectSceneKind.Game,
+                SceneServiceScopeParent.Session,
+                sceneServiceScope,
+                new SceneRuntimeFeature[] { feature },
+                scopeReadyValidator: services =>
+                    requirements.ValidateReadyServices(services, "Ready game scene"));
+
+            Assert.That(runtimeScope.Install(), Is.True);
+            Assert.That(runtimeScope.IsReady, Is.True);
+            Assert.That(runtimeScope.Services.Resolve<IPauseService>(), Is.SameAs(feature));
+        }
+        finally
+        {
+            runtimeScope?.Dispose();
+            UnityEngine.Object.DestroyImmediate(featureObject);
+        }
+    }
+
     [Test]
     public void EmptyFeatureScope_StillOwnsIndependentServiceScope()
     {
