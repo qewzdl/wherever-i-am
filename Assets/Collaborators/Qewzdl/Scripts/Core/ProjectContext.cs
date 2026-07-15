@@ -40,6 +40,9 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
                                         !globalServiceScope.IsDisposed
         ? globalServiceScope
         : null;
+    public IServiceResolver SessionServices => sessionOrchestrator != null
+        ? sessionOrchestrator.SessionServices
+        : null;
 
     public ProjectSceneRegistry SceneRegistry => sceneRegistry;
     public ProjectSettings Settings => sceneRegistry != null ? sceneRegistry.Settings : null;
@@ -294,7 +297,10 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         if (sceneServiceComposer == null || !sceneServiceComposer.Compose(this))
             return false;
 
-        return RegisterGlobalServiceContracts();
+        if (!RegisterGlobalServiceContracts())
+            return false;
+
+        return ConfigureSessionScopeController();
     }
 
     private bool InitializeProjectServices()
@@ -331,6 +337,15 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
     {
         try
         {
+            sessionOrchestrator?.DisposeSessionScopeController();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, sessionOrchestrator);
+        }
+
+        try
+        {
             gameplayNoiseWorldService?.DisposeRuntime();
         }
         catch (Exception exception)
@@ -360,6 +375,21 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         globalServiceScope = new ServiceScope("Global");
         globalScopeTransaction = globalServiceScope.BeginRegistrationTransaction();
         return true;
+    }
+
+    private bool ConfigureSessionScopeController()
+    {
+        if (globalServiceScope == null || globalScopeTransaction == null)
+        {
+            Debug.LogError("Cannot configure Session scope before Global scope composition.", this);
+            return false;
+        }
+
+        return sessionOrchestrator != null &&
+               sessionOrchestrator.ConfigureSessionScopeController(
+                   globalServiceScope,
+                   gameMapService,
+                   gameplayNoiseWorldService);
     }
 
     private bool RegisterGlobalServiceContracts()

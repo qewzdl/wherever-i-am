@@ -19,6 +19,10 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     private ProjectSceneFlowService subscribedSceneFlowService;
     private bool sceneFlowSubscribed;
 
+    public IServiceResolver SessionServices => shutdownCoordinator != null
+        ? shutdownCoordinator.SessionServices
+        : null;
+
     private void Awake()
     {
         HasRequiredReferences();
@@ -177,6 +181,25 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return Task.CompletedTask;
 
         return shutdownCoordinator.ShutdownAndWaitAsync(NetworkShutdownMode.Graceful);
+    }
+
+    internal bool ConfigureSessionScopeController(
+        ServiceScope globalScope,
+        IGameMapSessionService maps,
+        IGameplayNoiseService gameplayNoise)
+    {
+        if (shutdownCoordinator == null)
+            return false;
+
+        return shutdownCoordinator.ConfigureSessionScopeController(
+            globalScope,
+            maps,
+            gameplayNoise);
+    }
+
+    internal void DisposeSessionScopeController()
+    {
+        shutdownCoordinator?.DisposeSessionScopeController();
     }
 
     private void HandleSceneLoadCompleted(ProjectSceneKind scene)

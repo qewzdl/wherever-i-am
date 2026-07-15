@@ -8,14 +8,14 @@
 
 ```text
 Global (ProjectContext: Ready -> Dispose)
-└── Session (TryOpenSessionScope -> SessionStopped)
+└── Session (TryOpenSessionScope -> close after NGO stop)
     ├── Scene[Scene.handle] (Install -> Uninstall/Dispose)
     │   └── Player[NetworkObjectId] (OnNetworkSpawn -> OnNetworkDespawn)
     └── Scene[другой Scene.handle]
 ```
 
 - `Global` создаётся bootstrap-ом один раз и живёт до `ProjectContext.Dispose`.
-- `Session` открывается только через `NetworkSessionShutdownCoordinator.TryOpenSessionScope`. Закрытие происходит ровно один раз на `SessionStopped`, после остановки NGO client/server.
+- `Session` открывается синхронно через `NetworkSessionShutdownCoordinator.TryOpenSessionScope`. Закрытие происходит ровно один раз после остановки NGO client/server; только затем отправляется `SessionStopped`.
 - `Scene` принадлежит `SceneRuntimeScopeRegistry` и идентифицируется только `Scene.handle`. Game shell и additive Map имеют независимые scopes.
 - `Player` принадлежит конкретному spawned player `NetworkObject`; `NetworkObjectId` допустим только внутри активной session.
 
@@ -34,8 +34,8 @@ Global (ProjectContext: Ready -> Dispose)
 | Global | `IUiSoundService` | `UiSoundManager` | не регистрируется отдельно; доступен через `IAudioService` | вместе с `IAudioService` | только local presentation |
 | Global | `IGameplaySoundService` | `GameplaySoundManager` | не регистрируется отдельно; доступен через `IAudioService` | вместе с `IAudioService` | воспроизводит локальную проекцию подтверждённых gameplay events |
 | Global, read-only | `IGameMapCatalog` | `GameMapCatalog` | bootstrap Compose | unregister при global Dispose; asset остаётся Unity-owned | одинаковая конфигурация должна быть доступна server и clients |
-| Session | `IGameMapSessionService` | `GameMapService` | `SessionStarted` | `SessionStopped` | map selection/load подтверждает server; clients читают результат |
-| Session | `IGameplayNoiseService` | `GameplayNoiseWorldService` | `SessionStarted` | `SessionStopped` | запись и поиск noise events разрешены только server |
+| Session | `IGameMapSessionService` | `GameMapService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | map selection/load подтверждает server; clients читают результат |
+| Session | `IGameplayNoiseService` | `GameplayNoiseWorldService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | запись и поиск noise events разрешены только server |
 | Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | после `OnNetworkSpawn` | на `OnNetworkDespawn`, до закрытия session | client отправляет command, server валидирует и реплицирует сообщения |
 | Scene: Lobby | `ILobbyReadService`, `ILobbyCommandService` | `NetworkLobbyService` | после успешного install Lobby scene feature | reverse uninstall Lobby scope | client отправляет intent, server владеет lobby state и start decision |
 | Scene: Game shell | `IPauseService` | `GamePauseService` | после успешного install `PauseSceneFeature` | reverse uninstall Game scope | local-only pause UI; не останавливает server simulation |
@@ -85,3 +85,12 @@ Global (ProjectContext: Ready -> Dispose)
 - Resolver не публикуется до успешного Initialize и transaction `Commit`.
 - Bootstrap failure откатывает незавершённую transaction, затем закрывает Global scope.
 - Обычный shutdown сохраняет resolver доступным для cleanup; окончательный `ProjectContext.Dispose` закрывает scope ровно один раз.
+
+## Session scope integration
+
+- `NetworkSessionShutdownCoordinator` синхронно открывает Session child scope через `SessionScopeController`; события не участвуют в создании scope.
+- `IGameMapSessionService` и `IGameplayNoiseService` регистрируются одной transaction как Unity-owned services.
+- Ошибка регистрации откатывает partial Session scope и отменяет начало network session до запуска подключения.
+- `SessionStarted` отправляется только после успешного commit.
+- При shutdown Session scope закрывается после полной остановки NGO и до загрузки MainMenu.
+- `SessionStopped` отправляется только после закрытия scope и ровно один раз.

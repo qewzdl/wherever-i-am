@@ -9,6 +9,10 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
     [Header("References")]
     [SerializeField] private NetworkSessionFlowService sessionFlowService;
 
+    public IServiceResolver SessionServices => sessionFlowService != null
+        ? sessionFlowService.SessionServices
+        : null;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -66,6 +70,25 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
             return Task.CompletedTask;
 
         return sessionFlowService.ShutdownToMainMenuAsync();
+    }
+
+    internal bool ConfigureSessionScopeController(
+        ServiceScope globalScope,
+        IGameMapSessionService gameMapService,
+        IGameplayNoiseService gameplayNoiseService)
+    {
+        if (!HasRequiredReferences())
+            return false;
+
+        return sessionFlowService.ConfigureSessionScopeController(
+            globalScope,
+            gameMapService,
+            gameplayNoiseService);
+    }
+
+    internal void DisposeSessionScopeController()
+    {
+        sessionFlowService?.DisposeSessionScopeController();
     }
 
     private bool HasRequiredReferences()

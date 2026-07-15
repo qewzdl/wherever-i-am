@@ -17,10 +17,13 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
 
     private Task shutdownTask = Task.CompletedTask;
     private ConnectionResult pendingFailure;
-    private bool sessionScopeOpen;
+    private SessionScopeController sessionScopeController;
     private bool sessionStopRaised = true;
 
     public bool IsShutdownInProgress => !shutdownTask.IsCompleted;
+    public IServiceResolver SessionServices => sessionScopeController != null
+        ? sessionScopeController.Services
+        : null;
 
     public event Action SessionStarted;
     public event Action SessionStopped;
@@ -41,17 +44,82 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return false;
         }
 
-        if (sessionScopeOpen)
+        if (sessionScopeController == null)
+        {
+            ReportSessionScopeOpenFailure(
+                new InvalidOperationException("Session scope controller is not configured."));
+
+            return false;
+        }
+
+        if (sessionScopeController.IsOpen)
         {
             Debug.LogError("Network session scope is already open.", this);
             return false;
         }
 
+        if (!sessionScopeController.TryOpen(out Exception failure))
+        {
+            ReportSessionScopeOpenFailure(failure);
+            return false;
+        }
+
         pendingFailure = null;
-        sessionScopeOpen = true;
         sessionStopRaised = false;
         RaiseSessionEvent(SessionStarted, nameof(SessionStarted));
         return true;
+    }
+
+    internal bool ConfigureSessionScopeController(
+        ServiceScope globalScope,
+        IGameMapSessionService gameMapService,
+        IGameplayNoiseService gameplayNoiseService)
+    {
+        if (!HasRequiredReferences())
+            return false;
+
+        if (sessionScopeController != null)
+        {
+            Debug.LogError("Session scope controller is already configured.", this);
+            return false;
+        }
+
+        if (globalScope == null || globalScope.IsDisposed)
+        {
+            Debug.LogError("Cannot configure Session scope without an active Global scope.", this);
+            return false;
+        }
+
+        sessionScopeController = new SessionScopeController(
+            globalScope,
+            gameMapService,
+            gameplayNoiseService);
+
+        return true;
+    }
+
+    internal void DisposeSessionScopeController()
+    {
+        SessionScopeController controller = sessionScopeController;
+        sessionScopeController = null;
+
+        if (controller == null)
+            return;
+
+        bool wasOpen = controller.IsOpen;
+
+        try
+        {
+            controller.Dispose();
+        }
+        finally
+        {
+            if (wasOpen && !sessionStopRaised)
+            {
+                sessionStopRaised = true;
+                RaiseSessionEvent(SessionStopped, nameof(SessionStopped));
+            }
+        }
     }
 
     public Task ShutdownAndWaitAsync(
@@ -86,7 +154,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return shutdownTask;
         }
 
-        if (!sessionScopeOpen && !connectionService.IsRunning)
+        if (!IsSessionScopeOpen() && !connectionService.IsRunning)
         {
             PresentPendingFailure();
             pendingFailure = null;
@@ -173,12 +241,21 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
                 "NetworkManager stopped.");
         }
 
-        if (!sessionScopeOpen || sessionStopRaised)
+        if (!IsSessionScopeOpen() || sessionStopRaised)
             return;
 
-        sessionScopeOpen = false;
-        sessionStopRaised = true;
-        RaiseSessionEvent(SessionStopped, nameof(SessionStopped));
+        try
+        {
+            sessionScopeController.Close();
+        }
+        finally
+        {
+            if (!IsSessionScopeOpen())
+            {
+                sessionStopRaised = true;
+                RaiseSessionEvent(SessionStopped, nameof(SessionStopped));
+            }
+        }
     }
 
     private void LoadMainMenuAfterShutdown()
@@ -200,6 +277,21 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     {
         if (pendingFailure != null)
             errorManager.ShowError(pendingFailure.UserMessage);
+    }
+
+    private bool IsSessionScopeOpen()
+    {
+        return sessionScopeController != null && sessionScopeController.IsOpen;
+    }
+
+    private void ReportSessionScopeOpenFailure(Exception failure)
+    {
+        Debug.LogError("Failed to open Session service scope.", this);
+
+        if (failure != null)
+            Debug.LogException(failure, this);
+
+        errorManager.ShowError("Failed to start the network session.");
     }
 
     private void RaiseSessionEvent(Action handlers, string eventName)
