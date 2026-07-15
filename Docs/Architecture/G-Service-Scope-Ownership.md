@@ -10,7 +10,8 @@
 Global (ProjectContext: Ready -> Dispose)
 └── Session (TryOpenSessionScope -> close after NGO stop)
     ├── Scene[Scene.handle] (Install -> Uninstall/Dispose)
-    │   └── Player[NetworkObjectId] (OnNetworkSpawn -> OnNetworkDespawn)
+    ├── Player[NetworkObjectId] (OnNetworkSpawn -> OnNetworkDespawn)
+    │   └── Local (только IsClient && IsOwner)
     └── Scene[другой Scene.handle]
 ```
 
@@ -18,6 +19,7 @@ Global (ProjectContext: Ready -> Dispose)
 - `Session` открывается синхронно через `NetworkSessionShutdownCoordinator.TryOpenSessionScope`. Закрытие происходит ровно один раз после остановки NGO client/server; только затем отправляется `SessionStopped`.
 - `Scene` принадлежит `SceneRuntimeScopeRegistry` и идентифицируется только `Scene.handle`. Game shell и additive Map имеют независимые scopes.
 - `Player` принадлежит конкретному spawned player `NetworkObject`; `NetworkObjectId` допустим только внутри активной session.
+- `Local` является child конкретного Player scope и создаётся только для player object, которым владеет локальный client.
 
 ## Ownership table
 
@@ -37,7 +39,10 @@ Global (ProjectContext: Ready -> Dispose)
 | Session | `IGameMapSessionService` | `GameMapService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | map selection/load подтверждает server; clients читают результат |
 | Session | `IGameplayNoiseService` | `GameplayNoiseWorldService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | запись и поиск noise events разрешены только server |
 | Session | `ISessionServiceRegistry` | `SessionServiceRegistry` | synchronous Session transaction | вместе с Session scope | read/subscription API для динамических Session contracts; mutable scope не публикуется |
+| Session | `IPlayerScopeRegistry` | `PlayerScopeRegistry` | synchronous Session transaction | `CloseAll` до Session Dispose | read-only registry Player scopes по `NetworkObjectId` на каждом peer |
 | Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | atomic batch на `OnNetworkSpawn` | registration handles на `OnNetworkDespawn`, до закрытия session | client вызывает command contract, server валидирует и реплицирует сообщения |
+| Player | `IPlayerNetworkService`, `IReplicatedPlayerStateService`, `IEnemyAttackReceiver` | `PlayerScopeLifetime`, `PlayerNetwork`, `PlayerEnemyAttackReceiver` | Player transaction на `OnNetworkSpawn` | Player scope на `OnNetworkDespawn` | replicated state читается на peers; gameplay mutation остаётся server-authoritative |
+| Player/Local | `ILocalPlayerInputService`, `ILocalPlayerCameraService`, `ILocalPlayerPresentationService` | `PlayerInputHandler`, `CameraLook`, `PlayerUI` | Local transaction только для owner | вместе с Player scope | никогда не создаётся для remote player или dedicated server |
 | Scene: Lobby | `ILobbyReadService`, `ILobbyCommandService` | `NetworkLobbyService` | scene transaction commit после install Lobby feature | reverse uninstall Lobby scope | client отправляет intent, server владеет lobby state и start decision |
 | Scene: Game shell | `IPauseService` | `GamePauseService` | scene transaction commit после install `PauseSceneFeature` | reverse uninstall Game scope | local-only pause UI; не останавливает server simulation |
 
@@ -51,7 +56,7 @@ Global (ProjectContext: Ready -> Dispose)
 | `NetworkSessionShutdownCoordinator` | Global composition | владелец Session scope, а не сервис для feature-кода |
 | `SceneRuntimeScopeRegistry` | `ProjectContext` | владелец Scene scopes |
 | `NetworkGameFlow`, objectives, `GameMapRoot` | соответствующий Scene scope | scene/network entities; связываются scene features или NGO lifecycle |
-| player input, camera и player presentation | Player `NetworkObject` | принадлежат одному player и не должны попадать в Global/Session registry |
+| player input, camera и player presentation | Player/Local scope | принадлежат одному local player и не должны попадать в replicated Player, Global или Session registry |
 
 ## Обязательные правила G
 
@@ -91,10 +96,21 @@ Global (ProjectContext: Ready -> Dispose)
 
 - `NetworkSessionShutdownCoordinator` синхронно открывает Session child scope через `SessionScopeController`; события не участвуют в создании scope.
 - `IGameMapSessionService` и `IGameplayNoiseService` регистрируются одной transaction как Unity-owned services.
+- `IPlayerScopeRegistry` создаётся вместе с Session scope и является единственным владельцем Player child scopes.
 - Ошибка регистрации откатывает partial Session scope и отменяет начало network session до запуска подключения.
 - `SessionStarted` отправляется только после успешного commit.
 - При shutdown Session scope закрывается после полной остановки NGO и до загрузки MainMenu.
+- Перед Dispose Session scope registry принудительно закрывает все оставшиеся Player scopes в обратном порядке создания.
 - `SessionStopped` отправляется только после закрытия scope и ровно один раз.
+
+## Player scope integration
+
+- `PlayerScopeRegistry` хранит scopes строго по `NetworkObjectId`; duplicate open завершается ошибкой и не заменяет активный scope.
+- `PlayerScopeLifetime` создаёт Player child от Session в `OnNetworkSpawn` и хранит generation-safe registration handle до `OnNetworkDespawn`.
+- Replicated contracts регистрируются в Player scope на server и clients одной transaction.
+- Local child создаётся только при `IsClient && IsOwner`. Input, camera и presentation contracts регистрируются отдельной transaction и не видны через replicated resolver.
+- Local resolver наследует replicated Player и Session services; обратный lookup из Player/Session в Local запрещён иерархией.
+- Закрытие публикует `PlayerScopeClosing`, пока resolvers ещё активны, затем Dispose удаляет Local child и Player scope.
 
 ## Scene scope integration
 

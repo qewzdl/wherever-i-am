@@ -10,28 +10,32 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
     [SerializeField] private Button resumeButton;
     [SerializeField] private Button mainMenuButton;
     [SerializeField] private Button quitButton;
-    [SerializeField] private PlayerInputHandler playerInputHandler;
     [SerializeField] private HUDUI hudUI;
 
     private IPauseService pauseService;
     private INetworkSessionService sessionService;
+    private IPlayerScopeRegistry playerScopes;
+    private ILocalPlayerInputService localInputService;
 
     public void Construct(
         IPauseService pauseService,
-        INetworkSessionService sessionService)
+        INetworkSessionService sessionService,
+        IPlayerScopeRegistry playerScopeRegistry)
     {
         Unsubscribe();
 
         this.pauseService = pauseService;
         this.sessionService = sessionService;
+        playerScopes = playerScopeRegistry;
 
         Subscribe();
+        RefreshLocalInputService();
         HandlePauseStateChanged(this.pauseService != null && this.pauseService.IsPaused);
     }
 
     public void BindPauseService(IPauseService pauseService)
     {
-        Construct(pauseService, sessionService);
+        Construct(pauseService, sessionService, playerScopes);
     }
 
     public void Dispose()
@@ -43,6 +47,8 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
         Hide();
         pauseService = null;
         sessionService = null;
+        playerScopes = null;
+        localInputService = null;
     }
 
     private void OnDestroy()
@@ -63,6 +69,12 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
 
         if (pauseService != null)
             pauseService.PauseStateChanged += HandlePauseStateChanged;
+
+        if (playerScopes != null && !playerScopes.IsDisposed)
+        {
+            playerScopes.PlayerScopeOpened += HandlePlayerScopeOpened;
+            playerScopes.PlayerScopeClosing += HandlePlayerScopeClosing;
+        }
     }
 
     private void Unsubscribe()
@@ -78,6 +90,12 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
 
         if (pauseService != null)
             pauseService.PauseStateChanged -= HandlePauseStateChanged;
+
+        if (playerScopes != null)
+        {
+            playerScopes.PlayerScopeOpened -= HandlePlayerScopeOpened;
+            playerScopes.PlayerScopeClosing -= HandlePlayerScopeClosing;
+        }
     }
 
     private void HandlePauseStateChanged(bool isPaused)
@@ -125,20 +143,39 @@ public sealed class PauseMenuUI : MonoBehaviour, IPauseServiceConsumer
 
     private void SetPlayerInputActive(bool value)
     {
-        PlayerInputHandler inputHandler = ResolvePlayerInputHandler();
-
-        if (inputHandler == null)
-            return;
-
-        inputHandler.SetInputActive(this, value);
+        localInputService?.SetInputActive(this, value);
     }
 
-    private PlayerInputHandler ResolvePlayerInputHandler()
+    private void HandlePlayerScopeOpened(IPlayerScope playerScope)
     {
-        if (playerInputHandler != null)
-            return playerInputHandler;
+        if (playerScope == null || !playerScope.IsLocalPlayer)
+            return;
 
-        playerInputHandler = PlayerInputHandler.Active;
-        return playerInputHandler;
+        RefreshLocalInputService();
+        SetPlayerInputActive(pauseService == null || !pauseService.IsPaused);
+    }
+
+    private void HandlePlayerScopeClosing(IPlayerScope playerScope)
+    {
+        if (playerScope == null || !playerScope.IsLocalPlayer)
+            return;
+
+        localInputService?.SetInputActive(this, true);
+        localInputService = null;
+    }
+
+    private void RefreshLocalInputService()
+    {
+        localInputService = null;
+
+        if (playerScopes == null ||
+            playerScopes.IsDisposed ||
+            !playerScopes.TryGetLocalPlayerScope(out IPlayerScope playerScope) ||
+            playerScope.LocalServices == null)
+        {
+            return;
+        }
+
+        playerScope.LocalServices.TryResolve(out localInputService);
     }
 }

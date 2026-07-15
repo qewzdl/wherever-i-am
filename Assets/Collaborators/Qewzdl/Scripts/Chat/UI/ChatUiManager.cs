@@ -19,6 +19,7 @@ public class ChatUiManager : SceneRuntimeFeature
 
     private GameObject spawnedUi;
     private ISessionServiceRegistry serviceRegistry;
+    private IPlayerScopeRegistry playerScopes;
     private IGameStateService stateMachine;
 
     protected override bool ValidateFeature(SceneFeatureContext context)
@@ -27,6 +28,7 @@ public class ChatUiManager : SceneRuntimeFeature
         valid &= RequireReference(profile, nameof(profile));
         valid &= RequireReference(uiRoot, nameof(uiRoot));
         valid &= RequireService<ISessionServiceRegistry>(context, out _);
+        valid &= RequireService<IPlayerScopeRegistry>(context, out _);
         valid &= RequireService<IGameStateService>(context, out _);
 
         switch (mode)
@@ -61,6 +63,7 @@ public class ChatUiManager : SceneRuntimeFeature
     protected override bool InstallFeature(SceneFeatureContext context)
     {
         serviceRegistry = context.Services.Resolve<ISessionServiceRegistry>();
+        playerScopes = context.Services.Resolve<IPlayerScopeRegistry>();
         stateMachine = context.Services.Resolve<IGameStateService>();
 
         return SpawnChatUi() && BindSpawnedUi();
@@ -70,6 +73,7 @@ public class ChatUiManager : SceneRuntimeFeature
     {
         DestroySpawnedUi();
         serviceRegistry = null;
+        playerScopes = null;
         stateMachine = null;
     }
 
@@ -157,8 +161,13 @@ public class ChatUiManager : SceneRuntimeFeature
 
     private bool BindSpawnedUi()
     {
-        if (spawnedUi == null || serviceRegistry == null || stateMachine == null)
+        if (spawnedUi == null ||
+            serviceRegistry == null ||
+            playerScopes == null ||
+            stateMachine == null)
+        {
             return false;
+        }
 
         ChatSessionBinder[] binders =
             spawnedUi.GetComponentsInChildren<ChatSessionBinder>(true);
@@ -173,7 +182,7 @@ public class ChatUiManager : SceneRuntimeFeature
         }
 
         for (int i = 0; i < binders.Length; i++)
-            binders[i]?.Construct(serviceRegistry, stateMachine);
+            binders[i]?.Construct(serviceRegistry, playerScopes, stateMachine);
 
         return true;
     }

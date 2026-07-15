@@ -2,10 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerInputHandler : PlayerComponent
+public class PlayerInputHandler : PlayerComponent, ILocalPlayerInputService
 {
-    public static PlayerInputHandler Active { get; private set; }
-
     [SerializeField] private CameraLook cameraLook;
 
     private readonly HashSet<object> inputBlockers = new();
@@ -16,17 +14,8 @@ public class PlayerInputHandler : PlayerComponent
 
     private Vector2 lastMoveInputDirection;
 
-    private void OnEnable()
-    {
-        if (isLocalControl)
-            Active = this;
-    }
-
     private void OnDisable()
     {
-        if (Active == this)
-            Active = null;
-
         if (cameraLook != null)
             cameraLook.SetLookActive(this, true);
     }
@@ -36,14 +25,7 @@ public class PlayerInputHandler : PlayerComponent
         isLocalControl = !isMultiplayer || isOwner;
 
         if (!isLocalControl)
-        {
-            if (Active == this)
-                Active = null;
-
             return;
-        }
-
-        Active = this;
 
         if (cameraLook == null)
         {

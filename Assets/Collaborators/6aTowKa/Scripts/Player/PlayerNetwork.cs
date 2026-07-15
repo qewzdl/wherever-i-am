@@ -1,7 +1,10 @@
 using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerNetwork : PlayerNetworkComponent, IPlayerSignalListener
+public class PlayerNetwork :
+    PlayerNetworkComponent,
+    IPlayerSignalListener,
+    IReplicatedPlayerStateService
 {
     public NetworkVariable<bool> PlayerIsCrouching = new NetworkVariable<bool>();
 
@@ -9,6 +12,8 @@ public class PlayerNetwork : PlayerNetworkComponent, IPlayerSignalListener
 
     private bool listensToLocalCrouch;
     private bool listensToNetworkCrouch;
+
+    public bool IsCrouching => PlayerIsCrouching.Value;
 
     protected override void OnPostInit(PlayerOrchestrator orch)
     {

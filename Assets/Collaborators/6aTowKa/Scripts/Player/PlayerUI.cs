@@ -1,8 +1,13 @@
 using UnityEngine;
 
-public class PlayerUI : PlayerComponent, IPlayerSignalListener
+public class PlayerUI :
+    PlayerComponent,
+    IPlayerSignalListener,
+    ILocalPlayerPresentationService
 {
     private CrosshairUI crosshairUI;
+
+    public bool IsPresentationActive => isActiveAndEnabled;
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {

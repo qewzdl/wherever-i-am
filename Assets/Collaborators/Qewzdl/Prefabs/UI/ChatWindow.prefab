@@ -409,7 +409,6 @@ MonoBehaviour:
   root: {fileID: 504515819477687593}
   messageListView: {fileID: 5904017093085928101}
   inputField: {fileID: 1547166565125995876}
-  playerInputHandler: {fileID: 0}
   chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
   visibilityController: {fileID: 9210650416974441113}
   submitOnEnter: 1

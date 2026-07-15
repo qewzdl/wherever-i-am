@@ -124,6 +124,35 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         return false;
     }
 
+    internal bool TryOpenPlayerScope(
+        ulong networkObjectId,
+        ulong ownerClientId,
+        bool isLocalPlayer,
+        Action<IPlayerServiceRegistrar> registerReplicatedServices,
+        Action<IPlayerServiceRegistrar> registerLocalServices,
+        out PlayerScopeRegistration registration,
+        out Exception failure)
+    {
+        registration = null;
+
+        if (sessionFlowService != null)
+        {
+            return sessionFlowService.TryOpenPlayerScope(
+                networkObjectId,
+                ownerClientId,
+                isLocalPlayer,
+                registerReplicatedServices,
+                registerLocalServices,
+                out registration,
+                out failure);
+        }
+
+        failure = new InvalidOperationException(
+            $"{nameof(NetworkSessionFlowService)} is not configured.");
+
+        return false;
+    }
+
     internal void DisposeSessionScopeController()
     {
         sessionFlowService?.DisposeSessionScopeController();

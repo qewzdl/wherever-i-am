@@ -861,6 +861,7 @@ GameObject:
   - component: {fileID: 7921583413856064293}
   - component: {fileID: 458918862290902195}
   - component: {fileID: 6106312102613378047}
+  - component: {fileID: 671234567890123456}
   - component: {fileID: 867530900123456790}
   - component: {fileID: 867530900123456789}
   m_Layer: 3
@@ -1358,6 +1359,23 @@ MonoBehaviour:
   hitResult: 2
   hitReason: A player was caught by an enemy
   logReceivedAttack: 1
+--- !u!114 &671234567890123456
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4912c938b514de0af8b702321c64e79, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  replicatedStateService: {fileID: 5693114101376329626}
+  enemyAttackReceiver: {fileID: 6106312102613378047}
+  inputService: {fileID: 8546633882858530306}
+  cameraService: {fileID: 439289573477164544}
+  presentationService: {fileID: 5747779835893970411}
 --- !u!114 &867530900123456790
 MonoBehaviour:
   m_ObjectHideFlags: 0

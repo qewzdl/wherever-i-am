@@ -235,6 +235,35 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         return false;
     }
 
+    internal bool TryOpenPlayerScope(
+        ulong networkObjectId,
+        ulong ownerClientId,
+        bool isLocalPlayer,
+        Action<IPlayerServiceRegistrar> registerReplicatedServices,
+        Action<IPlayerServiceRegistrar> registerLocalServices,
+        out PlayerScopeRegistration registration,
+        out Exception failure)
+    {
+        registration = null;
+
+        if (shutdownCoordinator != null)
+        {
+            return shutdownCoordinator.TryOpenPlayerScope(
+                networkObjectId,
+                ownerClientId,
+                isLocalPlayer,
+                registerReplicatedServices,
+                registerLocalServices,
+                out registration,
+                out failure);
+        }
+
+        failure = new InvalidOperationException(
+            $"{nameof(NetworkSessionShutdownCoordinator)} is not configured.");
+
+        return false;
+    }
+
     internal void DisposeSessionScopeController()
     {
         shutdownCoordinator?.DisposeSessionScopeController();

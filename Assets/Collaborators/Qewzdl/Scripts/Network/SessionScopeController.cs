@@ -9,6 +9,7 @@ internal sealed class SessionScopeController : IDisposable
 
     private ServiceScope sessionScope;
     private SessionServiceRegistry sessionRegistry;
+    private PlayerScopeRegistry playerScopeRegistry;
     private bool disposed;
 
     internal SessionScopeController(
@@ -51,15 +52,20 @@ internal sealed class SessionScopeController : IDisposable
 
         ServiceScope candidateScope = null;
         SessionServiceRegistry candidateRegistry = null;
+        PlayerScopeRegistry candidatePlayerRegistry = null;
         ServiceRegistrationTransaction transaction = null;
 
         try
         {
             candidateScope = globalScope.CreateChild("Session");
             candidateRegistry = new SessionServiceRegistry(candidateScope);
+            candidatePlayerRegistry = new PlayerScopeRegistry(candidateScope);
             transaction = candidateScope.BeginRegistrationTransaction();
             candidateScope.Register<ISessionServiceRegistry>(
                 candidateRegistry,
+                ServiceRegistrationOwnership.ScopeOwned);
+            candidateScope.Register<IPlayerScopeRegistry>(
+                candidatePlayerRegistry,
                 ServiceRegistrationOwnership.ScopeOwned);
             candidateScope.Register<IGameMapSessionService>(gameMapService);
             candidateScope.Register<IGameplayNoiseService>(gameplayNoiseService);
@@ -67,6 +73,7 @@ internal sealed class SessionScopeController : IDisposable
 
             sessionScope = candidateScope;
             sessionRegistry = candidateRegistry;
+            playerScopeRegistry = candidatePlayerRegistry;
             return true;
         }
         catch (Exception exception)
@@ -90,13 +97,28 @@ internal sealed class SessionScopeController : IDisposable
     internal bool Close()
     {
         ServiceScope scope = sessionScope;
+        PlayerScopeRegistry players = playerScopeRegistry;
         sessionScope = null;
         sessionRegistry = null;
+        playerScopeRegistry = null;
 
         if (scope == null)
             return false;
 
-        scope.Dispose();
+        List<Exception> failures = new();
+
+        if (players != null)
+            TryCleanup(() => players.CloseAll(), failures);
+
+        TryCleanup(scope.Dispose, failures);
+
+        if (failures.Count > 0)
+        {
+            throw new AggregateException(
+                "Failed to close Session service scope.",
+                failures);
+        }
+
         return true;
     }
 
@@ -124,6 +146,35 @@ internal sealed class SessionScopeController : IDisposable
         return sessionRegistry.TryRegister(
             registerServices,
             out registrations,
+            out failure);
+    }
+
+    internal bool TryOpenPlayerScope(
+        ulong networkObjectId,
+        ulong ownerClientId,
+        bool isLocalPlayer,
+        Action<IPlayerServiceRegistrar> registerReplicatedServices,
+        Action<IPlayerServiceRegistrar> registerLocalServices,
+        out PlayerScopeRegistration registration,
+        out Exception failure)
+    {
+        registration = null;
+
+        if (!IsOpen || playerScopeRegistry == null)
+        {
+            failure = new InvalidOperationException(
+                "Cannot create a Player scope without an open Session scope.");
+
+            return false;
+        }
+
+        return playerScopeRegistry.TryOpen(
+            networkObjectId,
+            ownerClientId,
+            isLocalPlayer,
+            registerReplicatedServices,
+            registerLocalServices,
+            out registration,
             out failure);
     }
 

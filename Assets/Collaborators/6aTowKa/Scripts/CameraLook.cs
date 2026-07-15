@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class CameraLook : MonoBehaviour
+public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 {
     [Header("References")]
     [SerializeField] private Transform playerTransform;

@@ -142,6 +142,35 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
         return false;
     }
 
+    internal bool TryOpenPlayerScope(
+        ulong networkObjectId,
+        ulong ownerClientId,
+        bool isLocalPlayer,
+        Action<IPlayerServiceRegistrar> registerReplicatedServices,
+        Action<IPlayerServiceRegistrar> registerLocalServices,
+        out PlayerScopeRegistration registration,
+        out Exception failure)
+    {
+        registration = null;
+
+        if (sessionScopeController != null)
+        {
+            return sessionScopeController.TryOpenPlayerScope(
+                networkObjectId,
+                ownerClientId,
+                isLocalPlayer,
+                registerReplicatedServices,
+                registerLocalServices,
+                out registration,
+                out failure);
+        }
+
+        failure = new InvalidOperationException(
+            "Session scope controller is not configured.");
+
+        return false;
+    }
+
     internal void DisposeSessionScopeController()
     {
         SessionScopeController controller = sessionScopeController;

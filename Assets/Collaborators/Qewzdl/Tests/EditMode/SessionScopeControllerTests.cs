@@ -113,6 +113,7 @@ public sealed class SessionScopeControllerTests
         Assert.That(controller.Services.Resolve<IGameMapSessionService>(), Is.SameAs(maps));
         Assert.That(controller.Services.Resolve<IGameplayNoiseService>(), Is.SameAs(gameplayNoise));
         Assert.That(controller.Services.Resolve<ISessionServiceRegistry>(), Is.SameAs(controller.Services));
+        Assert.That(controller.Services.Resolve<IPlayerScopeRegistry>(), Is.Not.Null);
         Assert.That(controller.Services.Resolve<IGlobalMarker>(), Is.SameAs(marker));
         Assert.That(globalScope.ChildScopeCount, Is.EqualTo(1));
     }
@@ -273,6 +274,43 @@ public sealed class SessionScopeControllerTests
         Assert.That(controller.Services, Is.Null);
         Assert.Throws<ObjectDisposedException>(() =>
             resolver.Resolve<IGameMapSessionService>());
+    }
+
+    [Test]
+    public void Close_ClosesPlayerScopesBeforeSessionResolver()
+    {
+        using ServiceScope globalScope = new("Global");
+        using SessionScopeController controller = CreateController(globalScope);
+        Assert.That(controller.TryOpen(out _), Is.True);
+        IServiceResolver sessionResolver = controller.Services;
+        IPlayerScopeRegistry playerRegistry =
+            sessionResolver.Resolve<IPlayerScopeRegistry>();
+        bool sessionWasActiveWhilePlayerClosed = false;
+        playerRegistry.PlayerScopeClosing += scope =>
+        {
+            sessionWasActiveWhilePlayerClosed =
+                sessionResolver.Resolve<IGameMapSessionService>() != null &&
+                scope.Services != null;
+        };
+        Assert.That(
+            controller.TryOpenPlayerScope(
+                512,
+                24,
+                false,
+                registrar => registrar.Register<IDynamicReadService>(new DynamicService()),
+                null,
+                out PlayerScopeRegistration registration,
+                out _),
+            Is.True);
+        Assert.That(playerRegistry.TryGetPlayerScope(512, out IPlayerScope playerScope), Is.True);
+
+        Assert.That(controller.Close(), Is.True);
+
+        Assert.That(sessionWasActiveWhilePlayerClosed, Is.True);
+        Assert.That(playerScope.IsDisposed, Is.True);
+        Assert.Throws<ObjectDisposedException>(() =>
+            sessionResolver.Resolve<IGameMapSessionService>());
+        registration.Dispose();
     }
 
     private static SessionScopeController CreateController(ServiceScope globalScope)

@@ -15,7 +15,6 @@ public class ChatWindowUI : MonoBehaviour
 
     [Header("UI")]
     [SerializeField] private TMP_InputField inputField;
-    [SerializeField] private PlayerInputHandler playerInputHandler;
 
     [Header("Events")]
     [SerializeField] private ChatEventChannel chatEvents;
@@ -31,6 +30,7 @@ public class ChatWindowUI : MonoBehaviour
     private IChatReadService readService;
     private IChatCommandService commandService;
     private IGameStateService stateMachine;
+    private ILocalPlayerInputService localInputService;
 
     private bool isOpen;
     private bool isInputFocused;
@@ -82,13 +82,15 @@ public class ChatWindowUI : MonoBehaviour
     public void Construct(
         IChatReadService readService,
         IChatCommandService commandService,
-        IGameStateService stateMachine)
+        IGameStateService stateMachine,
+        ILocalPlayerInputService inputService)
     {
         UnsubscribeFromServices();
 
         this.readService = readService;
         this.commandService = commandService;
         this.stateMachine = stateMachine;
+        SetLocalInputService(inputService);
 
         ResolveReferences();
         SubscribeToEventChannel();
@@ -366,6 +368,18 @@ public class ChatWindowUI : MonoBehaviour
         return true;
     }
 
+    public void SetLocalInputService(ILocalPlayerInputService inputService)
+    {
+        if (ReferenceEquals(localInputService, inputService))
+            return;
+
+        localInputService?.SetInputActive(this, true);
+        localInputService = inputService;
+
+        if (isInputFocused)
+            localInputService?.SetInputActive(this, false);
+    }
+
     private void RaiseSendRejected(string text, string reason)
     {
         if (chatEvents == null)
@@ -542,12 +556,7 @@ public class ChatWindowUI : MonoBehaviour
 
     private void SetPlayerInputActive(bool value)
     {
-        PlayerInputHandler inputHandler = ResolvePlayerInputHandler();
-
-        if (inputHandler == null)
-            return;
-
-        inputHandler.SetInputActive(this, value);
+        localInputService?.SetInputActive(this, value);
     }
 
     private void SetInputFocusState(bool value, bool forcePlayerInputUpdate = false)
@@ -557,20 +566,6 @@ public class ChatWindowUI : MonoBehaviour
 
         isInputFocused = value;
         SetPlayerInputActive(!isInputFocused);
-    }
-
-    private PlayerInputHandler ResolvePlayerInputHandler()
-    {
-        if (playerInputHandler != null)
-            return playerInputHandler;
-
-        playerInputHandler = PlayerInputHandler.Active;
-
-        if (playerInputHandler != null)
-            return playerInputHandler;
-
-        playerInputHandler = FindFirstObjectByType<PlayerInputHandler>();
-        return playerInputHandler;
     }
 
     private void SubscribeToEventChannel()

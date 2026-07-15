@@ -898,7 +898,6 @@ MonoBehaviour:
   resumeButton: {fileID: 213257120}
   mainMenuButton: {fileID: 1627049518}
   quitButton: {fileID: 703471698}
-  playerInputHandler: {fileID: 0}
   hudUI: {fileID: 367437491}
 --- !u!114 &367437487
 MonoBehaviour:
