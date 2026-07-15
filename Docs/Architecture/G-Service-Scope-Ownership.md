@@ -94,3 +94,13 @@ Global (ProjectContext: Ready -> Dispose)
 - `SessionStarted` отправляется только после успешного commit.
 - При shutdown Session scope закрывается после полной остановки NGO и до загрузки MainMenu.
 - `SessionStopped` отправляется только после закрытия scope и ровно один раз.
+
+## Scene scope integration
+
+- `SceneRuntimeScopeRegistry` создаёт отдельный `ServiceScope` для каждого runtime instance сцены; единственный ключ — `Scene.handle`.
+- MainMenu scene scope создаётся как child Global scope. Lobby, Game и сцены из `IGameMapCatalog` создаются как children активного Session scope.
+- Известная Map-сцена получает scope даже без `SceneRuntime`; это позволяет additive map instance иметь собственный lifetime до появления map-specific features.
+- Каждый feature получает `SceneFeatureContext` с scene handle, scene kind и `IServiceResolver` соответствующего scene scope.
+- Feature validation/install использует interface contracts через resolver и наследует доступ к parent services.
+- Unload и install rollback сначала вызывают feature uninstall в обратном порядке, пока resolver ещё активен, и только затем закрывают scene `ServiceScope`.
+- После остановки NGO coordinator сначала удаляет все Session-owned scene scopes, затем закрывает Session scope, отправляет `SessionStopped` и загружает MainMenu.

@@ -18,6 +18,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     private Task shutdownTask = Task.CompletedTask;
     private ConnectionResult pendingFailure;
     private SessionScopeController sessionScopeController;
+    private SceneRuntimeScopeRegistry sceneScopes;
     private bool sessionStopRaised = true;
 
     public bool IsShutdownInProgress => !shutdownTask.IsCompleted;
@@ -73,7 +74,8 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     internal bool ConfigureSessionScopeController(
         ServiceScope globalScope,
         IGameMapSessionService gameMapService,
-        IGameplayNoiseService gameplayNoiseService)
+        IGameplayNoiseService gameplayNoiseService,
+        SceneRuntimeScopeRegistry runtimeSceneScopes)
     {
         if (!HasRequiredReferences())
             return false;
@@ -90,18 +92,34 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return false;
         }
 
+        if (runtimeSceneScopes == null)
+        {
+            Debug.LogError("Cannot configure Session scope without the scene scope registry.", this);
+            return false;
+        }
+
         sessionScopeController = new SessionScopeController(
             globalScope,
             gameMapService,
             gameplayNoiseService);
+        sceneScopes = runtimeSceneScopes;
 
         return true;
+    }
+
+    internal bool TryGetSessionServiceScope(out ServiceScope scope)
+    {
+        scope = null;
+        return sessionScopeController != null &&
+               sessionScopeController.TryGetScope(out scope);
     }
 
     internal void DisposeSessionScopeController()
     {
         SessionScopeController controller = sessionScopeController;
+        SceneRuntimeScopeRegistry runtimeSceneScopes = sceneScopes;
         sessionScopeController = null;
+        sceneScopes = null;
 
         if (controller == null)
             return;
@@ -110,6 +128,9 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
 
         try
         {
+            if (wasOpen)
+                runtimeSceneScopes?.UninstallSessionScopes();
+
             controller.Dispose();
         }
         finally
@@ -246,6 +267,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
 
         try
         {
+            sceneScopes.UninstallSessionScopes();
             sessionScopeController.Close();
         }
         finally

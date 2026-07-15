@@ -1,6 +1,7 @@
 using System;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [DefaultExecutionOrder(-1100)]
 [DisallowMultipleComponent]
@@ -31,6 +32,7 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
     private ServiceScope globalServiceScope;
     private ServiceRegistrationTransaction globalScopeTransaction;
     private bool globalScopeCommitted;
+    private SceneRuntimeScopeRegistry sceneRuntimeScopes;
 
     public static ProjectContext Instance => instance;
     public ProjectRuntimeLifecycleState LifecycleState { get; private set; }
@@ -260,6 +262,97 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         return false;
     }
 
+    internal bool ConfigureSceneRuntimeScopes(SceneRuntimeScopeRegistry scopes)
+    {
+        if (scopes == null)
+        {
+            Debug.LogError($"{nameof(ProjectContext)} cannot use a null scene scope registry.", this);
+            return false;
+        }
+
+        if (sceneRuntimeScopes == null || ReferenceEquals(sceneRuntimeScopes, scopes))
+        {
+            sceneRuntimeScopes = scopes;
+            return true;
+        }
+
+        Debug.LogError($"{nameof(ProjectContext)} is already configured with another scene scope registry.", this);
+        return false;
+    }
+
+    internal bool TryCreateSceneServiceScope(
+        Scene scene,
+        ProjectSceneKind sceneKind,
+        out ServiceScope sceneScope,
+        out SceneServiceScopeParent scopeParent)
+    {
+        sceneScope = null;
+        scopeParent = default;
+
+        if (!scene.IsValid() || !scene.isLoaded || !IsReady)
+        {
+            Debug.LogError("Cannot create a service scope for an invalid or unloaded scene.", this);
+            return false;
+        }
+
+        ServiceScope parentScope;
+
+        if (sceneKind == ProjectSceneKind.MainMenu)
+        {
+            parentScope = globalServiceScope;
+            scopeParent = SceneServiceScopeParent.Global;
+        }
+        else if (sceneKind == ProjectSceneKind.Lobby ||
+                 sceneKind == ProjectSceneKind.Game ||
+                 IsGameMapScene(scene))
+        {
+            if (sessionOrchestrator == null ||
+                !sessionOrchestrator.TryGetSessionServiceScope(out parentScope))
+            {
+                Debug.LogError(
+                    $"Cannot create Session-owned scene scope for '{GetSceneLabel(scene)}' " +
+                    "because no network Session scope is open.",
+                    this);
+
+                return false;
+            }
+
+            scopeParent = SceneServiceScopeParent.Session;
+        }
+        else
+        {
+            Debug.LogError(
+                $"Scene '{GetSceneLabel(scene)}' has no service scope parent policy. " +
+                $"Configured kind: {sceneKind}.",
+                this);
+
+            return false;
+        }
+
+        if (parentScope == null || parentScope.IsDisposed)
+        {
+            Debug.LogError(
+                $"Cannot create scene scope '{GetSceneLabel(scene)}' from an inactive {scopeParent} scope.",
+                this);
+
+            return false;
+        }
+
+        try
+        {
+            sceneScope = parentScope.CreateChild(
+                $"Scene[{scene.handle}] {GetSceneLabel(scene)}");
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"Failed to create service scope for scene '{GetSceneLabel(scene)}'.", this);
+            Debug.LogException(exception, this);
+            return false;
+        }
+    }
+
     private bool ValidateReferences()
     {
         if (referencesValidated)
@@ -279,6 +372,18 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         valid &= ValidateRequiredReference(audioManager, nameof(audioManager), logErrors);
         valid &= ValidateRequiredReference(gameplayNoiseWorldService, nameof(gameplayNoiseWorldService), logErrors);
         valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService), logErrors);
+
+        if (sceneRuntimeScopes == null)
+        {
+            if (logErrors)
+            {
+                Debug.LogError(
+                    $"{nameof(ProjectContext)} is missing {nameof(SceneRuntimeScopeRegistry)} configuration.",
+                    this);
+            }
+
+            valid = false;
+        }
 
         if (valid)
             valid = sceneServiceComposer.Validate(this, logErrors);
@@ -389,7 +494,8 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
                sessionOrchestrator.ConfigureSessionScopeController(
                    globalServiceScope,
                    gameMapService,
-                   gameplayNoiseWorldService);
+                   gameplayNoiseWorldService,
+                   sceneRuntimeScopes);
     }
 
     private bool RegisterGlobalServiceContracts()
@@ -446,6 +552,15 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
     private void DisposeGlobalServiceScope()
     {
+        try
+        {
+            sceneRuntimeScopes?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+
         globalScopeCommitted = false;
 
         ServiceRegistrationTransaction transaction = globalScopeTransaction;
@@ -498,6 +613,26 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
                LifecycleState == ProjectRuntimeLifecycleState.Initializing ||
                LifecycleState == ProjectRuntimeLifecycleState.ShuttingDown ||
                LifecycleState == ProjectRuntimeLifecycleState.Disposing;
+    }
+
+    internal bool IsGameMapScene(Scene scene)
+    {
+        if (globalServiceScope == null || globalServiceScope.IsDisposed)
+            return false;
+
+        return globalServiceScope.TryResolve(out IGameMapCatalog mapCatalog) &&
+               mapCatalog.TryGetMap(scene.name, scene.path, out _);
+    }
+
+    private static string GetSceneLabel(Scene scene)
+    {
+        if (!string.IsNullOrWhiteSpace(scene.path))
+            return scene.path;
+
+        if (!string.IsNullOrWhiteSpace(scene.name))
+            return scene.name;
+
+        return $"handle {scene.handle}";
     }
 
     private bool ValidateRequiredReference(UnityEngine.Object reference, string fieldName, bool logError)

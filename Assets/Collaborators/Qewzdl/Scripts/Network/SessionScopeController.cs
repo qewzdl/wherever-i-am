@@ -26,6 +26,12 @@ internal sealed class SessionScopeController : IDisposable
 
     public IServiceResolver Services => IsOpen ? sessionScope : null;
 
+    internal bool TryGetScope(out ServiceScope scope)
+    {
+        scope = IsOpen ? sessionScope : null;
+        return scope != null;
+    }
+
     internal bool TryOpen(out Exception failure)
     {
         failure = null;

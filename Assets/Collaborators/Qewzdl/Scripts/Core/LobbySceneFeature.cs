@@ -8,17 +8,15 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
     [SerializeField] private LobbyUI lobbyUi;
     [SerializeField] private LobbyUICommandPresenter lobbyCommandPresenter;
 
-    protected override bool ValidateFeature(ProjectContext context)
+    protected override bool ValidateFeature(SceneFeatureContext context)
     {
-        INetworkSessionService sessionService = context.SessionService;
-
         bool valid = true;
         valid &= RequireReference(lobbyState, nameof(lobbyState));
         valid &= RequireReference(lobbyController, nameof(lobbyController));
         valid &= RequireReference(lobbyService, nameof(lobbyService));
         valid &= RequireReference(lobbyUi, nameof(lobbyUi));
         valid &= RequireReference(lobbyCommandPresenter, nameof(lobbyCommandPresenter));
-        valid &= RequireService(sessionService, nameof(ProjectContext.SessionService));
+        valid &= RequireService<INetworkSessionService>(context, out _);
 
         if (lobbyController != null)
             valid &= lobbyController.ValidateConfiguration();
@@ -26,9 +24,9 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         return valid;
     }
 
-    protected override bool InstallFeature(ProjectContext context)
+    protected override bool InstallFeature(SceneFeatureContext context)
     {
-        INetworkSessionService sessionService = context.SessionService;
+        INetworkSessionService sessionService = context.Services.Resolve<INetworkSessionService>();
 
         if (!lobbyController.Construct(sessionService))
             return false;
@@ -40,7 +38,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         return true;
     }
 
-    protected override void UninstallFeature()
+    protected override void UninstallFeature(SceneFeatureContext context)
     {
         RunCleanup(() => lobbyCommandPresenter?.Dispose(), lobbyCommandPresenter);
         RunCleanup(() => lobbyUi?.Dispose(), lobbyUi);

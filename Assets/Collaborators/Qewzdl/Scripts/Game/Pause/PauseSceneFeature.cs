@@ -6,16 +6,13 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
     [SerializeField] private PauseMenuUI pauseMenu;
     [SerializeField] private PauseServiceConsumer[] pauseConsumers;
 
-    protected override bool ValidateFeature(ProjectContext context)
+    protected override bool ValidateFeature(SceneFeatureContext context)
     {
-        GameStateMachine stateMachine = context.StateMachine;
-        INetworkSessionService sessionService = context.SessionService;
-
         bool valid = true;
         valid &= RequireReference(pauseService, nameof(pauseService));
         valid &= RequireReference(pauseMenu, nameof(pauseMenu));
-        valid &= RequireReference(stateMachine, nameof(ProjectContext.StateMachine));
-        valid &= RequireService(sessionService, nameof(ProjectContext.SessionService));
+        valid &= RequireService<IGameStateService>(context, out _);
+        valid &= RequireService<INetworkSessionService>(context, out _);
 
         if (pauseConsumers != null)
         {
@@ -26,18 +23,18 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         return valid;
     }
 
-    protected override bool InstallFeature(ProjectContext context)
+    protected override bool InstallFeature(SceneFeatureContext context)
     {
-        GameStateMachine stateMachine = context.StateMachine;
-        INetworkSessionService sessionService = context.SessionService;
+        IGameStateService stateService = context.Services.Resolve<IGameStateService>();
+        INetworkSessionService sessionService = context.Services.Resolve<INetworkSessionService>();
 
-        pauseService.Construct(stateMachine);
+        pauseService.Construct(stateService);
         pauseMenu.Construct(pauseService, sessionService);
 
         return InstallPauseConsumers();
     }
 
-    protected override void UninstallFeature()
+    protected override void UninstallFeature(SceneFeatureContext context)
     {
         if (pauseConsumers != null)
         {

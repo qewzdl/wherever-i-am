@@ -3,24 +3,24 @@ using UnityEngine;
 
 public sealed class GamePauseService : MonoBehaviour, IPauseService
 {
-    [SerializeField] private GameStateMachine stateMachine;
+    private IGameStateService stateService;
 
     public bool IsPaused { get; private set; }
 
     public event Action<bool> PauseStateChanged;
 
-    private bool stateMachineSubscribed;
+    private bool stateServiceSubscribed;
 
-    public void Construct(GameStateMachine stateMachine)
+    public void Construct(IGameStateService gameStateService)
     {
-        if (this.stateMachine == stateMachine)
+        if (ReferenceEquals(stateService, gameStateService))
         {
             SubscribeToStateMachine();
             return;
         }
 
         UnsubscribeFromStateMachine();
-        this.stateMachine = stateMachine;
+        stateService = gameStateService;
         SubscribeToStateMachine();
     }
 
@@ -28,7 +28,7 @@ public sealed class GamePauseService : MonoBehaviour, IPauseService
     {
         Resume();
         UnsubscribeFromStateMachine();
-        stateMachine = null;
+        stateService = null;
     }
 
     private void OnEnable()
@@ -75,28 +75,28 @@ public sealed class GamePauseService : MonoBehaviour, IPauseService
 
     private bool CanPause()
     {
-        if (stateMachine == null)
+        if (stateService == null)
             return true;
 
-        return stateMachine.CurrentState == GameState.InGame;
+        return stateService.CurrentState == GameState.InGame;
     }
 
     private void SubscribeToStateMachine()
     {
-        if (stateMachineSubscribed || stateMachine == null)
+        if (stateServiceSubscribed || stateService == null)
             return;
 
-        stateMachine.StateChanged += HandleGameStateChanged;
-        stateMachineSubscribed = true;
+        stateService.StateChanged += HandleGameStateChanged;
+        stateServiceSubscribed = true;
     }
 
     private void UnsubscribeFromStateMachine()
     {
-        if (!stateMachineSubscribed || stateMachine == null)
+        if (!stateServiceSubscribed || stateService == null)
             return;
 
-        stateMachine.StateChanged -= HandleGameStateChanged;
-        stateMachineSubscribed = false;
+        stateService.StateChanged -= HandleGameStateChanged;
+        stateServiceSubscribed = false;
     }
 
     private void HandleGameStateChanged(GameState previousState, GameState newState)

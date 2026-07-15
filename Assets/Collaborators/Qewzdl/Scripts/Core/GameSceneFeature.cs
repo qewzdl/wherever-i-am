@@ -8,7 +8,7 @@ public sealed class GameSceneFeature : SceneRuntimeFeature
     private SceneRuntimeFeature[] installedFeatures;
     private int installedFeatureCount;
 
-    protected override bool ValidateFeature(ProjectContext context)
+    protected override bool ValidateFeature(SceneFeatureContext context)
     {
         SceneRuntimeFeature[] sceneFeatures = ResolveFeatures();
 
@@ -56,7 +56,7 @@ public sealed class GameSceneFeature : SceneRuntimeFeature
         return valid;
     }
 
-    protected override bool InstallFeature(ProjectContext context)
+    protected override bool InstallFeature(SceneFeatureContext context)
     {
         installedFeatures = ResolveFeatures();
         installedFeatureCount = 0;
@@ -83,7 +83,7 @@ public sealed class GameSceneFeature : SceneRuntimeFeature
         return true;
     }
 
-    protected override void UninstallFeature()
+    protected override void UninstallFeature(SceneFeatureContext context)
     {
         UninstallInstalledFeatures();
     }

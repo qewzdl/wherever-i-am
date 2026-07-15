@@ -75,7 +75,8 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
     internal bool ConfigureSessionScopeController(
         ServiceScope globalScope,
         IGameMapSessionService gameMapService,
-        IGameplayNoiseService gameplayNoiseService)
+        IGameplayNoiseService gameplayNoiseService,
+        SceneRuntimeScopeRegistry sceneScopes)
     {
         if (!HasRequiredReferences())
             return false;
@@ -83,7 +84,15 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         return sessionFlowService.ConfigureSessionScopeController(
             globalScope,
             gameMapService,
-            gameplayNoiseService);
+            gameplayNoiseService,
+            sceneScopes);
+    }
+
+    internal bool TryGetSessionServiceScope(out ServiceScope scope)
+    {
+        scope = null;
+        return sessionFlowService != null &&
+               sessionFlowService.TryGetSessionServiceScope(out scope);
     }
 
     internal void DisposeSessionScopeController()

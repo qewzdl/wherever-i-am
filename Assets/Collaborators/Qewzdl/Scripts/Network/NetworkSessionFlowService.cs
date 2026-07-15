@@ -186,7 +186,8 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     internal bool ConfigureSessionScopeController(
         ServiceScope globalScope,
         IGameMapSessionService maps,
-        IGameplayNoiseService gameplayNoise)
+        IGameplayNoiseService gameplayNoise,
+        SceneRuntimeScopeRegistry sceneScopes)
     {
         if (shutdownCoordinator == null)
             return false;
@@ -194,7 +195,15 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         return shutdownCoordinator.ConfigureSessionScopeController(
             globalScope,
             maps,
-            gameplayNoise);
+            gameplayNoise,
+            sceneScopes);
+    }
+
+    internal bool TryGetSessionServiceScope(out ServiceScope scope)
+    {
+        scope = null;
+        return shutdownCoordinator != null &&
+               shutdownCoordinator.TryGetSessionServiceScope(out scope);
     }
 
     internal void DisposeSessionScopeController()

@@ -3,7 +3,7 @@ using UnityEngine;
 
 public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
 {
-    private ProjectContext installedContext;
+    private SceneFeatureContext installedContext;
     private bool installed;
     private bool lifecycleTransitionInProgress;
 
@@ -20,11 +20,17 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
             runtime.UninstallSceneScope(gameObject.scene.handle);
     }
 
-    public bool Validate(ProjectContext context)
+    public bool Validate(SceneFeatureContext context)
     {
         if (context == null)
         {
-            Debug.LogError($"{GetType().Name} cannot validate because {nameof(ProjectContext)} is missing.", this);
+            Debug.LogError($"{GetType().Name} cannot validate without {nameof(SceneFeatureContext)}.", this);
+            return false;
+        }
+
+        if (context.Services == null || context.Services.IsDisposed)
+        {
+            Debug.LogError($"{GetType().Name} cannot validate with an inactive scene resolver.", this);
             return false;
         }
 
@@ -45,15 +51,15 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         }
     }
 
-    public bool Install(ProjectContext context)
+    public bool Install(SceneFeatureContext context)
     {
         if (installed)
         {
-            if (installedContext == context)
+            if (ReferenceEquals(installedContext, context))
                 return true;
 
             Debug.LogError(
-                $"{GetType().Name} is already installed with another {nameof(ProjectContext)}.",
+                $"{GetType().Name} is already installed with another {nameof(SceneFeatureContext)}.",
                 this);
 
             return false;
@@ -68,7 +74,7 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         {
             if (!InstallFeature(context))
             {
-                RollbackFailedInstall();
+                RollbackFailedInstall(context);
                 return false;
             }
 
@@ -79,7 +85,7 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         catch (Exception exception)
         {
             Debug.LogException(exception, this);
-            RollbackFailedInstall();
+            RollbackFailedInstall(context);
             return false;
         }
         finally
@@ -100,12 +106,12 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         }
 
         lifecycleTransitionInProgress = true;
+        SceneFeatureContext context = installedContext;
         installed = false;
-        installedContext = null;
 
         try
         {
-            UninstallFeature();
+            UninstallFeature(context);
         }
         catch (Exception exception)
         {
@@ -113,6 +119,7 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         }
         finally
         {
+            installedContext = null;
             lifecycleTransitionInProgress = false;
         }
     }
@@ -122,10 +129,10 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         Uninstall();
     }
 
-    protected abstract bool ValidateFeature(ProjectContext context);
-    protected abstract bool InstallFeature(ProjectContext context);
+    protected abstract bool ValidateFeature(SceneFeatureContext context);
+    protected abstract bool InstallFeature(SceneFeatureContext context);
 
-    protected virtual void UninstallFeature()
+    protected virtual void UninstallFeature(SceneFeatureContext context)
     {
     }
 
@@ -153,13 +160,27 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         return false;
     }
 
-    protected bool RequireService<T>(T service, string serviceName)
+    protected bool RequireService<T>(
+        SceneFeatureContext context,
+        out T service,
+        string serviceName = null)
         where T : class
     {
-        if (service != null)
-            return true;
+        service = null;
 
-        Debug.LogError($"{GetType().Name} is missing required service '{serviceName}'.", this);
+        if (context != null &&
+            context.Services != null &&
+            !context.Services.IsDisposed &&
+            context.Services.TryResolve(out service))
+        {
+            return true;
+        }
+
+        string resolvedName = string.IsNullOrWhiteSpace(serviceName)
+            ? typeof(T).Name
+            : serviceName;
+
+        Debug.LogError($"{GetType().Name} is missing required service '{resolvedName}'.", this);
         return false;
     }
 
@@ -191,14 +212,14 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         return null;
     }
 
-    private void RollbackFailedInstall()
+    private void RollbackFailedInstall(SceneFeatureContext context)
     {
         installed = false;
         installedContext = null;
 
         try
         {
-            UninstallFeature();
+            UninstallFeature(context);
         }
         catch (Exception rollbackException)
         {

@@ -80,6 +80,9 @@ public sealed class AppRuntime : MonoBehaviour
         if (!EnsureContext())
             return false;
 
+        if (!context.ConfigureSceneRuntimeScopes(sceneScopes))
+            return false;
+
         if (!context.StartRuntime())
             return false;
 

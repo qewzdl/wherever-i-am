@@ -3,10 +3,19 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+internal enum SceneServiceScopeParent
+{
+    Global = 0,
+    Session = 1
+}
+
 public sealed class SceneRuntimeScope : IDisposable
 {
     private readonly int sceneHandle;
     private readonly string sceneLabel;
+    private readonly SceneServiceScopeParent serviceScopeParent;
+    private readonly ServiceScope serviceScope;
+    private readonly SceneFeatureContext featureContext;
     private readonly SceneRuntimeFeature[] features;
     private int installedFeatureCount;
     private bool disposed;
@@ -15,17 +24,27 @@ public sealed class SceneRuntimeScope : IDisposable
     internal SceneRuntimeScope(
         int handle,
         string label,
+        ProjectSceneKind sceneKind,
+        SceneServiceScopeParent parent,
+        ServiceScope services,
         SceneRuntimeFeature[] sceneFeatures)
     {
         sceneHandle = handle;
         sceneLabel = label;
-        features = sceneFeatures;
+        serviceScopeParent = parent;
+        serviceScope = services ?? throw new ArgumentNullException(nameof(services));
+        featureContext = new SceneFeatureContext(handle, sceneKind, serviceScope);
+        features = sceneFeatures ?? throw new ArgumentNullException(nameof(sceneFeatures));
     }
 
     public int SceneHandle => sceneHandle;
-    public bool IsReady => ready && !disposed;
+    public bool IsReady => ready && !disposed && !serviceScope.IsDisposed;
+    public IServiceResolver Services => !disposed && !serviceScope.IsDisposed
+        ? serviceScope
+        : null;
+    internal SceneServiceScopeParent ServiceScopeParent => serviceScopeParent;
 
-    internal bool Install(ProjectContext context)
+    internal bool Install()
     {
         if (IsReady)
             return true;
@@ -40,7 +59,7 @@ public sealed class SceneRuntimeScope : IDisposable
         {
             SceneRuntimeFeature feature = features[i];
 
-            if (feature != null && feature.Validate(context))
+            if (feature != null && feature.Validate(featureContext))
                 continue;
 
             Debug.LogError(
@@ -54,7 +73,7 @@ public sealed class SceneRuntimeScope : IDisposable
         {
             SceneRuntimeFeature feature = features[i];
 
-            if (feature != null && feature.Install(context))
+            if (feature != null && feature.Install(featureContext))
             {
                 installedFeatureCount++;
                 continue;
@@ -80,6 +99,15 @@ public sealed class SceneRuntimeScope : IDisposable
         disposed = true;
         ready = false;
         RollbackInstalledFeatures();
+
+        try
+        {
+            serviceScope.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+        }
     }
 
     private void RollbackInstalledFeatures()
@@ -132,7 +160,7 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
         scopes.Add(scene.handle, scope);
         scopeOrder.Add(scene.handle);
 
-        if (scope.Install(context))
+        if (scope.Install())
             return true;
 
         scopes.Remove(scene.handle);
@@ -159,6 +187,29 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
     public bool TryGetScope(int sceneHandle, out SceneRuntimeScope scope)
     {
         return scopes.TryGetValue(sceneHandle, out scope);
+    }
+
+    internal int UninstallSessionScopes()
+    {
+        int uninstallCount = 0;
+
+        for (int i = scopeOrder.Count - 1; i >= 0; i--)
+        {
+            int sceneHandle = scopeOrder[i];
+
+            if (!scopes.TryGetValue(sceneHandle, out SceneRuntimeScope scope) ||
+                scope.ServiceScopeParent != SceneServiceScopeParent.Session)
+            {
+                continue;
+            }
+
+            scopes.Remove(sceneHandle);
+            scopeOrder.RemoveAt(i);
+            scope.Dispose();
+            uninstallCount++;
+        }
+
+        return uninstallCount;
     }
 
     public void Dispose()
@@ -248,21 +299,27 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
         }
 
         ProjectSceneKind sceneKind = context.GetSceneKind(scene.name, scene.path);
+        bool isMapScene = context.IsGameMapScene(scene);
 
         if (!foundRuntime)
         {
-            if (sceneKind != ProjectSceneKind.Unknown &&
-                sceneKind != context.GetBootstrapSceneKind())
+            bool hasSceneScopePolicy = sceneKind == ProjectSceneKind.MainMenu ||
+                                       sceneKind == ProjectSceneKind.Lobby ||
+                                       sceneKind == ProjectSceneKind.Game ||
+                                       isMapScene;
+
+            if (!hasSceneScopePolicy)
+                return false;
+
+            if (!isMapScene)
             {
                 Debug.LogWarning(
                     $"Scene '{scene.name}' has no {nameof(SceneRuntime)}. " +
-                    "Scene-level dependencies were not installed.");
+                    "An empty scene service scope will be installed.");
             }
-
-            return false;
         }
 
-        if (!valid || features.Count == 0)
+        if (!valid)
         {
             Debug.LogError(
                 $"Scene '{scene.name}' has {nameof(SceneRuntime)}, but its scope configuration is invalid.");
@@ -270,12 +327,43 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
             return false;
         }
 
-        scope = new SceneRuntimeScope(
-            scene.handle,
-            GetSceneLabel(scene),
-            features.ToArray());
+        if (!context.TryCreateSceneServiceScope(
+                scene,
+                sceneKind,
+                out ServiceScope sceneServiceScope,
+                out SceneServiceScopeParent parent))
+        {
+            return false;
+        }
 
-        return true;
+        try
+        {
+            scope = new SceneRuntimeScope(
+                scene.handle,
+                GetSceneLabel(scene),
+                sceneKind,
+                parent,
+                sceneServiceScope,
+                features.ToArray());
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                sceneServiceScope.Dispose();
+            }
+            catch (Exception cleanupException)
+            {
+                Debug.LogException(cleanupException);
+            }
+
+            Debug.LogError(
+                $"Failed to compose scene runtime scope for '{GetSceneLabel(scene)}'.");
+            Debug.LogException(exception);
+            return false;
+        }
     }
 
     private static string GetSceneLabel(Scene scene)

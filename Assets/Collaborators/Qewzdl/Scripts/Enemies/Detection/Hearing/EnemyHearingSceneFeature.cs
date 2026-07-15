@@ -1,17 +1,15 @@
 public sealed class EnemyHearingSceneFeature : SceneRuntimeFeature
 {
-    protected override bool ValidateFeature(ProjectContext context)
+    protected override bool ValidateFeature(SceneFeatureContext context)
     {
-        GameplayNoiseWorldService noiseWorldService = context.GameplayNoiseWorld;
-
-        if (!RequireService(noiseWorldService, nameof(context.GameplayNoiseWorld)))
+        if (!RequireService(context, out IGameplayNoiseService noiseService))
             return false;
 
-        if (!noiseWorldService.IsInitialized)
+        if (!noiseService.IsInitialized)
         {
             UnityEngine.Debug.LogError(
                 $"{nameof(EnemyHearingSceneFeature)} requires initialized " +
-                $"{nameof(GameplayNoiseWorldService)} from {nameof(ProjectContext)}.",
+                $"{nameof(IGameplayNoiseService)} from the Session scope.",
                 this
             );
 
@@ -21,7 +19,7 @@ public sealed class EnemyHearingSceneFeature : SceneRuntimeFeature
         return true;
     }
 
-    protected override bool InstallFeature(ProjectContext context)
+    protected override bool InstallFeature(SceneFeatureContext context)
     {
         return true;
     }
