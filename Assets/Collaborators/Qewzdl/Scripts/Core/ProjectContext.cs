@@ -29,6 +29,7 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
     private ServiceScope globalServiceScope;
     private ServiceRegistrationTransaction globalScopeTransaction;
     private bool globalScopeCommitted;
+    private GlobalServicePublication globalServicesPublication;
     private SceneRuntimeScopeRegistry sceneRuntimeScopes;
 
     public ProjectRuntimeLifecycleState LifecycleState { get; private set; }
@@ -105,6 +106,7 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
                 return FailStartup("Initialize");
 
             CommitGlobalServiceScope();
+            PublishGlobalServices();
 
             LifecycleState = ProjectRuntimeLifecycleState.Ready;
             return true;
@@ -532,9 +534,27 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         globalScopeCommitted = true;
     }
 
+    private void PublishGlobalServices()
+    {
+        if (!globalScopeCommitted || Services == null)
+        {
+            throw new InvalidOperationException(
+                "Global services cannot be published before scope commit.");
+        }
+
+        if (globalServicesPublication != null)
+        {
+            throw new InvalidOperationException(
+                "Global services are already published by this ProjectContext.");
+        }
+
+        globalServicesPublication = G.Publish(Services);
+    }
+
     private void DisposeGlobalServiceScope()
     {
         DisposeSceneRuntimeScopes();
+        DisposeGlobalServicesPublication();
 
         globalScopeCommitted = false;
 
@@ -561,6 +581,24 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         try
         {
             scope.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+    }
+
+    private void DisposeGlobalServicesPublication()
+    {
+        GlobalServicePublication publication = globalServicesPublication;
+        globalServicesPublication = null;
+
+        if (publication == null)
+            return;
+
+        try
+        {
+            publication.Dispose();
         }
         catch (Exception exception)
         {

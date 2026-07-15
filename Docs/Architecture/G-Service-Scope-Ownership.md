@@ -1,8 +1,8 @@
 # G: service contracts and scope ownership
 
-Статус: обязательный контракт перед реализацией `G`.
+Статус: действующий контракт реализации `G`.
 
-`G` должен хранить и выдавать сервисы только по интерфейсу. Concrete-типы остаются деталями bootstrap, scene composition и NGO spawn lifecycle.
+`G` публикует committed resolver Global scope и выдаёт сервисы только по интерфейсу. Concrete-типы остаются деталями bootstrap, scene composition и NGO spawn lifecycle.
 
 ## Иерархия scopes
 
@@ -68,12 +68,22 @@ Global (ProjectContext: Ready -> Dispose)
 6. Unregister выполняется до `Dispose`. Повторные Shutdown, Uninstall и Dispose должны быть idempotent.
 7. NetworkObject service регистрируется не раньше `OnNetworkSpawn` и удаляется не позже `OnNetworkDespawn`.
 8. Новый код не использует `Find*`, `Resources.Load`, `ProjectContext.Instance`, `AudioManager.Instance` или `NetworkManager.Singleton` как fallback service resolution.
-9. Static `Instance` у существующих классов считается migration API и не входит в контракт `G`.
+9. `G` является единственной глобальной runtime-точкой доступа; ambient `Instance` у runtime-компонентов запрещён.
 10. `G` не определяет network authority: каждый contract сохраняет server/client правила из ownership table.
+
+## Public G API
+
+- Публичный API ограничен `G.IsReady`, `G.Resolve<T>()` и `G.TryResolve<T>(out T)`.
+- `G` не публикует сам `IServiceResolver` и не предоставляет registration API.
+- `Resolve<T>` до публикации или после снятия publication завершается lifecycle-ошибкой; `TryResolve<T>` возвращает `false`.
+- Повторная одновременная publication запрещена. Снятие выполняется generation-safe handle, поэтому устаревший owner не может очистить новую publication.
+- Static state сбрасывается на `SubsystemRegistration`, включая Play Mode с отключённым Domain Reload.
+- Через `G` разрешаются только Global contracts. Scene, Session, Player и Local services используют соответствующие scoped resolvers.
 
 ## ServiceScope semantics
 
-- `IServiceResolver` предоставляет только `Resolve` и `TryResolve`; регистрировать зависимости может только владелец `ServiceScope`.
+- `IServiceResolver` предоставляет только состояние lifetime, `Resolve` и `TryResolve`; регистрировать зависимости может только владелец `ServiceScope`.
+- Mutable `ServiceScope`, registration handles, transactions и scope registries являются assembly-internal infrastructure.
 - Contract обязан быть interface. Регистрация concrete-типа завершается ошибкой.
 - Duplicate contract внутри одного scope всегда запрещён.
 - Shadowing parent contract запрещён по умолчанию. Он разрешается только явным `ServiceShadowingPolicy.Allow`; local service тогда имеет приоритет только внутри этого child scope.
@@ -86,11 +96,11 @@ Global (ProjectContext: Ready -> Dispose)
 
 ## Global scope integration
 
-- `ProjectContext` создаёт Global `ServiceScope` в фазе Compose и наружу предоставляет только `IServiceResolver` через `Services`.
+- `ProjectContext` создаёт Global `ServiceScope` в фазе Compose; его `Services` остаётся внутренним источником publication для `G`.
 - Global contracts регистрируются одной transaction после успешной scene service composition.
-- Resolver не публикуется до успешного Initialize и transaction `Commit`.
+- Resolver публикуется в `G` только после успешного Initialize и transaction `Commit`.
 - Bootstrap failure откатывает незавершённую transaction, затем закрывает Global scope.
-- Обычный shutdown сохраняет resolver доступным для cleanup; окончательный `ProjectContext.Dispose` закрывает scope ровно один раз.
+- Обычный shutdown сохраняет `G` доступным для cleanup. `ProjectContext.Dispose` снимает publication непосредственно перед Global scope Dispose и закрывает оба lifetime ровно один раз.
 
 ## Session scope integration
 
@@ -132,4 +142,4 @@ Global (ProjectContext: Ready -> Dispose)
 - Session-owned `NetworkObject` регистрирует interface contracts атомарным batch через внутренний registrar; `ServiceScope` наружу не передаётся.
 - Успешный batch публикует одно изменение после commit. Ошибка, включая duplicate contract, откатывает весь batch без уведомления consumers.
 - `NetworkChatSession` хранит одну группу handles для `IChatReadService` и `IChatCommandService` и освобождает её в начале `OnNetworkDespawn`.
-- Scene UI получает registry через parent lookup своего scene scope. Gameplay `NetworkBehaviour` получает его через `NetworkSessionOrchestrator`, находящийся на том же объекте, что и его `NetworkManager`.
+- Scene UI получает registry через parent lookup своего scene scope. Gameplay `NetworkBehaviour` разрешает Session contracts через `NetworkObjectServiceContext` с явным `NetworkManager`.

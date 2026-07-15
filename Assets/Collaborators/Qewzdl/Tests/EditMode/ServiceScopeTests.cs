@@ -55,6 +55,7 @@ public sealed class ServiceScopeTests
             typeof(ServiceRegistrationTransaction),
             typeof(ServiceRegistrationOwnership),
             typeof(ServiceShadowingPolicy),
+            typeof(GlobalServicePublication),
             typeof(SceneRuntimeScope),
             typeof(SceneRuntimeScopeRegistry),
             typeof(ISceneServiceRegistrar),
@@ -70,6 +71,7 @@ public sealed class ServiceScopeTests
         }
 
         Assert.That(typeof(IServiceResolver).IsVisible, Is.True);
+        Assert.That(typeof(G).IsVisible, Is.True);
         Assert.That(typeof(IPlayerScope).IsVisible, Is.True);
         Assert.That(typeof(IPlayerScopeRegistry).IsVisible, Is.True);
         Assert.That(typeof(NetworkObjectServiceContext).IsVisible, Is.True);
@@ -85,6 +87,21 @@ public sealed class ServiceScopeTests
         AssertAssemblyInternalGetter(typeof(NetworkSessionOrchestrator), "SessionServices");
         AssertAssemblyInternalGetter(typeof(NetworkSessionFlowService), "SessionServices");
         AssertAssemblyInternalGetter(typeof(NetworkSessionShutdownCoordinator), "SessionServices");
+        Assert.That(
+            typeof(G).GetProperty(nameof(G.IsReady))?.GetMethod?.IsPublic,
+            Is.True);
+        Assert.That(
+            typeof(G).GetMethod(nameof(G.Resolve), BindingFlags.Public | BindingFlags.Static),
+            Is.Not.Null);
+        Assert.That(
+            typeof(G).GetMethod(nameof(G.TryResolve), BindingFlags.Public | BindingFlags.Static),
+            Is.Not.Null);
+        Assert.That(
+            typeof(G).GetProperty("Services", BindingFlags.Public | BindingFlags.Static),
+            Is.Null);
+        Assert.That(
+            typeof(G).GetMethod("Register", BindingFlags.Public | BindingFlags.Static),
+            Is.Null);
     }
 
     [Test]
@@ -387,5 +404,154 @@ public sealed class ServiceScopeTests
             property.GetGetMethod(true)?.IsAssembly,
             Is.True,
             $"{ownerType.Name}.{propertyName} must remain assembly-internal.");
+    }
+}
+
+public sealed class GTests
+{
+    private interface IGlobalTestService
+    {
+        string Id { get; }
+    }
+
+    private interface IScopedTestService
+    {
+    }
+
+    private sealed class GlobalTestService : IGlobalTestService
+    {
+        internal GlobalTestService(string id)
+        {
+            Id = id;
+        }
+
+        public string Id { get; }
+    }
+
+    private sealed class ScopedTestService : IScopedTestService
+    {
+    }
+
+    [SetUp]
+    public void SetUp()
+    {
+        G.ResetRuntimeState();
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        G.ResetRuntimeState();
+    }
+
+    [Test]
+    public void Resolve_BeforePublicationReportsUnavailableGlobalServices()
+    {
+        Assert.That(G.IsReady, Is.False);
+        Assert.That(G.TryResolve(out IGlobalTestService service), Is.False);
+        Assert.That(service, Is.Null);
+        Assert.Throws<InvalidOperationException>(() => G.Resolve<IGlobalTestService>());
+    }
+
+    [Test]
+    public void Publication_ExposesOnlyGlobalResolverUntilHandleIsDisposed()
+    {
+        using ServiceScope globalScope = new("Global");
+        ServiceScope sessionScope = globalScope.CreateChild("Session");
+        GlobalTestService expected = new("global");
+        globalScope.Register<IGlobalTestService>(expected);
+        sessionScope.Register<IScopedTestService>(new ScopedTestService());
+
+        using (GlobalServicePublication publication = G.Publish(globalScope))
+        {
+            Assert.That(publication.IsActive, Is.True);
+            Assert.That(G.IsReady, Is.True);
+            Assert.That(G.Resolve<IGlobalTestService>(), Is.SameAs(expected));
+            Assert.That(G.TryResolve(out IGlobalTestService resolved), Is.True);
+            Assert.That(resolved, Is.SameAs(expected));
+            Assert.That(G.TryResolve(out IScopedTestService _), Is.False);
+        }
+
+        Assert.That(G.IsReady, Is.False);
+        Assert.That(G.TryResolve(out IGlobalTestService _), Is.False);
+    }
+
+    [Test]
+    public void Publish_RejectsDuplicateWithoutReplacingActiveResolver()
+    {
+        using ServiceScope firstScope = new("First Global");
+        using ServiceScope secondScope = new("Second Global");
+        GlobalTestService first = new("first");
+        firstScope.Register<IGlobalTestService>(first);
+        secondScope.Register<IGlobalTestService>(new GlobalTestService("second"));
+        using GlobalServicePublication publication = G.Publish(firstScope);
+
+        Assert.Throws<InvalidOperationException>(() => G.Publish(secondScope));
+        Assert.That(G.Resolve<IGlobalTestService>(), Is.SameAs(first));
+        Assert.That(publication.IsActive, Is.True);
+    }
+
+    [Test]
+    public void PublicationHandle_DisposeIsIdempotentAndAllowsNextGeneration()
+    {
+        using ServiceScope globalScope = new("Global");
+        globalScope.Register<IGlobalTestService>(new GlobalTestService("global"));
+        GlobalServicePublication publication = G.Publish(globalScope);
+
+        publication.Dispose();
+        publication.Dispose();
+
+        Assert.That(publication.IsActive, Is.False);
+        Assert.That(G.IsReady, Is.False);
+
+        using GlobalServicePublication nextPublication = G.Publish(globalScope);
+        Assert.That(nextPublication.IsActive, Is.True);
+        Assert.That(G.IsReady, Is.True);
+    }
+
+    [Test]
+    public void StalePublication_CannotClearNewGenerationAfterRuntimeReset()
+    {
+        using ServiceScope firstScope = new("First Global");
+        using ServiceScope secondScope = new("Second Global");
+        GlobalTestService second = new("second");
+        firstScope.Register<IGlobalTestService>(new GlobalTestService("first"));
+        secondScope.Register<IGlobalTestService>(second);
+        GlobalServicePublication stalePublication = G.Publish(firstScope);
+
+        G.ResetRuntimeState();
+
+        using GlobalServicePublication currentPublication = G.Publish(secondScope);
+        stalePublication.Dispose();
+
+        Assert.That(currentPublication.IsActive, Is.True);
+        Assert.That(G.IsReady, Is.True);
+        Assert.That(G.Resolve<IGlobalTestService>(), Is.SameAs(second));
+    }
+
+    [Test]
+    public void DisposedResolver_IsNeverReportedAsReady()
+    {
+        ServiceScope globalScope = new("Global");
+        globalScope.Register<IGlobalTestService>(new GlobalTestService("global"));
+        using GlobalServicePublication publication = G.Publish(globalScope);
+
+        globalScope.Dispose();
+
+        Assert.That(G.IsReady, Is.False);
+        Assert.That(G.TryResolve(out IGlobalTestService service), Is.False);
+        Assert.That(service, Is.Null);
+        Assert.Throws<InvalidOperationException>(() => G.Resolve<IGlobalTestService>());
+    }
+
+    [Test]
+    public void Resolve_RejectsConcreteContract()
+    {
+        using ServiceScope globalScope = new("Global");
+        using GlobalServicePublication publication = G.Publish(globalScope);
+
+        Assert.Throws<ArgumentException>(() => G.Resolve<GlobalTestService>());
+        Assert.Throws<ArgumentException>(() =>
+            G.TryResolve(out GlobalTestService _));
     }
 }
