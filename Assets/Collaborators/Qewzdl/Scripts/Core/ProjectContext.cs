@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 
 [DefaultExecutionOrder(-1100)]
 [DisallowMultipleComponent]
-public sealed class ProjectContext : MonoBehaviour, IDisposable
+public sealed class ProjectContext : MonoBehaviour
 {
     [Header("Project")]
     [SerializeField] private ProjectSceneRegistry sceneRegistry;
@@ -32,33 +32,33 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
     private GlobalServicePublication globalServicesPublication;
     private SceneRuntimeScopeRegistry sceneRuntimeScopes;
 
-    public ProjectRuntimeLifecycleState LifecycleState { get; private set; }
-    public bool IsReady => LifecycleState == ProjectRuntimeLifecycleState.Ready;
+    internal ProjectRuntimeLifecycleState LifecycleState { get; private set; }
+    internal bool IsReady => LifecycleState == ProjectRuntimeLifecycleState.Ready;
     internal IServiceResolver Services => globalScopeCommitted &&
                                           globalServiceScope != null &&
                                           !globalServiceScope.IsDisposed
         ? globalServiceScope
         : null;
-    public ProjectSceneRegistry SceneRegistry => sceneRegistry;
-    public ProjectSettings Settings => sceneRegistry != null ? sceneRegistry.Settings : null;
-    public ProjectSceneFlow SceneFlow => sceneRegistry != null ? sceneRegistry.SceneFlow : null;
-    public NetworkManager NetworkManager => networkManager;
-    public INetworkSessionService SessionService => SessionOrchestrator;
-    public GameStateMachine StateMachine => stateMachine;
-    public NetworkSessionOrchestrator SessionOrchestrator => sessionOrchestrator;
-    public NetworkConnectionService ConnectionService => connectionService;
-    public NetworkConnectionApprovalService ConnectionApprovalService => connectionApprovalService;
-    public LocalSceneLoader LocalSceneLoader => sceneServiceComposer != null
+    internal ProjectSceneRegistry SceneRegistry => sceneRegistry;
+    internal ProjectSettings Settings => sceneRegistry != null ? sceneRegistry.Settings : null;
+    internal ProjectSceneFlow SceneFlow => sceneRegistry != null ? sceneRegistry.SceneFlow : null;
+    internal NetworkManager NetworkManager => networkManager;
+    internal INetworkSessionService SessionService => SessionOrchestrator;
+    internal GameStateMachine StateMachine => stateMachine;
+    internal NetworkSessionOrchestrator SessionOrchestrator => sessionOrchestrator;
+    internal NetworkConnectionService ConnectionService => connectionService;
+    internal NetworkConnectionApprovalService ConnectionApprovalService => connectionApprovalService;
+    internal LocalSceneLoader LocalSceneLoader => sceneServiceComposer != null
         ? sceneServiceComposer.LocalSceneLoader
         : null;
-    public NetworkSceneLoader NetworkSceneLoader => sceneServiceComposer != null
+    internal NetworkSceneLoader NetworkSceneLoader => sceneServiceComposer != null
         ? sceneServiceComposer.NetworkSceneLoader
         : null;
-    public NetworkSceneLoader SceneLoader => NetworkSceneLoader;
-    public ProjectSceneNavigator SceneNavigator => sceneServiceComposer != null
+    internal NetworkSceneLoader SceneLoader => NetworkSceneLoader;
+    internal ProjectSceneNavigator SceneNavigator => sceneServiceComposer != null
         ? sceneServiceComposer.SceneNavigator
         : null;
-    public ProjectSceneFlowService SceneFlowService => sceneServiceComposer != null
+    internal ProjectSceneFlowService SceneFlowService => sceneServiceComposer != null
         ? sceneServiceComposer.SceneFlowService
         : null;
     private void OnDestroy()
@@ -68,13 +68,13 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         DisposeRuntime();
     }
 
-    public void MakePersistent()
+    internal void MakePersistent()
     {
         transform.SetParent(null);
         DontDestroyOnLoad(gameObject);
     }
 
-    public bool StartRuntime()
+    internal bool StartRuntime()
     {
         if (IsReady)
             return true;
@@ -118,7 +118,7 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         }
     }
 
-    public void ShutdownRuntime()
+    internal void ShutdownRuntime()
     {
         if (LifecycleState == ProjectRuntimeLifecycleState.None ||
             LifecycleState == ProjectRuntimeLifecycleState.Disposed ||
@@ -132,12 +132,7 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         ShutdownProjectServices();
     }
 
-    public void Shutdown()
-    {
-        ShutdownRuntime();
-    }
-
-    public void DisposeRuntime()
+    internal void DisposeRuntime()
     {
         if (LifecycleState == ProjectRuntimeLifecycleState.Disposed)
             return;
@@ -154,73 +149,68 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         LifecycleState = ProjectRuntimeLifecycleState.Disposed;
     }
 
-    public void Dispose()
-    {
-        DisposeRuntime();
-    }
-
-    public string GetSceneName(ProjectSceneKind sceneKind)
+    internal string GetSceneName(ProjectSceneKind sceneKind)
     {
         return sceneRegistry != null
             ? sceneRegistry.GetSceneName(sceneKind)
             : string.Empty;
     }
 
-    public string GetScenePath(ProjectSceneKind sceneKind)
+    internal string GetScenePath(ProjectSceneKind sceneKind)
     {
         return sceneRegistry != null
             ? sceneRegistry.GetScenePath(sceneKind)
             : string.Empty;
     }
 
-    public ProjectSceneKind GetActiveSceneKind()
+    internal ProjectSceneKind GetActiveSceneKind()
     {
         return sceneRegistry != null
             ? sceneRegistry.GetActiveSceneKind()
             : ProjectSceneKind.Unknown;
     }
 
-    public ProjectSceneKind GetSceneKind(string sceneName)
+    internal ProjectSceneKind GetSceneKind(string sceneName)
     {
         return sceneRegistry != null
             ? sceneRegistry.GetSceneKind(sceneName)
             : ProjectSceneKind.Unknown;
     }
 
-    public ProjectSceneKind GetSceneKind(string sceneName, string scenePath)
+    internal ProjectSceneKind GetSceneKind(string sceneName, string scenePath)
     {
         return sceneRegistry != null
             ? sceneRegistry.GetSceneKind(sceneName, scenePath)
             : ProjectSceneKind.Unknown;
     }
 
-    public bool IsScene(ProjectSceneKind sceneKind, string sceneName)
+    internal bool IsScene(ProjectSceneKind sceneKind, string sceneName)
     {
         return sceneRegistry != null && sceneRegistry.IsScene(sceneKind, sceneName);
     }
 
-    public ProjectSceneKind GetBootstrapSceneKind()
+    internal ProjectSceneKind GetBootstrapSceneKind()
     {
         return sceneRegistry != null
             ? sceneRegistry.GetBootstrapSceneKind()
             : ProjectSceneKind.Unknown;
     }
 
-    public ProjectSceneKind GetDefaultStartupScene()
+    internal ProjectSceneKind GetDefaultStartupScene()
     {
         return sceneRegistry != null
             ? sceneRegistry.GetDefaultStartupScene()
             : ProjectSceneKind.Unknown;
     }
 
-    public GameState GetStateForScene(ProjectSceneKind sceneKind)
+    internal GameState GetStateForScene(ProjectSceneKind sceneKind)
     {
         return sceneRegistry != null
             ? sceneRegistry.GetStateForScene(sceneKind)
             : GameState.Error;
     }
 
-    public bool TryGetScene(ProjectSceneKind sceneKind, out ProjectSceneDefinition scene)
+    internal bool TryGetScene(ProjectSceneKind sceneKind, out ProjectSceneDefinition scene)
     {
         if (sceneRegistry != null)
             return sceneRegistry.TryGetScene(sceneKind, out scene);

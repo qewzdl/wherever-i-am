@@ -98,6 +98,7 @@ Global (ProjectContext: Ready -> Dispose)
 ## Global scope integration
 
 - `ProjectContext` создаёт Global `ServiceScope` в фазе Compose; его `Services` остаётся внутренним источником publication для `G`.
+- `ProjectContext` остаётся публичным только как Unity `MonoBehaviour`, необходимый сцене Bootstrap; его lifecycle, scene composition и concrete service accessors являются assembly-internal. Внешние consumers используют `G` и scoped resolvers.
 - `GlobalServiceContractPolicy` проверяет allowlist внутри `ServiceScope.Register` и повторно на публичной границе `G.Resolve/TryResolve`; child scopes policy не наследуют.
 - Global contracts регистрируются одной transaction после успешной scene service composition.
 - Resolver публикуется в `G` только после успешного Initialize и transaction `Commit`.

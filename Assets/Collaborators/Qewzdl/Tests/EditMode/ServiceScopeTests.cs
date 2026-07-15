@@ -58,6 +58,7 @@ public sealed class ServiceScopeTests
             typeof(IServiceRegistrationPolicy),
             typeof(GlobalServiceContractPolicy),
             typeof(GlobalServicePublication),
+            typeof(ProjectRuntimeLifecycleState),
             typeof(SceneRuntimeScope),
             typeof(SceneRuntimeScopeRegistry),
             typeof(ISceneServiceRegistrar),
@@ -105,6 +106,22 @@ public sealed class ServiceScopeTests
         Assert.That(
             typeof(G).GetMethod("Register", BindingFlags.Public | BindingFlags.Static),
             Is.Null);
+    }
+
+    [Test]
+    public void ProjectContext_DeclaresNoPublicCompositionOrLifecycleApi()
+    {
+        PropertyInfo[] publicProperties = typeof(ProjectContext).GetProperties(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+        MethodInfo[] publicMethods = typeof(ProjectContext).GetMethods(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+
+        Assert.That(publicProperties, Is.Empty);
+        Assert.That(publicMethods, Is.Empty);
+        Assert.That(
+            typeof(UnityEngine.MonoBehaviour).IsAssignableFrom(typeof(ProjectContext)),
+            Is.True);
+        Assert.That(typeof(IDisposable).IsAssignableFrom(typeof(ProjectContext)), Is.False);
     }
 
     [Test]

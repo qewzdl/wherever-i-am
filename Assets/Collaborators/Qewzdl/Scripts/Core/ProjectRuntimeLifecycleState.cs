@@ -1,4 +1,4 @@
-public enum ProjectRuntimeLifecycleState
+internal enum ProjectRuntimeLifecycleState
 {
     None = 0,
     Validating = 1,
