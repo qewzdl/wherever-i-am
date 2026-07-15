@@ -10,7 +10,7 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
     [SerializeField] private bool logReceivedAttack = true;
 
     private NetworkObject networkObject;
-    private bool hasAcceptedHit;
+    private readonly PlayerEnemyAttackCompletionGate completionGate = new();
 
     private void Awake()
     {
@@ -19,7 +19,7 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
 
     public bool TryReceiveEnemyAttack(EnemyAttackContext context)
     {
-        if (!context.IsValid || hasAcceptedHit)
+        if (!context.IsValid || !completionGate.CanAttempt)
         {
             return false;
         }
@@ -37,7 +37,16 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
             return false;
         }
 
-        hasAcceptedHit = true;
+        if (!NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IMatchCompletionService matchCompletionService) ||
+            !completionGate.TryComplete(
+                matchCompletionService,
+                hitResult,
+                hitReason))
+        {
+            return false;
+        }
 
         if (logReceivedAttack)
         {
@@ -45,24 +54,6 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
                 $"Player received enemy attack: {context.TargetDebugName}.",
                 this
             );
-        }
-
-        if (NetworkObjectServiceContext.TryResolveSessionService(
-                NetworkManager,
-                out IMatchCompletionService matchCompletionService) &&
-            matchCompletionService.IsMatchRunning)
-        {
-            MatchOutcome outcome = MatchOutcomeFactory.FromAllPlayersDead(
-                hitResult,
-                hitReason
-            );
-
-            if (outcome.HasResult)
-            {
-                matchCompletionService.CompleteMatchServerOnly(
-                    outcome.ToGameResultData(),
-                    hitReason);
-            }
         }
 
         return true;
@@ -78,6 +69,54 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
         if (hitResult == GameResultType.None)
         {
             hitResult = GameResultType.Defeat;
+        }
+    }
+}
+
+internal sealed class PlayerEnemyAttackCompletionGate
+{
+    private bool hasAcceptedHit;
+    private bool isCompletingHit;
+
+    internal bool CanAttempt => !hasAcceptedHit && !isCompletingHit;
+
+    internal bool TryComplete(
+        IMatchCompletionService matchCompletionService,
+        GameResultType hitResult,
+        string hitReason)
+    {
+        if (!CanAttempt ||
+            matchCompletionService == null ||
+            !matchCompletionService.IsMatchRunning)
+        {
+            return false;
+        }
+
+        MatchOutcome outcome = MatchOutcomeFactory.FromAllPlayersDead(
+            hitResult,
+            hitReason
+        );
+        if (!outcome.HasResult)
+        {
+            return false;
+        }
+
+        isCompletingHit = true;
+        try
+        {
+            if (!matchCompletionService.CompleteMatchServerOnly(
+                    outcome.ToGameResultData(),
+                    hitReason))
+            {
+                return false;
+            }
+
+            hasAcceptedHit = true;
+            return true;
+        }
+        finally
+        {
+            isCompletingHit = false;
         }
     }
 }
