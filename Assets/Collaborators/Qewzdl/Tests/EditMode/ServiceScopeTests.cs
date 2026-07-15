@@ -57,6 +57,8 @@ public sealed class ServiceScopeTests
             typeof(ServiceShadowingPolicy),
             typeof(IServiceRegistrationPolicy),
             typeof(GlobalServiceContractPolicy),
+            typeof(GlobalServiceDiagnostics),
+            typeof(GlobalServicePublicationState),
             typeof(GlobalServicePublication),
             typeof(ProjectRuntimeLifecycleState),
             typeof(SceneRuntimeScope),
@@ -429,6 +431,8 @@ public sealed class ServiceScopeTests
 
 public sealed class GTests
 {
+    private const string DefaultPublicationOwner = "GTests Bootstrap";
+
     private interface IScopedTestService
     {
     }
@@ -546,7 +550,14 @@ public sealed class GTests
         Assert.That(G.IsReady, Is.False);
         Assert.That(G.TryResolve(out IUiErrorService service), Is.False);
         Assert.That(service, Is.Null);
-        Assert.Throws<InvalidOperationException>(() => G.Resolve<IUiErrorService>());
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => G.Resolve<IUiErrorService>());
+
+        Assert.That(exception.Message, Does.Contain(nameof(IUiErrorService)));
+        Assert.That(exception.Message, Does.Contain("generation=0"));
+        Assert.That(
+            exception.Message,
+            Does.Contain($"state={GlobalServicePublicationState.Unpublished}"));
     }
 
     [Test]
@@ -558,7 +569,8 @@ public sealed class GTests
         globalScope.Register<IUiErrorService>(expected);
         sessionScope.Register<IScopedTestService>(new ScopedTestService());
 
-        using (GlobalServicePublication publication = G.Publish(globalScope))
+        using (GlobalServicePublication publication =
+               G.Publish(globalScope, DefaultPublicationOwner))
         {
             Assert.That(publication.IsActive, Is.True);
             Assert.That(G.IsReady, Is.True);
@@ -576,16 +588,35 @@ public sealed class GTests
     [Test]
     public void Publish_RejectsDuplicateWithoutReplacingActiveResolver()
     {
+        const string activeOwner = "ProjectContext 'Primary Bootstrap'";
+        const string requestedOwner = "ProjectContext 'Duplicate Bootstrap'";
         using ServiceScope firstScope = CreateGlobalScope("First Global");
         using ServiceScope secondScope = CreateGlobalScope("Second Global");
         GlobalTestService first = new("first");
         firstScope.Register<IUiErrorService>(first);
         secondScope.Register<IUiErrorService>(new GlobalTestService("second"));
-        using GlobalServicePublication publication = G.Publish(firstScope);
+        using GlobalServicePublication publication = G.Publish(firstScope, activeOwner);
 
-        Assert.Throws<InvalidOperationException>(() => G.Publish(secondScope));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => G.Publish(secondScope, requestedOwner));
+
+        Assert.That(exception.Message, Does.Contain(activeOwner));
+        Assert.That(exception.Message, Does.Contain(requestedOwner));
+        Assert.That(exception.Message, Does.Contain("generation="));
+        Assert.That(
+            exception.Message,
+            Does.Contain($"state={GlobalServicePublicationState.Ready}"));
         Assert.That(G.Resolve<IUiErrorService>(), Is.SameAs(first));
         Assert.That(publication.IsActive, Is.True);
+    }
+
+    [Test]
+    public void Publish_RejectsMissingOwnerDescription()
+    {
+        using ServiceScope globalScope = CreateGlobalScope();
+
+        Assert.Throws<ArgumentException>(() => G.Publish(globalScope, string.Empty));
+        Assert.That(G.IsReady, Is.False);
     }
 
     [Test]
@@ -593,7 +624,9 @@ public sealed class GTests
     {
         using ServiceScope globalScope = CreateGlobalScope();
         globalScope.Register<IUiErrorService>(new GlobalTestService("global"));
-        GlobalServicePublication publication = G.Publish(globalScope);
+        GlobalServicePublication publication = G.Publish(
+            globalScope,
+            DefaultPublicationOwner);
 
         publication.Dispose();
         publication.Dispose();
@@ -601,7 +634,9 @@ public sealed class GTests
         Assert.That(publication.IsActive, Is.False);
         Assert.That(G.IsReady, Is.False);
 
-        using GlobalServicePublication nextPublication = G.Publish(globalScope);
+        using GlobalServicePublication nextPublication = G.Publish(
+            globalScope,
+            DefaultPublicationOwner);
         Assert.That(nextPublication.IsActive, Is.True);
         Assert.That(G.IsReady, Is.True);
     }
@@ -614,11 +649,15 @@ public sealed class GTests
         GlobalTestService second = new("second");
         firstScope.Register<IUiErrorService>(new GlobalTestService("first"));
         secondScope.Register<IUiErrorService>(second);
-        GlobalServicePublication stalePublication = G.Publish(firstScope);
+        GlobalServicePublication stalePublication = G.Publish(
+            firstScope,
+            "Stale Bootstrap");
 
         G.ResetRuntimeState();
 
-        using GlobalServicePublication currentPublication = G.Publish(secondScope);
+        using GlobalServicePublication currentPublication = G.Publish(
+            secondScope,
+            "Current Bootstrap");
         stalePublication.Dispose();
 
         Assert.That(currentPublication.IsActive, Is.True);
@@ -631,25 +670,77 @@ public sealed class GTests
     {
         ServiceScope globalScope = CreateGlobalScope();
         globalScope.Register<IUiErrorService>(new GlobalTestService("global"));
-        using GlobalServicePublication publication = G.Publish(globalScope);
+        using GlobalServicePublication publication = G.Publish(
+            globalScope,
+            DefaultPublicationOwner);
 
         globalScope.Dispose();
 
         Assert.That(G.IsReady, Is.False);
         Assert.That(G.TryResolve(out IUiErrorService service), Is.False);
         Assert.That(service, Is.Null);
-        Assert.Throws<InvalidOperationException>(() => G.Resolve<IUiErrorService>());
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => G.Resolve<IUiErrorService>());
+
+        Assert.That(exception.Message, Does.Contain(nameof(IUiErrorService)));
+        Assert.That(
+            exception.Message,
+            Does.Contain($"state={GlobalServicePublicationState.ResolverDisposed}"));
     }
 
     [Test]
     public void Resolve_RejectsConcreteContract()
     {
         using ServiceScope globalScope = CreateGlobalScope();
-        using GlobalServicePublication publication = G.Publish(globalScope);
+        using GlobalServicePublication publication = G.Publish(
+            globalScope,
+            DefaultPublicationOwner);
 
         Assert.Throws<ArgumentException>(() => G.Resolve<GlobalTestService>());
         Assert.Throws<ArgumentException>(() =>
             G.TryResolve(out GlobalTestService _));
+    }
+
+    [Test]
+    public void Diagnostics_TracksGenerationOwnerAndPublicationState()
+    {
+        GlobalServiceDiagnostics initial = G.Diagnostics;
+
+        Assert.That(initial.Generation, Is.Zero);
+        Assert.That(initial.State, Is.EqualTo(GlobalServicePublicationState.Unpublished));
+        Assert.That(initial.Owner, Is.Null);
+
+        using ServiceScope globalScope = CreateGlobalScope();
+        globalScope.Register<IUiErrorService>(new GlobalTestService("global"));
+        GlobalServicePublication publication = G.Publish(
+            globalScope,
+            DefaultPublicationOwner);
+
+        GlobalServiceDiagnostics ready = G.Diagnostics;
+
+        Assert.That(ready.Generation, Is.GreaterThan(0));
+        Assert.That(ready.State, Is.EqualTo(GlobalServicePublicationState.Ready));
+        Assert.That(ready.Owner, Is.EqualTo(DefaultPublicationOwner));
+
+        globalScope.Dispose();
+
+        GlobalServiceDiagnostics disposed = G.Diagnostics;
+
+        Assert.That(disposed.Generation, Is.EqualTo(ready.Generation));
+        Assert.That(
+            disposed.State,
+            Is.EqualTo(GlobalServicePublicationState.ResolverDisposed));
+        Assert.That(disposed.Owner, Is.EqualTo(DefaultPublicationOwner));
+
+        publication.Dispose();
+
+        GlobalServiceDiagnostics unpublished = G.Diagnostics;
+
+        Assert.That(unpublished.Generation, Is.Zero);
+        Assert.That(
+            unpublished.State,
+            Is.EqualTo(GlobalServicePublicationState.Unpublished));
+        Assert.That(unpublished.Owner, Is.Null);
     }
 
     [Test]

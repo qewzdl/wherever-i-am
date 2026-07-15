@@ -539,7 +539,16 @@ public sealed class ProjectContext : MonoBehaviour
                 "Global services are already published by this ProjectContext.");
         }
 
-        globalServicesPublication = G.Publish(Services);
+        globalServicesPublication = G.Publish(Services, GetGlobalPublicationOwner());
+    }
+
+    private string GetGlobalPublicationOwner()
+    {
+        string objectName = gameObject != null
+            ? gameObject.name
+            : name;
+
+        return $"{nameof(ProjectContext)} '{objectName}' (instanceId={GetInstanceID()})";
     }
 
     private void DisposeGlobalServiceScope()

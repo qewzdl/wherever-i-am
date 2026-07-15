@@ -7,6 +7,7 @@ public static class G
     private static readonly object SyncRoot = new();
 
     private static IServiceResolver resolver;
+    private static string activePublicationOwner;
     private static long currentGeneration;
     private static long nextGeneration;
 
@@ -21,9 +22,17 @@ public static class G
 
     public static T Resolve<T>() where T : class
     {
-        ValidateContract<T>();
-        IServiceResolver current = GetReadyResolver();
-        return current.Resolve<T>();
+        Type contractType = ValidateContract<T>();
+        IServiceResolver current = GetReadyResolver(contractType);
+
+        try
+        {
+            return current.Resolve<T>();
+        }
+        catch (ObjectDisposedException exception)
+        {
+            throw CreateUnavailableException(contractType, exception);
+        }
     }
 
     public static bool TryResolve<T>(out T service) where T : class
@@ -53,10 +62,19 @@ public static class G
         }
     }
 
-    internal static GlobalServicePublication Publish(IServiceResolver services)
+    internal static GlobalServicePublication Publish(
+        IServiceResolver services,
+        string ownerDescription)
     {
         if (services == null)
             throw new ArgumentNullException(nameof(services));
+
+        if (string.IsNullOrWhiteSpace(ownerDescription))
+        {
+            throw new ArgumentException(
+                "Global publication owner description cannot be empty.",
+                nameof(ownerDescription));
+        }
 
         if (services.IsDisposed)
         {
@@ -70,11 +88,13 @@ public static class G
             if (currentGeneration != 0)
             {
                 throw new InvalidOperationException(
-                    "Global services are already published.");
+                    $"Global services are already published. Active owner: {activePublicationOwner}. " +
+                    $"Requested owner: {ownerDescription}.{GetDiagnosticSuffixUnsafe()}");
             }
 
             long generation = GetNextGeneration();
             resolver = services;
+            activePublicationOwner = ownerDescription;
             currentGeneration = generation;
             return new GlobalServicePublication(generation);
         }
@@ -100,6 +120,7 @@ public static class G
                 return;
 
             resolver = null;
+            activePublicationOwner = null;
             currentGeneration = 0;
         }
     }
@@ -110,20 +131,36 @@ public static class G
         lock (SyncRoot)
         {
             resolver = null;
+            activePublicationOwner = null;
             currentGeneration = 0;
         }
     }
 
-    private static IServiceResolver GetReadyResolver()
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    internal static GlobalServiceDiagnostics Diagnostics
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return new GlobalServiceDiagnostics(
+                    currentGeneration,
+                    GetPublicationStateUnsafe(),
+                    activePublicationOwner);
+            }
+        }
+    }
+#endif
+
+    private static IServiceResolver GetReadyResolver(Type contractType)
     {
         lock (SyncRoot)
         {
             if (IsResolverReady(resolver))
                 return resolver;
-        }
 
-        throw new InvalidOperationException(
-            "Global services are unavailable before ProjectContext is ready or after it is disposed.");
+            throw CreateUnavailableExceptionUnsafe(contractType);
+        }
     }
 
     private static bool IsResolverReady(IServiceResolver services)
@@ -144,7 +181,7 @@ public static class G
         }
     }
 
-    private static void ValidateContract<T>() where T : class
+    private static Type ValidateContract<T>() where T : class
     {
         Type contractType = typeof(T);
 
@@ -156,8 +193,81 @@ public static class G
         }
 
         GlobalServiceContractPolicy.ValidatePublicAccess(contractType);
+        return contractType;
     }
+
+    private static InvalidOperationException CreateUnavailableException(
+        Type contractType,
+        Exception innerException)
+    {
+        lock (SyncRoot)
+            return CreateUnavailableExceptionUnsafe(contractType, innerException);
+    }
+
+    private static InvalidOperationException CreateUnavailableExceptionUnsafe(
+        Type contractType,
+        Exception innerException = null)
+    {
+        string message =
+            $"Global service contract '{contractType.Name}' is unavailable before " +
+            $"ProjectContext is ready or after it is disposed.{GetDiagnosticSuffixUnsafe()}";
+
+        return innerException == null
+            ? new InvalidOperationException(message)
+            : new InvalidOperationException(message, innerException);
+    }
+
+    private static string GetDiagnosticSuffixUnsafe()
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        return $" [generation={currentGeneration}, state={GetPublicationStateUnsafe()}]";
+#else
+        return string.Empty;
+#endif
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private static GlobalServicePublicationState GetPublicationStateUnsafe()
+    {
+        if (currentGeneration == 0)
+            return GlobalServicePublicationState.Unpublished;
+
+        if (resolver == null)
+            return GlobalServicePublicationState.Invalid;
+
+        return resolver.IsDisposed
+            ? GlobalServicePublicationState.ResolverDisposed
+            : GlobalServicePublicationState.Ready;
+    }
+#endif
 }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+internal enum GlobalServicePublicationState
+{
+    Unpublished = 0,
+    Ready = 1,
+    ResolverDisposed = 2,
+    Invalid = 3
+}
+
+internal readonly struct GlobalServiceDiagnostics
+{
+    internal GlobalServiceDiagnostics(
+        long generation,
+        GlobalServicePublicationState state,
+        string owner)
+    {
+        Generation = generation;
+        State = state;
+        Owner = owner;
+    }
+
+    internal long Generation { get; }
+    internal GlobalServicePublicationState State { get; }
+    internal string Owner { get; }
+}
+#endif
 
 internal sealed class GlobalServicePublication : IDisposable
 {

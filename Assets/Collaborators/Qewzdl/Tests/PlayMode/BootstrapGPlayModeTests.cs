@@ -52,6 +52,17 @@ public sealed class BootstrapGPlayModeTests
         Assert.That(runtimeContext.IsReady, Is.True);
         Assert.That(G.IsReady, Is.True);
         AssertGlobalContractsAvailable();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        GlobalServiceDiagnostics diagnostics = G.Diagnostics;
+
+        Assert.That(diagnostics.Generation, Is.GreaterThan(0));
+        Assert.That(
+            diagnostics.State,
+            Is.EqualTo(GlobalServicePublicationState.Ready));
+        Assert.That(diagnostics.Owner, Does.Contain(nameof(ProjectContext)));
+        Assert.That(diagnostics.Owner, Does.Contain(runtimeContext.gameObject.name));
+#endif
     }
 
     [UnityTest]

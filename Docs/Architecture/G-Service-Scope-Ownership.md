@@ -100,6 +100,7 @@ Global (ProjectContext: Ready -> Dispose)
 - `ProjectContext` создаёт Global `ServiceScope` в фазе Compose; его `Services` остаётся внутренним источником publication для `G`.
 - `ProjectContext` остаётся публичным только как Unity `MonoBehaviour`, необходимый сцене Bootstrap; его lifecycle, scene composition и concrete service accessors являются assembly-internal. Внешние consumers используют `G` и scoped resolvers.
 - `GlobalServiceContractPolicy` проверяет allowlist внутри `ServiceScope.Register` и повторно на публичной границе `G.Resolve/TryResolve`; child scopes policy не наследуют.
+- Lifecycle-ошибки `G.Resolve<T>` содержат имя запрошенного contract; duplicate publication сообщает active и requested Bootstrap owners. Текущие generation/state/owner доступны через internal diagnostics только в Editor и Development Build.
 - Global contracts регистрируются одной transaction после успешной scene service composition.
 - Resolver публикуется в `G` только после успешного Initialize и transaction `Commit`.
 - Bootstrap failure откатывает незавершённую transaction, затем закрывает Global scope.
