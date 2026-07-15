@@ -33,9 +33,9 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
     public ProjectRuntimeLifecycleState LifecycleState { get; private set; }
     public bool IsReady => LifecycleState == ProjectRuntimeLifecycleState.Ready;
-    public IServiceResolver Services => globalScopeCommitted &&
-                                        globalServiceScope != null &&
-                                        !globalServiceScope.IsDisposed
+    internal IServiceResolver Services => globalScopeCommitted &&
+                                          globalServiceScope != null &&
+                                          !globalServiceScope.IsDisposed
         ? globalServiceScope
         : null;
     public ProjectSceneRegistry SceneRegistry => sceneRegistry;

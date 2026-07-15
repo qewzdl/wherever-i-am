@@ -20,7 +20,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     private ProjectSceneFlowService subscribedSceneFlowService;
     private bool sceneFlowSubscribed;
 
-    public IServiceResolver SessionServices => shutdownCoordinator != null
+    internal IServiceResolver SessionServices => shutdownCoordinator != null
         ? shutdownCoordinator.SessionServices
         : null;
 

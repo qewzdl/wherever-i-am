@@ -9,7 +9,7 @@ internal enum SceneServiceScopeParent
     Session = 1
 }
 
-public sealed class SceneRuntimeScope : IDisposable
+internal sealed class SceneRuntimeScope : IDisposable
 {
     private readonly int sceneHandle;
     private readonly Scene scene;
@@ -277,7 +277,7 @@ public sealed class SceneRuntimeScope : IDisposable
     }
 }
 
-public sealed class SceneRuntimeScopeRegistry : IDisposable
+internal sealed class SceneRuntimeScopeRegistry : IDisposable
 {
     private readonly Dictionary<int, SceneRuntimeScope> scopes = new();
     private readonly List<int> scopeOrder = new();

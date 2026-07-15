@@ -1,6 +1,6 @@
 using System;
 
-public sealed class ServiceRegistration : IDisposable
+internal sealed class ServiceRegistration : IDisposable
 {
     private ServiceScope scope;
     private readonly long registrationId;

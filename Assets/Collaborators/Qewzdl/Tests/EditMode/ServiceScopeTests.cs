@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 
 public sealed class ServiceScopeTests
@@ -42,6 +43,48 @@ public sealed class ServiceScopeTests
             DisposeCount++;
             disposeOrder?.Add(Id);
         }
+    }
+
+    [Test]
+    public void ScopeInfrastructure_ExposesOnlyReadOnlyResolverBoundaries()
+    {
+        Type[] internalTypes =
+        {
+            typeof(ServiceScope),
+            typeof(ServiceRegistration),
+            typeof(ServiceRegistrationTransaction),
+            typeof(ServiceRegistrationOwnership),
+            typeof(ServiceShadowingPolicy),
+            typeof(SceneRuntimeScope),
+            typeof(SceneRuntimeScopeRegistry),
+            typeof(ISceneServiceRegistrar),
+            typeof(ISessionServiceRegistry)
+        };
+
+        for (int i = 0; i < internalTypes.Length; i++)
+        {
+            Assert.That(
+                internalTypes[i].IsVisible,
+                Is.False,
+                $"{internalTypes[i].Name} must remain assembly-internal.");
+        }
+
+        Assert.That(typeof(IServiceResolver).IsVisible, Is.True);
+        Assert.That(typeof(IPlayerScope).IsVisible, Is.True);
+        Assert.That(typeof(IPlayerScopeRegistry).IsVisible, Is.True);
+        Assert.That(typeof(NetworkObjectServiceContext).IsVisible, Is.True);
+        Assert.That(
+            typeof(SceneFeatureContext)
+                .GetProperty(nameof(SceneFeatureContext.Services))
+                ?.GetMethod
+                ?.IsPublic,
+            Is.True);
+
+        AssertAssemblyInternalGetter(typeof(ProjectContext), "Services");
+        AssertAssemblyInternalGetter(typeof(SceneFeatureContext), "Registrar");
+        AssertAssemblyInternalGetter(typeof(NetworkSessionOrchestrator), "SessionServices");
+        AssertAssemblyInternalGetter(typeof(NetworkSessionFlowService), "SessionServices");
+        AssertAssemblyInternalGetter(typeof(NetworkSessionShutdownCoordinator), "SessionServices");
     }
 
     [Test]
@@ -331,5 +374,18 @@ public sealed class ServiceScopeTests
 
         Assert.That(firstScene.Resolve<IFirstService>(), Is.SameAs(first));
         Assert.That(secondScene.Resolve<IFirstService>(), Is.SameAs(second));
+    }
+
+    private static void AssertAssemblyInternalGetter(Type ownerType, string propertyName)
+    {
+        PropertyInfo property = ownerType.GetProperty(
+            propertyName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+        Assert.That(property, Is.Not.Null, $"{ownerType.Name}.{propertyName} is missing.");
+        Assert.That(
+            property.GetGetMethod(true)?.IsAssembly,
+            Is.True,
+            $"{ownerType.Name}.{propertyName} must remain assembly-internal.");
     }
 }

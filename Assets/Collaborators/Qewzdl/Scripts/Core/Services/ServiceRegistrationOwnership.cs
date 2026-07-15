@@ -1,4 +1,4 @@
-public enum ServiceRegistrationOwnership
+internal enum ServiceRegistrationOwnership
 {
     UnityOwned = 0,
     ScopeOwned = 1

@@ -17,7 +17,7 @@ public class ChatSessionBinder : MonoBehaviour, IDisposable
         ResolveReferences();
     }
 
-    public void Construct(
+    internal void Construct(
         ISessionServiceRegistry registry,
         IPlayerScopeRegistry playerScopeRegistry,
         IGameStateService gameState)

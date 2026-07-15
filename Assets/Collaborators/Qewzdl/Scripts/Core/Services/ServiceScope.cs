@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-public sealed class ServiceScope : IServiceResolver, IDisposable
+internal sealed class ServiceScope : IServiceResolver, IDisposable
 {
     private enum ScopeState
     {

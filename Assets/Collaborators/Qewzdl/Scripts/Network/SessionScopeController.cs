@@ -26,7 +26,7 @@ internal sealed class SessionScopeController : IDisposable
                           sessionScope != null &&
                           !sessionScope.IsDisposed;
 
-    public IServiceResolver Services => IsOpen ? sessionRegistry : null;
+    internal IServiceResolver Services => IsOpen ? sessionRegistry : null;
 
     internal bool TryGetScope(out ServiceScope scope)
     {

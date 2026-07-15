@@ -8,7 +8,7 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
     [Header("References")]
     [SerializeField] private NetworkSessionFlowService sessionFlowService;
 
-    public IServiceResolver SessionServices => sessionFlowService != null
+    internal IServiceResolver SessionServices => sessionFlowService != null
         ? sessionFlowService.SessionServices
         : null;
 

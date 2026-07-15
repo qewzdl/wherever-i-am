@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-public sealed class ServiceRegistrationTransaction : IDisposable
+internal sealed class ServiceRegistrationTransaction : IDisposable
 {
     private ServiceScope scope;
     private readonly List<long> registrationIds = new();

@@ -1,6 +1,6 @@
 using System;
 
-public interface ISessionServiceRegistry : IServiceResolver
+internal interface ISessionServiceRegistry : IServiceResolver
 {
     event Action ServicesChanged;
 }

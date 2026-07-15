@@ -24,7 +24,7 @@ public sealed class SceneFeatureContext
     public int SceneHandle { get; }
     public ProjectSceneKind SceneKind { get; }
     public IServiceResolver Services { get; }
-    public ISceneServiceRegistrar Registrar { get; }
+    internal ISceneServiceRegistrar Registrar { get; }
 
     internal bool RequestScopeUninstall()
     {

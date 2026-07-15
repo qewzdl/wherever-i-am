@@ -22,7 +22,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     private bool sessionStopRaised = true;
 
     public bool IsShutdownInProgress => !shutdownTask.IsCompleted;
-    public IServiceResolver SessionServices => sessionScopeController != null
+    internal IServiceResolver SessionServices => sessionScopeController != null
         ? sessionScopeController.Services
         : null;
 
