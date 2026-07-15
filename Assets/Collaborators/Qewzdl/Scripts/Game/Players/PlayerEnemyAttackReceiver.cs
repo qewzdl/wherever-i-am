@@ -3,7 +3,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
-public sealed class PlayerEnemyAttackReceiver : MonoBehaviour, IEnemyAttackReceiver
+public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackReceiver
 {
     [SerializeField] private NetworkGameFlow gameFlow;
     [SerializeField] private GameResultType hitResult = GameResultType.Defeat;
@@ -32,8 +32,8 @@ public sealed class PlayerEnemyAttackReceiver : MonoBehaviour, IEnemyAttackRecei
 
         if (networkObject == null ||
             !networkObject.IsSpawned ||
-            NetworkManager.Singleton == null ||
-            !NetworkManager.Singleton.IsServer)
+            NetworkManager == null ||
+            !NetworkManager.IsServer)
         {
             return false;
         }
@@ -50,7 +50,9 @@ public sealed class PlayerEnemyAttackReceiver : MonoBehaviour, IEnemyAttackRecei
 
         if (gameFlow == null)
         {
-            gameFlow = FindFirstObjectByType<NetworkGameFlow>();
+            NetworkObjectServiceContext.TryGetSpawnedComponent(
+                NetworkManager,
+                out gameFlow);
         }
 
         if (gameFlow != null && gameFlow.IsMatchRunning)

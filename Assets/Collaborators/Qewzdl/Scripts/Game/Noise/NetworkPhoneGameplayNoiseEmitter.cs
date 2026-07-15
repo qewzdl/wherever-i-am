@@ -28,6 +28,14 @@ public sealed class NetworkPhoneGameplayNoiseEmitter : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        if (noiseEmitter != null &&
+            NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IGameplayNoiseService noiseService))
+        {
+            noiseEmitter.Construct(noiseService);
+        }
+
         if (IsServer)
         {
             ResetServerState();

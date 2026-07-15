@@ -12,15 +12,35 @@ internal enum SceneServiceScopeParent
 public sealed class SceneRuntimeScope : IDisposable
 {
     private readonly int sceneHandle;
+    private readonly Scene scene;
     private readonly string sceneLabel;
     private readonly SceneServiceScopeParent serviceScopeParent;
     private readonly ServiceScope serviceScope;
     private readonly SceneServiceRegistrar serviceRegistrar;
     private readonly SceneFeatureContext featureContext;
     private readonly SceneRuntimeFeature[] features;
+    private AudioServiceComposition audioComposition;
     private int installedFeatureCount;
     private bool disposed;
     private bool ready;
+
+    internal SceneRuntimeScope(
+        Scene runtimeScene,
+        string label,
+        ProjectSceneKind sceneKind,
+        SceneServiceScopeParent parent,
+        ServiceScope services,
+        SceneRuntimeFeature[] sceneFeatures)
+        : this(
+            runtimeScene,
+            runtimeScene.handle,
+            label,
+            sceneKind,
+            parent,
+            services,
+            sceneFeatures)
+    {
+    }
 
     internal SceneRuntimeScope(
         int handle,
@@ -29,14 +49,34 @@ public sealed class SceneRuntimeScope : IDisposable
         SceneServiceScopeParent parent,
         ServiceScope services,
         SceneRuntimeFeature[] sceneFeatures)
+        : this(
+            default,
+            handle,
+            label,
+            sceneKind,
+            parent,
+            services,
+            sceneFeatures)
     {
+    }
+
+    private SceneRuntimeScope(
+        Scene runtimeScene,
+        int handle,
+        string label,
+        ProjectSceneKind sceneKind,
+        SceneServiceScopeParent parent,
+        ServiceScope services,
+        SceneRuntimeFeature[] sceneFeatures)
+    {
+        scene = runtimeScene;
         sceneHandle = handle;
         sceneLabel = label;
         serviceScopeParent = parent;
         serviceScope = services ?? throw new ArgumentNullException(nameof(services));
         serviceRegistrar = new SceneServiceRegistrar(serviceScope);
         featureContext = new SceneFeatureContext(
-            handle,
+            sceneHandle,
             sceneKind,
             serviceScope,
             serviceRegistrar);
@@ -81,6 +121,20 @@ public sealed class SceneRuntimeScope : IDisposable
         {
             registrationTransaction = serviceScope.BeginRegistrationTransaction();
             serviceRegistrar.BeginRegistration();
+
+            if (scene.IsValid() && scene.isLoaded)
+            {
+                IAudioService audioService = serviceScope.Resolve<IAudioService>();
+
+                if (!AudioServiceComposition.TryCompose(
+                        scene,
+                        audioService,
+                        out audioComposition))
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to compose audio consumers in scene '{sceneLabel}'.");
+                }
+            }
         }
         catch (Exception exception)
         {
@@ -132,6 +186,7 @@ public sealed class SceneRuntimeScope : IDisposable
         disposed = true;
         ready = false;
         RollbackInstalledFeatures();
+        DisposeAudioComposition();
         DisposeServiceScope();
     }
 
@@ -141,6 +196,7 @@ public sealed class SceneRuntimeScope : IDisposable
         disposed = true;
         ready = false;
         RollbackInstalledFeatures();
+        DisposeAudioComposition();
         RollbackRegistrations(registrationTransaction);
         DisposeServiceScope();
         return false;
@@ -172,6 +228,13 @@ public sealed class SceneRuntimeScope : IDisposable
         {
             Debug.LogException(exception);
         }
+    }
+
+    private void DisposeAudioComposition()
+    {
+        AudioServiceComposition composition = audioComposition;
+        audioComposition = null;
+        composition?.Dispose();
     }
 
     private void RollbackInstalledFeatures()
@@ -403,7 +466,7 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
         try
         {
             scope = new SceneRuntimeScope(
-                scene.handle,
+                scene,
                 GetSceneLabel(scene),
                 sceneKind,
                 parent,

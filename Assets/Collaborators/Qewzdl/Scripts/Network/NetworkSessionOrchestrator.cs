@@ -5,8 +5,6 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionService
 {
-    public static NetworkSessionOrchestrator Instance { get; private set; }
-
     [Header("References")]
     [SerializeField] private NetworkSessionFlowService sessionFlowService;
 
@@ -16,21 +14,7 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
-
         HasRequiredReferences();
-    }
-
-    private void OnDestroy()
-    {
-        if (Instance == this)
-            Instance = null;
     }
 
     public Task HostLanAsync()

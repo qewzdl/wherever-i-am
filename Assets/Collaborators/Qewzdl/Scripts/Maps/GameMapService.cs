@@ -11,6 +11,7 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameMapCatalog catalog;
 
+    private IProjectSceneRegistry sceneRegistry;
     private GameMapDefinition selectedMap;
     private GameMapDefinition activeMap;
     private GameMapRoot activeMapRoot;
@@ -31,6 +32,24 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     public bool IsReadyForMatch => readyForMatch;
 
     IGameMapCatalog IGameMapSessionService.Catalog => catalog;
+
+    public bool Construct(
+        IProjectSceneRegistry projectSceneRegistry,
+        NetworkManager runtimeNetworkManager)
+    {
+        if (projectSceneRegistry == null || runtimeNetworkManager == null)
+        {
+            Debug.LogError(
+                $"{nameof(GameMapService)} requires scene registry and network manager dependencies.",
+                this);
+
+            return false;
+        }
+
+        sceneRegistry = projectSceneRegistry;
+        networkManager = runtimeNetworkManager;
+        return true;
+    }
 
     private void Awake()
     {
@@ -238,10 +257,8 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         if (loadMode == LoadSceneMode.Additive)
             return;
 
-        ProjectContext context = ProjectContext.Instance;
-
-        if (context == null ||
-            context.GetSceneKind(scene.name, scene.path) != ProjectSceneKind.Game ||
+        if (sceneRegistry == null ||
+            sceneRegistry.GetSceneKind(scene.name, scene.path) != ProjectSceneKind.Game ||
             (networkManager != null && networkManager.IsListening) ||
             localLoadRequested)
         {
@@ -372,6 +389,8 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         activeMap = map;
         activeMapRoot = FindMapRoot(scene);
 
+        ComposeMapRuntime(scene);
+
         if (activeMapRoot == null)
         {
             Debug.LogError(
@@ -381,6 +400,23 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
 
         // Game remains the active shell scene because project transitions derive
         // their current ProjectSceneKind from Unity's active scene.
+    }
+
+    private void ComposeMapRuntime(Scene scene)
+    {
+        if (!scene.IsValid() || !scene.isLoaded)
+            return;
+
+        GameObject[] roots = scene.GetRootGameObjects();
+
+        for (int i = 0; i < roots.Length; i++)
+        {
+            RuntimeNavMeshBuilder[] builders =
+                roots[i].GetComponentsInChildren<RuntimeNavMeshBuilder>(true);
+
+            for (int j = 0; j < builders.Length; j++)
+                builders[j]?.Construct(this, networkManager);
+        }
     }
 
     private static GameMapRoot FindMapRoot(Scene scene)

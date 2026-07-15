@@ -5,19 +5,6 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "ViewmodelItemData", menuName = "Viewmodel/Item Data")]
 public class ViewModelsItemsData : ScriptableObject
 {
-    private static ViewModelsItemsData instance;
-    public static ViewModelsItemsData Instance
-    {
-        get
-        {
-            if (instance == null)
-            {
-                instance = Resources.Load<ViewModelsItemsData>("ViewModelsData");
-            }
-            return instance;
-        }
-    }
-
     public List<ViewmodelItemEntry> items = new List<ViewmodelItemEntry>();
 
     // Найти запись по имени

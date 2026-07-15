@@ -6,7 +6,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(EnemyNetworkState))]
-public class EnemyPresentationController : NetworkBehaviour
+public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServiceConsumer
 {
     private sealed class LoopingSoundRuntime
     {
@@ -45,6 +45,7 @@ public class EnemyPresentationController : NetworkBehaviour
 
     private bool isRegistered;
     private bool subscribedToNetworkState;
+    private IGameplaySoundService gameplaySoundService;
 
     public EnemyThreatLevel CurrentThreatLevel => currentThreatLevel;
     public EnemyAttackPhase CurrentAttackPhase => currentPresentedAttackPhase;
@@ -57,6 +58,13 @@ public class EnemyPresentationController : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         CacheComponents();
+
+        if (NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IAudioService audioService))
+        {
+            Construct(audioService.Gameplay);
+        }
 
         if (!IsClient)
         {
@@ -79,6 +87,17 @@ public class EnemyPresentationController : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         CleanupClientPresentation();
+        ReleaseGameplaySoundService();
+    }
+
+    public void Construct(IGameplaySoundService service)
+    {
+        gameplaySoundService = service;
+    }
+
+    public void ReleaseGameplaySoundService()
+    {
+        gameplaySoundService = null;
     }
 
     private void OnDisable()
@@ -364,9 +383,7 @@ public class EnemyPresentationController : NetworkBehaviour
             return;
         }
 
-        AudioManager audioManager = AudioManager.Instance;
-
-        if (audioManager == null || audioManager.Gameplay == null)
+        if (gameplaySoundService == null)
         {
             return;
         }
@@ -374,11 +391,11 @@ public class EnemyPresentationController : NetworkBehaviour
         if (playAtEnemyPosition)
         {
             Transform origin = soundOrigin != null ? soundOrigin : transform;
-            audioManager.Gameplay.PlayAtPosition(sound, origin.position);
+            gameplaySoundService.PlayAtPosition(sound, origin.position);
             return;
         }
 
-        audioManager.Gameplay.Play2D(sound);
+        gameplaySoundService.Play2D(sound);
     }
 
     private void SetThreatLevel(EnemyThreatLevel nextThreatLevel)

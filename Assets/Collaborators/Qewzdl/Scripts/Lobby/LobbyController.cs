@@ -253,4 +253,15 @@ public class LobbyController : NetworkBehaviour
 
         return startService.CanStartGame();
     }
+
+    public bool TryGetLocalClientId(out ulong clientId)
+    {
+        clientId = default;
+
+        if (NetworkManager == null)
+            return false;
+
+        clientId = NetworkManager.LocalClientId;
+        return true;
+    }
 }

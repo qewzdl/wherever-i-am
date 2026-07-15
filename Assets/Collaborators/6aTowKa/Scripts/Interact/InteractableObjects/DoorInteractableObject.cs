@@ -55,6 +55,11 @@ public class DoorInteractableObject : InteractableObject
     public bool IsReservedByEnemy => ReservationState == DoorReservationState.ReservedByEnemy;
     public bool CanClose => CanCloseState(CurrentState) && !IsReservedByEnemy;
     public float EnemyOpenCloseLockGraceDuration => Mathf.Max(0f, enemyOpenCloseLockGraceDuration);
+    public bool CanEvaluateAuthoritatively =>
+        !IsSpawned ||
+        NetworkManager == null ||
+        !NetworkManager.IsListening ||
+        IsServer;
 
     private void Awake()
     {

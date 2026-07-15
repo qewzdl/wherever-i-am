@@ -13,6 +13,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     [SerializeField] private bool startOnServerSpawn = true;
     [SerializeField] private string startReason = "Game scene network spawn completed";
     private bool isSubscribed;
+    private IGameMapSessionService mapSessionService;
 
     public override void OnNetworkSpawn()
     {
@@ -79,7 +80,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
 
         if (!gameFlow.IsServerReady ||
             !objectiveFlow.IsServerReady ||
-            !gameMapService.IsReadyForMatch)
+            !mapSessionService.IsReadyForMatch)
         {
             return false;
         }
@@ -107,7 +108,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
 
         gameFlow.ServerReady += HandleDependencyReady;
         objectiveFlow.ServerReady += HandleDependencyReady;
-        gameMapService.MapReady += HandleDependencyReady;
+        mapSessionService.MapReady += HandleDependencyReady;
         isSubscribed = true;
     }
 
@@ -128,9 +129,9 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             objectiveFlow.ServerReady -= HandleDependencyReady;
         }
 
-        if (gameMapService != null)
+        if (mapSessionService != null)
         {
-            gameMapService.MapReady -= HandleDependencyReady;
+            mapSessionService.MapReady -= HandleDependencyReady;
         }
 
         isSubscribed = false;
@@ -148,10 +149,13 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
 
     private bool ValidateSetup()
     {
-        if (gameMapService == null)
+        mapSessionService = gameMapService;
+
+        if (mapSessionService == null)
         {
-            ProjectContext context = ProjectContext.Instance;
-            gameMapService = context != null ? context.GameMaps : null;
+            NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out mapSessionService);
         }
 
         if (gameFlow == null)
@@ -166,9 +170,9 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             return false;
         }
 
-        if (gameMapService == null)
+        if (mapSessionService == null)
         {
-            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires {nameof(GameMapService)}.", this);
+            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires {nameof(IGameMapSessionService)}.", this);
             return false;
         }
 

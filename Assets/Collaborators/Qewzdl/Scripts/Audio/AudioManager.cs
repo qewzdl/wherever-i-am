@@ -2,8 +2,6 @@ using UnityEngine;
 
 public class AudioManager : MonoBehaviour, IAudioService
 {
-    public static AudioManager Instance { get; private set; }
-
     [Header("Latency")]
     [SerializeField, Min(64)] private int targetDspBufferSize = 256;
 
@@ -22,18 +20,30 @@ public class AudioManager : MonoBehaviour, IAudioService
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
         DontDestroyOnLoad(gameObject);
 
         ApplyLowLatencyConfiguration();
         FindMissingManagers();
         ValidateManagers();
+    }
+
+    public bool Construct(IProjectSceneRegistry sceneRegistry)
+    {
+        FindMissingManagers();
+
+        SceneAudioDirector director = GetComponentInChildren<SceneAudioDirector>(true);
+
+        if (director == null)
+        {
+            Debug.LogError(
+                $"{nameof(AudioManager)} requires a child {nameof(SceneAudioDirector)}.",
+                this);
+
+            return false;
+        }
+
+        director.Construct(this, sceneRegistry);
+        return music != null && ui != null && gameplay != null;
     }
 
     private void ApplyLowLatencyConfiguration()

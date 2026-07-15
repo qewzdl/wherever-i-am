@@ -7,8 +7,6 @@ using UnityEngine.SceneManagement;
 [DisallowMultipleComponent]
 public sealed class ProjectContext : MonoBehaviour, IDisposable
 {
-    private static ProjectContext instance;
-
     [Header("Project")]
     [SerializeField] private ProjectSceneRegistry sceneRegistry;
     [SerializeField] private ProjectSceneServiceComposer sceneServiceComposer;
@@ -28,13 +26,11 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
     private bool referencesValidated;
     private bool referenceValidationFailureLogged;
-    private bool ownsRuntimeContext;
     private ServiceScope globalServiceScope;
     private ServiceRegistrationTransaction globalScopeTransaction;
     private bool globalScopeCommitted;
     private SceneRuntimeScopeRegistry sceneRuntimeScopes;
 
-    public static ProjectContext Instance => instance;
     public ProjectRuntimeLifecycleState LifecycleState { get; private set; }
     public bool IsReady => LifecycleState == ProjectRuntimeLifecycleState.Ready;
     public IServiceResolver Services => globalScopeCommitted &&
@@ -42,10 +38,6 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
                                         !globalServiceScope.IsDisposed
         ? globalServiceScope
         : null;
-    public IServiceResolver SessionServices => sessionOrchestrator != null
-        ? sessionOrchestrator.SessionServices
-        : null;
-
     public ProjectSceneRegistry SceneRegistry => sceneRegistry;
     public ProjectSettings Settings => sceneRegistry != null ? sceneRegistry.Settings : null;
     public ProjectSceneFlow SceneFlow => sceneRegistry != null ? sceneRegistry.SceneFlow : null;
@@ -68,28 +60,8 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
     public ProjectSceneFlowService SceneFlowService => sceneServiceComposer != null
         ? sceneServiceComposer.SceneFlowService
         : null;
-    public UiErrorManager UiErrors => uiErrorManager;
-    public AudioManager Audio => audioManager;
-    public GameplayNoiseWorldService GameplayNoiseWorld => gameplayNoiseWorldService;
-    public GameMapService GameMaps => gameMapService;
-
-    private void Awake()
-    {
-        if (instance != null && instance != this)
-        {
-            Destroy(this);
-            return;
-        }
-
-        instance = this;
-        ownsRuntimeContext = true;
-    }
-
     private void OnDestroy()
     {
-        if (!ownsRuntimeContext)
-            return;
-
         AppRuntime runtime = AppRuntime.Instance;
 
         if (runtime != null)
@@ -98,8 +70,6 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         ShutdownRuntime();
         DisposeRuntime();
 
-        if (instance == this)
-            instance = null;
     }
 
     public void MakePersistent()
@@ -410,6 +380,14 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
     private bool InitializeProjectServices()
     {
+        if (audioManager == null || !audioManager.Construct(sceneRegistry))
+            return false;
+
+        uiErrorManager.Construct(audioManager);
+
+        if (gameMapService == null || !gameMapService.Construct(sceneRegistry, networkManager))
+            return false;
+
         if (sceneServiceComposer == null || !sceneServiceComposer.Initialize())
             return false;
 
@@ -440,6 +418,15 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
     private void DisposeProjectServices()
     {
+        try
+        {
+            uiErrorManager?.DisposeComposition();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, uiErrorManager);
+        }
+
         try
         {
             sessionOrchestrator?.DisposeSessionScopeController();

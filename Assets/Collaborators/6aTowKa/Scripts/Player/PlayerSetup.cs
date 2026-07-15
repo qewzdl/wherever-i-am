@@ -17,7 +17,7 @@ public class PlayerSetup : NetworkBehaviour
 
     public void SetupPlayer()
     {
-        NetworkManager networkManager = NetworkManager.Singleton;
+        NetworkManager networkManager = NetworkManager;
         bool isMultiplayer = networkManager != null && networkManager.IsListening;
         bool isLocalControl = !isMultiplayer || IsOwner;
 

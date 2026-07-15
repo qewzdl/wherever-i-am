@@ -43,6 +43,14 @@ public class NetworkEnemyController : NetworkBehaviour
     {
         CacheComponents();
 
+        if (targetDetector != null &&
+            NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IGameplayNoiseService noiseService))
+        {
+            targetDetector.Construct(noiseService);
+        }
+
         if (!ValidateDependencies())
         {
             DisableRuntimeAfterInvalidConfiguration();
@@ -185,7 +193,7 @@ public class NetworkEnemyController : NetworkBehaviour
 
         if (clientPresentation == null)
         {
-            clientPresentationBehaviour = FindClientPresentationBehaviour();
+            clientPresentationBehaviour = ResolveClientPresentationBehaviour();
             clientPresentation = clientPresentationBehaviour as IEnemyClientPresentation;
         }
 
@@ -355,7 +363,7 @@ public class NetworkEnemyController : NetworkBehaviour
     }
 #endif
 
-    private MonoBehaviour FindClientPresentationBehaviour()
+    private MonoBehaviour ResolveClientPresentationBehaviour()
     {
         MonoBehaviour[] behaviours = GetComponents<MonoBehaviour>();
 

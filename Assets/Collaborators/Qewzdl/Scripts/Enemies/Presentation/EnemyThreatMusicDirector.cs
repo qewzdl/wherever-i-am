@@ -200,14 +200,6 @@ public sealed class EnemyThreatMusicDirector : MonoBehaviour
 
     private void CacheReferences()
     {
-        AudioManager audioManager = AudioManager.Instance;
-
-        if (audioManager != null && audioManager.Music != null)
-        {
-            musicManager = audioManager.Music;
-            return;
-        }
-
         if (musicManager == null)
         {
             musicManager = GetComponent<MusicManager>();

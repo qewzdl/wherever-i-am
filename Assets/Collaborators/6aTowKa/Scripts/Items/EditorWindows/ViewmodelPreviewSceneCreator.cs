@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public static class ViewmodelPreviewSceneCreator
 {
@@ -19,7 +20,7 @@ public static class ViewmodelPreviewSceneCreator
 
     private static void PlaceItemInScene(GameObject prefab)
     {
-        var setup = UnityEngine.Object.FindFirstObjectByType<ViewmodelPreviewSetup>();
+        ViewmodelPreviewSetup setup = ResolvePreviewSetup();
         if (setup == null) return;
 
         var container = setup.transform;
@@ -39,6 +40,27 @@ public static class ViewmodelPreviewSceneCreator
             ApplySavedViewmodelTransform(instance, setup.targetAsset);
 
         EditorSceneManager.MarkSceneDirty(setup.gameObject.scene);
+    }
+
+    private static ViewmodelPreviewSetup ResolvePreviewSetup()
+    {
+        Scene scene = EditorSceneManager.GetActiveScene();
+
+        if (!scene.IsValid() || !scene.isLoaded)
+            return null;
+
+        GameObject[] roots = scene.GetRootGameObjects();
+
+        for (int i = 0; i < roots.Length; i++)
+        {
+            ViewmodelPreviewSetup setup =
+                roots[i].GetComponentInChildren<ViewmodelPreviewSetup>(true);
+
+            if (setup != null)
+                return setup;
+        }
+
+        return null;
     }
 
     private static void ApplySavedViewmodelTransform(GameObject itemInstance, PickupItemData data)

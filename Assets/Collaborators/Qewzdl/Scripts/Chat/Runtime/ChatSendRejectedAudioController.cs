@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ChatSendRejectedAudioController : MonoBehaviour
+public class ChatSendRejectedAudioController : MonoBehaviour, IUiSoundServiceConsumer
 {
     [Header("Events")]
     [SerializeField] private ChatEventChannel chatEvents;
@@ -9,6 +9,17 @@ public class ChatSendRejectedAudioController : MonoBehaviour
     [SerializeField] private SoundEffect sendRejectedSound;
 
     private bool isSubscribed;
+    private IUiSoundService uiSoundService;
+
+    public void Construct(IUiSoundService service)
+    {
+        uiSoundService = service;
+    }
+
+    public void ReleaseUiSoundService()
+    {
+        uiSoundService = null;
+    }
 
     public void SetEventChannel(ChatEventChannel chatEvents)
     {
@@ -73,12 +84,12 @@ public class ChatSendRejectedAudioController : MonoBehaviour
             return;
         }
 
-        if (AudioManager.Instance == null || AudioManager.Instance.UI == null)
+        if (uiSoundService == null)
         {
-            Debug.LogWarning($"{nameof(ChatSendRejectedAudioController)}: AudioManager or UiSoundManager is missing.");
+            Debug.LogWarning($"{nameof(ChatSendRejectedAudioController)}: UI sound service was not constructed.");
             return;
         }
 
-        AudioManager.Instance.UI.Play(sound);
+        uiSoundService.Play(sound);
     }
 }

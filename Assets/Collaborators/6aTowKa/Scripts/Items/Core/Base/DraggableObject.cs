@@ -131,11 +131,21 @@ public abstract class DraggableObject : InteractableObject
 
     private void IgnoreCollisionWithAllPlayers()
     {
-        PlayerController[] players = FindObjectsByType<PlayerController>(FindObjectsSortMode.None);
+        NetworkManager manager = NetworkManager;
 
-        for (int i = 0; i < players.Length; i++)
+        if (manager == null || manager.SpawnManager == null)
+            return;
+
+        foreach (NetworkObject playerObject in manager.SpawnManager.SpawnedObjectsList)
         {
-            Collider[] playerColliders = players[i].GetComponentsInChildren<Collider>();
+            if (playerObject == null ||
+                !playerObject.TryGetComponent(out PlayerNetwork _))
+            {
+                continue;
+            }
+
+            Collider[] playerColliders =
+                playerObject.GetComponentsInChildren<Collider>();
 
             for (int j = 0; j < playerColliders.Length; j++)
                 IgnoreCollisionWith(playerColliders[j]);
@@ -356,7 +366,7 @@ public abstract class DraggableObject : InteractableObject
     {
         if (netIsDragging.Value) return;
 
-        if (NetworkManager.Singleton == null)
+        if (NetworkManager == null)
         {
             Debug.LogWarning("NetworkManager is not initialized. Cannot interact with draggable object.");
             return;

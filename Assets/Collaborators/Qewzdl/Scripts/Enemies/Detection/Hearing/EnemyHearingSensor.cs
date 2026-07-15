@@ -3,11 +3,17 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
 {
-    private GameplayNoiseWorldService noiseWorldService;
+    private IGameplayNoiseService noiseWorldService;
     private bool missingNoiseWorldServiceLogged;
     private bool missingConfigLogged;
 
     public bool IsConfigured => TryResolveNoiseWorldService(false);
+
+    public void Construct(IGameplayNoiseService service)
+    {
+        noiseWorldService = service;
+        missingNoiseWorldServiceLogged = false;
+    }
 
     public bool ValidateStaticDependencies()
     {
@@ -26,20 +32,6 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
             missingNoiseWorldServiceLogged = false;
             return true;
         }
-
-        ProjectContext context = ProjectContext.Instance;
-        GameplayNoiseWorldService service = context != null
-            ? context.GameplayNoiseWorld
-            : null;
-
-        if (service != null && service.IsInitialized)
-        {
-            noiseWorldService = service;
-            missingNoiseWorldServiceLogged = false;
-            return true;
-        }
-
-        noiseWorldService = null;
 
         if (logErrors)
         {
@@ -120,8 +112,8 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
         missingNoiseWorldServiceLogged = true;
 
         Debug.LogError(
-            $"{nameof(EnemyHearingSensor)} requires {nameof(GameplayNoiseWorldService)}. " +
-            $"Configure it in {nameof(ProjectContext)} before perception ticks.",
+            $"{nameof(EnemyHearingSensor)} requires an initialized " +
+            $"{nameof(IGameplayNoiseService)} from its enemy NetworkObject context.",
             this
         );
     }

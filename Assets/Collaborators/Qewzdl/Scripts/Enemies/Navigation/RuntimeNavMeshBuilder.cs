@@ -22,7 +22,8 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     private NavMeshSurface[] surfaces;
     private bool hasBuilt;
     private Coroutine buildWhenServerReadyCoroutine;
-    private GameMapService gameMapService;
+    private IGameMapSessionService gameMapService;
+    private NetworkManager networkManager;
     private bool subscribedToGameMap;
 
     public bool HasBuilt => hasBuilt;
@@ -33,6 +34,10 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     private void Awake()
     {
         CacheSurface();
+    }
+
+    private void Start()
+    {
 
         if (buildMode == RuntimeNavMeshBuildMode.Disabled)
         {
@@ -46,6 +51,14 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         }
 
         StartBuildFlow();
+    }
+
+    public void Construct(
+        IGameMapSessionService mapService,
+        NetworkManager runtimeNetworkManager)
+    {
+        gameMapService = mapService;
+        networkManager = runtimeNetworkManager;
     }
 
     private void StartBuildFlow()
@@ -66,9 +79,6 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     {
         if (!waitForGameMap)
             return false;
-
-        ProjectContext context = ProjectContext.Instance;
-        gameMapService = context != null ? context.GameMaps : null;
 
         return gameMapService != null && !gameMapService.IsReadyForMatch;
     }
@@ -200,8 +210,6 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
 
     private bool IsServerReady()
     {
-        NetworkManager networkManager = NetworkManager.Singleton;
-
         return networkManager != null &&
                networkManager.IsListening &&
                networkManager.IsServer;
@@ -299,6 +307,12 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     private void OnDisable()
     {
         UnsubscribeFromGameMap();
+
+        if (buildWhenServerReadyCoroutine != null)
+        {
+            StopCoroutine(buildWhenServerReadyCoroutine);
+            buildWhenServerReadyCoroutine = null;
+        }
     }
 
 #if UNITY_EDITOR

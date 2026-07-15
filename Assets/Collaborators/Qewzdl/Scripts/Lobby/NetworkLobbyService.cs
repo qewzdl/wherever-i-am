@@ -30,10 +30,12 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     {
         get
         {
-            if (NetworkManager.Singleton == null || lobbyState == null)
+            if (lobbyController == null ||
+                lobbyState == null ||
+                !lobbyController.TryGetLocalClientId(out ulong localClientId))
                 return false;
 
-            return RoomOwnerClientId == NetworkManager.Singleton.LocalClientId;
+            return RoomOwnerClientId == localClientId;
         }
     }
 
@@ -114,10 +116,11 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
     {
         player = default;
 
-        if (NetworkManager.Singleton == null || lobbyState == null || lobbyState.Players == null)
+        if (lobbyController == null ||
+            lobbyState == null ||
+            lobbyState.Players == null ||
+            !lobbyController.TryGetLocalClientId(out ulong localClientId))
             return false;
-
-        ulong localClientId = NetworkManager.Singleton.LocalClientId;
 
         if (!lobbyState.TryGetPlayerIndex(localClientId, out int index))
             return false;

@@ -4,19 +4,24 @@ using UnityEngine.SceneManagement;
 
 public sealed class NetworkSceneLoader : MonoBehaviour
 {
-    [SerializeField] private ProjectContext projectContext;
+    private IProjectSceneRegistry sceneRegistry;
+    private NetworkManager networkManager;
 
     public string LobbySceneName => GetSceneName(ProjectSceneKind.Lobby);
     public string GameSceneName => GetSceneName(ProjectSceneKind.Game);
 
-    public void Construct(ProjectContext context)
+    public void Construct(
+        IProjectSceneRegistry projectSceneRegistry,
+        NetworkManager runtimeNetworkManager)
     {
-        projectContext = context;
+        sceneRegistry = projectSceneRegistry;
+        networkManager = runtimeNetworkManager;
     }
 
     public void DisposeComposition()
     {
-        projectContext = null;
+        sceneRegistry = null;
+        networkManager = null;
     }
 
     public bool LoadLobby()
@@ -43,7 +48,7 @@ public sealed class NetworkSceneLoader : MonoBehaviour
         if (!CanLoadNetworkScene())
             return false;
 
-        SceneEventProgressStatus status = NetworkManager.Singleton.SceneManager.LoadScene(
+        SceneEventProgressStatus status = networkManager.SceneManager.LoadScene(
             sceneName,
             LoadSceneMode.Single);
 
@@ -61,13 +66,13 @@ public sealed class NetworkSceneLoader : MonoBehaviour
     {
         sceneName = string.Empty;
 
-        if (projectContext == null)
+        if (sceneRegistry == null)
         {
-            Debug.LogError($"{nameof(NetworkSceneLoader)} is missing {nameof(ProjectContext)}.", this);
+            Debug.LogError($"{nameof(NetworkSceneLoader)} is missing its scene registry.", this);
             return false;
         }
 
-        if (!projectContext.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
+        if (!sceneRegistry.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
         {
             Debug.LogError($"Network scene is not configured for {sceneKind}.", this);
             return false;
@@ -92,25 +97,25 @@ public sealed class NetworkSceneLoader : MonoBehaviour
 
     private bool CanLoadNetworkScene()
     {
-        if (NetworkManager.Singleton == null)
+        if (networkManager == null)
         {
-            Debug.LogError("NetworkManager.Singleton is null.", this);
+            Debug.LogError("NetworkManager dependency is missing.", this);
             return false;
         }
 
-        if (!NetworkManager.Singleton.IsListening)
+        if (!networkManager.IsListening)
         {
             Debug.LogError("NetworkManager is not listening.", this);
             return false;
         }
 
-        if (NetworkManager.Singleton.SceneManager == null)
+        if (networkManager.SceneManager == null)
         {
             Debug.LogError("NetworkManager.SceneManager is null.", this);
             return false;
         }
 
-        if (!NetworkManager.Singleton.IsServer)
+        if (!networkManager.IsServer)
         {
             Debug.LogWarning("Only server can load network scenes.", this);
             return false;

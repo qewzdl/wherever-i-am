@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ChatMessageNotificationAudioController : MonoBehaviour
+public class ChatMessageNotificationAudioController : MonoBehaviour, IUiSoundServiceConsumer
 {
     [Header("Events")]
     [SerializeField] private ChatEventChannel chatEvents;
@@ -15,6 +15,17 @@ public class ChatMessageNotificationAudioController : MonoBehaviour
 
     private bool isChatOpen;
     private bool isSubscribed;
+    private IUiSoundService uiSoundService;
+
+    public void Construct(IUiSoundService service)
+    {
+        uiSoundService = service;
+    }
+
+    public void ReleaseUiSoundService()
+    {
+        uiSoundService = null;
+    }
 
     public void SetEventChannel(ChatEventChannel chatEvents)
     {
@@ -130,12 +141,12 @@ public class ChatMessageNotificationAudioController : MonoBehaviour
             return;
         }
 
-        if (AudioManager.Instance == null || AudioManager.Instance.UI == null)
+        if (uiSoundService == null)
         {
-            Debug.LogWarning($"{nameof(ChatMessageNotificationAudioController)}: AudioManager or UiSoundManager is missing.");
+            Debug.LogWarning($"{nameof(ChatMessageNotificationAudioController)}: UI sound service was not constructed.");
             return;
         }
 
-        AudioManager.Instance.UI.Play(sound);
+        uiSoundService.Play(sound);
     }
 }

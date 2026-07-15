@@ -9,7 +9,7 @@ public sealed class NetworkItemImpactGameplayNoiseEmitter : MonoBehaviour
     [SerializeField] private ItemImpactNoiseProfile noiseProfile;
 
     private readonly Dictionary<GameplayNoisePreset, float> lastEmitTimes = new();
-    private GameplayNoiseWorldService noiseWorldService;
+    private IGameplayNoiseService noiseWorldService;
     private bool invalidConfigurationLogged;
     private bool missingNoiseWorldServiceLogged;
 
@@ -17,6 +17,17 @@ public sealed class NetworkItemImpactGameplayNoiseEmitter : MonoBehaviour
         impactSoundEmitter != null &&
         noiseProfile != null &&
         noiseProfile.HasAnyNoise;
+
+    public void Construct(IGameplayNoiseService service)
+    {
+        noiseWorldService = service;
+        missingNoiseWorldServiceLogged = false;
+    }
+
+    public void ReleaseGameplayNoiseService()
+    {
+        noiseWorldService = null;
+    }
 
     private void Awake()
     {
@@ -127,26 +138,13 @@ public sealed class NetworkItemImpactGameplayNoiseEmitter : MonoBehaviour
             return true;
         }
 
-        ProjectContext context = ProjectContext.Instance;
-        noiseWorldService = context != null
-            ? context.GameplayNoiseWorld
-            : null;
-
-        if (noiseWorldService != null && noiseWorldService.IsInitialized)
-        {
-            missingNoiseWorldServiceLogged = false;
-            return true;
-        }
-
-        noiseWorldService = null;
-
         if (!missingNoiseWorldServiceLogged)
         {
             missingNoiseWorldServiceLogged = true;
 
             Debug.LogError(
-                $"{nameof(NetworkItemImpactGameplayNoiseEmitter)} requires initialized " +
-                $"{nameof(GameplayNoiseWorldService)} from {nameof(ProjectContext)}.",
+                $"{nameof(NetworkItemImpactGameplayNoiseEmitter)} requires an initialized " +
+                $"{nameof(IGameplayNoiseService)} from its item NetworkObject context.",
                 this
             );
         }
@@ -175,7 +173,6 @@ public sealed class NetworkItemImpactGameplayNoiseEmitter : MonoBehaviour
     private void ResetRuntimeState()
     {
         lastEmitTimes.Clear();
-        noiseWorldService = null;
         missingNoiseWorldServiceLogged = false;
     }
 

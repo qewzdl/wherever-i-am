@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class MusicCuePlayer : MonoBehaviour
+public class MusicCuePlayer : MonoBehaviour, IMusicServiceConsumer
 {
     [Header("Cue")]
     [SerializeField] private MusicCue cue;
@@ -9,6 +9,18 @@ public class MusicCuePlayer : MonoBehaviour
     [SerializeField] private bool playOnStart = true;
     [SerializeField] private bool stopOnDisable = false;
     [SerializeField] private bool restartIfSameCue = false;
+
+    private IMusicService musicService;
+
+    public void Construct(IMusicService service)
+    {
+        musicService = service;
+    }
+
+    public void ReleaseMusicService()
+    {
+        musicService = null;
+    }
 
     private void Start()
     {
@@ -34,22 +46,22 @@ public class MusicCuePlayer : MonoBehaviour
             return;
         }
 
-        if (AudioManager.Instance == null || AudioManager.Instance.Music == null)
+        if (musicService == null)
         {
-            Debug.LogWarning("MusicCuePlayer: AudioManager or MusicManager is missing.");
+            Debug.LogWarning("MusicCuePlayer: Music service was not constructed.");
             return;
         }
 
-        AudioManager.Instance.Music.PlayCue(cue, restartIfSameCue);
+        musicService.PlayCue(cue, restartIfSameCue);
     }
 
     public void Stop()
     {
-        if (AudioManager.Instance == null || AudioManager.Instance.Music == null)
+        if (musicService == null)
         {
             return;
         }
 
-        AudioManager.Instance.Music.StopMusic();
+        musicService.StopMusic();
     }
 }

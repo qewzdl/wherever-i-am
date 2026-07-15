@@ -19,7 +19,7 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
     [SerializeField] private List<GameplayNoisePreset> ownerRequestPresets = new();
 
     private readonly Dictionary<GameplayNoisePreset, float> lastPresetEmitTimes = new();
-    private GameplayNoiseWorldService noiseWorldService;
+    private IGameplayNoiseService noiseWorldService;
     private IGameplayNoiseRequestValidator ownerRequestValidator;
     private float lastRawEmitTime = float.NegativeInfinity;
     private bool invalidConfigurationLogged;
@@ -46,12 +46,26 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        if (noiseWorldService == null)
+        {
+            NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out noiseWorldService);
+        }
+
         ResetCooldowns();
     }
 
     public override void OnNetworkDespawn()
     {
         ResetCooldowns();
+        noiseWorldService = null;
+    }
+
+    public void Construct(IGameplayNoiseService service)
+    {
+        noiseWorldService = service;
+        invalidConfigurationLogged = false;
     }
 
     public bool TryEmitServer()
@@ -391,26 +405,13 @@ public sealed class GameplayNoiseEmitter : NetworkBehaviour
             return true;
         }
 
-        ProjectContext context = ProjectContext.Instance;
-        noiseWorldService = context != null
-            ? context.GameplayNoiseWorld
-            : null;
-
-        if (noiseWorldService != null && noiseWorldService.IsInitialized)
-        {
-            invalidConfigurationLogged = false;
-            return true;
-        }
-
-        noiseWorldService = null;
-
         if (logErrors && !invalidConfigurationLogged)
         {
             invalidConfigurationLogged = true;
 
             Debug.LogError(
-                $"{nameof(GameplayNoiseEmitter)} requires initialized " +
-                $"{nameof(GameplayNoiseWorldService)} from {nameof(ProjectContext)}.",
+                $"{nameof(GameplayNoiseEmitter)} requires an initialized " +
+                $"{nameof(IGameplayNoiseService)} from its NetworkObject context.",
                 this
             );
         }

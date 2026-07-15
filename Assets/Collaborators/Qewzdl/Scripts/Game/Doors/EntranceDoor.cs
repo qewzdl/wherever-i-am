@@ -278,11 +278,11 @@ public sealed class EntranceDoor : InteractableObject
         }
     }
 
-    private static ulong ResolveLocalClientId()
+    private ulong ResolveLocalClientId()
     {
-        return NetworkManager.Singleton != null
-            ? NetworkManager.Singleton.LocalClientId
-            : NetworkManager.ServerClientId;
+        return NetworkManager != null
+            ? NetworkManager.LocalClientId
+            : Unity.Netcode.NetworkManager.ServerClientId;
     }
 
 #if UNITY_EDITOR

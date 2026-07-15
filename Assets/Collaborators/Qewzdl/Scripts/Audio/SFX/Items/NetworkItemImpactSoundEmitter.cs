@@ -5,7 +5,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(Rigidbody))]
-public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
+public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour, IGameplaySoundServiceConsumer
 {
     private const ulong NoPredictedClientId = ulong.MaxValue;
     private const ulong NoFormerOwnerClientId = ulong.MaxValue;
@@ -26,6 +26,7 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
     private float lastServerRelayTime = float.NegativeInfinity;
     private ulong formerOwnerClientId = NoFormerOwnerClientId;
     private float ownershipChangedAtTime = float.NegativeInfinity;
+    private IGameplaySoundService gameplaySoundService;
 
     public event Action<Vector3, ItemImpactSoundId> ServerImpactAccepted;
 
@@ -36,12 +37,41 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        if (NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IAudioService audioService))
+        {
+            Construct(audioService.Gameplay);
+        }
+
+        if (TryGetComponent(out NetworkItemImpactGameplayNoiseEmitter noiseEmitter) &&
+            NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IGameplayNoiseService noiseService))
+        {
+            noiseEmitter.Construct(noiseService);
+        }
+
         ResetRuntimeState();
     }
 
     public override void OnNetworkDespawn()
     {
         ResetRuntimeState();
+        ReleaseGameplaySoundService();
+
+        if (TryGetComponent(out NetworkItemImpactGameplayNoiseEmitter noiseEmitter))
+            noiseEmitter.ReleaseGameplayNoiseService();
+    }
+
+    public void Construct(IGameplaySoundService service)
+    {
+        gameplaySoundService = service;
+    }
+
+    public void ReleaseGameplaySoundService()
+    {
+        gameplaySoundService = null;
     }
 
     protected override void OnOwnershipChanged(ulong previous, ulong current)
@@ -161,11 +191,9 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
         byte soundIdValue,
         ulong predictedClientId)
     {
-        NetworkManager networkManager = NetworkManager.Singleton;
-
         if (predictedClientId != NoPredictedClientId &&
-            networkManager != null &&
-            networkManager.LocalClientId == predictedClientId)
+            NetworkManager != null &&
+            NetworkManager.LocalClientId == predictedClientId)
         {
             return;
         }
@@ -274,14 +302,12 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
             return;
         }
 
-        AudioManager audioManager = AudioManager.Instance;
-
-        if (audioManager == null || audioManager.Gameplay == null)
+        if (gameplaySoundService == null)
         {
             return;
         }
 
-        audioManager.Gameplay.PlayAtPosition(sound, position);
+        gameplaySoundService.PlayAtPosition(sound, position);
     }
 
     private bool CanPassLocalReportCooldown()
@@ -302,9 +328,8 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour
 
     private bool IsNetworkActive()
     {
-        NetworkManager networkManager = NetworkManager.Singleton;
-        return networkManager != null &&
-               networkManager.IsListening &&
+        return NetworkManager != null &&
+               NetworkManager.IsListening &&
                IsSpawned;
     }
 

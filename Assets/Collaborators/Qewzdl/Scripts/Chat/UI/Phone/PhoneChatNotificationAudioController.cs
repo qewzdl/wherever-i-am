@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class PhoneChatNotificationAudioController : MonoBehaviour
+public sealed class PhoneChatNotificationAudioController : MonoBehaviour, IUiSoundServiceConsumer
 {
     [SerializeField] private ChatEventChannel chatEvents;
     [SerializeField] private AudioSource fallbackAudioSource;
@@ -15,8 +15,19 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
 
     private bool isOpen;
     private bool isSubscribed;
+    private IUiSoundService uiSoundService;
 
     public AudioSource FallbackAudioSource => fallbackAudioSource;
+
+    public void Construct(IUiSoundService service)
+    {
+        uiSoundService = service;
+    }
+
+    public void ReleaseUiSoundService()
+    {
+        uiSoundService = null;
+    }
 
     public void Configure(
         ChatEventChannel chatEvents,
@@ -129,10 +140,8 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour
             return false;
         }
 
-        if (AudioManager.Instance != null && AudioManager.Instance.UI != null)
-        {
-            return AudioManager.Instance.UI.TryPlay(sound);
-        }
+        if (uiSoundService != null)
+            return uiSoundService.TryPlay(sound);
 
         if (fallbackAudioSource == null)
         {

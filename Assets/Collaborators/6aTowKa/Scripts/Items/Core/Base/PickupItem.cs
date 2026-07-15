@@ -88,9 +88,9 @@ public abstract class PickupItem : DraggableObject
 
     private void PickUp(PickUpContext context)
     {
-        if (!NetworkManager.Singleton) return;
+        if (NetworkManager == null) return;
         this.context = context;
-        RequestPickUpItemServerRpc(NetworkManager.Singleton.LocalClientId);
+        RequestPickUpItemServerRpc(NetworkManager.LocalClientId);
     }
 
     protected void Drop()

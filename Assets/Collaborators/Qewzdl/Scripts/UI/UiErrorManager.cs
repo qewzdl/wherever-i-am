@@ -3,62 +3,33 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
 {
-    private const string DefaultPrefabResourcePath = "UI/UiErrorOverlay";
     private const string DefaultErrorMessage = "Unknown error.";
-    private const string MissingManagerWarning = "UiErrorManager was not found. Add UiErrorManager to the Bootstrap scene or the current scene.";
-
-    private static UiErrorManager instance;
 
     [SerializeField] private UiErrorView errorViewPrefab;
 
     private UiErrorView errorView;
-
-    public static UiErrorManager Instance
-    {
-        get
-        {
-            if (instance != null)
-                return instance;
-
-            instance = FindFirstObjectByType<UiErrorManager>();
-            return instance;
-        }
-    }
-
-    public static bool TryGetInstance(out UiErrorManager manager)
-    {
-        manager = Instance;
-
-        if (manager != null)
-            return true;
-
-        Debug.LogWarning(MissingManagerWarning);
-        return false;
-    }
-
-    public static void Show(string message)
-    {
-        if (TryGetInstance(out UiErrorManager manager))
-            manager.ShowError(message);
-    }
-
-    public static void Hide()
-    {
-        if (TryGetInstance(out UiErrorManager manager))
-            manager.HideError();
-    }
+    private IAudioService audioService;
+    private IUiSoundService uiSoundService;
+    private AudioServiceComposition errorViewAudioComposition;
 
     private void Awake()
     {
-        if (instance != null && instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        instance = this;
         transform.SetParent(null);
         DontDestroyOnLoad(gameObject);
+    }
+
+    public void Construct(IAudioService service)
+    {
+        audioService = service;
+        uiSoundService = service != null ? service.UI : null;
+    }
+
+    public void DisposeComposition()
+    {
+        errorViewAudioComposition?.Dispose();
+        errorViewAudioComposition = null;
+        audioService = null;
+        uiSoundService = null;
     }
 
     private void OnDestroy()
@@ -66,8 +37,8 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
         if (errorView != null)
             errorView.CloseRequested -= HideError;
 
-        if (instance == this)
-            instance = null;
+        DisposeComposition();
+
     }
 
     public void ShowError(string message)
@@ -100,42 +71,36 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
             return;
 
         if (errorViewPrefab == null)
-            errorViewPrefab = LoadDefaultPrefab();
-
-        if (errorViewPrefab == null)
         {
-            Debug.LogError($"UiErrorManager: prefab with UiErrorView was not found at Resources/{DefaultPrefabResourcePath}.");
+            Debug.LogError($"{nameof(UiErrorManager)} requires an assigned {nameof(UiErrorView)} prefab.", this);
             return;
         }
 
         errorView = Instantiate(errorViewPrefab, transform);
         errorView.name = errorViewPrefab.name;
+
+        if (audioService != null &&
+            !AudioServiceComposition.TryCompose(
+                errorView.gameObject,
+                audioService,
+                out errorViewAudioComposition))
+        {
+            Debug.LogError(
+                $"{nameof(UiErrorManager)} failed to compose audio dependencies for its view.",
+                this);
+        }
+
         errorView.CloseRequested += HideError;
         errorView.Hide();
     }
 
-    private static UiErrorView LoadDefaultPrefab()
+    private void PlayErrorSound()
     {
-        GameObject prefabObject = Resources.Load<GameObject>(DefaultPrefabResourcePath);
-
-        if (prefabObject == null)
-            return null;
-
-        if (prefabObject.TryGetComponent(out UiErrorView viewPrefab))
-            return viewPrefab;
-
-        return null;
+        uiSoundService?.PlayError();
     }
 
-    private static void PlayErrorSound()
+    private void PlayCloseSound()
     {
-        if (AudioManager.Instance != null && AudioManager.Instance.UI != null)
-            AudioManager.Instance.UI.PlayError();
-    }
-
-    private static void PlayCloseSound()
-    {
-        if (AudioManager.Instance != null && AudioManager.Instance.UI != null)
-            AudioManager.Instance.UI.PlayClose();
+        uiSoundService?.PlayClose();
     }
 }

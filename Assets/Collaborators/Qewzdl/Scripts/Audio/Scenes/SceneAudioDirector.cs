@@ -13,6 +13,15 @@ public class SceneAudioDirector : MonoBehaviour
     [SerializeField] private bool logMissingProfile = true;
 
     private string currentSceneName;
+    private IProjectSceneRegistry sceneRegistry;
+
+    public void Construct(
+        AudioManager manager,
+        IProjectSceneRegistry projectSceneRegistry)
+    {
+        audioManager = manager;
+        sceneRegistry = projectSceneRegistry;
+    }
 
     private void Awake()
     {
@@ -134,8 +143,7 @@ public class SceneAudioDirector : MonoBehaviour
         if (!logMissingProfile)
             return false;
 
-        ProjectContext context = ProjectContext.Instance;
-
-        return context == null || !context.IsScene(context.GetBootstrapSceneKind(), sceneName);
+        return sceneRegistry == null ||
+               !sceneRegistry.IsScene(sceneRegistry.GetBootstrapSceneKind(), sceneName);
     }
 }

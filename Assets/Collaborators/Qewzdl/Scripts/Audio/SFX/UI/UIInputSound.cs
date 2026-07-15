@@ -4,7 +4,7 @@ using UnityEngine.EventSystems;
 using TMPro;
 
 [RequireComponent(typeof(TMP_InputField))]
-public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler
+public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler, IUiSoundServiceConsumer
 {
     [Header("Settings")]
     [SerializeField] private bool playHoverSound = true;
@@ -19,8 +19,19 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     private TMP_InputField inputField;
     private string previousText = "";
     private float lastInputSoundTime;
+    private IUiSoundService uiSoundService;
 
     public event Action InputSoundPlayed;
+
+    public void Construct(IUiSoundService service)
+    {
+        uiSoundService = service;
+    }
+
+    public void ReleaseUiSoundService()
+    {
+        uiSoundService = null;
+    }
 
     private void Awake()
     {
@@ -41,17 +52,13 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (!playHoverSound) return;
-        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
-
-        AudioManager.Instance.UI.PlayHover();
+        uiSoundService?.PlayHover();
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
         if (!playClickSound) return;
-        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
-
-        AudioManager.Instance.UI.PlayClick();
+        uiSoundService?.PlayClick();
     }
 
     public void SetInputSoundOverride(SoundEffect sound)
@@ -67,7 +74,7 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
             return;
         }
 
-        if (AudioManager.Instance == null || AudioManager.Instance.UI == null)
+        if (uiSoundService == null)
         {
             previousText = newText;
             return;
@@ -86,15 +93,15 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
 
     private void TryPlayInputSound()
     {
-        if (AudioManager.Instance == null || AudioManager.Instance.UI == null) return;
+        if (uiSoundService == null) return;
 
         if (Time.unscaledTime - lastInputSoundTime < inputSoundCooldown) return;
 
         lastInputSoundTime = Time.unscaledTime;
 
         bool played = inputSoundOverride != null
-            ? AudioManager.Instance.UI.TryPlay(inputSoundOverride)
-            : AudioManager.Instance.UI.TryPlay(UiSoundType.Input);
+            ? uiSoundService.TryPlay(inputSoundOverride)
+            : uiSoundService.TryPlay(UiSoundType.Input);
 
         if (played)
         {

@@ -72,7 +72,7 @@ public sealed class ProjectSceneServiceComposer : MonoBehaviour, IDisposable
             GameStateMachine stateMachine = projectContext.StateMachine;
 
             localSceneLoader.Construct(projectContext);
-            networkSceneLoader.Construct(projectContext);
+            networkSceneLoader.Construct(projectContext.SceneRegistry, networkManager);
             sceneNavigator.Construct(projectContext, localSceneLoader, networkSceneLoader);
 
             sceneTransitionValidator.Construct(projectContext, networkManager);

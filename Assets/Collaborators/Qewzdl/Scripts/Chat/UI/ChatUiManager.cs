@@ -21,6 +21,8 @@ public class ChatUiManager : SceneRuntimeFeature
     private ISessionServiceRegistry serviceRegistry;
     private IPlayerScopeRegistry playerScopes;
     private IGameStateService stateMachine;
+    private IAudioService audioService;
+    private AudioServiceComposition audioComposition;
 
     protected override bool ValidateFeature(SceneFeatureContext context)
     {
@@ -30,6 +32,7 @@ public class ChatUiManager : SceneRuntimeFeature
         valid &= RequireService<ISessionServiceRegistry>(context, out _);
         valid &= RequireService<IPlayerScopeRegistry>(context, out _);
         valid &= RequireService<IGameStateService>(context, out _);
+        valid &= RequireService<IAudioService>(context, out _);
 
         switch (mode)
         {
@@ -65,8 +68,25 @@ public class ChatUiManager : SceneRuntimeFeature
         serviceRegistry = context.Services.Resolve<ISessionServiceRegistry>();
         playerScopes = context.Services.Resolve<IPlayerScopeRegistry>();
         stateMachine = context.Services.Resolve<IGameStateService>();
+        audioService = context.Services.Resolve<IAudioService>();
 
-        return SpawnChatUi() && BindSpawnedUi();
+        if (!SpawnChatUi())
+            return false;
+
+        if (!AudioServiceComposition.TryCompose(
+                spawnedUi,
+                audioService,
+                out audioComposition))
+        {
+            DestroySpawnedUi();
+            return false;
+        }
+
+        if (BindSpawnedUi())
+            return true;
+
+        DestroySpawnedUi();
+        return false;
     }
 
     protected override void UninstallFeature(SceneFeatureContext context)
@@ -75,6 +95,7 @@ public class ChatUiManager : SceneRuntimeFeature
         serviceRegistry = null;
         playerScopes = null;
         stateMachine = null;
+        audioService = null;
     }
 
     private bool SpawnChatUi()
@@ -189,6 +210,9 @@ public class ChatUiManager : SceneRuntimeFeature
 
     private void DestroySpawnedUi()
     {
+        audioComposition?.Dispose();
+        audioComposition = null;
+
         if (spawnedUi == null)
             return;
 

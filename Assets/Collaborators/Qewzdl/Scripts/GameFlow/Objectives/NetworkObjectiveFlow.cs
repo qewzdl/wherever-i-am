@@ -25,7 +25,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
     private ObjectiveSceneBinding activeBinding;
     private ObjectiveSequenceDefinition activeObjectiveSequence;
-    private GameMapService gameMapService;
+    private IGameMapSessionService gameMapService;
     private bool subscribedToGameMap;
     private bool serverReady;
 
@@ -415,8 +415,9 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
     private void ResolveGameMapService()
     {
-        ProjectContext context = ProjectContext.Instance;
-        gameMapService = context != null ? context.GameMaps : null;
+        NetworkObjectServiceContext.TryResolveSessionService(
+            NetworkManager,
+            out gameMapService);
     }
 
     private void SubscribeToGameMap()

@@ -157,12 +157,9 @@ public sealed class DoorOccupiedVolume : MonoBehaviour
         }
     }
 
-    private static bool CanEvaluateServer()
+    private bool CanEvaluateServer()
     {
-        NetworkManager networkManager = NetworkManager.Singleton;
-        return networkManager == null ||
-               !networkManager.IsListening ||
-               networkManager.IsServer;
+        return linkedDoor != null && linkedDoor.CanEvaluateAuthoritatively;
     }
 
     private static bool IsLayerInMask(int layer, LayerMask layerMask)

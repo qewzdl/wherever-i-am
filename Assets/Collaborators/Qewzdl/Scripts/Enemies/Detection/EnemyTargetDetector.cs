@@ -21,6 +21,11 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
         ValidateStaticDependencies(false) &&
         ValidateRuntimeDependencies(false);
 
+    public void Construct(IGameplayNoiseService noiseService)
+    {
+        hearingSensor?.Construct(noiseService);
+    }
+
     private void Awake()
     {
         if (!ValidateStaticDependencies())
