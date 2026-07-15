@@ -1355,7 +1355,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea3c2706a270444aab6bf141c6d474ca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameFlow: {fileID: 0}
   hitResult: 2
   hitReason: A player was caught by an enemy
   logReceivedAttack: 1

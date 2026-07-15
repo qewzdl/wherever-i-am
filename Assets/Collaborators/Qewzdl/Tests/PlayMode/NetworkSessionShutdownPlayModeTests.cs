@@ -117,6 +117,12 @@ public sealed class NetworkSessionShutdownPlayModeTests
         yield return WaitForCondition(
             () => mapService.HasPendingOperation,
             "Game map operation did not become pending.");
+        yield return WaitForCondition(
+            () => sessionServices.TryResolve(out IMatchCompletionService _),
+            "NetworkGameFlow did not publish its Session service.");
+        Assert.That(
+            sessionServices.Resolve<IMatchCompletionService>(),
+            Is.TypeOf<NetworkGameFlow>());
         Assert.That(appRuntime.SceneScopeCount, Is.GreaterThan(0));
 
         List<string> lifecycle = new();
@@ -126,6 +132,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
         int sessionStoppedCount = 0;
         bool callbacksObservedCanceledOperations = true;
         bool callbacksObservedLiveScopes = true;
+        bool callbacksObservedUnregisteredMatchService = true;
         bool sessionStoppedAfterCallbacks = false;
         bool sessionStoppedAfterCleanup = false;
         bool mainMenuAfterCleanup = false;
@@ -141,6 +148,8 @@ public sealed class NetworkSessionShutdownPlayModeTests
                 !sessionServices.IsDisposed &&
                 !playerScope.IsDisposed &&
                 appRuntime.SceneScopeCount > 0;
+            callbacksObservedUnregisteredMatchService &=
+                !sessionServices.TryResolve(out IMatchCompletionService _);
         };
         networkManager.OnServerStopped += wasHost =>
         {
@@ -153,6 +162,8 @@ public sealed class NetworkSessionShutdownPlayModeTests
                 !sessionServices.IsDisposed &&
                 !playerScope.IsDisposed &&
                 appRuntime.SceneScopeCount > 0;
+            callbacksObservedUnregisteredMatchService &=
+                !sessionServices.TryResolve(out IMatchCompletionService _);
         };
         playerRegistry.PlayerScopeClosing += closingScope =>
         {
@@ -207,6 +218,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
         Assert.That(serverStoppedCount, Is.EqualTo(1));
         Assert.That(callbacksObservedCanceledOperations, Is.True);
         Assert.That(callbacksObservedLiveScopes, Is.True);
+        Assert.That(callbacksObservedUnregisteredMatchService, Is.True);
         Assert.That(playerClosingCount, Is.EqualTo(1));
         Assert.That(sessionStoppedCount, Is.EqualTo(1));
         Assert.That(sessionStoppedAfterCallbacks, Is.True);

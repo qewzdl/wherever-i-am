@@ -40,7 +40,8 @@ public sealed class ChildServiceContractPolicyTests
             typeof(IGameMapSessionService),
             typeof(IGameplayNoiseService),
             typeof(IChatReadService),
-            typeof(IChatCommandService)
+            typeof(IChatCommandService),
+            typeof(IMatchCompletionService)
         };
 
         AssertExactPolicy(

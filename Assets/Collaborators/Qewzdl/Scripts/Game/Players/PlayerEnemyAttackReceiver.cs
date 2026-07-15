@@ -5,7 +5,6 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackReceiver
 {
-    [SerializeField] private NetworkGameFlow gameFlow;
     [SerializeField] private GameResultType hitResult = GameResultType.Defeat;
     [SerializeField] private string hitReason = "A player was caught by an enemy";
     [SerializeField] private bool logReceivedAttack = true;
@@ -48,14 +47,10 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
             );
         }
 
-        if (gameFlow == null)
-        {
-            NetworkObjectServiceContext.TryGetSpawnedComponent(
+        if (NetworkObjectServiceContext.TryResolveSessionService(
                 NetworkManager,
-                out gameFlow);
-        }
-
-        if (gameFlow != null && gameFlow.IsMatchRunning)
+                out IMatchCompletionService matchCompletionService) &&
+            matchCompletionService.IsMatchRunning)
         {
             MatchOutcome outcome = MatchOutcomeFactory.FromAllPlayersDead(
                 hitResult,
@@ -64,7 +59,9 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
 
             if (outcome.HasResult)
             {
-                gameFlow.CompleteMatchServerOnly(outcome.ToGameResultData(), hitReason);
+                matchCompletionService.CompleteMatchServerOnly(
+                    outcome.ToGameResultData(),
+                    hitReason);
             }
         }
 

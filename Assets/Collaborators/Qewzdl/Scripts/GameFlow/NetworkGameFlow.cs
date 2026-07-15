@@ -5,7 +5,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-public sealed class NetworkGameFlow : NetworkBehaviour
+public sealed class NetworkGameFlow : NetworkBehaviour, IMatchCompletionService
 {
     [Header("State")]
     [SerializeField] private GamePhase initialPhase = GamePhase.Waiting;
@@ -32,6 +32,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
     private bool matchResolvedRaised;
     private bool matchFinishedRaised;
     private bool serverReady;
+    private SessionServiceRegistration serviceRegistration;
 
     public event Action<GamePhase, GamePhase> PhaseChanged;
     public event Action<GameResultData, GameResultData> ResultChanged;
@@ -57,12 +58,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         result.OnValueChanged += HandleResultChanged;
         lastTransitionReason.OnValueChanged += HandleTransitionReasonChanged;
 
-        if (!IsServer)
-        {
-            return;
-        }
-
-        if (initialPhase != GamePhase.Waiting)
+        if (IsServer && initialPhase != GamePhase.Waiting)
         {
             Debug.LogError(
                 $"{nameof(NetworkGameFlow)} requires initial phase {nameof(GamePhase.Waiting)}. Current configured value: {initialPhase}.",
@@ -72,20 +68,35 @@ public sealed class NetworkGameFlow : NetworkBehaviour
             return;
         }
 
-        StopFinishRoutine();
+        if (IsServer)
+        {
+            StopFinishRoutine();
 
-        result.Value = GameResultData.None;
-        phase.Value = initialPhase;
-        lastTransitionReason.Value = "GameFlow spawned in Waiting phase";
+            result.Value = GameResultData.None;
+            phase.Value = initialPhase;
+            lastTransitionReason.Value = "GameFlow spawned in Waiting phase";
 
-        matchResolvedRaised = false;
-        matchFinishedRaised = false;
-        serverReady = true;
-        ServerReady?.Invoke();
+            matchResolvedRaised = false;
+            matchFinishedRaised = false;
+        }
+
+        if (!RegisterSessionService())
+        {
+            enabled = false;
+            return;
+        }
+
+        if (IsServer)
+        {
+            serverReady = true;
+            ServerReady?.Invoke();
+        }
     }
 
     public override void OnNetworkDespawn()
     {
+        UnregisterSessionService();
+
         phase.OnValueChanged -= HandlePhaseChanged;
         result.OnValueChanged -= HandleResultChanged;
         lastTransitionReason.OnValueChanged -= HandleTransitionReasonChanged;
@@ -95,6 +106,12 @@ public sealed class NetworkGameFlow : NetworkBehaviour
         serverReady = false;
         matchResolvedRaised = false;
         matchFinishedRaised = false;
+    }
+
+    public override void OnDestroy()
+    {
+        UnregisterSessionService();
+        base.OnDestroy();
     }
 
     public bool StartMatchServerOnly()
@@ -190,6 +207,71 @@ public sealed class NetworkGameFlow : NetworkBehaviour
 
         StartFinishRoutine();
         return true;
+    }
+
+    private bool RegisterSessionService()
+    {
+        if (serviceRegistration != null)
+            return true;
+
+        if (NetworkManager == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkGameFlow)} cannot register without an active " +
+                $"{nameof(NetworkManager)}.",
+                this);
+
+            return false;
+        }
+
+        NetworkSessionOrchestrator orchestrator =
+            NetworkManager.GetComponent<NetworkSessionOrchestrator>();
+
+        if (orchestrator == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkGameFlow)} requires {nameof(NetworkSessionOrchestrator)} " +
+                $"on the {nameof(NetworkManager)} object.",
+                this);
+
+            return false;
+        }
+
+        if (orchestrator.TryRegisterSessionServices(
+                registrar => registrar.Register<IMatchCompletionService>(this),
+                out serviceRegistration,
+                out Exception failure))
+        {
+            return true;
+        }
+
+        Debug.LogError(
+            $"{nameof(NetworkGameFlow)} failed to register " +
+            $"{nameof(IMatchCompletionService)} in the Session scope.",
+            this);
+
+        if (failure != null)
+            Debug.LogException(failure, this);
+
+        return false;
+    }
+
+    private void UnregisterSessionService()
+    {
+        SessionServiceRegistration registration = serviceRegistration;
+        serviceRegistration = null;
+
+        if (registration == null)
+            return;
+
+        try
+        {
+            registration.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
     }
 
     private void StartFinishRoutine()

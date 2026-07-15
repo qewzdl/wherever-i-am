@@ -85,6 +85,16 @@ public sealed class SessionScopeControllerTests
         }
     }
 
+    private sealed class MatchCompletionServiceStub : IMatchCompletionService
+    {
+        public bool IsMatchRunning => true;
+
+        public bool CompleteMatchServerOnly(GameResultData matchResult, string reason)
+        {
+            return matchResult.HasResult;
+        }
+    }
+
     private sealed class GameMapSessionServiceStub : IGameMapSessionService
     {
         public IGameMapCatalog Catalog => null;
@@ -270,6 +280,46 @@ public sealed class SessionScopeControllerTests
         Assert.That(registrations, Is.Null);
         Assert.That(failure, Is.TypeOf<InvalidOperationException>());
         Assert.That(registry.TryResolve(out IPauseService _), Is.False);
+    }
+
+    [Test]
+    public void DynamicRegistrationChurn_DoesNotAccumulateOrderEntries()
+    {
+        const int RegistrationCount = 10_000;
+
+        using ServiceScope globalScope = new("Global");
+        using SessionScopeController controller = CreateController(globalScope);
+        Assert.That(controller.TryOpen(out _), Is.True);
+        Assert.That(controller.TryGetScope(out ServiceScope sessionScope), Is.True);
+        int baselineOrderCount = sessionScope.RegistrationOrderCount;
+        int baselineServiceCount = sessionScope.LocalServiceCount;
+        MatchCompletionServiceStub service = new();
+
+        for (int i = 0; i < RegistrationCount; i++)
+        {
+            if (!controller.TryRegisterServices(
+                    registrar => registrar.Register<IMatchCompletionService>(service),
+                    out SessionServiceRegistration registration,
+                    out Exception failure))
+            {
+                Assert.Fail(
+                    $"Registration churn failed at iteration {i}: {failure}");
+            }
+
+            registration.Dispose();
+
+            if (sessionScope.RegistrationOrderCount != baselineOrderCount)
+            {
+                Assert.Fail(
+                    $"Registration order grew at iteration {i}. " +
+                    $"Expected {baselineOrderCount}, got " +
+                    $"{sessionScope.RegistrationOrderCount}.");
+            }
+        }
+
+        Assert.That(sessionScope.LocalServiceCount, Is.EqualTo(baselineServiceCount));
+        Assert.That(sessionScope.RegistrationOrderCount, Is.EqualTo(baselineOrderCount));
+        Assert.That(sessionScope.TryResolve(out IMatchCompletionService _), Is.False);
     }
 
     [Test]

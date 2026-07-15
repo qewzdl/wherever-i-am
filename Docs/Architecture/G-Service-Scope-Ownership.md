@@ -40,6 +40,7 @@ Global (ProjectContext: Ready -> Dispose)
 | Session | `ISessionServiceRegistry` | `SessionServiceRegistry` | synchronous Session transaction | вместе с Session scope | read/subscription API для динамических Session contracts; mutable scope не публикуется |
 | Session | `IPlayerScopeRegistry` | `PlayerScopeRegistry` | synchronous Session transaction | `CloseAll` до Session Dispose | read-only registry Player scopes по `NetworkObjectId` на каждом peer |
 | Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | atomic batch на `OnNetworkSpawn` | registration handles на `OnNetworkDespawn`, до закрытия session | client вызывает command contract, server валидирует и реплицирует сообщения |
+| Session, NetworkObject | `IMatchCompletionService` | `NetworkGameFlow` | atomic registration на `OnNetworkSpawn` | registration handle первым снимается на `OnNetworkDespawn` | контракт доступен на всех peers, но завершение матча принимает только server |
 | Player | `IPlayerNetworkService`, `IReplicatedPlayerStateService`, `IEnemyAttackReceiver` | `PlayerScopeLifetime`, `PlayerNetwork`, `PlayerEnemyAttackReceiver` | Player transaction на `OnNetworkSpawn` | Player scope на `OnNetworkDespawn` | replicated state читается на peers; gameplay mutation остаётся server-authoritative |
 | Player/Local | `ILocalPlayerInputService`, `ILocalPlayerCameraService`, `ILocalPlayerPresentationService` | `PlayerInputHandler`, `CameraLook`, `PlayerUI` | Local transaction только для owner | вместе с Player scope | никогда не создаётся для remote player или dedicated server |
 | Scene: Lobby | `ILobbyReadService`, `ILobbyCommandService` | `NetworkLobbyService` | scene transaction commit после install Lobby feature | reverse uninstall Lobby scope | client отправляет intent, server владеет lobby state и start decision |
@@ -148,4 +149,6 @@ Global (ProjectContext: Ready -> Dispose)
 - Session-owned `NetworkObject` регистрирует interface contracts атомарным batch через внутренний registrar; `ServiceScope` наружу не передаётся.
 - Успешный batch публикует одно изменение после commit. Ошибка, включая duplicate contract, откатывает весь batch без уведомления consumers.
 - `NetworkChatSession` хранит одну группу handles для `IChatReadService` и `IChatCommandService` и освобождает её в начале `OnNetworkDespawn`.
-- Scene UI получает registry через parent lookup своего scene scope. Gameplay `NetworkBehaviour` разрешает Session contracts через `NetworkObjectServiceContext` с явным `NetworkManager`.
+- `NetworkGameFlow` публикует `IMatchCompletionService` на spawn и снимает handle до остального despawn cleanup; duplicate flow отклоняется Session scope.
+- Scene UI получает registry через parent lookup своего scene scope. Gameplay `NetworkBehaviour` разрешает Session contracts через `NetworkObjectServiceContext` с явным `NetworkManager`; перебор `SpawnedObjectsList` как service discovery запрещён.
+- Удаление dynamic registration физически удаляет её из registration order; частый spawn/despawn не увеличивает память Session scope.

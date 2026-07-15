@@ -9,7 +9,8 @@ internal sealed class SessionContractPolicy : ServiceContractPolicy
         typeof(IGameMapSessionService),
         typeof(IGameplayNoiseService),
         typeof(IChatReadService),
-        typeof(IChatCommandService)
+        typeof(IChatCommandService),
+        typeof(IMatchCompletionService)
     };
 
     internal static readonly SessionContractPolicy Instance = new();

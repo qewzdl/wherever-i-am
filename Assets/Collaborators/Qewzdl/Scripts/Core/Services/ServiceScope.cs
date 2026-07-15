@@ -86,6 +86,7 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
     public bool IsDisposed => state == ScopeState.Disposed;
     public int LocalServiceCount => services.Count;
     public int ChildScopeCount => children.Count;
+    internal int RegistrationOrderCount => registrationOrder.Count;
 
     public ServiceScope CreateChild(
         string name,
@@ -428,6 +429,7 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
         entry.IsActive = false;
         services.Remove(entry.ContractType);
         registrationsById.Remove(entry.Id);
+        registrationOrder.Remove(entry);
         entry.Registration.Detach();
 
         if (entry.OwnedService != null)

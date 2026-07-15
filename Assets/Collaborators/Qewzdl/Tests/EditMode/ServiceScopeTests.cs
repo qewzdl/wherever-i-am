@@ -81,6 +81,12 @@ public sealed class ServiceScopeTests
         Assert.That(typeof(IPlayerScope).IsVisible, Is.True);
         Assert.That(typeof(IPlayerScopeRegistry).IsVisible, Is.True);
         Assert.That(typeof(NetworkObjectServiceContext).IsVisible, Is.True);
+        Assert.That(typeof(IMatchCompletionService).IsVisible, Is.True);
+        Assert.That(
+            typeof(NetworkObjectServiceContext).GetMethod(
+                "TryGetSpawnedComponent",
+                BindingFlags.Public | BindingFlags.Static),
+            Is.Null);
         Assert.That(
             typeof(SceneFeatureContext)
                 .GetProperty(nameof(SceneFeatureContext.Services))
@@ -787,6 +793,7 @@ public sealed class GTests
             typeof(IPauseService),
             typeof(IChatReadService),
             typeof(IChatCommandService),
+            typeof(IMatchCompletionService),
             typeof(IReplicatedPlayerStateService),
             typeof(ILocalPlayerInputService),
             typeof(ILocalPlayerCameraService),
