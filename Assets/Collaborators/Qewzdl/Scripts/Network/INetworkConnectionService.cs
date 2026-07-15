@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-public interface INetworkConnectionService
+internal interface INetworkConnectionService
 {
     bool IsHost { get; }
     bool IsClient { get; }

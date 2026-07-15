@@ -55,11 +55,14 @@ public sealed class ServiceScopeTests
             typeof(ServiceRegistrationTransaction),
             typeof(ServiceRegistrationOwnership),
             typeof(ServiceShadowingPolicy),
+            typeof(IServiceRegistrationPolicy),
+            typeof(GlobalServiceContractPolicy),
             typeof(GlobalServicePublication),
             typeof(SceneRuntimeScope),
             typeof(SceneRuntimeScopeRegistry),
             typeof(ISceneServiceRegistrar),
-            typeof(ISessionServiceRegistry)
+            typeof(ISessionServiceRegistry),
+            typeof(INetworkConnectionService)
         };
 
         for (int i = 0; i < internalTypes.Length; i++)
@@ -409,16 +412,11 @@ public sealed class ServiceScopeTests
 
 public sealed class GTests
 {
-    private interface IGlobalTestService
-    {
-        string Id { get; }
-    }
-
     private interface IScopedTestService
     {
     }
 
-    private sealed class GlobalTestService : IGlobalTestService
+    private sealed class GlobalTestService : IUiErrorService
     {
         internal GlobalTestService(string id)
         {
@@ -426,6 +424,14 @@ public sealed class GTests
         }
 
         public string Id { get; }
+
+        public void ShowError(string message)
+        {
+        }
+
+        public void HideError()
+        {
+        }
     }
 
     private sealed class ScopedTestService : IScopedTestService
@@ -448,54 +454,55 @@ public sealed class GTests
     public void Resolve_BeforePublicationReportsUnavailableGlobalServices()
     {
         Assert.That(G.IsReady, Is.False);
-        Assert.That(G.TryResolve(out IGlobalTestService service), Is.False);
+        Assert.That(G.TryResolve(out IUiErrorService service), Is.False);
         Assert.That(service, Is.Null);
-        Assert.Throws<InvalidOperationException>(() => G.Resolve<IGlobalTestService>());
+        Assert.Throws<InvalidOperationException>(() => G.Resolve<IUiErrorService>());
     }
 
     [Test]
     public void Publication_ExposesOnlyGlobalResolverUntilHandleIsDisposed()
     {
-        using ServiceScope globalScope = new("Global");
+        using ServiceScope globalScope = CreateGlobalScope();
         ServiceScope sessionScope = globalScope.CreateChild("Session");
         GlobalTestService expected = new("global");
-        globalScope.Register<IGlobalTestService>(expected);
+        globalScope.Register<IUiErrorService>(expected);
         sessionScope.Register<IScopedTestService>(new ScopedTestService());
 
         using (GlobalServicePublication publication = G.Publish(globalScope))
         {
             Assert.That(publication.IsActive, Is.True);
             Assert.That(G.IsReady, Is.True);
-            Assert.That(G.Resolve<IGlobalTestService>(), Is.SameAs(expected));
-            Assert.That(G.TryResolve(out IGlobalTestService resolved), Is.True);
+            Assert.That(G.Resolve<IUiErrorService>(), Is.SameAs(expected));
+            Assert.That(G.TryResolve(out IUiErrorService resolved), Is.True);
             Assert.That(resolved, Is.SameAs(expected));
-            Assert.That(G.TryResolve(out IScopedTestService _), Is.False);
+            Assert.Throws<InvalidOperationException>(() =>
+                G.TryResolve(out IScopedTestService _));
         }
 
         Assert.That(G.IsReady, Is.False);
-        Assert.That(G.TryResolve(out IGlobalTestService _), Is.False);
+        Assert.That(G.TryResolve(out IUiErrorService _), Is.False);
     }
 
     [Test]
     public void Publish_RejectsDuplicateWithoutReplacingActiveResolver()
     {
-        using ServiceScope firstScope = new("First Global");
-        using ServiceScope secondScope = new("Second Global");
+        using ServiceScope firstScope = CreateGlobalScope("First Global");
+        using ServiceScope secondScope = CreateGlobalScope("Second Global");
         GlobalTestService first = new("first");
-        firstScope.Register<IGlobalTestService>(first);
-        secondScope.Register<IGlobalTestService>(new GlobalTestService("second"));
+        firstScope.Register<IUiErrorService>(first);
+        secondScope.Register<IUiErrorService>(new GlobalTestService("second"));
         using GlobalServicePublication publication = G.Publish(firstScope);
 
         Assert.Throws<InvalidOperationException>(() => G.Publish(secondScope));
-        Assert.That(G.Resolve<IGlobalTestService>(), Is.SameAs(first));
+        Assert.That(G.Resolve<IUiErrorService>(), Is.SameAs(first));
         Assert.That(publication.IsActive, Is.True);
     }
 
     [Test]
     public void PublicationHandle_DisposeIsIdempotentAndAllowsNextGeneration()
     {
-        using ServiceScope globalScope = new("Global");
-        globalScope.Register<IGlobalTestService>(new GlobalTestService("global"));
+        using ServiceScope globalScope = CreateGlobalScope();
+        globalScope.Register<IUiErrorService>(new GlobalTestService("global"));
         GlobalServicePublication publication = G.Publish(globalScope);
 
         publication.Dispose();
@@ -512,11 +519,11 @@ public sealed class GTests
     [Test]
     public void StalePublication_CannotClearNewGenerationAfterRuntimeReset()
     {
-        using ServiceScope firstScope = new("First Global");
-        using ServiceScope secondScope = new("Second Global");
+        using ServiceScope firstScope = CreateGlobalScope("First Global");
+        using ServiceScope secondScope = CreateGlobalScope("Second Global");
         GlobalTestService second = new("second");
-        firstScope.Register<IGlobalTestService>(new GlobalTestService("first"));
-        secondScope.Register<IGlobalTestService>(second);
+        firstScope.Register<IUiErrorService>(new GlobalTestService("first"));
+        secondScope.Register<IUiErrorService>(second);
         GlobalServicePublication stalePublication = G.Publish(firstScope);
 
         G.ResetRuntimeState();
@@ -526,32 +533,79 @@ public sealed class GTests
 
         Assert.That(currentPublication.IsActive, Is.True);
         Assert.That(G.IsReady, Is.True);
-        Assert.That(G.Resolve<IGlobalTestService>(), Is.SameAs(second));
+        Assert.That(G.Resolve<IUiErrorService>(), Is.SameAs(second));
     }
 
     [Test]
     public void DisposedResolver_IsNeverReportedAsReady()
     {
-        ServiceScope globalScope = new("Global");
-        globalScope.Register<IGlobalTestService>(new GlobalTestService("global"));
+        ServiceScope globalScope = CreateGlobalScope();
+        globalScope.Register<IUiErrorService>(new GlobalTestService("global"));
         using GlobalServicePublication publication = G.Publish(globalScope);
 
         globalScope.Dispose();
 
         Assert.That(G.IsReady, Is.False);
-        Assert.That(G.TryResolve(out IGlobalTestService service), Is.False);
+        Assert.That(G.TryResolve(out IUiErrorService service), Is.False);
         Assert.That(service, Is.Null);
-        Assert.Throws<InvalidOperationException>(() => G.Resolve<IGlobalTestService>());
+        Assert.Throws<InvalidOperationException>(() => G.Resolve<IUiErrorService>());
     }
 
     [Test]
     public void Resolve_RejectsConcreteContract()
     {
-        using ServiceScope globalScope = new("Global");
+        using ServiceScope globalScope = CreateGlobalScope();
         using GlobalServicePublication publication = G.Publish(globalScope);
 
         Assert.Throws<ArgumentException>(() => G.Resolve<GlobalTestService>());
         Assert.Throws<ArgumentException>(() =>
             G.TryResolve(out GlobalTestService _));
+    }
+
+    [Test]
+    public void GlobalContractAllowlist_IsExactAndExcludesConnectionControl()
+    {
+        Type[] expectedContracts =
+        {
+            typeof(IProjectSceneRegistry),
+            typeof(IGameStateService),
+            typeof(IProjectSceneFlowService),
+            typeof(INetworkSessionService),
+            typeof(IUiErrorService),
+            typeof(IAudioService),
+            typeof(IGameMapCatalog)
+        };
+
+        Assert.That(
+            GlobalServiceContractPolicy.AllowedContractCount,
+            Is.EqualTo(expectedContracts.Length));
+
+        for (int i = 0; i < expectedContracts.Length; i++)
+            Assert.That(GlobalServiceContractPolicy.IsAllowed(expectedContracts[i]), Is.True);
+
+        Assert.That(
+            GlobalServiceContractPolicy.IsAllowed(typeof(INetworkConnectionService)),
+            Is.False);
+        Assert.That(
+            GlobalServiceContractPolicy.IsAllowed(typeof(IScopedTestService)),
+            Is.False);
+    }
+
+    [Test]
+    public void GlobalScopePolicy_RejectsScopedRegistrationButDoesNotRestrictChild()
+    {
+        using ServiceScope globalScope = CreateGlobalScope();
+        ServiceScope sessionScope = globalScope.CreateChild("Session");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            globalScope.Register<IScopedTestService>(new ScopedTestService()));
+
+        Assert.DoesNotThrow(() =>
+            sessionScope.Register<IScopedTestService>(new ScopedTestService()));
+    }
+
+    private static ServiceScope CreateGlobalScope(string name = "Global")
+    {
+        return new ServiceScope(name, GlobalServiceContractPolicy.Instance);
     }
 }

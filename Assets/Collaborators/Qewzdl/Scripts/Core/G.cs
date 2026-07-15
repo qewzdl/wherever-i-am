@@ -148,12 +148,14 @@ public static class G
     {
         Type contractType = typeof(T);
 
-        if (contractType.IsInterface)
-            return;
+        if (!contractType.IsInterface)
+        {
+            throw new ArgumentException(
+                $"Global service contract '{contractType.Name}' must be an interface.",
+                nameof(T));
+        }
 
-        throw new ArgumentException(
-            $"Global service contract '{contractType.Name}' must be an interface.",
-            nameof(T));
+        GlobalServiceContractPolicy.ValidatePublicAccess(contractType);
     }
 }
 

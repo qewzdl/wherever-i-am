@@ -1,0 +1,19 @@
+{
+    "name": "WhereverIAm.Qewzdl.PlayModeTests",
+    "rootNamespace": "",
+    "references": [
+        "WhereverIAm.Qewzdl"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

@@ -461,7 +461,9 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         }
 
         globalScopeCommitted = false;
-        globalServiceScope = new ServiceScope("Global");
+        globalServiceScope = new ServiceScope(
+            "Global",
+            GlobalServiceContractPolicy.Instance);
         globalScopeTransaction = globalServiceScope.BeginRegistrationTransaction();
         return true;
     }
@@ -517,7 +519,6 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         globalServiceScope.Register<IGameStateService>(stateMachine);
         globalServiceScope.Register<IProjectSceneFlowService>(projectSceneFlowService);
         globalServiceScope.Register<INetworkSessionService>(sessionOrchestrator);
-        globalServiceScope.Register<INetworkConnectionService>(connectionService);
         globalServiceScope.Register<IUiErrorService>(uiErrorManager);
         globalServiceScope.Register<IAudioService>(audioManager);
         globalServiceScope.Register<IGameMapCatalog>(mapCatalog);

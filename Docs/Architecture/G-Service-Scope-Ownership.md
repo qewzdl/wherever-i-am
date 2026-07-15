@@ -29,7 +29,6 @@ Global (ProjectContext: Ready -> Dispose)
 | Global | `IGameStateService` | `GameStateMachine` | bootstrap Compose | global Dispose | локальная проекция состояния; сетевые переходы инициирует server flow |
 | Global | `IProjectSceneFlowService` | `ProjectSceneFlowService` | после Initialize | Shutdown перед global Dispose | network scene load запускает только server; offline load локальный |
 | Global | `INetworkSessionService` | `NetworkSessionOrchestrator` | после Initialize | global Shutdown | принимает UI intent; не является источником server gameplay authority |
-| Global, internal | `INetworkConnectionService` | `NetworkConnectionService` | bootstrap Compose | после `ShutdownAndWaitAsync` | владеет NGO start/stop; gameplay не обращается к нему напрямую |
 | Global | `IUiErrorService` | `UiErrorManager` | bootstrap Compose | global Dispose | только local presentation |
 | Global | `IAudioService` | `AudioManager` | bootstrap Compose | global Dispose | только local presentation |
 | Global | `IMusicService` | `MusicManager` | не регистрируется отдельно; доступен через `IAudioService` | вместе с `IAudioService` | только local presentation |
@@ -52,6 +51,7 @@ Global (ProjectContext: Ready -> Dispose)
 |---|---|---|
 | `ProjectContext` | Bootstrap scene | composition root, а не dependency gameplay-кода |
 | `NetworkManager` | Bootstrap/NGO | внешняя инфраструктура; передаётся network services явно |
+| `NetworkConnectionService` | Bootstrap network composition | internal-владелец NGO start/stop; не регистрируется в Global scope и скрыт за `INetworkSessionService` |
 | `NetworkConnectionApprovalService` | Global composition | внутренняя часть network session, скрыта за facade |
 | `NetworkSessionShutdownCoordinator` | Global composition | владелец Session scope, а не сервис для feature-кода |
 | `SceneRuntimeScopeRegistry` | `ProjectContext` | владелец Scene scopes |
@@ -62,7 +62,7 @@ Global (ProjectContext: Ready -> Dispose)
 
 1. Регистрация выполняется по interface contract. На один contract допускается ровно один instance внутри конкретного scope; duplicate registration должна завершаться ошибкой.
 2. Child scope может разрешать зависимости из parent scope. Parent scope не видит child services.
-3. Session, Scene и Player services запрещено регистрировать в Global scope.
+3. Global scope принимает только contracts из `GlobalServiceContractPolicy`; Session, Scene, Player и технические network services отклоняются до регистрации.
 4. Scene scope key — только `Scene.handle`; имя и path сцены не гарантируют уникальный runtime instance.
 5. Любая ошибка Compose/Initialize/Install откатывает только уже выполненные регистрации в обратном порядке.
 6. Unregister выполняется до `Dispose`. Повторные Shutdown, Uninstall и Dispose должны быть idempotent.
@@ -75,7 +75,8 @@ Global (ProjectContext: Ready -> Dispose)
 
 - Публичный API ограничен `G.IsReady`, `G.Resolve<T>()` и `G.TryResolve<T>(out T)`.
 - `G` не публикует сам `IServiceResolver` и не предоставляет registration API.
-- `Resolve<T>` до публикации или после снятия publication завершается lifecycle-ошибкой; `TryResolve<T>` возвращает `false`.
+- Public allowlist содержит только `IProjectSceneRegistry`, `IGameStateService`, `IProjectSceneFlowService`, `INetworkSessionService`, `IUiErrorService`, `IAudioService` и `IGameMapCatalog`.
+- Запрос contract вне allowlist завершается ошибкой. Для разрешённого contract `Resolve<T>` до publication или после её снятия завершается lifecycle-ошибкой, а `TryResolve<T>` возвращает `false`.
 - Повторная одновременная publication запрещена. Снятие выполняется generation-safe handle, поэтому устаревший owner не может очистить новую publication.
 - Static state сбрасывается на `SubsystemRegistration`, включая Play Mode с отключённым Domain Reload.
 - Через `G` разрешаются только Global contracts. Scene, Session, Player и Local services используют соответствующие scoped resolvers.
@@ -97,6 +98,7 @@ Global (ProjectContext: Ready -> Dispose)
 ## Global scope integration
 
 - `ProjectContext` создаёт Global `ServiceScope` в фазе Compose; его `Services` остаётся внутренним источником publication для `G`.
+- `GlobalServiceContractPolicy` проверяет allowlist внутри `ServiceScope.Register` и повторно на публичной границе `G.Resolve/TryResolve`; child scopes policy не наследуют.
 - Global contracts регистрируются одной transaction после успешной scene service composition.
 - Resolver публикуется в `G` только после успешного Initialize и transaction `Commit`.
 - Bootstrap failure откатывает незавершённую transaction, затем закрывает Global scope.

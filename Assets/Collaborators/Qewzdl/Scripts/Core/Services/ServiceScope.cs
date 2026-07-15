@@ -52,24 +52,33 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
     private readonly List<ServiceEntry> registrationOrder = new();
     private readonly List<ServiceScope> children = new();
     private readonly Dictionary<object, OwnedServiceRecord> ownedServices;
+    private readonly IServiceRegistrationPolicy registrationPolicy;
 
     private ServiceScope parent;
     private ServiceRegistrationTransaction activeTransaction;
     private ScopeState state;
     private long nextRegistrationId;
 
-    public ServiceScope(string name = null)
-        : this(null, name, new Dictionary<object, OwnedServiceRecord>(ReferenceComparer.Instance))
+    internal ServiceScope(
+        string name = null,
+        IServiceRegistrationPolicy policy = null)
+        : this(
+            null,
+            name,
+            new Dictionary<object, OwnedServiceRecord>(ReferenceComparer.Instance),
+            policy)
     {
     }
 
     private ServiceScope(
         ServiceScope parentScope,
         string name,
-        Dictionary<object, OwnedServiceRecord> ownershipRegistry)
+        Dictionary<object, OwnedServiceRecord> ownershipRegistry,
+        IServiceRegistrationPolicy policy)
     {
         parent = parentScope;
         ownedServices = ownershipRegistry;
+        registrationPolicy = policy;
         Name = string.IsNullOrWhiteSpace(name) ? nameof(ServiceScope) : name;
     }
 
@@ -82,7 +91,7 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
     {
         EnsureActive();
 
-        ServiceScope child = new ServiceScope(this, name, ownedServices);
+        ServiceScope child = new ServiceScope(this, name, ownedServices, null);
         children.Add(child);
         return child;
     }
@@ -98,6 +107,7 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
 
         Type contractType = typeof(TContract);
         ValidateContractType(contractType);
+        registrationPolicy?.ValidateRegistration(contractType, Name);
 
         if (service == null)
             throw new ArgumentNullException(nameof(service));
