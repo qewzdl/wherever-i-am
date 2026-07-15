@@ -137,7 +137,7 @@ public sealed class ProjectScenePostLoadActionRunner : MonoBehaviour
                 return batch;
             }
 
-            if (!ProjectSceneDynamicContractPolicy.Validate(
+            if (!SessionServiceReadinessPolicy.Validate(
                     loadedScene,
                     sessionServices,
                     out string dynamicContractError))
@@ -333,65 +333,5 @@ internal sealed class ProjectSceneActionBatch
                 "Failed to roll back project scene post-load actions.",
                 failures);
         }
-    }
-}
-
-internal static class ProjectSceneDynamicContractPolicy
-{
-    internal static bool Validate(
-        ProjectSceneKind sceneKind,
-        IServiceResolver services,
-        out string error)
-    {
-        if (sceneKind != ProjectSceneKind.Lobby &&
-            sceneKind != ProjectSceneKind.Game)
-        {
-            error = string.Empty;
-            return true;
-        }
-
-        if (services == null || services.IsDisposed)
-        {
-            error =
-                $"Scene '{sceneKind}' requires an active Session resolver " +
-                "for dynamic contract validation.";
-            return false;
-        }
-
-        List<string> missingContracts = new();
-
-        Require<IChatReadService>(services, missingContracts);
-        Require<IChatCommandService>(services, missingContracts);
-
-        if (sceneKind == ProjectSceneKind.Game)
-            Require<IMatchCompletionService>(services, missingContracts);
-
-        if (missingContracts.Count == 0)
-        {
-            error = string.Empty;
-            return true;
-        }
-
-        error =
-            $"Scene '{sceneKind}' is missing required dynamic Session contract(s): " +
-            string.Join(", ", missingContracts) + ".";
-        return false;
-    }
-
-    private static void Require<TContract>(
-        IServiceResolver services,
-        ICollection<string> missingContracts)
-        where TContract : class
-    {
-        try
-        {
-            if (services.TryResolve(out TContract _))
-                return;
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-
-        missingContracts.Add(typeof(TContract).Name);
     }
 }

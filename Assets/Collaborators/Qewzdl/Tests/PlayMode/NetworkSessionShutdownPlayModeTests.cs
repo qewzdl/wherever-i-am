@@ -315,6 +315,132 @@ public sealed class NetworkSessionShutdownPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator LobbyChatContractLoss_EntersErrorAndCoordinatesShutdown()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionShutdownCoordinator shutdownCoordinator =
+            GetSinglePersistentComponent<NetworkSessionShutdownCoordinator>();
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+        IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup did not complete.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Lobby &&
+                  !sceneFlow.HasPendingOperation,
+            "Host did not reach Lobby before the readiness-loss test.");
+
+        IServiceResolver sessionServices =
+            runtimeContext.SessionOrchestrator.SessionServices;
+        NetworkChatSession chatSession =
+            sessionServices.Resolve<IChatReadService>() as NetworkChatSession;
+        bool errorObserved = false;
+        bool failedSessionStateObserved = false;
+        int sessionStoppedCount = 0;
+
+        Assert.That(chatSession, Is.Not.Null);
+        Assert.That(chatSession.NetworkObject.IsSpawned, Is.True);
+
+        runtimeContext.StateMachine.StateChanged += (_, current) =>
+            errorObserved |= current == GameState.Error;
+        sessionStateMachine.StateChanged += (_, current) =>
+            failedSessionStateObserved |= current == NetworkSessionState.Failed;
+        shutdownCoordinator.SessionStopped += () => sessionStoppedCount++;
+
+        LogAssert.Expect(
+            LogType.Warning,
+            new Regex(
+                "SessionServiceReadinessPolicy: Game state 'Lobby' is missing " +
+                "required dynamic Session contract\\(s\\): .*IChatReadService.*" +
+                "IChatCommandService"));
+
+        chatSession.NetworkObject.Despawn(true);
+
+        yield return WaitForCondition(
+            () => runtimeContext.StateMachine.CurrentState == GameState.MainMenu &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.MainMenu &&
+                  !networkManager.IsListening &&
+                  !shutdownCoordinator.IsShutdownInProgress,
+            "Chat readiness loss did not complete coordinated shutdown.");
+
+        Assert.That(errorObserved, Is.True);
+        Assert.That(failedSessionStateObserved, Is.True);
+        Assert.That(sessionStoppedCount, Is.EqualTo(1));
+        Assert.That(sessionServices.IsDisposed, Is.True);
+    }
+
+    [UnityTest]
+    public IEnumerator GameMatchContractLoss_EntersErrorAndCoordinatesShutdown()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionShutdownCoordinator shutdownCoordinator =
+            GetSinglePersistentComponent<NetworkSessionShutdownCoordinator>();
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+        IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup did not complete.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  !sceneFlow.HasPendingOperation,
+            "Host did not reach Lobby before the Game readiness-loss test.");
+
+        IServiceResolver sessionServices =
+            runtimeContext.SessionOrchestrator.SessionServices;
+        runtimeContext.SessionOrchestrator.StartGame(
+            G.Resolve<IGameMapCatalog>().DefaultMapId);
+
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.InGame &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Game &&
+                  !sceneFlow.HasPendingOperation &&
+                  sessionServices.TryResolve(out IMatchCompletionService _),
+            "Host did not reach the ready Game state.");
+
+        NetworkGameFlow gameFlow =
+            sessionServices.Resolve<IMatchCompletionService>() as NetworkGameFlow;
+        bool errorObserved = false;
+        bool failedSessionStateObserved = false;
+        int sessionStoppedCount = 0;
+
+        Assert.That(gameFlow, Is.Not.Null);
+        Assert.That(gameFlow.NetworkObject.IsSpawned, Is.True);
+
+        runtimeContext.StateMachine.StateChanged += (_, current) =>
+            errorObserved |= current == GameState.Error;
+        sessionStateMachine.StateChanged += (_, current) =>
+            failedSessionStateObserved |= current == NetworkSessionState.Failed;
+        shutdownCoordinator.SessionStopped += () => sessionStoppedCount++;
+
+        LogAssert.Expect(
+            LogType.Warning,
+            new Regex(
+                "SessionServiceReadinessPolicy: Game state 'InGame' is missing " +
+                "required dynamic Session contract\\(s\\): IMatchCompletionService"));
+
+        gameFlow.NetworkObject.Despawn(true);
+
+        yield return WaitForCondition(
+            () => runtimeContext.StateMachine.CurrentState == GameState.MainMenu &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.MainMenu &&
+                  !networkManager.IsListening &&
+                  !shutdownCoordinator.IsShutdownInProgress,
+            "Match readiness loss did not complete coordinated shutdown.");
+
+        Assert.That(errorObserved, Is.True);
+        Assert.That(failedSessionStateObserved, Is.True);
+        Assert.That(sessionStoppedCount, Is.EqualTo(1));
+        Assert.That(sessionServices.IsDisposed, Is.True);
+    }
+
+    [UnityTest]
     public IEnumerator PostLoadActionFailure_RollsBackAndShutsDownBeforeLobbyCommit()
     {
         yield return StartBootstrapAndWaitUntilReady();

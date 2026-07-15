@@ -16,10 +16,13 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     [SerializeField] private UiErrorManager errorManager;
 
     private Task shutdownTask = Task.CompletedTask;
+    private Task readinessFailureTask = Task.CompletedTask;
     private ConnectionResult pendingFailure;
     private SessionScopeController sessionScopeController;
     private SceneRuntimeScopeRegistry sceneScopes;
+    private SessionServiceReadinessMonitor readinessMonitor;
     private bool sessionStopRaised = true;
+    private bool readinessFailureRaised;
 
     public bool IsShutdownInProgress => !shutdownTask.IsCompleted;
     internal IServiceResolver SessionServices => sessionScopeController != null
@@ -65,8 +68,27 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return false;
         }
 
+        if (!TryStartSessionReadinessMonitor(out failure))
+        {
+            try
+            {
+                sessionScopeController.Close();
+            }
+            catch (Exception cleanupFailure)
+            {
+                failure = failure == null
+                    ? cleanupFailure
+                    : new AggregateException(failure, cleanupFailure);
+            }
+
+            ReportSessionScopeOpenFailure(failure);
+            return false;
+        }
+
         pendingFailure = null;
         sessionStopRaised = false;
+        readinessFailureRaised = false;
+        readinessFailureTask = Task.CompletedTask;
         RaiseSessionEvent(SessionStarted, nameof(SessionStarted));
         return true;
     }
@@ -142,6 +164,45 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
         return false;
     }
 
+    internal Task ReportSessionReadinessFailureAsync(
+        string source,
+        string details)
+    {
+        if (readinessFailureRaised)
+            return readinessFailureTask;
+
+        NetworkSessionState sessionState = sessionStateMachine.CurrentState;
+
+        if (!IsSessionScopeOpen() ||
+            sessionState == NetworkSessionState.Offline ||
+            sessionState == NetworkSessionState.Disconnecting ||
+            sessionState == NetworkSessionState.Failed)
+        {
+            return Task.CompletedTask;
+        }
+
+        readinessFailureRaised = true;
+
+        string sourceName = string.IsNullOrWhiteSpace(source)
+            ? "Dynamic Session service readiness"
+            : source;
+        string debugMessage = string.IsNullOrWhiteSpace(details)
+            ? $"{sourceName} reported a required Session service failure."
+            : $"{sourceName}: {details}";
+
+        ConnectionResult failure = ConnectionResult.Fail(
+            ConnectionErrorCode.SessionServiceReadinessFailed,
+            "Required network session services are unavailable.",
+            debugMessage,
+            true);
+
+        RegisterFailure(failure);
+        sceneFlowService.CancelPendingOperations(
+            ProjectOperationCancelReason.SessionServiceReadinessLost);
+        readinessFailureTask = ShutdownAfterReadinessFailureAsync();
+        return readinessFailureTask;
+    }
+
     internal bool TryOpenPlayerScope(
         ulong networkObjectId,
         ulong ownerClientId,
@@ -177,6 +238,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
         SceneRuntimeScopeRegistry runtimeSceneScopes = sceneScopes;
         sessionScopeController = null;
         sceneScopes = null;
+        StopSessionReadinessMonitor();
 
         if (controller == null)
             return;
@@ -322,6 +384,8 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
         if (!IsSessionScopeOpen() || sessionStopRaised)
             return;
 
+        StopSessionReadinessMonitor();
+
         try
         {
             sceneScopes.UninstallSessionScopes();
@@ -371,6 +435,65 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             Debug.LogException(failure, this);
 
         errorManager.ShowError("Failed to start the network session.");
+    }
+
+    private bool TryStartSessionReadinessMonitor(out Exception failure)
+    {
+        StopSessionReadinessMonitor();
+
+        if (sessionScopeController == null ||
+            !sessionScopeController.TryGetRegistry(
+                out ISessionServiceRegistry registry))
+        {
+            failure = new InvalidOperationException(
+                "Cannot monitor dynamic Session services without an active registry.");
+            return false;
+        }
+
+        try
+        {
+            readinessMonitor = new SessionServiceReadinessMonitor(
+                registry,
+                () => stateMachine.CurrentState,
+                HandleSessionReadinessLost);
+            failure = null;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            return false;
+        }
+    }
+
+    private void StopSessionReadinessMonitor()
+    {
+        SessionServiceReadinessMonitor monitor = readinessMonitor;
+        readinessMonitor = null;
+        monitor?.Dispose();
+    }
+
+    private void HandleSessionReadinessLost(string error)
+    {
+        _ = ReportSessionReadinessFailureAsync(
+            nameof(SessionServiceReadinessPolicy),
+            error);
+    }
+
+    private async Task ShutdownAfterReadinessFailureAsync()
+    {
+        await Task.Yield();
+
+        NetworkSessionState sessionState = sessionStateMachine.CurrentState;
+
+        if (!IsSessionScopeOpen() ||
+            sessionState == NetworkSessionState.Offline ||
+            sessionState == NetworkSessionState.Disconnecting)
+        {
+            return;
+        }
+
+        await RequestShutdownAsync(NetworkShutdownMode.Immediate, null);
     }
 
     private void RaiseSessionEvent(Action handlers, string eventName)

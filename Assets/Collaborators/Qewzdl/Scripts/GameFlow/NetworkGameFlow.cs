@@ -253,6 +253,12 @@ public sealed class NetworkGameFlow : NetworkBehaviour, IMatchCompletionService
         if (failure != null)
             Debug.LogException(failure, this);
 
+        _ = orchestrator.ReportSessionReadinessFailureAsync(
+            nameof(NetworkGameFlow),
+            failure != null
+                ? failure.Message
+                : $"Failed to register {nameof(IMatchCompletionService)}.");
+
         return false;
     }
 

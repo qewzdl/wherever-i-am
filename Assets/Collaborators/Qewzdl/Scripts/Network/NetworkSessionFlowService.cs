@@ -195,6 +195,18 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         return shutdownCoordinator.ShutdownAndWaitAsync(failure);
     }
 
+    internal Task ReportSessionReadinessFailureAsync(
+        string source,
+        string details)
+    {
+        if (shutdownCoordinator == null)
+            return Task.CompletedTask;
+
+        return shutdownCoordinator.ReportSessionReadinessFailureAsync(
+            source,
+            details);
+    }
+
     internal bool ConfigureSessionScopeController(
         ServiceScope globalScope,
         IGameMapSessionService maps,
@@ -291,13 +303,21 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
                 if (sessionStateMachine.CurrentState == NetworkSessionState.StartingHost ||
                     sessionStateMachine.CurrentState == NetworkSessionState.StartingClient)
                 {
+                    if (!ValidateSessionReadiness(scene))
+                        return;
+
                     sessionStateMachine.TryChangeState(NetworkSessionState.Lobby, "Lobby scene synchronized.");
                 }
                 break;
 
             case ProjectSceneKind.Game:
                 if (sessionStateMachine.CurrentState == NetworkSessionState.LoadingGame)
+                {
+                    if (!ValidateSessionReadiness(scene))
+                        return;
+
                     sessionStateMachine.TryChangeState(NetworkSessionState.InGame, "Game scene synchronized.");
+                }
                 break;
 
             case ProjectSceneKind.MainMenu:
@@ -338,6 +358,22 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     private Task FailAsync(ConnectionResult result)
     {
         return shutdownCoordinator.ShutdownAndWaitAsync(result);
+    }
+
+    private bool ValidateSessionReadiness(ProjectSceneKind scene)
+    {
+        if (SessionServiceReadinessPolicy.Validate(
+                scene,
+                SessionServices,
+                out string error))
+        {
+            return true;
+        }
+
+        _ = shutdownCoordinator.ReportSessionReadinessFailureAsync(
+            nameof(NetworkSessionFlowService),
+            error);
+        return false;
     }
 
     private static ConnectionResult CreateConnectionLostDuringStartupResult()

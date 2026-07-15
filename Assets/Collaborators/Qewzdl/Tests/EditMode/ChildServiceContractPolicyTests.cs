@@ -207,7 +207,7 @@ public sealed class ChildServiceContractPolicyTests
     }
 
     [Test]
-    public void DynamicContractPolicy_RequiresChatForLobbyAndMatchFlowForGame()
+    public void SessionReadinessPolicy_RequiresChatForLobbyAndMatchFlowForGame()
     {
         using ServiceScope global = new("Global");
         using ServiceScope session = global.CreateChild(
@@ -216,7 +216,7 @@ public sealed class ChildServiceContractPolicyTests
         DynamicSessionService service = new();
 
         Assert.That(
-            ProjectSceneDynamicContractPolicy.Validate(
+            SessionServiceReadinessPolicy.Validate(
                 ProjectSceneKind.Lobby,
                 session,
                 out string lobbyError),
@@ -228,14 +228,14 @@ public sealed class ChildServiceContractPolicyTests
         session.Register<IChatCommandService>(service);
 
         Assert.That(
-            ProjectSceneDynamicContractPolicy.Validate(
+            SessionServiceReadinessPolicy.Validate(
                 ProjectSceneKind.Lobby,
                 session,
                 out lobbyError),
             Is.True,
             lobbyError);
         Assert.That(
-            ProjectSceneDynamicContractPolicy.Validate(
+            SessionServiceReadinessPolicy.Validate(
                 ProjectSceneKind.Game,
                 session,
                 out string gameError),
@@ -245,7 +245,7 @@ public sealed class ChildServiceContractPolicyTests
         session.Register<IMatchCompletionService>(service);
 
         Assert.That(
-            ProjectSceneDynamicContractPolicy.Validate(
+            SessionServiceReadinessPolicy.Validate(
                 ProjectSceneKind.Game,
                 session,
                 out gameError),
@@ -254,15 +254,113 @@ public sealed class ChildServiceContractPolicyTests
     }
 
     [Test]
-    public void DynamicContractPolicy_DoesNotRequireSessionForMainMenu()
+    public void SessionReadinessPolicy_DoesNotRequireSessionForInactiveStates()
     {
         Assert.That(
-            ProjectSceneDynamicContractPolicy.Validate(
+            SessionServiceReadinessPolicy.Validate(
                 ProjectSceneKind.MainMenu,
                 null,
                 out string error),
             Is.True,
             error);
+        Assert.That(
+            SessionServiceReadinessPolicy.Validate(
+                GameState.Disconnecting,
+                null,
+                out error),
+            Is.True,
+            error);
+        Assert.That(
+            SessionServiceReadinessPolicy.Validate(
+                GameState.Error,
+                null,
+                out error),
+            Is.True,
+            error);
+    }
+
+    [Test]
+    public void SessionReadinessPolicy_UsesLobbyBaselineWhileLoadingGame()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        DynamicSessionService service = new();
+
+        session.Register<IChatReadService>(service);
+        session.Register<IChatCommandService>(service);
+
+        Assert.That(
+            SessionServiceReadinessPolicy.Validate(
+                GameState.LoadingGame,
+                session,
+                out string loadingError),
+            Is.True,
+            loadingError);
+        Assert.That(
+            SessionServiceReadinessPolicy.Validate(
+                GameState.InGame,
+                session,
+                out string gameError),
+            Is.False);
+        Assert.That(gameError, Does.Contain(nameof(IMatchCompletionService)));
+    }
+
+    [Test]
+    public void SessionReadinessMonitor_RaisesContractLossOnlyOnce()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        using SessionServiceRegistry registry = new(session);
+        DynamicSessionService service = new();
+
+        Assert.That(
+            registry.TryRegister(
+                registrar =>
+                {
+                    registrar.Register<IChatReadService>(service);
+                    registrar.Register<IChatCommandService>(service);
+                },
+                out SessionServiceRegistration registration,
+                out Exception registrationFailure),
+            Is.True,
+            registrationFailure?.ToString());
+
+        int failureCount = 0;
+        string failure = string.Empty;
+        using SessionServiceReadinessMonitor monitor = new(
+            registry,
+            () => GameState.Lobby,
+            error =>
+            {
+                failureCount++;
+                failure = error;
+            });
+
+        registration.Dispose();
+
+        Assert.That(failureCount, Is.EqualTo(1));
+        Assert.That(failure, Does.Contain(nameof(IChatReadService)));
+        Assert.That(failure, Does.Contain(nameof(IChatCommandService)));
+
+        Assert.That(
+            registry.TryRegister(
+                registrar =>
+                {
+                    registrar.Register<IChatReadService>(service);
+                    registrar.Register<IChatCommandService>(service);
+                },
+                out SessionServiceRegistration replacement,
+                out registrationFailure),
+            Is.True,
+            registrationFailure?.ToString());
+
+        replacement.Dispose();
+
+        Assert.That(failureCount, Is.EqualTo(1));
     }
 
     [Test]

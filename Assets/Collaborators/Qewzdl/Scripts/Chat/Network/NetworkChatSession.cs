@@ -96,7 +96,12 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         currentChannel.OnValueChanged += HandleCurrentChannelChanged;
         isChatAvailable.OnValueChanged += HandleAvailabilityChanged;
 
-        RegisterSessionServices();
+        if (!RegisterSessionServices())
+        {
+            enabled = false;
+            return;
+        }
+
         AvailabilityChanged?.Invoke();
         MessagesChanged?.Invoke();
     }
@@ -611,10 +616,10 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         MessagesChanged?.Invoke();
     }
 
-    private void RegisterSessionServices()
+    private bool RegisterSessionServices()
     {
         if (serviceRegistrations != null)
-            return;
+            return true;
 
         if (NetworkManager == null)
         {
@@ -622,7 +627,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
                 $"{nameof(NetworkChatSession)} cannot register without an active {nameof(NetworkManager)}.",
                 this);
 
-            return;
+            return false;
         }
 
         NetworkSessionOrchestrator orchestrator =
@@ -635,7 +640,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
                 $"on the {nameof(NetworkManager)} object.",
                 this);
 
-            return;
+            return false;
         }
 
         if (orchestrator.TryRegisterSessionServices(
@@ -647,7 +652,7 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
                 out serviceRegistrations,
                 out Exception failure))
         {
-            return;
+            return true;
         }
 
         Debug.LogError(
@@ -656,6 +661,14 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
 
         if (failure != null)
             Debug.LogException(failure, this);
+
+        _ = orchestrator.ReportSessionReadinessFailureAsync(
+            nameof(NetworkChatSession),
+            failure != null
+                ? failure.Message
+                : "Failed to register both chat contracts.");
+
+        return false;
     }
 
     private void UnregisterSessionServices()

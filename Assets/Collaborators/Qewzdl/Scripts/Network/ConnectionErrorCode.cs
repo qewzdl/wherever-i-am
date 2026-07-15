@@ -20,5 +20,6 @@ public enum ConnectionErrorCode
     Unknown,
     Cancelled,
 
-    SceneScopeActivationFailed
+    SceneScopeActivationFailed,
+    SessionServiceReadinessFailed
 }
