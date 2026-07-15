@@ -132,11 +132,24 @@ public sealed class ProjectNetworkSceneLoadCompletionTracker : MonoBehaviour
                 $"Network scene '{loadedScene}' timed out for {clientsTimedOut.Count} client(s).",
                 this);
 
-            NetworkLoadFailed?.Invoke(operationId, loadedScene);
+            RuntimeEventDispatcher.Invoke(
+                NetworkLoadFailed,
+                operationId,
+                loadedScene,
+                $"{nameof(ProjectNetworkSceneLoadCompletionTracker)}." +
+                nameof(NetworkLoadFailed),
+                this);
             return;
         }
 
-        NetworkLoadCompleted?.Invoke(operationId, loadedScene, actions);
+        RuntimeEventDispatcher.Invoke(
+            NetworkLoadCompleted,
+            operationId,
+            loadedScene,
+            actions,
+            $"{nameof(ProjectNetworkSceneLoadCompletionTracker)}." +
+            nameof(NetworkLoadCompleted),
+            this);
     }
 
     private bool TrySubscribeToNetworkSceneCallback(bool logErrors)

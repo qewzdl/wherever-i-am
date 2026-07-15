@@ -5,7 +5,9 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-public sealed class NetworkGameFlow : NetworkBehaviour, IMatchCompletionService
+public sealed class NetworkGameFlow : NetworkBehaviour,
+    IMatchCompletionService,
+    ISessionServiceReadiness
 {
     [Header("State")]
     [SerializeField] private GamePhase initialPhase = GamePhase.Waiting;
@@ -47,6 +49,9 @@ public sealed class NetworkGameFlow : NetworkBehaviour, IMatchCompletionService
     public bool IsMatchRunning => phase.Value == GamePhase.Playing;
     public bool IsMatchFinished => IsTerminalPhase(phase.Value);
     public bool IsServerReady => IsSpawned && IsServer && serverReady;
+
+    bool ISessionServiceReadiness.IsSessionServiceReady =>
+        IsSpawned && isActiveAndEnabled;
 
     public override void OnNetworkSpawn()
     {

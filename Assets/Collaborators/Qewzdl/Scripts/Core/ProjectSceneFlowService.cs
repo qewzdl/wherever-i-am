@@ -321,7 +321,11 @@ public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowSe
 
         actionBatch.Commit();
         stateMachine.ChangeState(scene.State);
-        SceneLoadCompleted?.Invoke(loadedScene);
+        RuntimeEventDispatcher.Invoke(
+            SceneLoadCompleted,
+            loadedScene,
+            $"{nameof(ProjectSceneFlowService)}.{nameof(SceneLoadCompleted)}",
+            this);
     }
 
     private bool ValidateCompletionGates(ProjectSceneKind sceneKind)
@@ -383,7 +387,11 @@ public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowSe
             Debug.LogException(exception, this);
 
         stateMachine.ChangeState(GameState.Error);
-        SceneLoadFailed?.Invoke(sceneKind);
+        RuntimeEventDispatcher.Invoke(
+            SceneLoadFailed,
+            sceneKind,
+            $"{nameof(ProjectSceneFlowService)}.{nameof(SceneLoadFailed)}",
+            this);
     }
 
     private void RollbackActionBatch(ProjectSceneActionBatch actionBatch)

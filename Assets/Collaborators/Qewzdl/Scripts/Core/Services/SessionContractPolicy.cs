@@ -10,6 +10,7 @@ internal sealed class SessionContractPolicy : ServiceContractPolicy
         typeof(IGameplayNoiseService),
         typeof(IChatReadService),
         typeof(IChatCommandService),
+        typeof(ISessionPhaseService),
         typeof(IMatchCompletionService)
     };
 

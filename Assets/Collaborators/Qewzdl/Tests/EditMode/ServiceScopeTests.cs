@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading.Tasks;
 using NUnit.Framework;
 
 public sealed class ServiceScopeTests
@@ -65,6 +66,8 @@ public sealed class ServiceScopeTests
             typeof(SceneRuntimeScopeRegistry),
             typeof(ISceneServiceRegistrar),
             typeof(ISessionServiceRegistry),
+            typeof(ISessionPhaseService),
+            typeof(ISessionServiceReadiness),
             typeof(INetworkConnectionService)
         };
 
@@ -435,6 +438,48 @@ public sealed class ServiceScopeTests
 
         Assert.That(firstScene.Resolve<IFirstService>(), Is.SameAs(first));
         Assert.That(secondScene.Resolve<IFirstService>(), Is.SameAs(second));
+    }
+
+    [Test]
+    public void Dispose_MarksScopeUnavailableBeforeOwnedCleanupRuns()
+    {
+        ServiceScope scope = new("Disposing scope");
+        PlainService service = new("owned");
+        bool wasDisposedDuringCleanup = false;
+
+        scope.Register<IFirstService>(
+            service,
+            ServiceRegistrationOwnership.ScopeOwned,
+            cleanup: _ => wasDisposedDuringCleanup = scope.IsDisposed);
+
+        Assert.That(scope.IsDisposed, Is.False);
+        scope.Dispose();
+
+        Assert.That(wasDisposedDuringCleanup, Is.True);
+        Assert.That(scope.IsDisposed, Is.True);
+    }
+
+    [Test]
+    public void Resolver_RejectsAccessOutsideItsOwningUnityThread()
+    {
+        using ServiceScope scope = new("Main thread scope");
+        scope.Register<IFirstService>(new PlainService("main"));
+
+        Exception failure = Task.Run(() =>
+        {
+            try
+            {
+                scope.Resolve<IFirstService>();
+                return null;
+            }
+            catch (Exception exception)
+            {
+                return exception;
+            }
+        }).GetAwaiter().GetResult();
+
+        Assert.That(failure, Is.TypeOf<InvalidOperationException>());
+        Assert.That(failure.Message, Does.Contain("Unity main thread"));
     }
 
     private static void AssertAssemblyInternalGetter(Type ownerType, string propertyName)

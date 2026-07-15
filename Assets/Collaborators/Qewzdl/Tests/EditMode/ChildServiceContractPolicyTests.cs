@@ -7,7 +7,8 @@ public sealed class ChildServiceContractPolicyTests
     private sealed class DynamicSessionService :
         IChatReadService,
         IChatCommandService,
-        IMatchCompletionService
+        IMatchCompletionService,
+        ISessionServiceReadiness
     {
         public event Action MessagesChanged
         {
@@ -31,6 +32,7 @@ public sealed class ChildServiceContractPolicyTests
         public ChatChannel CurrentChannel => ChatChannel.Lobby;
         public int MessageCount => 0;
         public bool IsMatchRunning => true;
+        public bool IsSessionServiceReady { get; set; } = true;
 
         public ChatMessageData GetMessage(int index)
         {
@@ -96,6 +98,7 @@ public sealed class ChildServiceContractPolicyTests
             typeof(IGameplayNoiseService),
             typeof(IChatReadService),
             typeof(IChatCommandService),
+            typeof(ISessionPhaseService),
             typeof(IMatchCompletionService)
         };
 
@@ -251,6 +254,31 @@ public sealed class ChildServiceContractPolicyTests
                 out gameError),
             Is.True,
             gameError);
+    }
+
+    [Test]
+    public void SessionReadinessPolicy_RejectsExplicitlyUnreadyServices()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        DynamicSessionService service = new()
+        {
+            IsSessionServiceReady = false
+        };
+        session.Register<IChatReadService>(service);
+        session.Register<IChatCommandService>(service);
+
+        Assert.That(
+            SessionServiceReadinessPolicy.Validate(
+                ProjectSceneKind.Lobby,
+                session,
+                out string error),
+            Is.False);
+        Assert.That(error, Does.Contain("unready"));
+        Assert.That(error, Does.Contain(nameof(IChatReadService)));
+        Assert.That(error, Does.Contain(nameof(IChatCommandService)));
     }
 
     [Test]

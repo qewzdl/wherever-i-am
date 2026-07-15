@@ -15,6 +15,9 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     [SerializeField] private NetworkSessionDisconnectHandler disconnectHandler;
     [SerializeField] private UiErrorManager errorManager;
 
+    [Header("Shutdown Recovery")]
+    [SerializeField] [Min(0)] private int shutdownTimeoutRecoveryAttempts = 1;
+
     private Task shutdownTask = Task.CompletedTask;
     private Task readinessFailureTask = Task.CompletedTask;
     private ConnectionResult pendingFailure;
@@ -307,17 +310,20 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
 
     private async Task ShutdownCoreAsync(NetworkShutdownMode mode)
     {
+        bool completed = false;
+
         try
         {
             EnterShutdownState();
             disconnectHandler.StopListening();
             sceneFlowService.CancelPendingOperations(ProjectOperationCancelReason.SessionShutdown);
 
-            await connectionService.ShutdownAndWaitAsync(mode);
+            await ShutdownNetworkWithRecoveryAsync(mode);
 
             CloseSessionScopeOnce();
             LoadMainMenuAfterShutdown();
             PresentPendingFailure();
+            completed = true;
         }
         catch (Exception exception)
         {
@@ -328,12 +334,30 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
                 ? pendingFailure.UserMessage
                 : "Failed to stop the network session.";
 
-            errorManager.ShowError(message);
+            errorManager.ShowError(
+                $"{message} Shutdown can be retried without losing cleanup order.");
         }
         finally
         {
-            pendingFailure = null;
+            if (completed)
+                pendingFailure = null;
         }
+    }
+
+    private async Task ShutdownNetworkWithRecoveryAsync(NetworkShutdownMode mode)
+    {
+        await NetworkShutdownRecoveryPolicy.ExecuteAsync(
+            connectionService.ShutdownAndWaitAsync,
+            mode,
+            Mathf.Max(0, shutdownTimeoutRecoveryAttempts),
+            (nextAttempt, attemptCount) =>
+            {
+                Debug.LogWarning(
+                    $"Network shutdown timed out. Retrying immediately " +
+                    $"({nextAttempt}/{attemptCount}) while keeping Session " +
+                    "scopes alive.",
+                    this);
+            });
     }
 
     private void RegisterFailure(ConnectionResult failure)
@@ -454,7 +478,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
         {
             readinessMonitor = new SessionServiceReadinessMonitor(
                 registry,
-                () => stateMachine.CurrentState,
+                stateMachine,
                 HandleSessionReadinessLost);
             failure = null;
             return true;
@@ -498,23 +522,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
 
     private void RaiseSessionEvent(Action handlers, string eventName)
     {
-        if (handlers == null)
-            return;
-
-        Delegate[] subscribers = handlers.GetInvocationList();
-
-        for (int i = 0; i < subscribers.Length; i++)
-        {
-            try
-            {
-                ((Action)subscribers[i]).Invoke();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError($"Subscriber failed while handling {eventName}.", this);
-                Debug.LogException(exception, this);
-            }
-        }
+        RuntimeEventDispatcher.Invoke(handlers, eventName, this);
     }
 
     private bool HasRequiredReferences()

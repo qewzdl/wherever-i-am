@@ -40,6 +40,7 @@ Global (ProjectContext: Ready -> Dispose)
 | Session | `ISessionServiceRegistry` | `SessionServiceRegistry` | synchronous Session transaction | вместе с Session scope | read/subscription API для динамических Session contracts; mutable scope не публикуется |
 | Session | `IPlayerScopeRegistry` | `PlayerScopeRegistry` | synchronous Session transaction | `CloseAll` до Session Dispose | read-only registry Player scopes по `NetworkObjectId` на каждом peer |
 | Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | atomic batch на `OnNetworkSpawn` | registration handles на `OnNetworkDespawn`, до закрытия session | client вызывает command contract, server валидирует и реплицирует сообщения |
+| Session, NetworkObject | `ISessionPhaseService` | `NetworkChatSession` | в одном atomic batch с chat contracts на `OnNetworkSpawn` | вместе с chat registration handles на `OnNetworkDespawn` | server публикует committed `ProjectSceneKind` через `NetworkVariable`; clients только читают фазу |
 | Session, NetworkObject | `IMatchCompletionService` | `NetworkGameFlow` | atomic registration на `OnNetworkSpawn` | registration handle первым снимается на `OnNetworkDespawn` | контракт доступен на всех peers, но завершение матча принимает только server |
 | Player | `IPlayerNetworkService`, `IReplicatedPlayerStateService`, `IEnemyAttackReceiver` | `PlayerScopeLifetime`, `PlayerNetwork`, `PlayerEnemyAttackReceiver` | Player transaction на `OnNetworkSpawn` | Player scope на `OnNetworkDespawn` | replicated state читается на peers; gameplay mutation остаётся server-authoritative |
 | Player/Local | `ILocalPlayerInputService`, `ILocalPlayerCameraService`, `ILocalPlayerPresentationService` | `PlayerInputHandler`, `CameraLook`, `PlayerUI` | Local transaction только для owner | вместе с Player scope | никогда не создаётся для remote player или dedicated server |
@@ -145,12 +146,12 @@ Global (ProjectContext: Ready -> Dispose)
 
 ## Post-load commit
 
-- Сетевой переход сцены завершается в порядке: validate handlers → execute server actions → validate dynamic Session contracts → commit `GameState` → `SceneLoadCompleted`.
+- Сетевой переход сцены завершается в порядке: validate handlers → execute server actions → publish authoritative Session phase → validate dynamic Session contracts → commit `GameState` → `SceneLoadCompleted`.
 - `IProjectSceneFlowServerActionHandler` возвращает `ProjectSceneActionResult`; успешное действие может передать rollback callback для созданных им NGO objects.
 - Ошибка следующего action или dynamic contract validation выполняет rollback уже завершённых actions в обратном порядке, переводит игру в `GameState.Error` и отправляет `SceneLoadFailed` в coordinated session shutdown.
 - Lobby считается готовым только при наличии `IChatReadService` и `IChatCommandService`. Game дополнительно требует `IMatchCompletionService`.
 - `SpawnPlayers` подтверждает не только NGO spawn каждого player object, но и создание соответствующего Player scope по `NetworkObjectId`.
-- `AppRuntime` не применяет scene state, пока `IProjectSceneFlowService` держит активную operation; состояние меняется только общим post-load commit.
+- `AppRuntime` не применяет scene state, пока `IProjectSceneFlowService` держит активную operation. Dedicated client дополнительно ждёт совпадения replicated Session phase и локальной dynamic readiness; только после этого коммитит `NetworkSessionState` и `GameState`.
 - `NetworkGameFlowSceneStarter` не переводит матч в Playing до commit `GameState.InGame`, поэтому server simulation не стартует между map readiness и player action completion.
 
 ## Динамические Session services
@@ -158,7 +159,14 @@ Global (ProjectContext: Ready -> Dispose)
 - `ISessionServiceRegistry` публикуется внутри Session scope и предоставляет только resolve плюс `ServicesChanged`.
 - Session-owned `NetworkObject` регистрирует interface contracts атомарным batch через внутренний registrar; `ServiceScope` наружу не передаётся.
 - Успешный batch публикует одно изменение после commit. Ошибка, включая duplicate contract, откатывает весь batch без уведомления consumers.
-- `NetworkChatSession` хранит одну группу handles для `IChatReadService` и `IChatCommandService` и освобождает её в начале `OnNetworkDespawn`.
+- `NetworkChatSession` хранит одну группу handles для `IChatReadService`, `IChatCommandService` и внутреннего `ISessionPhaseService` и освобождает её в начале `OnNetworkDespawn`.
 - `NetworkGameFlow` публикует `IMatchCompletionService` на spawn и снимает handle до остального despawn cleanup; duplicate flow отклоняется Session scope.
 - Scene UI получает registry через parent lookup своего scene scope. Gameplay `NetworkBehaviour` разрешает Session contracts через `NetworkObjectServiceContext` с явным `NetworkManager`; перебор `SpawnedObjectsList` как service discovery запрещён.
 - Удаление dynamic registration физически удаляет её из registration order; частый spawn/despawn не увеличивает память Session scope.
+
+## Lifecycle hardening
+
+- Readiness проверяет не только наличие interface registration: Unity object должен быть жив, `Behaviour` активен, `NetworkBehaviour` spawned, а сервис с `ISessionServiceReadiness` обязан подтвердить собственную готовность.
+- Все state/scene lifecycle events вызывают subscribers изолированно. Исключение одного subscriber логируется, но не отменяет уже выполненный commit и не блокирует остальных subscribers.
+- Shutdown timeout запускает ограниченный immediate retry. До подтверждённых `OnClientStopped`/`OnServerStopped` Session, Player и Scene scopes остаются открытыми; после исчерпания попыток cleanup остаётся fail-closed и может быть повторён.
+- `IServiceResolver.IsDisposed` становится `true` уже при входе в `Disposing`; Resolve/Register после этого запрещены. Весь scoped resolver API привязан к Unity main thread, на котором создан корневой scope.

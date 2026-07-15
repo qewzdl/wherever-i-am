@@ -137,6 +137,16 @@ public sealed class ProjectScenePostLoadActionRunner : MonoBehaviour
                 return batch;
             }
 
+            if (!sessionServices.TryResolve(
+                    out ISessionPhaseService sessionPhase) ||
+                !sessionPhase.TrySetServerScenePhase(loadedScene))
+            {
+                batch.Fail(
+                    $"Cannot publish authoritative Session phase " +
+                    $"'{loadedScene}' before scene state commit.");
+                return batch;
+            }
+
             if (!SessionServiceReadinessPolicy.Validate(
                     loadedScene,
                     sessionServices,

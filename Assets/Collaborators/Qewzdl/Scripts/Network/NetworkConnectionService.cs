@@ -24,6 +24,10 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
     private Task connectionAttemptTask = Task.CompletedTask;
     private Task shutdownTask = Task.CompletedTask;
     private bool immediateShutdownRequested;
+    private bool requireClientStoppedCallback;
+    private bool requireServerStoppedCallback;
+    private bool clientStoppedObserved;
+    private bool serverStoppedObserved;
 
     public bool IsHost => networkManager != null && networkManager.IsHost;
     public bool IsClient => networkManager != null && networkManager.IsClient;
@@ -46,6 +50,24 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
         ApplyProtocolVersion();
         InitializeStrategies();
+    }
+
+    private void OnEnable()
+    {
+        if (networkManager == null)
+            return;
+
+        networkManager.OnClientStopped += HandleClientStopped;
+        networkManager.OnServerStopped += HandleServerStopped;
+    }
+
+    private void OnDisable()
+    {
+        if (networkManager == null)
+            return;
+
+        networkManager.OnClientStopped -= HandleClientStopped;
+        networkManager.OnServerStopped -= HandleServerStopped;
     }
 
     public Task<ConnectionResult> StartHostAsync()
@@ -85,6 +107,7 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
         }
 
         ApplyProtocolVersion();
+        ResetShutdownObservations();
 
         if (!strategies.TryGetValue(config.Mode, out IConnectionStrategy strategy))
         {
@@ -158,6 +181,7 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
         if (connectionResult.Success)
         {
+            TrackRequiredStopCallbacks(config.Role);
             RuntimeLog.Info(connectionResult.DebugMessage);
         }
         else
@@ -205,8 +229,12 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
         Task pendingConnectionAttempt = connectionAttemptTask;
 
-        if (IsFullyStopped(networkManager) && pendingConnectionAttempt.IsCompleted)
+        if (IsFullyStopped(networkManager) &&
+            pendingConnectionAttempt.IsCompleted &&
+            AreRequiredStopCallbacksObserved())
+        {
             return Task.CompletedTask;
+        }
 
         immediateShutdownRequested = mode == NetworkShutdownMode.Immediate;
         shutdownTask = ShutdownCoreAsync(networkManager, pendingConnectionAttempt);
@@ -217,10 +245,10 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
         NetworkManager manager,
         Task pendingConnectionAttempt)
     {
-        bool clientStopPending = manager.IsClient;
-        bool serverStopPending = manager.IsServer;
+        requireClientStoppedCallback |= manager.IsClient;
+        requireServerStoppedCallback |= manager.IsServer;
 
-        if (!clientStopPending && !serverStopPending)
+        if (!requireClientStoppedCallback && !requireServerStoppedCallback)
         {
             if (!IsFullyStopped(manager))
                 manager.Shutdown(immediateShutdownRequested);
@@ -231,51 +259,16 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
             return;
         }
 
-        TaskCompletionSource<bool> stoppedSource = new TaskCompletionSource<bool>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!IsFullyStopped(manager))
+            manager.Shutdown(immediateShutdownRequested);
 
-        void TryComplete()
-        {
-            if (!clientStopPending && !serverStopPending)
-                stoppedSource.TrySetResult(true);
-        }
-
-        void HandleClientStopped(bool wasHost)
-        {
-            clientStopPending = false;
-            TryComplete();
-        }
-
-        void HandleServerStopped(bool wasHost)
-        {
-            serverStopPending = false;
-            TryComplete();
-        }
-
-        manager.OnClientStopped += HandleClientStopped;
-        manager.OnServerStopped += HandleServerStopped;
-
-        try
-        {
-            if (!IsFullyStopped(manager))
-                manager.Shutdown(immediateShutdownRequested);
-
-            TryComplete();
-            await WaitUntilFullyStoppedAsync(
-                manager,
-                stoppedSource.Task,
-                () => $"Client stop pending: {clientStopPending}. " +
-                      $"Server stop pending: {serverStopPending}.");
-            await stoppedSource.Task;
-        }
-        finally
-        {
-            if (manager != null)
-            {
-                manager.OnClientStopped -= HandleClientStopped;
-                manager.OnServerStopped -= HandleServerStopped;
-            }
-        }
+        await WaitUntilFullyStoppedAsync(
+            manager,
+            AreRequiredStopCallbacksObserved,
+            () => $"Client stop pending: " +
+                  $"{requireClientStoppedCallback && !clientStoppedObserved}. " +
+                  $"Server stop pending: " +
+                  $"{requireServerStoppedCallback && !serverStoppedObserved}.");
 
         await pendingConnectionAttempt;
         RuntimeLog.Info("Network shutdown.");
@@ -283,13 +276,14 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
     private async Task WaitUntilFullyStoppedAsync(
         NetworkManager manager,
-        Task requiredCallbacks,
+        Func<bool> requiredCallbacksCompleted,
         Func<string> callbackState)
     {
         DateTime timeoutAt = DateTime.UtcNow.AddSeconds(shutdownTimeoutSeconds);
 
         while (!IsFullyStopped(manager) ||
-               (requiredCallbacks != null && !requiredCallbacks.IsCompleted))
+               (requiredCallbacksCompleted != null &&
+                !requiredCallbacksCompleted.Invoke()))
         {
             if (DateTime.UtcNow >= timeoutAt)
             {
@@ -308,6 +302,38 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
             await Task.Yield();
         }
+    }
+
+    private void HandleClientStopped(bool wasHost)
+    {
+        clientStoppedObserved = true;
+    }
+
+    private void HandleServerStopped(bool wasHost)
+    {
+        serverStoppedObserved = true;
+    }
+
+    private bool AreRequiredStopCallbacksObserved()
+    {
+        return (!requireClientStoppedCallback || clientStoppedObserved) &&
+               (!requireServerStoppedCallback || serverStoppedObserved);
+    }
+
+    private void ResetShutdownObservations()
+    {
+        requireClientStoppedCallback = false;
+        requireServerStoppedCallback = false;
+        clientStoppedObserved = false;
+        serverStoppedObserved = false;
+    }
+
+    private void TrackRequiredStopCallbacks(ConnectionRole role)
+    {
+        requireClientStoppedCallback =
+            role == ConnectionRole.Client || role == ConnectionRole.Host;
+        requireServerStoppedCallback =
+            role == ConnectionRole.Server || role == ConnectionRole.Host;
     }
 
     private void CancelPendingConnectionAttempt()

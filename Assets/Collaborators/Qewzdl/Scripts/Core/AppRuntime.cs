@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Threading.Tasks;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -19,11 +21,17 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
     [Header("Context")]
     [SerializeField] private ProjectContext context;
 
+    [Header("Client Readiness")]
+    [SerializeField] [Min(1f)] private float clientReadinessTimeoutSeconds = 15f;
+
     private readonly SceneRuntimeScopeRegistry sceneScopes = new();
     private ProjectSceneKind startupSceneOverride = ProjectSceneKind.Unknown;
     private Task failedSessionShutdownTask = Task.CompletedTask;
     private Action<bool> pendingSceneActivation;
     private ProjectSceneKind pendingSceneActivationKind = ProjectSceneKind.Unknown;
+    private Coroutine clientReadinessCoroutine;
+    private ProjectSceneKind pendingClientReadinessKind = ProjectSceneKind.Unknown;
+    private int pendingClientReadinessSceneHandle;
     private bool runtimeStarted;
     private bool sceneEventsSubscribed;
     private bool sceneActivationHealthy = true;
@@ -100,6 +108,7 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
         runtimeStarted = false;
         sceneActivationHealthy = true;
         ClearPendingSceneActivation();
+        CancelClientReadiness();
         sceneScopes.Dispose();
     }
 
@@ -216,6 +225,9 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
 
     private void HandleSceneUnloaded(Scene scene)
     {
+        if (pendingClientReadinessSceneHandle == scene.handle)
+            CancelClientReadiness();
+
         sceneScopes.Uninstall(scene.handle);
     }
 
@@ -245,10 +257,185 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
             CompletePendingSceneActivation(sceneKind, true);
         }
 
+        if (RequiresClientReadiness(sceneKind))
+            return BeginClientReadiness(scene, sceneKind);
+
         if (!ShouldDeferSceneStateCommit())
             ApplyStateForScene(sceneKind);
 
         return true;
+    }
+
+    private bool RequiresClientReadiness(ProjectSceneKind sceneKind)
+    {
+        if (sceneKind != ProjectSceneKind.Lobby &&
+            sceneKind != ProjectSceneKind.Game)
+        {
+            return false;
+        }
+
+        NetworkManager networkManager = context?.NetworkManager;
+        return networkManager != null &&
+               networkManager.IsClient &&
+               !networkManager.IsServer;
+    }
+
+    private bool BeginClientReadiness(
+        Scene scene,
+        ProjectSceneKind sceneKind)
+    {
+        if (pendingClientReadinessKind != ProjectSceneKind.Unknown)
+        {
+            HandleClientReadinessFailure(
+                sceneKind,
+                $"Client is already waiting for scene " +
+                $"'{pendingClientReadinessKind}' readiness.");
+            return false;
+        }
+
+        NetworkSessionOrchestrator orchestrator = context.SessionOrchestrator;
+        string error = orchestrator == null
+            ? $"{nameof(NetworkSessionOrchestrator)} is not configured."
+            : string.Empty;
+
+        if (orchestrator == null ||
+            !orchestrator.TryBeginClientSceneReadiness(
+                sceneKind,
+                out error))
+        {
+            HandleClientReadinessFailure(sceneKind, error);
+            return false;
+        }
+
+        pendingClientReadinessKind = sceneKind;
+        pendingClientReadinessSceneHandle = scene.handle;
+
+        if (sceneKind == ProjectSceneKind.Game)
+            context.StateMachine?.ChangeState(GameState.LoadingGame);
+
+        clientReadinessCoroutine = StartCoroutine(WaitForClientReadiness());
+        return true;
+    }
+
+    private IEnumerator WaitForClientReadiness()
+    {
+        float deadline = Time.realtimeSinceStartup + clientReadinessTimeoutSeconds;
+
+        // Let all NGO OnNetworkSpawn callbacks in the current frame complete.
+        yield return null;
+
+        while (pendingClientReadinessKind != ProjectSceneKind.Unknown)
+        {
+            ProjectSceneKind sceneKind = pendingClientReadinessKind;
+            Scene scene = GetLoadedSceneByHandle(
+                pendingClientReadinessSceneHandle);
+            NetworkManager networkManager = context?.NetworkManager;
+
+            if (!scene.IsValid() || !scene.isLoaded)
+            {
+                CancelClientReadiness();
+                yield break;
+            }
+
+            if (networkManager == null ||
+                !networkManager.IsClient ||
+                !networkManager.IsListening)
+            {
+                HandleClientReadinessFailure(
+                    sceneKind,
+                    "Network connection stopped before client readiness commit.",
+                    false);
+                yield break;
+            }
+
+            NetworkSessionOrchestrator orchestrator = context.SessionOrchestrator;
+            string readinessError = orchestrator == null
+                ? $"{nameof(NetworkSessionOrchestrator)} is not configured."
+                : string.Empty;
+
+            if (orchestrator != null &&
+                orchestrator.TryCommitClientSceneReadiness(
+                    sceneKind,
+                    out readinessError))
+            {
+                FinishClientReadinessTracking();
+                ApplyStateForScene(sceneKind);
+                yield break;
+            }
+
+            if (Time.realtimeSinceStartup >= deadline)
+            {
+                HandleClientReadinessFailure(
+                    sceneKind,
+                    readinessError,
+                    false);
+                yield break;
+            }
+
+            yield return null;
+        }
+    }
+
+    private void CancelClientReadiness()
+    {
+        Coroutine coroutine = clientReadinessCoroutine;
+        FinishClientReadinessTracking();
+
+        if (coroutine != null)
+            StopCoroutine(coroutine);
+    }
+
+    private void FinishClientReadinessTracking()
+    {
+        clientReadinessCoroutine = null;
+        pendingClientReadinessKind = ProjectSceneKind.Unknown;
+        pendingClientReadinessSceneHandle = 0;
+    }
+
+    private static Scene GetLoadedSceneByHandle(int sceneHandle)
+    {
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene scene = SceneManager.GetSceneAt(i);
+
+            if (scene.handle == sceneHandle)
+                return scene;
+        }
+
+        return default;
+    }
+
+    private void HandleClientReadinessFailure(
+        ProjectSceneKind sceneKind,
+        string details,
+        bool stopCoroutine = true)
+    {
+        if (stopCoroutine)
+            CancelClientReadiness();
+        else
+            FinishClientReadinessTracking();
+
+        sceneActivationHealthy = false;
+
+        string failureDetails = string.IsNullOrWhiteSpace(details)
+            ? $"Client readiness timed out for scene '{sceneKind}'."
+            : $"Client readiness failed for scene '{sceneKind}': {details}";
+
+        Debug.LogError(failureDetails, this);
+        context?.SceneFlowService?.CancelPendingOperations(
+            ProjectOperationCancelReason.SessionServiceReadinessLost);
+        context?.StateMachine?.ChangeState(GameState.Error);
+
+        if (!failedSessionShutdownTask.IsCompleted)
+            return;
+
+        ConnectionResult failure = ConnectionResult.Fail(
+            ConnectionErrorCode.SessionServiceReadinessFailed,
+            "Failed to synchronize required network session services.",
+            failureDetails,
+            true);
+
+        failedSessionShutdownTask = ShutdownFailedSessionAsync(failure);
     }
 
     private bool ShouldDeferSceneStateCommit()
@@ -434,7 +621,7 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
         catch (Exception exception)
         {
             context?.StateMachine?.ChangeState(GameState.Error);
-            Debug.LogError("Failed to shut down a session after scene scope activation failure.", this);
+            Debug.LogError("Failed to shut down a session after activation failure.", this);
             Debug.LogException(exception, this);
         }
     }

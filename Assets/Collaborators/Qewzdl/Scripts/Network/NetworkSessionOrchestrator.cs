@@ -80,6 +80,36 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
             details);
     }
 
+    internal bool TryBeginClientSceneReadiness(
+        ProjectSceneKind sceneKind,
+        out string error)
+    {
+        if (sessionFlowService != null)
+        {
+            return sessionFlowService.TryBeginClientSceneReadiness(
+                sceneKind,
+                out error);
+        }
+
+        error = $"{nameof(NetworkSessionFlowService)} is not configured.";
+        return false;
+    }
+
+    internal bool TryCommitClientSceneReadiness(
+        ProjectSceneKind sceneKind,
+        out string error)
+    {
+        if (sessionFlowService != null)
+        {
+            return sessionFlowService.TryCommitClientSceneReadiness(
+                sceneKind,
+                out error);
+        }
+
+        error = $"{nameof(NetworkSessionFlowService)} is not configured.";
+        return false;
+    }
+
     internal bool ConfigureSessionScopeController(
         ServiceScope globalScope,
         IGameMapSessionService gameMapService,

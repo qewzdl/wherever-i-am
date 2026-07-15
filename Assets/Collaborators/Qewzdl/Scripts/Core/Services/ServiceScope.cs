@@ -53,6 +53,7 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
     private readonly List<ServiceScope> children = new();
     private readonly Dictionary<object, OwnedServiceRecord> ownedServices;
     private readonly IServiceRegistrationPolicy registrationPolicy;
+    private readonly int ownerThreadId;
 
     private ServiceScope parent;
     private ServiceRegistrationTransaction activeTransaction;
@@ -66,7 +67,8 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
             null,
             name,
             new Dictionary<object, OwnedServiceRecord>(ReferenceComparer.Instance),
-            policy)
+            policy,
+            Environment.CurrentManagedThreadId)
     {
     }
 
@@ -74,19 +76,51 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
         ServiceScope parentScope,
         string name,
         Dictionary<object, OwnedServiceRecord> ownershipRegistry,
-        IServiceRegistrationPolicy policy)
+        IServiceRegistrationPolicy policy,
+        int owningThreadId)
     {
         parent = parentScope;
         ownedServices = ownershipRegistry;
         registrationPolicy = policy;
+        ownerThreadId = owningThreadId;
         Name = string.IsNullOrWhiteSpace(name) ? nameof(ServiceScope) : name;
     }
 
     public string Name { get; }
-    public bool IsDisposed => state == ScopeState.Disposed;
-    public int LocalServiceCount => services.Count;
-    public int ChildScopeCount => children.Count;
-    internal int RegistrationOrderCount => registrationOrder.Count;
+    public bool IsDisposed
+    {
+        get
+        {
+            EnsureThreadAccess();
+            return state != ScopeState.Active;
+        }
+    }
+    public int LocalServiceCount
+    {
+        get
+        {
+            EnsureThreadAccess();
+            return services.Count;
+        }
+    }
+
+    public int ChildScopeCount
+    {
+        get
+        {
+            EnsureThreadAccess();
+            return children.Count;
+        }
+    }
+
+    internal int RegistrationOrderCount
+    {
+        get
+        {
+            EnsureThreadAccess();
+            return registrationOrder.Count;
+        }
+    }
 
     public ServiceScope CreateChild(
         string name,
@@ -97,7 +131,12 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
         if (policy == null)
             throw new ArgumentNullException(nameof(policy));
 
-        ServiceScope child = new ServiceScope(this, name, ownedServices, policy);
+        ServiceScope child = new ServiceScope(
+            this,
+            name,
+            ownedServices,
+            policy,
+            ownerThreadId);
         children.Add(child);
         return child;
     }
@@ -239,6 +278,7 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
 
     internal bool IsRegistrationActive(long registrationId)
     {
+        EnsureThreadAccess();
         return state == ScopeState.Active &&
                registrationsById.TryGetValue(registrationId, out ServiceEntry entry) &&
                entry.IsActive;
@@ -246,6 +286,8 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
 
     internal void Unregister(long registrationId)
     {
+        EnsureThreadAccess();
+
         if (state != ScopeState.Active ||
             !registrationsById.TryGetValue(registrationId, out ServiceEntry entry))
         {
@@ -269,6 +311,8 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
         ServiceRegistrationTransaction transaction,
         IReadOnlyList<long> registrationIds)
     {
+        EnsureThreadAccess();
+
         if (!ReferenceEquals(activeTransaction, transaction))
             return;
 
@@ -292,6 +336,8 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
 
     private void DisposeInternal(bool notifyParent)
     {
+        EnsureThreadAccess();
+
         if (state != ScopeState.Active)
             return;
 
@@ -501,10 +547,25 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
 
     private void EnsureActive()
     {
+        EnsureThreadAccess();
+
         if (state == ScopeState.Active)
             return;
 
         throw new ObjectDisposedException(Name, $"Service scope '{Name}' is not active.");
+    }
+
+    private void EnsureThreadAccess()
+    {
+        int currentThreadId = Environment.CurrentManagedThreadId;
+
+        if (currentThreadId == ownerThreadId)
+            return;
+
+        throw new InvalidOperationException(
+            $"Service scope '{Name}' is bound to its Unity main thread " +
+            $"(thread {ownerThreadId}) and cannot be accessed from thread " +
+            $"{currentThreadId}.");
     }
 
     private static void ValidateContractType(Type contractType)

@@ -74,12 +74,6 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
-        if (!connectionService.IsConnectionReady)
-        {
-            await FailAsync(CreateConnectionLostDuringStartupResult());
-            return;
-        }
-
         if (!sceneFlowService.LoadScene(ProjectSceneKind.Lobby))
         {
             await FailAsync(ConnectionResult.Fail(
@@ -126,13 +120,44 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
-        if (!connectionService.IsConnectionReady)
+        RuntimeLog.Info(result.DebugMessage);
+    }
+
+    internal bool TryBeginClientSceneReadiness(
+        ProjectSceneKind sceneKind,
+        out string error)
+    {
+        error = string.Empty;
+
+        if (!HasRequiredReferences())
         {
-            await FailAsync(CreateConnectionLostDuringStartupResult());
-            return;
+            error = "Network session flow is not composed.";
+            return false;
         }
 
-        RuntimeLog.Info(result.DebugMessage);
+        if (!networkManager.IsClient || networkManager.IsServer)
+        {
+            error = "Client readiness can only be driven by a dedicated client.";
+            return false;
+        }
+
+        return ClientSessionReadinessGate.Begin(
+            sessionStateMachine,
+            sceneKind,
+            out error);
+    }
+
+    internal bool TryCommitClientSceneReadiness(
+        ProjectSceneKind sceneKind,
+        out string error)
+    {
+        error = string.Empty;
+
+        return ClientSessionReadinessGate.Commit(
+            sessionStateMachine,
+            sceneKind,
+            SessionServices,
+            out error);
     }
 
     public void StartGame(int mapId)

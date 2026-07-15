@@ -138,23 +138,12 @@ internal sealed class SessionServiceRegistry : ISessionServiceRegistry, IDisposa
 
     internal void PublishServicesChanged()
     {
-        if (IsDisposed || ServicesChanged == null)
+        if (IsDisposed)
             return;
 
-        Delegate[] subscribers = ServicesChanged.GetInvocationList();
-
-        for (int i = 0; i < subscribers.Length; i++)
-        {
-            try
-            {
-                ((Action)subscribers[i]).Invoke();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError("Subscriber failed while handling Session service changes.");
-                Debug.LogException(exception);
-            }
-        }
+        RuntimeEventDispatcher.Invoke(
+            ServicesChanged,
+            $"{nameof(SessionServiceRegistry)}.{nameof(ServicesChanged)}");
     }
 
     private void EnsureActive()

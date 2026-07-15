@@ -14,7 +14,12 @@ public class GameStateMachine : MonoBehaviour, IGameStateService
         GameState previousState = CurrentState;
         CurrentState = newState;
 
-        StateChanged?.Invoke(previousState, newState);
+        RuntimeEventDispatcher.Invoke(
+            StateChanged,
+            previousState,
+            newState,
+            $"{nameof(GameStateMachine)}.{nameof(StateChanged)}",
+            this);
 
         RuntimeLog.Info($"Game state changed: {previousState} -> {newState}");
     }

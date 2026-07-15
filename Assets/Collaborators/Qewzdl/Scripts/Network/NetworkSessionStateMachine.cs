@@ -38,7 +38,12 @@ public sealed class NetworkSessionStateMachine : MonoBehaviour
         NetworkSessionState previousState = CurrentState;
         CurrentState = newState;
 
-        StateChanged?.Invoke(previousState, newState);
+        RuntimeEventDispatcher.Invoke(
+            StateChanged,
+            previousState,
+            newState,
+            $"{nameof(NetworkSessionStateMachine)}.{nameof(StateChanged)}",
+            this);
 
         if (string.IsNullOrWhiteSpace(reason))
             RuntimeLog.Info($"Network session state changed: {previousState} -> {newState}", this);
@@ -66,6 +71,7 @@ public sealed class NetworkSessionStateMachine : MonoBehaviour
 
             case NetworkSessionState.StartingClient:
                 return to == NetworkSessionState.Lobby ||
+                       to == NetworkSessionState.LoadingGame ||
                        to == NetworkSessionState.Disconnecting ||
                        to == NetworkSessionState.Failed;
 
