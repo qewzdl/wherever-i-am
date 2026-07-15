@@ -8,20 +8,81 @@ public sealed class SessionScopeControllerTests
     {
     }
 
-    private interface IDynamicReadService
-    {
-    }
-
-    private interface IDynamicCommandService
-    {
-    }
-
     private sealed class GlobalMarker : IGlobalMarker
     {
     }
 
-    private sealed class DynamicService : IDynamicReadService, IDynamicCommandService
+    private sealed class DynamicService : IChatReadService, IChatCommandService
     {
+        public event Action MessagesChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<ChatMessageData> MessageAdded
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action AvailabilityChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public bool CanSubmitMessages => true;
+        public ChatChannel CurrentChannel => default;
+        public int MessageCount => 0;
+
+        public ChatMessageData GetMessage(int index)
+        {
+            return default;
+        }
+
+        public bool TryGetMessage(uint messageId, out ChatMessageData message)
+        {
+            message = default;
+            return false;
+        }
+
+        public bool IsLocalClient(ulong clientId)
+        {
+            return false;
+        }
+
+        public void SubmitMessage(string text)
+        {
+        }
+    }
+
+    private sealed class ReplicatedPlayerServiceStub : IReplicatedPlayerStateService
+    {
+        public bool IsCrouching => false;
+    }
+
+    private sealed class PauseServiceStub : IPauseService
+    {
+        public bool IsPaused => false;
+
+        public event Action<bool> PauseStateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void Pause()
+        {
+        }
+
+        public void Resume()
+        {
+        }
+
+        public void TogglePause()
+        {
+        }
     }
 
     private sealed class GameMapSessionServiceStub : IGameMapSessionService
@@ -133,8 +194,8 @@ public sealed class SessionScopeControllerTests
             controller.TryRegisterServices(
                 registrar =>
                 {
-                    registrar.Register<IDynamicReadService>(service);
-                    registrar.Register<IDynamicCommandService>(service);
+                    registrar.Register<IChatReadService>(service);
+                    registrar.Register<IChatCommandService>(service);
                 },
                 out SessionServiceRegistration registrations,
                 out Exception failure),
@@ -142,14 +203,14 @@ public sealed class SessionScopeControllerTests
 
         Assert.That(failure, Is.Null);
         Assert.That(changeCount, Is.EqualTo(1));
-        Assert.That(registry.Resolve<IDynamicReadService>(), Is.SameAs(service));
-        Assert.That(registry.Resolve<IDynamicCommandService>(), Is.SameAs(service));
+        Assert.That(registry.Resolve<IChatReadService>(), Is.SameAs(service));
+        Assert.That(registry.Resolve<IChatCommandService>(), Is.SameAs(service));
 
         registrations.Dispose();
 
         Assert.That(changeCount, Is.EqualTo(2));
-        Assert.That(registry.TryResolve(out IDynamicReadService _), Is.False);
-        Assert.That(registry.TryResolve(out IDynamicCommandService _), Is.False);
+        Assert.That(registry.TryResolve(out IChatReadService _), Is.False);
+        Assert.That(registry.TryResolve(out IChatCommandService _), Is.False);
     }
 
     [Test]
@@ -163,7 +224,7 @@ public sealed class SessionScopeControllerTests
         DynamicService duplicate = new();
         Assert.That(
             controller.TryRegisterServices(
-                registrar => registrar.Register<IDynamicReadService>(original),
+                registrar => registrar.Register<IChatReadService>(original),
                 out SessionServiceRegistration originalRegistration,
                 out _),
             Is.True);
@@ -175,8 +236,8 @@ public sealed class SessionScopeControllerTests
             controller.TryRegisterServices(
                 registrar =>
                 {
-                    registrar.Register<IDynamicCommandService>(duplicate);
-                    registrar.Register<IDynamicReadService>(duplicate);
+                    registrar.Register<IChatCommandService>(duplicate);
+                    registrar.Register<IChatReadService>(duplicate);
                 },
                 out SessionServiceRegistration failedRegistrations,
                 out Exception failure),
@@ -185,10 +246,30 @@ public sealed class SessionScopeControllerTests
         Assert.That(failedRegistrations, Is.Null);
         Assert.That(failure, Is.TypeOf<InvalidOperationException>());
         Assert.That(changeCount, Is.Zero);
-        Assert.That(registry.Resolve<IDynamicReadService>(), Is.SameAs(original));
-        Assert.That(registry.TryResolve(out IDynamicCommandService _), Is.False);
+        Assert.That(registry.Resolve<IChatReadService>(), Is.SameAs(original));
+        Assert.That(registry.TryResolve(out IChatCommandService _), Is.False);
 
         originalRegistration.Dispose();
+    }
+
+    [Test]
+    public void DynamicRegistration_RejectsNonSessionContractWithoutMutation()
+    {
+        using ServiceScope globalScope = new("Global");
+        using SessionScopeController controller = CreateController(globalScope);
+        Assert.That(controller.TryOpen(out _), Is.True);
+        Assert.That(controller.TryGetRegistry(out ISessionServiceRegistry registry), Is.True);
+
+        Assert.That(
+            controller.TryRegisterServices(
+                registrar => registrar.Register<IPauseService>(new PauseServiceStub()),
+                out SessionServiceRegistration registrations,
+                out Exception failure),
+            Is.False);
+
+        Assert.That(registrations, Is.Null);
+        Assert.That(failure, Is.TypeOf<InvalidOperationException>());
+        Assert.That(registry.TryResolve(out IPauseService _), Is.False);
     }
 
     [Test]
@@ -297,7 +378,8 @@ public sealed class SessionScopeControllerTests
                 512,
                 24,
                 false,
-                registrar => registrar.Register<IDynamicReadService>(new DynamicService()),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(
+                    new ReplicatedPlayerServiceStub()),
                 null,
                 out PlayerScopeRegistration registration,
                 out _),

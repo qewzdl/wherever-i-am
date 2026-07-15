@@ -124,7 +124,9 @@ internal sealed class PlayerScopeRegistry : IPlayerScopeRegistry, IDisposable
 
         try
         {
-            playerScope = sessionScope.CreateChild($"Player[{networkObjectId}]");
+            playerScope = sessionScope.CreateChild(
+                $"Player[{networkObjectId}]",
+                PlayerContractPolicy.Instance);
             replicatedTransaction = playerScope.BeginRegistrationTransaction();
             registerReplicatedServices.Invoke(new Registrar(playerScope));
 
@@ -143,7 +145,9 @@ internal sealed class PlayerScopeRegistry : IPlayerScopeRegistry, IDisposable
                     throw new ArgumentNullException(nameof(registerLocalServices));
                 }
 
-                localScope = playerScope.CreateChild("Local");
+                localScope = playerScope.CreateChild(
+                    "Local",
+                    LocalPlayerContractPolicy.Instance);
                 localTransaction = localScope.BeginRegistrationTransaction();
                 registerLocalServices.Invoke(new Registrar(localScope));
 

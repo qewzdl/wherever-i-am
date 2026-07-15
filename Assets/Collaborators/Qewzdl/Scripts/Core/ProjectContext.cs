@@ -300,7 +300,8 @@ public sealed class ProjectContext : MonoBehaviour
         try
         {
             sceneScope = parentScope.CreateChild(
-                $"Scene[{scene.handle}] {GetSceneLabel(scene)}");
+                $"Scene[{scene.handle}] {GetSceneLabel(scene)}",
+                requirements.ServicePolicy);
 
             return true;
         }

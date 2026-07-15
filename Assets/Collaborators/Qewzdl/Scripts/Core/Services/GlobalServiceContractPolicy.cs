@@ -1,14 +1,8 @@
 using System;
-using System.Collections.Generic;
 
-internal interface IServiceRegistrationPolicy
+internal sealed class GlobalServiceContractPolicy : ServiceContractPolicy
 {
-    void ValidateRegistration(Type contractType, string scopeName);
-}
-
-internal sealed class GlobalServiceContractPolicy : IServiceRegistrationPolicy
-{
-    private static readonly HashSet<Type> AllowedContracts = new()
+    private static readonly Type[] AllowedContracts =
     {
         typeof(IProjectSceneRegistry),
         typeof(IGameStateService),
@@ -22,14 +16,15 @@ internal sealed class GlobalServiceContractPolicy : IServiceRegistrationPolicy
     internal static readonly GlobalServiceContractPolicy Instance = new();
 
     private GlobalServiceContractPolicy()
+        : base("Global", AllowedContracts)
     {
     }
 
-    internal static int AllowedContractCount => AllowedContracts.Count;
+    internal static int AllowedContractCount => Instance.ContractCount;
 
     internal static bool IsAllowed(Type contractType)
     {
-        return contractType != null && AllowedContracts.Contains(contractType);
+        return Instance.Allows(contractType);
     }
 
     internal static void ValidatePublicAccess(Type contractType)
@@ -45,12 +40,4 @@ internal sealed class GlobalServiceContractPolicy : IServiceRegistrationPolicy
             $"Service contract '{contractName}' is not a public Global contract and cannot be resolved through {nameof(G)}.");
     }
 
-    public void ValidateRegistration(Type contractType, string scopeName)
-    {
-        if (IsAllowed(contractType))
-            return;
-
-        throw new InvalidOperationException(
-            $"Service contract '{contractType.Name}' is not allowed in Global scope '{scopeName}'.");
-    }
 }

@@ -57,7 +57,9 @@ internal sealed class SessionScopeController : IDisposable
 
         try
         {
-            candidateScope = globalScope.CreateChild("Session");
+            candidateScope = globalScope.CreateChild(
+                "Session",
+                SessionContractPolicy.Instance);
             candidateRegistry = new SessionServiceRegistry(candidateScope);
             candidatePlayerRegistry = new PlayerScopeRegistry(candidateScope);
             transaction = candidateScope.BeginRegistrationTransaction();

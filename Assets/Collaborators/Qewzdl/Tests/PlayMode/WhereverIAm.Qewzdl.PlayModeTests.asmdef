@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "WhereverIAm.Qewzdl",
+        "WhereverIAm.Shared",
         "Unity.Netcode.Runtime",
         "Unity.Networking.Transport"
     ],

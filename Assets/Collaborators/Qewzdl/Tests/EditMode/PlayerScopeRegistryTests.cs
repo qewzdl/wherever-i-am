@@ -7,24 +7,18 @@ public sealed class PlayerScopeRegistryTests
     {
     }
 
-    private interface IReplicatedMarker
-    {
-    }
-
-    private interface ILocalMarker
-    {
-    }
-
     private sealed class SessionMarker : ISessionMarker
     {
     }
 
-    private sealed class ReplicatedMarker : IReplicatedMarker
+    private sealed class ReplicatedMarker : IReplicatedPlayerStateService
     {
+        public bool IsCrouching => false;
     }
 
-    private sealed class LocalMarker : ILocalMarker
+    private sealed class LocalMarker : ILocalPlayerPresentationService
     {
+        public bool IsPresentationActive => true;
     }
 
     [Test]
@@ -44,8 +38,8 @@ public sealed class PlayerScopeRegistryTests
         {
             closingScope = scope;
             servicesActiveWhileClosing =
-                scope.Services.Resolve<IReplicatedMarker>() == replicated &&
-                scope.LocalServices.Resolve<ILocalMarker>() == local;
+                scope.Services.Resolve<IReplicatedPlayerStateService>() == replicated &&
+                scope.LocalServices.Resolve<ILocalPlayerPresentationService>() == local;
         };
 
         Assert.That(
@@ -53,8 +47,8 @@ public sealed class PlayerScopeRegistryTests
                 42,
                 7,
                 true,
-                registrar => registrar.Register<IReplicatedMarker>(replicated),
-                registrar => registrar.Register<ILocalMarker>(local),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(replicated),
+                registrar => registrar.Register<ILocalPlayerPresentationService>(local),
                 out PlayerScopeRegistration registration,
                 out Exception failure),
             Is.True);
@@ -68,11 +62,11 @@ public sealed class PlayerScopeRegistryTests
         Assert.That(playerScope.NetworkObjectId, Is.EqualTo(42));
         Assert.That(playerScope.OwnerClientId, Is.EqualTo(7));
         Assert.That(playerScope.IsLocalPlayer, Is.True);
-        Assert.That(playerScope.Services.Resolve<IReplicatedMarker>(), Is.SameAs(replicated));
+        Assert.That(playerScope.Services.Resolve<IReplicatedPlayerStateService>(), Is.SameAs(replicated));
         Assert.That(playerScope.Services.Resolve<ISessionMarker>(), Is.SameAs(sessionMarker));
-        Assert.That(playerScope.Services.TryResolve(out ILocalMarker _), Is.False);
-        Assert.That(playerScope.LocalServices.Resolve<ILocalMarker>(), Is.SameAs(local));
-        Assert.That(playerScope.LocalServices.Resolve<IReplicatedMarker>(), Is.SameAs(replicated));
+        Assert.That(playerScope.Services.TryResolve(out ILocalPlayerPresentationService _), Is.False);
+        Assert.That(playerScope.LocalServices.Resolve<ILocalPlayerPresentationService>(), Is.SameAs(local));
+        Assert.That(playerScope.LocalServices.Resolve<IReplicatedPlayerStateService>(), Is.SameAs(replicated));
 
         registration.Dispose();
 
@@ -97,11 +91,11 @@ public sealed class PlayerScopeRegistryTests
                 84,
                 12,
                 false,
-                registrar => registrar.Register<IReplicatedMarker>(new ReplicatedMarker()),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(new ReplicatedMarker()),
                 registrar =>
                 {
                     localRegistrationInvoked = true;
-                    registrar.Register<ILocalMarker>(new LocalMarker());
+                    registrar.Register<ILocalPlayerPresentationService>(new LocalMarker());
                 },
                 out PlayerScopeRegistration registration,
                 out _),
@@ -127,7 +121,7 @@ public sealed class PlayerScopeRegistryTests
                 128,
                 1,
                 false,
-                registrar => registrar.Register<IReplicatedMarker>(original),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(original),
                 null,
                 out PlayerScopeRegistration originalRegistration,
                 out _),
@@ -138,7 +132,7 @@ public sealed class PlayerScopeRegistryTests
                 128,
                 2,
                 false,
-                registrar => registrar.Register<IReplicatedMarker>(new ReplicatedMarker()),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(new ReplicatedMarker()),
                 null,
                 out PlayerScopeRegistration duplicateRegistration,
                 out Exception failure),
@@ -149,7 +143,7 @@ public sealed class PlayerScopeRegistryTests
         Assert.That(registry.Count, Is.EqualTo(1));
         Assert.That(registry.TryGetPlayerScope(128, out IPlayerScope playerScope), Is.True);
         Assert.That(playerScope.OwnerClientId, Is.EqualTo(1));
-        Assert.That(playerScope.Services.Resolve<IReplicatedMarker>(), Is.SameAs(original));
+        Assert.That(playerScope.Services.Resolve<IReplicatedPlayerStateService>(), Is.SameAs(original));
 
         originalRegistration.Dispose();
     }
@@ -165,10 +159,10 @@ public sealed class PlayerScopeRegistryTests
                 256,
                 3,
                 true,
-                registrar => registrar.Register<IReplicatedMarker>(new ReplicatedMarker()),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(new ReplicatedMarker()),
                 registrar =>
                 {
-                    registrar.Register<ILocalMarker>(new LocalMarker());
+                    registrar.Register<ILocalPlayerPresentationService>(new LocalMarker());
                     throw new InvalidOperationException("Local registration failed.");
                 },
                 out PlayerScopeRegistration registration,
@@ -184,6 +178,56 @@ public sealed class PlayerScopeRegistryTests
     }
 
     [Test]
+    public void TryOpen_RejectsLocalContractInReplicatedScope()
+    {
+        using ServiceScope sessionScope = new("Session");
+        using PlayerScopeRegistry registry = new(sessionScope);
+
+        Assert.That(
+            registry.TryOpen(
+                384,
+                4,
+                false,
+                registrar => registrar.Register<ILocalPlayerPresentationService>(
+                    new LocalMarker()),
+                null,
+                out PlayerScopeRegistration registration,
+                out Exception failure),
+            Is.False);
+
+        Assert.That(registration, Is.Null);
+        Assert.That(failure, Is.TypeOf<InvalidOperationException>());
+        Assert.That(registry.Count, Is.Zero);
+        Assert.That(sessionScope.ChildScopeCount, Is.Zero);
+    }
+
+    [Test]
+    public void TryOpen_RejectsReplicatedContractInLocalScopeAndRollsBackPlayer()
+    {
+        using ServiceScope sessionScope = new("Session");
+        using PlayerScopeRegistry registry = new(sessionScope);
+
+        Assert.That(
+            registry.TryOpen(
+                448,
+                5,
+                true,
+                registrar => registrar.Register<IReplicatedPlayerStateService>(
+                    new ReplicatedMarker()),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(
+                    new ReplicatedMarker()),
+                out PlayerScopeRegistration registration,
+                out Exception failure),
+            Is.False);
+
+        Assert.That(registration, Is.Null);
+        Assert.That(failure, Is.TypeOf<InvalidOperationException>());
+        Assert.That(registry.Count, Is.Zero);
+        Assert.That(registry.TryGetLocalPlayerScope(out _), Is.False);
+        Assert.That(sessionScope.ChildScopeCount, Is.Zero);
+    }
+
+    [Test]
     public void CloseAll_ClosesEveryPlayerInReverseCreationOrder()
     {
         using ServiceScope sessionScope = new("Session");
@@ -193,7 +237,7 @@ public sealed class PlayerScopeRegistryTests
                 1,
                 10,
                 false,
-                registrar => registrar.Register<IReplicatedMarker>(new ReplicatedMarker()),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(new ReplicatedMarker()),
                 null,
                 out PlayerScopeRegistration firstRegistration,
                 out _),
@@ -203,7 +247,7 @@ public sealed class PlayerScopeRegistryTests
                 2,
                 20,
                 false,
-                registrar => registrar.Register<IReplicatedMarker>(new ReplicatedMarker()),
+                registrar => registrar.Register<IReplicatedPlayerStateService>(new ReplicatedMarker()),
                 null,
                 out PlayerScopeRegistration secondRegistration,
                 out _),

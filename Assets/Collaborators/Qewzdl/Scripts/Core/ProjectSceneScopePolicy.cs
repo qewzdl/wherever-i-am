@@ -9,15 +9,19 @@ internal readonly struct ProjectSceneScopeRequirements
     internal ProjectSceneScopeRequirements(
         ProjectSceneKind sceneKind,
         SceneServiceScopeParent parent,
-        Type featureType)
+        Type featureType,
+        IServiceRegistrationPolicy servicePolicy)
     {
         SceneKind = sceneKind;
         Parent = parent;
         requiredFeatureType = featureType;
+        ServicePolicy = servicePolicy ??
+                        throw new ArgumentNullException(nameof(servicePolicy));
     }
 
     internal ProjectSceneKind SceneKind { get; }
     internal SceneServiceScopeParent Parent { get; }
+    internal IServiceRegistrationPolicy ServicePolicy { get; }
     internal bool RequiresSceneRuntime => requiredFeatureType != null;
     internal string RequiredFeatureName => requiredFeatureType?.Name;
 
@@ -94,37 +98,41 @@ internal static class ProjectSceneScopePolicy
         bool isGameMapScene,
         out ProjectSceneScopeRequirements requirements)
     {
+        if (isGameMapScene)
+        {
+            requirements = new ProjectSceneScopeRequirements(
+                sceneKind,
+                SceneServiceScopeParent.Session,
+                null,
+                SceneContractPolicy.Map);
+            return true;
+        }
+
         switch (sceneKind)
         {
             case ProjectSceneKind.MainMenu:
                 requirements = new ProjectSceneScopeRequirements(
                     sceneKind,
                     SceneServiceScopeParent.Global,
-                    typeof(MainMenuSceneFeature));
+                    typeof(MainMenuSceneFeature),
+                    SceneContractPolicy.MainMenu);
                 return true;
 
             case ProjectSceneKind.Lobby:
                 requirements = new ProjectSceneScopeRequirements(
                     sceneKind,
                     SceneServiceScopeParent.Session,
-                    typeof(LobbySceneFeature));
+                    typeof(LobbySceneFeature),
+                    SceneContractPolicy.Lobby);
                 return true;
 
             case ProjectSceneKind.Game:
                 requirements = new ProjectSceneScopeRequirements(
                     sceneKind,
                     SceneServiceScopeParent.Session,
-                    typeof(GameSceneFeature));
+                    typeof(GameSceneFeature),
+                    SceneContractPolicy.Game);
                 return true;
-        }
-
-        if (isGameMapScene)
-        {
-            requirements = new ProjectSceneScopeRequirements(
-                sceneKind,
-                SceneServiceScopeParent.Session,
-                null);
-            return true;
         }
 
         requirements = default;

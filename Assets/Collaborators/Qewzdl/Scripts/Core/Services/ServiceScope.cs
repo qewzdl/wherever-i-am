@@ -87,11 +87,16 @@ internal sealed class ServiceScope : IServiceResolver, IDisposable
     public int LocalServiceCount => services.Count;
     public int ChildScopeCount => children.Count;
 
-    public ServiceScope CreateChild(string name = null)
+    public ServiceScope CreateChild(
+        string name,
+        IServiceRegistrationPolicy policy)
     {
         EnsureActive();
 
-        ServiceScope child = new ServiceScope(this, name, ownedServices, null);
+        if (policy == null)
+            throw new ArgumentNullException(nameof(policy));
+
+        ServiceScope child = new ServiceScope(this, name, ownedServices, policy);
         children.Add(child);
         return child;
     }

@@ -8,20 +8,14 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
-internal interface IShutdownReplicatedPlayerService
+internal sealed class ShutdownReplicatedPlayerService : IReplicatedPlayerStateService
 {
+    public bool IsCrouching => false;
 }
 
-internal interface IShutdownLocalPlayerService
+internal sealed class ShutdownLocalPlayerService : ILocalPlayerPresentationService
 {
-}
-
-internal sealed class ShutdownReplicatedPlayerService : IShutdownReplicatedPlayerService
-{
-}
-
-internal sealed class ShutdownLocalPlayerService : IShutdownLocalPlayerService
-{
+    public bool IsPresentationActive => true;
 }
 
 public sealed class NetworkSessionShutdownPlayModeTests
@@ -93,9 +87,9 @@ public sealed class NetworkSessionShutdownPlayModeTests
                 TestPlayerNetworkObjectId,
                 networkManager.LocalClientId,
                 true,
-                registrar => registrar.Register<IShutdownReplicatedPlayerService>(
+                registrar => registrar.Register<IReplicatedPlayerStateService>(
                     new ShutdownReplicatedPlayerService()),
-                registrar => registrar.Register<IShutdownLocalPlayerService>(
+                registrar => registrar.Register<ILocalPlayerPresentationService>(
                     new ShutdownLocalPlayerService()),
                 out PlayerScopeRegistration playerRegistration,
                 out Exception playerScopeFailure),
@@ -111,8 +105,8 @@ public sealed class NetworkSessionShutdownPlayModeTests
             Is.True);
         IServiceResolver playerServices = playerScope.Services;
         IServiceResolver localPlayerServices = playerScope.LocalServices;
-        Assert.That(playerServices.Resolve<IShutdownReplicatedPlayerService>(), Is.Not.Null);
-        Assert.That(localPlayerServices.Resolve<IShutdownLocalPlayerService>(), Is.Not.Null);
+        Assert.That(playerServices.Resolve<IReplicatedPlayerStateService>(), Is.Not.Null);
+        Assert.That(localPlayerServices.Resolve<ILocalPlayerPresentationService>(), Is.Not.Null);
 
         GameMapService mapService =
             (GameMapService)sessionServices.Resolve<IGameMapSessionService>();

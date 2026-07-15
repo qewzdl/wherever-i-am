@@ -138,7 +138,9 @@ public sealed class ServiceScopeTests
     public void Resolve_UsesParentWhenLocalContractIsMissing()
     {
         using ServiceScope root = new("Global");
-        ServiceScope child = root.CreateChild("Session");
+        ServiceScope child = root.CreateChild(
+            "Session",
+            TestServiceRegistrationPolicy.Instance);
         PlainService expected = new("global");
         root.Register<IFirstService>(expected);
 
@@ -163,7 +165,9 @@ public sealed class ServiceScopeTests
     public void Register_RejectsParentShadowingByDefault()
     {
         using ServiceScope root = new("Global");
-        ServiceScope child = root.CreateChild("Session");
+        ServiceScope child = root.CreateChild(
+            "Session",
+            TestServiceRegistrationPolicy.Instance);
         root.Register<IFirstService>(new PlainService("global"));
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -174,7 +178,9 @@ public sealed class ServiceScopeTests
     public void Register_AllowsExplicitParentShadowingAndUsesLocalService()
     {
         using ServiceScope root = new("Global");
-        ServiceScope child = root.CreateChild("Session");
+        ServiceScope child = root.CreateChild(
+            "Session",
+            TestServiceRegistrationPolicy.Instance);
         PlainService global = new("global");
         PlainService session = new("session");
         root.Register<IFirstService>(global);
@@ -263,7 +269,9 @@ public sealed class ServiceScopeTests
         Assert.Throws<ObjectDisposedException>(() => scope.TryResolve<IFirstService>(out _));
         Assert.Throws<ObjectDisposedException>(() =>
             scope.Register<IFirstService>(new PlainService("service")));
-        Assert.Throws<ObjectDisposedException>(() => scope.CreateChild("Child"));
+        Assert.Throws<ObjectDisposedException>(() => scope.CreateChild(
+            "Child",
+            TestServiceRegistrationPolicy.Instance));
         Assert.Throws<ObjectDisposedException>(() => scope.BeginRegistrationTransaction());
         Assert.DoesNotThrow(scope.Dispose);
     }
@@ -312,7 +320,9 @@ public sealed class ServiceScopeTests
     {
         List<string> order = new();
         ServiceScope root = new("Global");
-        ServiceScope child = root.CreateChild("Session");
+        ServiceScope child = root.CreateChild(
+            "Session",
+            TestServiceRegistrationPolicy.Instance);
         root.Register<IFirstService>(
             new DisposableService("global", order),
             ServiceRegistrationOwnership.ScopeOwned);
@@ -360,7 +370,9 @@ public sealed class ServiceScopeTests
     public void ScopeOwnedInstance_CannotHaveTwoOwnersInScopeTree()
     {
         using ServiceScope root = new("Global");
-        ServiceScope child = root.CreateChild("Session");
+        ServiceScope child = root.CreateChild(
+            "Session",
+            TestServiceRegistrationPolicy.Instance);
         DisposableService service = new("service");
         root.Register<IFirstService>(service, ServiceRegistrationOwnership.ScopeOwned);
 
@@ -404,8 +416,12 @@ public sealed class ServiceScopeTests
     public void SiblingScopes_CanRegisterSameContractIndependently()
     {
         using ServiceScope root = new("Global");
-        ServiceScope firstScene = root.CreateChild("Scene 1");
-        ServiceScope secondScene = root.CreateChild("Scene 2");
+        ServiceScope firstScene = root.CreateChild(
+            "Scene 1",
+            TestServiceRegistrationPolicy.Instance);
+        ServiceScope secondScene = root.CreateChild(
+            "Scene 2",
+            TestServiceRegistrationPolicy.Instance);
         PlainService first = new("first");
         PlainService second = new("second");
         firstScene.Register<IFirstService>(first);
@@ -564,7 +580,9 @@ public sealed class GTests
     public void Publication_ExposesOnlyGlobalResolverUntilHandleIsDisposed()
     {
         using ServiceScope globalScope = CreateGlobalScope();
-        ServiceScope sessionScope = globalScope.CreateChild("Session");
+        ServiceScope sessionScope = globalScope.CreateChild(
+            "Session",
+            TestServiceRegistrationPolicy.Instance);
         GlobalTestService expected = new("global");
         globalScope.Register<IUiErrorService>(expected);
         sessionScope.Register<IScopedTestService>(new ScopedTestService());
@@ -807,12 +825,18 @@ public sealed class GTests
     }
 
     [Test]
-    public void GlobalScopePolicy_DoesNotRestrictChildScopes()
+    public void GlobalScopePolicy_DoesNotLeakIntoExplicitChildPolicies()
     {
         using ServiceScope globalScope = CreateGlobalScope();
-        ServiceScope sessionScope = globalScope.CreateChild("Session");
-        ServiceScope sceneScope = globalScope.CreateChild("Game Scene");
-        ServiceScope playerScope = sessionScope.CreateChild("Player");
+        ServiceScope sessionScope = globalScope.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        ServiceScope sceneScope = globalScope.CreateChild(
+            "Game Scene",
+            SceneContractPolicy.Game);
+        ServiceScope playerScope = sessionScope.CreateChild(
+            "Player",
+            PlayerContractPolicy.Instance);
         ForbiddenChatService chatService = new();
 
         Assert.DoesNotThrow(() =>

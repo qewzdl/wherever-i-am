@@ -175,6 +175,9 @@ public sealed class SceneRuntimeScopeTests
             Assert.That(
                 mainMenuRequirements.Parent,
                 Is.EqualTo(SceneServiceScopeParent.Global));
+            Assert.That(
+                mainMenuRequirements.ServicePolicy,
+                Is.SameAs(SceneContractPolicy.MainMenu));
             Assert.That(mainMenuRequirements.RequiresSceneRuntime, Is.True);
             Assert.That(
                 mainMenuRequirements.ValidateConfiguredFeatures(
@@ -191,6 +194,9 @@ public sealed class SceneRuntimeScopeTests
             Assert.That(
                 lobbyRequirements.Parent,
                 Is.EqualTo(SceneServiceScopeParent.Session));
+            Assert.That(
+                lobbyRequirements.ServicePolicy,
+                Is.SameAs(SceneContractPolicy.Lobby));
             Assert.That(lobbyRequirements.RequiresSceneRuntime, Is.True);
             Assert.That(
                 lobbyRequirements.ValidateConfiguredFeatures(
@@ -207,6 +213,9 @@ public sealed class SceneRuntimeScopeTests
             Assert.That(
                 gameRequirements.Parent,
                 Is.EqualTo(SceneServiceScopeParent.Session));
+            Assert.That(
+                gameRequirements.ServicePolicy,
+                Is.SameAs(SceneContractPolicy.Game));
             Assert.That(gameRequirements.RequiresSceneRuntime, Is.True);
             Assert.That(
                 gameRequirements.ValidateConfiguredFeatures(
@@ -223,6 +232,9 @@ public sealed class SceneRuntimeScopeTests
             Assert.That(
                 mapRequirements.Parent,
                 Is.EqualTo(SceneServiceScopeParent.Session));
+            Assert.That(
+                mapRequirements.ServicePolicy,
+                Is.SameAs(SceneContractPolicy.Map));
             Assert.That(mapRequirements.RequiresSceneRuntime, Is.False);
             Assert.That(
                 mapRequirements.ValidateConfiguredFeatures(
@@ -258,7 +270,9 @@ public sealed class SceneRuntimeScopeTests
         SceneScopePauseRegistrationFeature inheritedPause =
             inheritedPauseObject.AddComponent<SceneScopePauseRegistrationFeature>();
         globalScope.Register<IPauseService>(inheritedPause);
-        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[95]");
+        ServiceScope sceneServiceScope = globalScope.CreateChild(
+            "Scene[95]",
+            TestServiceRegistrationPolicy.Instance);
         GameObject featureObject = new("Missing pause registration feature");
         SceneRuntimeScope runtimeScope = null;
 
@@ -312,7 +326,9 @@ public sealed class SceneRuntimeScopeTests
     {
         using ServiceScope globalScope = new("Global");
         globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
-        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[96]");
+        ServiceScope sceneServiceScope = globalScope.CreateChild(
+            "Scene[96]",
+            TestServiceRegistrationPolicy.Instance);
         GameObject featureObject = new("Pause registration feature");
         SceneRuntimeScope runtimeScope = null;
 
@@ -349,7 +365,9 @@ public sealed class SceneRuntimeScopeTests
     public void EmptyFeatureScope_StillOwnsIndependentServiceScope()
     {
         using ServiceScope sessionScope = new("Session");
-        ServiceScope sceneServiceScope = sessionScope.CreateChild("Scene[21]");
+        ServiceScope sceneServiceScope = sessionScope.CreateChild(
+            "Scene[21]",
+            TestServiceRegistrationPolicy.Instance);
         SceneRuntimeScope runtimeScope = new(
             21,
             "Map scene",
@@ -374,7 +392,9 @@ public sealed class SceneRuntimeScopeTests
     {
         using ServiceScope globalScope = new("Global");
         globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
-        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[32]");
+        ServiceScope sceneServiceScope = globalScope.CreateChild(
+            "Scene[32]",
+            TestServiceRegistrationPolicy.Instance);
         GameObject featureObject = new("Registering feature");
         SceneRuntimeScope runtimeScope = null;
 
@@ -423,7 +443,9 @@ public sealed class SceneRuntimeScopeTests
         List<string> events = new();
         ServiceScope globalScope = new("Global");
         globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
-        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[42]");
+        ServiceScope sceneServiceScope = globalScope.CreateChild(
+            "Scene[42]",
+            TestServiceRegistrationPolicy.Instance);
         sceneServiceScope.Register<ISceneScopeTestOwnedService>(
             new SceneScopeTestOwnedService(),
             ServiceRegistrationOwnership.ScopeOwned,
@@ -489,7 +511,9 @@ public sealed class SceneRuntimeScopeTests
         List<string> events = new();
         ServiceScope globalScope = new("Global");
         globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
-        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[63]");
+        ServiceScope sceneServiceScope = globalScope.CreateChild(
+            "Scene[63]",
+            TestServiceRegistrationPolicy.Instance);
         GameObject featureObject = new("Destroying feature");
         SceneRuntimeScope runtimeScope = null;
         int uninstallRequestCount = 0;
@@ -547,7 +571,9 @@ public sealed class SceneRuntimeScopeTests
         List<string> events = new();
         ServiceScope globalScope = new("Global");
         globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
-        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[84]");
+        ServiceScope sceneServiceScope = globalScope.CreateChild(
+            "Scene[84]",
+            TestServiceRegistrationPolicy.Instance);
         sceneServiceScope.Register<ISceneScopeTestOwnedService>(
             new SceneScopeTestOwnedService(),
             ServiceRegistrationOwnership.ScopeOwned,

@@ -62,14 +62,15 @@ Global (ProjectContext: Ready -> Dispose)
 
 1. Регистрация выполняется по interface contract. На один contract допускается ровно один instance внутри конкретного scope; duplicate registration должна завершаться ошибкой.
 2. Child scope может разрешать зависимости из parent scope. Parent scope не видит child services.
-3. Global scope принимает только contracts из `GlobalServiceContractPolicy`; в частности `IPauseService`, `IChatReadService`, `IChatCommandService`, replicated/local Player contracts и технические network services отклоняются до регистрации.
-4. Scene scope key — только `Scene.handle`; имя и path сцены не гарантируют уникальный runtime instance.
-5. Любая ошибка Compose/Initialize/Install откатывает только уже выполненные регистрации в обратном порядке.
-6. Unregister выполняется до `Dispose`. Повторные Shutdown, Uninstall и Dispose должны быть idempotent.
-7. NetworkObject service регистрируется не раньше `OnNetworkSpawn` и удаляется не позже `OnNetworkDespawn`.
-8. Новый код не использует `Find*`, `Resources.Load`, `ProjectContext.Instance`, `AudioManager.Instance` или `NetworkManager.Singleton` как fallback service resolution.
-9. `G` является единственной глобальной runtime-точкой доступа; ambient `Instance` у runtime-компонентов запрещён.
-10. `G` не определяет network authority: каждый contract сохраняет server/client правила из ownership table.
+3. Каждый scope принимает только contracts из своей policy: `GlobalServiceContractPolicy`, `SessionContractPolicy`, `SceneContractPolicy`, `PlayerContractPolicy` или `LocalPlayerContractPolicy`. Cross-scope регистрация отклоняется до изменения scope.
+4. Создание child scope требует явной policy; policy parent scope не наследуется автоматически.
+5. Scene scope key — только `Scene.handle`; имя и path сцены не гарантируют уникальный runtime instance.
+6. Любая ошибка Compose/Initialize/Install откатывает только уже выполненные регистрации в обратном порядке.
+7. Unregister выполняется до `Dispose`. Повторные Shutdown, Uninstall и Dispose должны быть idempotent.
+8. NetworkObject service регистрируется не раньше `OnNetworkSpawn` и удаляется не позже `OnNetworkDespawn`.
+9. Новый код не использует `Find*`, `Resources.Load`, `ProjectContext.Instance`, `AudioManager.Instance` или `NetworkManager.Singleton` как fallback service resolution.
+10. `G` является единственной глобальной runtime-точкой доступа; ambient `Instance` у runtime-компонентов запрещён.
+11. `G` не определяет network authority: каждый contract сохраняет server/client правила из ownership table.
 
 ## Public G API
 
@@ -86,6 +87,7 @@ Global (ProjectContext: Ready -> Dispose)
 - `IServiceResolver` предоставляет только состояние lifetime, `Resolve` и `TryResolve`; регистрировать зависимости может только владелец `ServiceScope`.
 - Mutable `ServiceScope`, registration handles, transactions и scope registries являются assembly-internal infrastructure.
 - Contract обязан быть interface. Регистрация concrete-типа завершается ошибкой.
+- `CreateChild` требует явную registration policy. Session, каждый вид Scene, replicated Player и Local Player используют независимые allowlists из ownership table.
 - Duplicate contract внутри одного scope всегда запрещён.
 - Shadowing parent contract запрещён по умолчанию. Он разрешается только явным `ServiceShadowingPolicy.Allow`; local service тогда имеет приоритет только внутри этого child scope.
 - `UnityOwned` service при unregister только удаляется из resolver. Его Unity lifecycle остаётся у scene, prefab или bootstrap owner.
@@ -99,7 +101,7 @@ Global (ProjectContext: Ready -> Dispose)
 
 - `ProjectContext` создаёт Global `ServiceScope` в фазе Compose; его `Services` остаётся внутренним источником publication для `G`.
 - `ProjectContext` остаётся публичным только как Unity `MonoBehaviour`, необходимый сцене Bootstrap; его lifecycle, scene composition и concrete service accessors являются assembly-internal. Внешние consumers используют `G` и scoped resolvers.
-- `GlobalServiceContractPolicy` проверяет allowlist внутри `ServiceScope.Register` и повторно на публичной границе `G.Resolve/TryResolve`; child scopes policy не наследуют.
+- `GlobalServiceContractPolicy` проверяет allowlist внутри `ServiceScope.Register` и повторно на публичной границе `G.Resolve/TryResolve`; каждый child получает собственную policy явно в composition point.
 - Lifecycle-ошибки `G.Resolve<T>` содержат имя запрошенного contract; duplicate publication сообщает active и requested Bootstrap owners. Текущие generation/state/owner доступны через internal diagnostics только в Editor и Development Build.
 - Global contracts регистрируются одной transaction после успешной scene service composition.
 - Resolver публикуется в `G` только после успешного Initialize и transaction `Commit`.
