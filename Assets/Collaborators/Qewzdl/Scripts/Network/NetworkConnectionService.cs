@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 {
@@ -14,7 +15,8 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
     [Header("Configuration")]
     [SerializeField] private NetworkConnectionConfig connectionConfig;
-    [SerializeField, Min(1f)] private float shutdownWarningTimeoutSeconds = 15f;
+    [FormerlySerializedAs("shutdownWarningTimeoutSeconds")]
+    [SerializeField, Min(1f)] private float shutdownTimeoutSeconds = 15f;
 
     private readonly Dictionary<ConnectionMode, IConnectionStrategy> strategies = new Dictionary<ConnectionMode, IConnectionStrategy>();
 
@@ -220,8 +222,10 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
         if (!clientStopPending && !serverStopPending)
         {
-            manager.Shutdown(immediateShutdownRequested);
-            await WaitUntilFullyStoppedAsync(manager);
+            if (!IsFullyStopped(manager))
+                manager.Shutdown(immediateShutdownRequested);
+
+            await WaitUntilFullyStoppedAsync(manager, null, null);
             await pendingConnectionAttempt;
             RuntimeLog.Info("Network shutdown.");
             return;
@@ -253,30 +257,16 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
 
         try
         {
-            if (IsFullyStopped(manager))
-                return;
+            if (!IsFullyStopped(manager))
+                manager.Shutdown(immediateShutdownRequested);
 
-            manager.Shutdown(immediateShutdownRequested);
             TryComplete();
-
-            Task fullyStoppedTask = WaitUntilFullyStoppedAsync(manager);
-            Task completedTask = await Task.WhenAny(stoppedSource.Task, fullyStoppedTask);
-
-            if (stoppedSource.Task.IsCompleted)
-            {
-                await stoppedSource.Task;
-            }
-            else
-            {
-                await completedTask;
-
-                Debug.LogWarning(
-                    "NetworkManager stopped without all expected OnClientStopped/OnServerStopped callbacks. " +
-                    $"Client stop pending: {clientStopPending}. Server stop pending: {serverStopPending}.",
-                    this);
-            }
-
-            await fullyStoppedTask;
+            await WaitUntilFullyStoppedAsync(
+                manager,
+                stoppedSource.Task,
+                () => $"Client stop pending: {clientStopPending}. " +
+                      $"Server stop pending: {serverStopPending}.");
+            await stoppedSource.Task;
         }
         finally
         {
@@ -291,19 +281,29 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
         RuntimeLog.Info("Network shutdown.");
     }
 
-    private async Task WaitUntilFullyStoppedAsync(NetworkManager manager)
+    private async Task WaitUntilFullyStoppedAsync(
+        NetworkManager manager,
+        Task requiredCallbacks,
+        Func<string> callbackState)
     {
-        DateTime warningTime = DateTime.UtcNow.AddSeconds(shutdownWarningTimeoutSeconds);
-        bool warningLogged = false;
+        DateTime timeoutAt = DateTime.UtcNow.AddSeconds(shutdownTimeoutSeconds);
 
-        while (!IsFullyStopped(manager))
+        while (!IsFullyStopped(manager) ||
+               (requiredCallbacks != null && !requiredCallbacks.IsCompleted))
         {
-            if (!warningLogged && DateTime.UtcNow >= warningTime)
+            if (DateTime.UtcNow >= timeoutAt)
             {
-                warningLogged = true;
-                Debug.LogError(
-                    $"Network shutdown is still pending after {shutdownWarningTimeoutSeconds} seconds.",
-                    this);
+                string callbackDetails = callbackState != null
+                    ? $" {callbackState.Invoke()}"
+                    : string.Empty;
+
+                throw new TimeoutException(
+                    $"Network shutdown did not complete within {shutdownTimeoutSeconds} seconds. " +
+                    $"IsListening: {manager != null && manager.IsListening}. " +
+                    $"IsClient: {manager != null && manager.IsClient}. " +
+                    $"IsServer: {manager != null && manager.IsServer}. " +
+                    $"ShutdownInProgress: {manager != null && manager.ShutdownInProgress}." +
+                    callbackDetails);
             }
 
             await Task.Yield();

@@ -224,6 +224,9 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
         if (context == null || !scene.IsValid() || !scene.isLoaded)
             return false;
 
+        if (!context.ShouldActivateSceneScope(scene))
+            return true;
+
         ProjectSceneKind sceneKind = context.GetSceneKind(scene.name, scene.path);
         bool isMapScene = context.IsGameMapScene(scene);
 

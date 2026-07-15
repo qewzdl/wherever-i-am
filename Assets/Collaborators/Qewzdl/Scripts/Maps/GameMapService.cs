@@ -30,6 +30,9 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     public GameMapDefinition ActiveMap => activeMap;
     public GameMapRoot ActiveMapRoot => activeMapRoot;
     public bool IsReadyForMatch => readyForMatch;
+    internal bool HasPendingOperation => pendingCompletion != null ||
+                                         localLoadRequested ||
+                                         networkLoadSubscribed;
 
     IGameMapCatalog IGameMapSessionService.Catalog => catalog;
 
@@ -83,6 +86,17 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         selectedMap = map;
         readyForMatch = false;
         return true;
+    }
+
+    internal bool ShouldActivateSceneScope(Scene scene)
+    {
+        if (!scene.IsValid() || catalog == null ||
+            !catalog.TryGetMap(scene.name, scene.path, out _))
+        {
+            return true;
+        }
+
+        return !cancelledMapLoads.Contains(scene.name);
     }
 
     public bool CanHandle(ProjectSceneKind sceneKind)
@@ -236,7 +250,7 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         if (catalog != null &&
             catalog.TryGetMap(scene.name, scene.path, out GameMapDefinition loadedMap))
         {
-            if (cancelledMapLoads.Remove(scene.name))
+            if (cancelledMapLoads.Contains(scene.name))
             {
                 AsyncOperation unloadOperation = SceneManager.UnloadSceneAsync(scene);
 
@@ -279,6 +293,8 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
 
     private void HandleUnitySceneUnloaded(Scene scene)
     {
+        cancelledMapLoads.Remove(scene.name);
+
         if (activeMap == null || !activeMap.MatchesScene(scene.name, scene.path))
             return;
 

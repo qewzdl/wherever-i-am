@@ -2,7 +2,9 @@
     "name": "WhereverIAm.Qewzdl.PlayModeTests",
     "rootNamespace": "",
     "references": [
-        "WhereverIAm.Qewzdl"
+        "WhereverIAm.Qewzdl",
+        "Unity.Netcode.Runtime",
+        "Unity.Networking.Transport"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

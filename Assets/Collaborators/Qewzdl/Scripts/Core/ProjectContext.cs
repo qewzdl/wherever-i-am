@@ -651,6 +651,11 @@ public sealed class ProjectContext : MonoBehaviour
                mapCatalog.TryGetMap(scene.name, scene.path, out _);
     }
 
+    internal bool ShouldActivateSceneScope(Scene scene)
+    {
+        return gameMapService == null || gameMapService.ShouldActivateSceneScope(scene);
+    }
+
     private static string GetSceneLabel(Scene scene)
     {
         if (!string.IsNullOrWhiteSpace(scene.path))
