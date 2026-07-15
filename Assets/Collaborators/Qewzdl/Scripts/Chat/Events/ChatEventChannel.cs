@@ -4,34 +4,12 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "ChatEventChannel", menuName = "Wherever I Am/Chat/Event Channel")]
 public class ChatEventChannel : ScriptableObject
 {
-    public event Action<ChatSendRequest> SendRequested;
     public event Action<ChatMessageReceivedEvent> MessageReceived;
     public event Action<ChatSendRejectedEvent> SendRejected;
     public event Action<ChatVisibilityChangedEvent> VisibilityChanged;
     public event Action<ChatUnreadCountChangedEvent> UnreadCountChanged;
 
     public int CurrentUnreadCount { get; private set; }
-
-    public bool RaiseSendRequested(ChatSendRequest request)
-    {
-        if (!request.IsValid(out string reason))
-        {
-            RaiseSendRejected(new ChatSendRejectedEvent(request, reason));
-            return false;
-        }
-
-        if (SendRequested == null)
-        {
-            RaiseSendRejected(new ChatSendRejectedEvent(
-                request,
-                "Chat session is not ready."
-            ));
-            return false;
-        }
-
-        SendRequested.Invoke(request);
-        return true;
-    }
 
     public void RaiseMessageReceived(ChatMessageReceivedEvent messageEvent)
     {

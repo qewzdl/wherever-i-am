@@ -1,41 +1,70 @@
+using System;
 using UnityEngine;
 
-public class ChatSessionBinder : MonoBehaviour
+public class ChatSessionBinder : MonoBehaviour, IDisposable
 {
     [Header("References")]
     [SerializeField] private ChatWindowUI chatWindow;
     [SerializeField] private ChatNotificationController notificationController;
-    [SerializeField] private GameStateMachine stateMachine;
+    private ISessionServiceRegistry serviceRegistry;
+    private IGameStateService stateMachine;
+    private bool registrySubscribed;
 
     private void Awake()
     {
         ResolveReferences();
     }
 
+    public void Construct(
+        ISessionServiceRegistry registry,
+        IGameStateService gameState)
+    {
+        UnsubscribeFromRegistry();
+        serviceRegistry = registry;
+        stateMachine = gameState;
+
+        if (isActiveAndEnabled)
+            SubscribeToRegistry();
+
+        RefreshBinding();
+    }
+
     private void OnEnable()
     {
-        NetworkChatSession.SessionSpawned += Bind;
-        NetworkChatSession.SessionDespawned += Unbind;
-
-        if (NetworkChatSession.Instance != null)
-            Bind(NetworkChatSession.Instance);
+        SubscribeToRegistry();
+        RefreshBinding();
     }
 
     private void OnDisable()
     {
-        NetworkChatSession.SessionSpawned -= Bind;
-        NetworkChatSession.SessionDespawned -= Unbind;
+        UnsubscribeFromRegistry();
+        Unbind();
     }
 
-    private void Bind(NetworkChatSession session)
+    public void Dispose()
     {
-        ResolveReferences();
+        UnsubscribeFromRegistry();
+        Unbind();
+        serviceRegistry = null;
+        stateMachine = null;
+    }
+
+    private void RefreshBinding()
+    {
+        IChatReadService readService = null;
+        IChatCommandService commandService = null;
+
+        if (serviceRegistry != null && !serviceRegistry.IsDisposed)
+        {
+            serviceRegistry.TryResolve(out readService);
+            serviceRegistry.TryResolve(out commandService);
+        }
 
         if (chatWindow != null)
-            chatWindow.Construct(session, stateMachine);
+            chatWindow.Construct(readService, commandService, stateMachine);
 
         if (notificationController != null)
-            notificationController.Construct(session, chatWindow);
+            notificationController.Construct(readService, chatWindow);
     }
 
     private void Unbind()
@@ -43,7 +72,7 @@ public class ChatSessionBinder : MonoBehaviour
         ResolveReferences();
 
         if (chatWindow != null)
-            chatWindow.Construct(null, stateMachine);
+            chatWindow.Construct(null, null, stateMachine);
 
         if (notificationController != null)
             notificationController.Construct(null, chatWindow);
@@ -56,11 +85,25 @@ public class ChatSessionBinder : MonoBehaviour
 
         if (notificationController == null)
             notificationController = GetComponentInChildren<ChatNotificationController>(true);
+    }
 
-        if (stateMachine == null)
-            stateMachine = GetComponent<GameStateMachine>();
+    private void SubscribeToRegistry()
+    {
+        if (registrySubscribed || serviceRegistry == null || serviceRegistry.IsDisposed)
+            return;
 
-        if (stateMachine == null)
-            stateMachine = FindFirstObjectByType<GameStateMachine>();
+        serviceRegistry.ServicesChanged += RefreshBinding;
+        registrySubscribed = true;
+    }
+
+    private void UnsubscribeFromRegistry()
+    {
+        if (!registrySubscribed)
+            return;
+
+        if (serviceRegistry != null)
+            serviceRegistry.ServicesChanged -= RefreshBinding;
+
+        registrySubscribed = false;
     }
 }

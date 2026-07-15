@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -206,6 +207,34 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
                shutdownCoordinator.TryGetSessionServiceScope(out scope);
     }
 
+    internal bool TryGetSessionServiceRegistry(out ISessionServiceRegistry registry)
+    {
+        registry = null;
+        return shutdownCoordinator != null &&
+               shutdownCoordinator.TryGetSessionServiceRegistry(out registry);
+    }
+
+    internal bool TryRegisterSessionServices(
+        Action<ISessionServiceRegistrar> registerServices,
+        out SessionServiceRegistration registrations,
+        out Exception failure)
+    {
+        registrations = null;
+
+        if (shutdownCoordinator != null)
+        {
+            return shutdownCoordinator.TryRegisterSessionServices(
+                registerServices,
+                out registrations,
+                out failure);
+        }
+
+        failure = new InvalidOperationException(
+            $"{nameof(NetworkSessionShutdownCoordinator)} is not configured.");
+
+        return false;
+    }
+
     internal void DisposeSessionScopeController()
     {
         shutdownCoordinator?.DisposeSessionScopeController();
@@ -354,7 +383,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         return valid;
     }
 
-    private bool ValidateRequiredReference(Object reference, string fieldName)
+    private bool ValidateRequiredReference(UnityEngine.Object reference, string fieldName)
     {
         if (reference != null)
             return true;

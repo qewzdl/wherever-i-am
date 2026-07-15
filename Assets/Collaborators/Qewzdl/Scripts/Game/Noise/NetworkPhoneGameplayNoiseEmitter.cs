@@ -21,6 +21,8 @@ public sealed class NetworkPhoneGameplayNoiseEmitter : NetworkBehaviour
     private readonly HashSet<uint> processedNotificationIds = new();
     private readonly Queue<uint> processedNotificationOrder = new();
 
+    private ISessionServiceRegistry serviceRegistry;
+    private IChatReadService chatReadService;
     private bool isPhoneOpen;
     private bool invalidConfigurationLogged;
 
@@ -29,6 +31,7 @@ public sealed class NetworkPhoneGameplayNoiseEmitter : NetworkBehaviour
         if (IsServer)
         {
             ResetServerState();
+            BindSessionServices();
             ValidateDependencies();
         }
 
@@ -41,12 +44,14 @@ public sealed class NetworkPhoneGameplayNoiseEmitter : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         Unsubscribe();
+        UnbindSessionServices();
         ResetServerState();
     }
 
     public override void OnDestroy()
     {
         Unsubscribe();
+        UnbindSessionServices();
         base.OnDestroy();
     }
 
@@ -159,12 +164,9 @@ public sealed class NetworkPhoneGameplayNoiseEmitter : NetworkBehaviour
 
     private bool TryValidateNotificationMessage(uint messageId)
     {
-        NetworkChatSession chatSession = NetworkChatSession.Instance;
-
-        if (chatSession == null ||
-            !chatSession.IsSpawned ||
-            chatSession.CurrentChannel != ChatChannel.Game ||
-            !chatSession.TryGetMessage(messageId, out ChatMessageData message))
+        if (chatReadService == null ||
+            chatReadService.CurrentChannel != ChatChannel.Game ||
+            !chatReadService.TryGetMessage(messageId, out ChatMessageData message))
         {
             return false;
         }
@@ -191,6 +193,44 @@ public sealed class NetworkPhoneGameplayNoiseEmitter : NetworkBehaviour
             : chatUiProfile.IncomingWhenClosedSfx;
 
         return configuredSound != null;
+    }
+
+    private void BindSessionServices()
+    {
+        UnbindSessionServices();
+
+        if (NetworkManager == null)
+            return;
+
+        NetworkSessionOrchestrator orchestrator =
+            NetworkManager.GetComponent<NetworkSessionOrchestrator>();
+
+        if (orchestrator == null ||
+            !orchestrator.TryGetSessionServiceRegistry(out serviceRegistry))
+        {
+            serviceRegistry = null;
+            return;
+        }
+
+        serviceRegistry.ServicesChanged += RefreshChatService;
+        RefreshChatService();
+    }
+
+    private void UnbindSessionServices()
+    {
+        if (serviceRegistry != null)
+            serviceRegistry.ServicesChanged -= RefreshChatService;
+
+        serviceRegistry = null;
+        chatReadService = null;
+    }
+
+    private void RefreshChatService()
+    {
+        chatReadService = null;
+
+        if (serviceRegistry != null && !serviceRegistry.IsDisposed)
+            serviceRegistry.TryResolve(out chatReadService);
     }
 
     private void ApplyPhoneStateAndTryEmitInteractionServer(bool shouldOpen)

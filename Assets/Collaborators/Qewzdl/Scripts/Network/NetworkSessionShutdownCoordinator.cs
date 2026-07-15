@@ -114,6 +114,34 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
                sessionScopeController.TryGetScope(out scope);
     }
 
+    internal bool TryGetSessionServiceRegistry(out ISessionServiceRegistry registry)
+    {
+        registry = null;
+        return sessionScopeController != null &&
+               sessionScopeController.TryGetRegistry(out registry);
+    }
+
+    internal bool TryRegisterSessionServices(
+        Action<ISessionServiceRegistrar> registerServices,
+        out SessionServiceRegistration registrations,
+        out Exception failure)
+    {
+        registrations = null;
+
+        if (sessionScopeController != null)
+        {
+            return sessionScopeController.TryRegisterServices(
+                registerServices,
+                out registrations,
+                out failure);
+        }
+
+        failure = new InvalidOperationException(
+            "Session scope controller is not configured.");
+
+        return false;
+    }
+
     internal void DisposeSessionScopeController()
     {
         SessionScopeController controller = sessionScopeController;

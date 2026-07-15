@@ -6,11 +6,6 @@ using UnityEngine;
 
 public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatCommandService
 {
-    public static NetworkChatSession Instance { get; private set; }
-
-    public static event Action<NetworkChatSession> SessionSpawned;
-    public static event Action SessionDespawned;
-
     [Header("References")]
     [SerializeField] private GameStateMachine stateMachine;
 
@@ -43,9 +38,9 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     );
 
     private NetworkList<ChatMessageData> messages;
+    private SessionServiceRegistration serviceRegistrations;
     private bool isSubscribedToMessages;
     private bool isSubscribedToStateMachine;
-    private bool isSubscribedToEventChannel;
     private bool isSubscribedToConnectionCallbacks;
     private uint nextMessageId = 1;
 
@@ -75,55 +70,53 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
             NetworkVariableWritePermission.Server
         );
 
-        ResolveReferences();
     }
 
     public override void OnNetworkSpawn()
     {
         DontDestroyOnLoad(gameObject);
 
-        Instance = this;
-
         if (IsServer)
         {
-            ResolveReferences();
+            if (stateMachine == null)
+            {
+                Debug.LogError(
+                    $"{nameof(NetworkChatSession)} server instance was not constructed with " +
+                    $"{nameof(GameStateMachine)}.",
+                    this);
+            }
+
             RefreshAvailabilityFromState();
             SubscribeToStateMachine();
             SubscribeToConnectionCallbacks();
         }
 
         SubscribeToMessages();
-        SubscribeToEventChannel();
 
         currentChannel.OnValueChanged += HandleCurrentChannelChanged;
         isChatAvailable.OnValueChanged += HandleAvailabilityChanged;
 
-        SessionSpawned?.Invoke(this);
+        RegisterSessionServices();
         AvailabilityChanged?.Invoke();
         MessagesChanged?.Invoke();
     }
 
     public override void OnNetworkDespawn()
     {
-        UnsubscribeFromEventChannel();
+        UnregisterSessionServices();
         UnsubscribeFromMessages();
         UnsubscribeFromStateMachine();
         UnsubscribeFromConnectionCallbacks();
 
         lastMessageTimeByClient.Clear();
 
-        if (Instance == this)
-            Instance = null;
-
         currentChannel.OnValueChanged -= HandleCurrentChannelChanged;
         isChatAvailable.OnValueChanged -= HandleAvailabilityChanged;
-
-        SessionDespawned?.Invoke();
     }
 
     public override void OnDestroy()
     {
-        UnsubscribeFromEventChannel();
+        UnregisterSessionServices();
         UnsubscribeFromMessages();
         UnsubscribeFromStateMachine();
         UnsubscribeFromConnectionCallbacks();
@@ -137,9 +130,6 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     {
         if (!IsServer)
             return;
-
-        if (stateMachine == null)
-            ResolveReferences();
 
         if (stateMachine == null)
         {
@@ -219,6 +209,13 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         }
 
         return false;
+    }
+
+    public bool IsLocalClient(ulong clientId)
+    {
+        return NetworkManager != null &&
+               NetworkManager.IsListening &&
+               NetworkManager.LocalClientId == clientId;
     }
 
     public void SubmitMessage(string text)
@@ -363,9 +360,6 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         channel = ChatChannel.Lobby;
 
         if (stateMachine == null)
-            ResolveReferences();
-
-        if (stateMachine == null)
             return false;
 
         switch (stateMachine.CurrentState)
@@ -454,12 +448,6 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         messageCooldownSeconds = config.MessageCooldownSeconds;
     }
 
-    private void ResolveReferences()
-    {
-        if (stateMachine == null)
-            stateMachine = FindFirstObjectByType<GameStateMachine>();
-    }
-
     private void SubscribeToMessages()
     {
         if (isSubscribedToMessages || messages == null)
@@ -482,9 +470,6 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
     {
         if (isSubscribedToStateMachine)
             return;
-
-        if (stateMachine == null)
-            ResolveReferences();
 
         if (stateMachine == null)
             return;
@@ -626,31 +611,69 @@ public class NetworkChatSession : NetworkBehaviour, IChatReadService, IChatComma
         MessagesChanged?.Invoke();
     }
 
-    private void SubscribeToEventChannel()
+    private void RegisterSessionServices()
     {
-        if (isSubscribedToEventChannel)
+        if (serviceRegistrations != null)
             return;
 
-        if (!IsClient)
-            return;
-
-        if (chatEvents == null)
+        if (NetworkManager == null)
         {
-            Debug.LogError($"{nameof(NetworkChatSession)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            Debug.LogError(
+                $"{nameof(NetworkChatSession)} cannot register without an active {nameof(NetworkManager)}.",
+                this);
+
             return;
         }
 
-        chatEvents.SendRequested += HandleSendRequested;
-        isSubscribedToEventChannel = true;
+        NetworkSessionOrchestrator orchestrator =
+            NetworkManager.GetComponent<NetworkSessionOrchestrator>();
+
+        if (orchestrator == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkChatSession)} requires {nameof(NetworkSessionOrchestrator)} " +
+                $"on the {nameof(NetworkManager)} object.",
+                this);
+
+            return;
+        }
+
+        if (orchestrator.TryRegisterSessionServices(
+                registrar =>
+                {
+                    registrar.Register<IChatReadService>(this);
+                    registrar.Register<IChatCommandService>(this);
+                },
+                out serviceRegistrations,
+                out Exception failure))
+        {
+            return;
+        }
+
+        Debug.LogError(
+            $"{nameof(NetworkChatSession)} failed to register chat contracts in the Session scope.",
+            this);
+
+        if (failure != null)
+            Debug.LogException(failure, this);
     }
 
-    private void UnsubscribeFromEventChannel()
+    private void UnregisterSessionServices()
     {
-        if (!isSubscribedToEventChannel || chatEvents == null)
+        SessionServiceRegistration registrations = serviceRegistrations;
+        serviceRegistrations = null;
+
+        if (registrations == null)
             return;
 
-        chatEvents.SendRequested -= HandleSendRequested;
-        isSubscribedToEventChannel = false;
+        try
+        {
+            registrations.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
     }
 
     private void RaiseMessageReceived(ChatMessageData message)

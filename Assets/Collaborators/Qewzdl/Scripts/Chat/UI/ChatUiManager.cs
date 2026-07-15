@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ChatUiManager : MonoBehaviour
+public class ChatUiManager : SceneRuntimeFeature
 {
     [Header("UI Mode")]
     [SerializeField] private ChatUiMode mode = ChatUiMode.LobbyWindow;
@@ -18,35 +18,73 @@ public class ChatUiManager : MonoBehaviour
     [SerializeField] private PhoneChatView phoneChatPrefab;
 
     private GameObject spawnedUi;
+    private ISessionServiceRegistry serviceRegistry;
+    private IGameStateService stateMachine;
 
-    private void Awake()
+    protected override bool ValidateFeature(SceneFeatureContext context)
     {
-        SpawnChatUi();
-    }
+        bool valid = true;
+        valid &= RequireReference(profile, nameof(profile));
+        valid &= RequireReference(uiRoot, nameof(uiRoot));
+        valid &= RequireService<ISessionServiceRegistry>(context, out _);
+        valid &= RequireService<IGameStateService>(context, out _);
 
-    private void OnDestroy()
-    {
-        if (spawnedUi == null)
+        switch (mode)
         {
-            return;
+            case ChatUiMode.LobbyWindow:
+                valid &= RequireReference(lobbyChatPrefab, nameof(lobbyChatPrefab));
+                break;
+
+            case ChatUiMode.PhoneWindow:
+                valid &= RequireReference(phoneChatPrefab, nameof(phoneChatPrefab));
+                break;
+
+            default:
+                Debug.LogError($"Unsupported chat UI mode '{mode}'.", this);
+                valid = false;
+                break;
         }
 
-        Destroy(spawnedUi);
-        spawnedUi = null;
+        if (profile != null && profile.ChatEvents == null)
+        {
+            Debug.LogError(
+                $"{nameof(ChatUiManager)} requires a {nameof(ChatUiProfile)} with an assigned " +
+                $"{nameof(ChatEventChannel)}.",
+                this);
+
+            valid = false;
+        }
+
+        return valid;
     }
 
-    private void SpawnChatUi()
+    protected override bool InstallFeature(SceneFeatureContext context)
+    {
+        serviceRegistry = context.Services.Resolve<ISessionServiceRegistry>();
+        stateMachine = context.Services.Resolve<IGameStateService>();
+
+        return SpawnChatUi() && BindSpawnedUi();
+    }
+
+    protected override void UninstallFeature(SceneFeatureContext context)
+    {
+        DestroySpawnedUi();
+        serviceRegistry = null;
+        stateMachine = null;
+    }
+
+    private bool SpawnChatUi()
     {
         if (profile == null)
         {
             Debug.LogError($"{nameof(ChatUiManager)} requires an assigned {nameof(ChatUiProfile)}.", this);
-            return;
+            return false;
         }
 
         if (uiRoot == null)
         {
             Debug.LogError($"{nameof(ChatUiManager)}: UI Root is not assigned.", this);
-            return;
+            return false;
         }
 
         ChatEventChannel activeChatEvents = profile.ChatEvents;
@@ -54,27 +92,29 @@ public class ChatUiManager : MonoBehaviour
         if (activeChatEvents == null)
         {
             Debug.LogError($"{nameof(ChatUiManager)} requires a {nameof(ChatUiProfile)} with an assigned {nameof(ChatEventChannel)}.", this);
-            return;
+            return false;
         }
 
         switch (mode)
         {
             case ChatUiMode.LobbyWindow:
-                SpawnLobbyChat(activeChatEvents);
-                break;
+                return SpawnLobbyChat(activeChatEvents);
 
             case ChatUiMode.PhoneWindow:
-                SpawnPhoneChat(activeChatEvents);
-                break;
+                return SpawnPhoneChat(activeChatEvents);
+
+            default:
+                Debug.LogError($"Unsupported chat UI mode '{mode}'.", this);
+                return false;
         }
     }
 
-    private void SpawnLobbyChat(ChatEventChannel activeChatEvents)
+    private bool SpawnLobbyChat(ChatEventChannel activeChatEvents)
     {
         if (lobbyChatPrefab == null)
         {
             Debug.LogError($"{nameof(ChatUiManager)}: Lobby Chat Prefab is not assigned.", this);
-            return;
+            return false;
         }
 
         spawnedUi = Instantiate(lobbyChatPrefab, uiRoot);
@@ -82,14 +122,15 @@ public class ChatUiManager : MonoBehaviour
         ApplyChatInputSfx(spawnedUi, profile.LobbyInputSfx);
         ChatTypographyApplier.Apply(spawnedUi, profile.LobbyTypography);
         ApplyLobbyMessageNotificationSfx(spawnedUi, activeChatEvents);
+        return true;
     }
 
-    private void SpawnPhoneChat(ChatEventChannel activeChatEvents)
+    private bool SpawnPhoneChat(ChatEventChannel activeChatEvents)
     {
         if (phoneChatPrefab == null)
         {
             Debug.LogError($"{nameof(ChatUiManager)}: Phone Chat Prefab is not assigned.", this);
-            return;
+            return false;
         }
 
         PhoneChatView phoneView = Instantiate(phoneChatPrefab, uiRoot);
@@ -110,6 +151,46 @@ public class ChatUiManager : MonoBehaviour
             profile.PhoneTypography,
             profile.PhoneAnimation
         );
+
+        return true;
+    }
+
+    private bool BindSpawnedUi()
+    {
+        if (spawnedUi == null || serviceRegistry == null || stateMachine == null)
+            return false;
+
+        ChatSessionBinder[] binders =
+            spawnedUi.GetComponentsInChildren<ChatSessionBinder>(true);
+
+        if (binders.Length == 0)
+        {
+            Debug.LogError(
+                $"Spawned chat UI requires at least one {nameof(ChatSessionBinder)}.",
+                this);
+
+            return false;
+        }
+
+        for (int i = 0; i < binders.Length; i++)
+            binders[i]?.Construct(serviceRegistry, stateMachine);
+
+        return true;
+    }
+
+    private void DestroySpawnedUi()
+    {
+        if (spawnedUi == null)
+            return;
+
+        ChatSessionBinder[] binders =
+            spawnedUi.GetComponentsInChildren<ChatSessionBinder>(true);
+
+        for (int i = binders.Length - 1; i >= 0; i--)
+            binders[i]?.Dispose();
+
+        Destroy(spawnedUi);
+        spawnedUi = null;
     }
 
     private void ApplyChatInputSfx(GameObject root, SoundEffect inputSfx)

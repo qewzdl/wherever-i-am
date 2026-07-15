@@ -36,7 +36,8 @@ Global (ProjectContext: Ready -> Dispose)
 | Global, read-only | `IGameMapCatalog` | `GameMapCatalog` | bootstrap Compose | unregister при global Dispose; asset остаётся Unity-owned | одинаковая конфигурация должна быть доступна server и clients |
 | Session | `IGameMapSessionService` | `GameMapService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | map selection/load подтверждает server; clients читают результат |
 | Session | `IGameplayNoiseService` | `GameplayNoiseWorldService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | запись и поиск noise events разрешены только server |
-| Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | после `OnNetworkSpawn` | на `OnNetworkDespawn`, до закрытия session | client отправляет command, server валидирует и реплицирует сообщения |
+| Session | `ISessionServiceRegistry` | `SessionServiceRegistry` | synchronous Session transaction | вместе с Session scope | read/subscription API для динамических Session contracts; mutable scope не публикуется |
+| Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | atomic batch на `OnNetworkSpawn` | registration handles на `OnNetworkDespawn`, до закрытия session | client вызывает command contract, server валидирует и реплицирует сообщения |
 | Scene: Lobby | `ILobbyReadService`, `ILobbyCommandService` | `NetworkLobbyService` | scene transaction commit после install Lobby feature | reverse uninstall Lobby scope | client отправляет intent, server владеет lobby state и start decision |
 | Scene: Game shell | `IPauseService` | `GamePauseService` | scene transaction commit после install `PauseSceneFeature` | reverse uninstall Game scope | local-only pause UI; не останавливает server simulation |
 
@@ -108,3 +109,11 @@ Global (ProjectContext: Ready -> Dispose)
 - Unload и install rollback сначала вызывают feature uninstall в обратном порядке, пока resolver ещё активен, и только затем закрывают scene `ServiceScope`.
 - Ошибка install сначала выполняет reverse feature uninstall, затем rollback registration transaction и Dispose scene scope.
 - После остановки NGO coordinator сначала удаляет все Session-owned scene scopes, затем закрывает Session scope, отправляет `SessionStopped` и загружает MainMenu.
+
+## Динамические Session services
+
+- `ISessionServiceRegistry` публикуется внутри Session scope и предоставляет только resolve плюс `ServicesChanged`.
+- Session-owned `NetworkObject` регистрирует interface contracts атомарным batch через внутренний registrar; `ServiceScope` наружу не передаётся.
+- Успешный batch публикует одно изменение после commit. Ошибка, включая duplicate contract, откатывает весь batch без уведомления consumers.
+- `NetworkChatSession` хранит одну группу handles для `IChatReadService` и `IChatCommandService` и освобождает её в начале `OnNetworkDespawn`.
+- Scene UI получает registry через parent lookup своего scene scope. Gameplay `NetworkBehaviour` получает его через `NetworkSessionOrchestrator`, находящийся на том же объекте, что и его `NetworkManager`.

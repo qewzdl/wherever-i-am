@@ -1,5 +1,4 @@
 using System;
-using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -31,24 +30,18 @@ public class ChatNotificationController : MonoBehaviour
         if (chatWindow != null)
             this.chatWindow = chatWindow;
 
-        Subscribe();
+        if (isActiveAndEnabled)
+            Subscribe();
         ClearUnreadCount();
     }
 
     private void OnEnable()
     {
-        NetworkChatSession.SessionSpawned += HandleSessionSpawned;
-        NetworkChatSession.SessionDespawned += HandleSessionDespawned;
-
-        if (NetworkChatSession.Instance != null)
-            Construct(NetworkChatSession.Instance, chatWindow);
+        Subscribe();
     }
 
     private void OnDisable()
     {
-        NetworkChatSession.SessionSpawned -= HandleSessionSpawned;
-        NetworkChatSession.SessionDespawned -= HandleSessionDespawned;
-
         Unsubscribe();
     }
 
@@ -68,16 +61,6 @@ public class ChatNotificationController : MonoBehaviour
 
         if (chatWindow != null)
             chatWindow.Opened -= HandleChatOpened;
-    }
-
-    private void HandleSessionSpawned(NetworkChatSession session)
-    {
-        Construct(session, chatWindow);
-    }
-
-    private void HandleSessionDespawned()
-    {
-        Construct(null, chatWindow);
     }
 
     private void HandleMessageAdded(ChatMessageData message)
@@ -106,10 +89,10 @@ public class ChatNotificationController : MonoBehaviour
         if (message.Channel == ChatChannel.System)
             return false;
 
-        if (NetworkManager.Singleton == null)
+        if (readService == null)
             return false;
 
-        return message.SenderClientId == NetworkManager.Singleton.LocalClientId;
+        return readService.IsLocalClient(message.SenderClientId);
     }
 
     private void HandleChatOpened()

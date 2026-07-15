@@ -11,4 +11,6 @@ public interface IChatReadService
     int MessageCount { get; }
 
     ChatMessageData GetMessage(int index);
+    bool TryGetMessage(uint messageId, out ChatMessageData message);
+    bool IsLocalClient(ulong clientId);
 }

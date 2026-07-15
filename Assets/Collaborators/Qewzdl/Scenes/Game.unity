@@ -326,6 +326,7 @@ MonoBehaviour:
   installOnAwake: 1
   features:
   - {fileID: 212283892}
+  - {fileID: 805603765285911296}
 --- !u!114 &212283892
 MonoBehaviour:
   m_ObjectHideFlags: 0

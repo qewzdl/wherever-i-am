@@ -8,7 +8,19 @@ public sealed class SessionScopeControllerTests
     {
     }
 
+    private interface IDynamicReadService
+    {
+    }
+
+    private interface IDynamicCommandService
+    {
+    }
+
     private sealed class GlobalMarker : IGlobalMarker
+    {
+    }
+
+    private sealed class DynamicService : IDynamicReadService, IDynamicCommandService
     {
     }
 
@@ -100,8 +112,82 @@ public sealed class SessionScopeControllerTests
         Assert.That(controller.IsOpen, Is.True);
         Assert.That(controller.Services.Resolve<IGameMapSessionService>(), Is.SameAs(maps));
         Assert.That(controller.Services.Resolve<IGameplayNoiseService>(), Is.SameAs(gameplayNoise));
+        Assert.That(controller.Services.Resolve<ISessionServiceRegistry>(), Is.SameAs(controller.Services));
         Assert.That(controller.Services.Resolve<IGlobalMarker>(), Is.SameAs(marker));
         Assert.That(globalScope.ChildScopeCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void DynamicRegistration_CommitsBatchAndUnregistersHandlesInOneChange()
+    {
+        using ServiceScope globalScope = new("Global");
+        using SessionScopeController controller = CreateController(globalScope);
+        Assert.That(controller.TryOpen(out _), Is.True);
+        Assert.That(controller.TryGetRegistry(out ISessionServiceRegistry registry), Is.True);
+        DynamicService service = new();
+        int changeCount = 0;
+        registry.ServicesChanged += () => changeCount++;
+
+        Assert.That(
+            controller.TryRegisterServices(
+                registrar =>
+                {
+                    registrar.Register<IDynamicReadService>(service);
+                    registrar.Register<IDynamicCommandService>(service);
+                },
+                out SessionServiceRegistration registrations,
+                out Exception failure),
+            Is.True);
+
+        Assert.That(failure, Is.Null);
+        Assert.That(changeCount, Is.EqualTo(1));
+        Assert.That(registry.Resolve<IDynamicReadService>(), Is.SameAs(service));
+        Assert.That(registry.Resolve<IDynamicCommandService>(), Is.SameAs(service));
+
+        registrations.Dispose();
+
+        Assert.That(changeCount, Is.EqualTo(2));
+        Assert.That(registry.TryResolve(out IDynamicReadService _), Is.False);
+        Assert.That(registry.TryResolve(out IDynamicCommandService _), Is.False);
+    }
+
+    [Test]
+    public void DynamicRegistration_RollsBackWholeBatchOnDuplicateContract()
+    {
+        using ServiceScope globalScope = new("Global");
+        using SessionScopeController controller = CreateController(globalScope);
+        Assert.That(controller.TryOpen(out _), Is.True);
+        Assert.That(controller.TryGetRegistry(out ISessionServiceRegistry registry), Is.True);
+        DynamicService original = new();
+        DynamicService duplicate = new();
+        Assert.That(
+            controller.TryRegisterServices(
+                registrar => registrar.Register<IDynamicReadService>(original),
+                out SessionServiceRegistration originalRegistration,
+                out _),
+            Is.True);
+
+        int changeCount = 0;
+        registry.ServicesChanged += () => changeCount++;
+
+        Assert.That(
+            controller.TryRegisterServices(
+                registrar =>
+                {
+                    registrar.Register<IDynamicCommandService>(duplicate);
+                    registrar.Register<IDynamicReadService>(duplicate);
+                },
+                out SessionServiceRegistration failedRegistrations,
+                out Exception failure),
+            Is.False);
+
+        Assert.That(failedRegistrations, Is.Null);
+        Assert.That(failure, Is.TypeOf<InvalidOperationException>());
+        Assert.That(changeCount, Is.Zero);
+        Assert.That(registry.Resolve<IDynamicReadService>(), Is.SameAs(original));
+        Assert.That(registry.TryResolve(out IDynamicCommandService _), Is.False);
+
+        originalRegistration.Dispose();
     }
 
     [Test]

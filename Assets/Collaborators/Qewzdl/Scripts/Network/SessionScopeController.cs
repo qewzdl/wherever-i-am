@@ -8,6 +8,7 @@ internal sealed class SessionScopeController : IDisposable
     private readonly IGameplayNoiseService gameplayNoiseService;
 
     private ServiceScope sessionScope;
+    private SessionServiceRegistry sessionRegistry;
     private bool disposed;
 
     internal SessionScopeController(
@@ -24,7 +25,7 @@ internal sealed class SessionScopeController : IDisposable
                           sessionScope != null &&
                           !sessionScope.IsDisposed;
 
-    public IServiceResolver Services => IsOpen ? sessionScope : null;
+    public IServiceResolver Services => IsOpen ? sessionRegistry : null;
 
     internal bool TryGetScope(out ServiceScope scope)
     {
@@ -49,17 +50,23 @@ internal sealed class SessionScopeController : IDisposable
         }
 
         ServiceScope candidateScope = null;
+        SessionServiceRegistry candidateRegistry = null;
         ServiceRegistrationTransaction transaction = null;
 
         try
         {
             candidateScope = globalScope.CreateChild("Session");
+            candidateRegistry = new SessionServiceRegistry(candidateScope);
             transaction = candidateScope.BeginRegistrationTransaction();
+            candidateScope.Register<ISessionServiceRegistry>(
+                candidateRegistry,
+                ServiceRegistrationOwnership.ScopeOwned);
             candidateScope.Register<IGameMapSessionService>(gameMapService);
             candidateScope.Register<IGameplayNoiseService>(gameplayNoiseService);
             transaction.Commit();
 
             sessionScope = candidateScope;
+            sessionRegistry = candidateRegistry;
             return true;
         }
         catch (Exception exception)
@@ -84,12 +91,40 @@ internal sealed class SessionScopeController : IDisposable
     {
         ServiceScope scope = sessionScope;
         sessionScope = null;
+        sessionRegistry = null;
 
         if (scope == null)
             return false;
 
         scope.Dispose();
         return true;
+    }
+
+    internal bool TryGetRegistry(out ISessionServiceRegistry registry)
+    {
+        registry = IsOpen ? sessionRegistry : null;
+        return registry != null;
+    }
+
+    internal bool TryRegisterServices(
+        Action<ISessionServiceRegistrar> registerServices,
+        out SessionServiceRegistration registrations,
+        out Exception failure)
+    {
+        registrations = null;
+
+        if (!IsOpen || sessionRegistry == null)
+        {
+            failure = new InvalidOperationException(
+                "Cannot register services without an open Session scope.");
+
+            return false;
+        }
+
+        return sessionRegistry.TryRegister(
+            registerServices,
+            out registrations,
+            out failure);
     }
 
     public void Dispose()

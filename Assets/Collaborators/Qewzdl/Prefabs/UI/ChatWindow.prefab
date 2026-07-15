@@ -441,10 +441,9 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f67cd711a6e0bec47a24365d92aaf47c, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   chatWindow: {fileID: 1008245277231494500}
   notificationController: {fileID: 0}
-  stateMachine: {fileID: 0}
 --- !u!114 &7791295721881215728
 MonoBehaviour:
   m_ObjectHideFlags: 0

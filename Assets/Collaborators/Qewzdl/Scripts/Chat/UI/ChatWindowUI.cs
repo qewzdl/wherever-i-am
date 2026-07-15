@@ -29,7 +29,8 @@ public class ChatWindowUI : MonoBehaviour
     [SerializeField] private bool releaseFocusAfterSubmit = true;
 
     private IChatReadService readService;
-    private GameStateMachine stateMachine;
+    private IChatCommandService commandService;
+    private IGameStateService stateMachine;
 
     private bool isOpen;
     private bool isInputFocused;
@@ -80,11 +81,13 @@ public class ChatWindowUI : MonoBehaviour
 
     public void Construct(
         IChatReadService readService,
-        GameStateMachine stateMachine)
+        IChatCommandService commandService,
+        IGameStateService stateMachine)
     {
         UnsubscribeFromServices();
 
         this.readService = readService;
+        this.commandService = commandService;
         this.stateMachine = stateMachine;
 
         ResolveReferences();
@@ -330,7 +333,7 @@ public class ChatWindowUI : MonoBehaviour
             return;
         }
 
-        if (!SubmitSendRequest(text))
+        if (!SubmitMessage(text))
         {
             RefocusInputAfterRejectedSubmit();
             return;
@@ -351,20 +354,16 @@ public class ChatWindowUI : MonoBehaviour
             FocusInput();
     }
 
-    private bool SubmitSendRequest(string text)
+    private bool SubmitMessage(string text)
     {
-        ChatSendRequest request = new ChatSendRequest(
-            text,
-            readService != null ? readService.CurrentChannel.ToString() : string.Empty
-        );
-
-        if (chatEvents == null)
+        if (commandService == null)
         {
-            Debug.LogError($"{nameof(ChatWindowUI)} requires an assigned {nameof(ChatEventChannel)}.", this);
+            RaiseSendRejected(text, "Chat session is not ready.");
             return false;
         }
 
-        return chatEvents.RaiseSendRequested(request);
+        commandService.SubmitMessage(text);
+        return true;
     }
 
     private void RaiseSendRejected(string text, string reason)

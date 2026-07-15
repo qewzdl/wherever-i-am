@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -93,6 +94,34 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         scope = null;
         return sessionFlowService != null &&
                sessionFlowService.TryGetSessionServiceScope(out scope);
+    }
+
+    internal bool TryGetSessionServiceRegistry(out ISessionServiceRegistry registry)
+    {
+        registry = null;
+        return sessionFlowService != null &&
+               sessionFlowService.TryGetSessionServiceRegistry(out registry);
+    }
+
+    internal bool TryRegisterSessionServices(
+        Action<ISessionServiceRegistrar> registerServices,
+        out SessionServiceRegistration registrations,
+        out Exception failure)
+    {
+        registrations = null;
+
+        if (sessionFlowService != null)
+        {
+            return sessionFlowService.TryRegisterSessionServices(
+                registerServices,
+                out registrations,
+                out failure);
+        }
+
+        failure = new InvalidOperationException(
+            $"{nameof(NetworkSessionFlowService)} is not configured.");
+
+        return false;
     }
 
     internal void DisposeSessionScopeController()
