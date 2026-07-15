@@ -143,6 +143,16 @@ Global (ProjectContext: Ready -> Dispose)
 - Ошибка install сначала выполняет reverse feature uninstall, затем rollback registration transaction и Dispose scene scope.
 - После остановки NGO coordinator сначала удаляет все Session-owned scene scopes, затем закрывает Session scope, отправляет `SessionStopped` и загружает MainMenu.
 
+## Post-load commit
+
+- Сетевой переход сцены завершается в порядке: validate handlers → execute server actions → validate dynamic Session contracts → commit `GameState` → `SceneLoadCompleted`.
+- `IProjectSceneFlowServerActionHandler` возвращает `ProjectSceneActionResult`; успешное действие может передать rollback callback для созданных им NGO objects.
+- Ошибка следующего action или dynamic contract validation выполняет rollback уже завершённых actions в обратном порядке, переводит игру в `GameState.Error` и отправляет `SceneLoadFailed` в coordinated session shutdown.
+- Lobby считается готовым только при наличии `IChatReadService` и `IChatCommandService`. Game дополнительно требует `IMatchCompletionService`.
+- `SpawnPlayers` подтверждает не только NGO spawn каждого player object, но и создание соответствующего Player scope по `NetworkObjectId`.
+- `AppRuntime` не применяет scene state, пока `IProjectSceneFlowService` держит активную operation; состояние меняется только общим post-load commit.
+- `NetworkGameFlowSceneStarter` не переводит матч в Playing до commit `GameState.InGame`, поэтому server simulation не стартует между map readiness и player action completion.
+
 ## Динамические Session services
 
 - `ISessionServiceRegistry` публикуется внутри Session scope и предоставляет только resolve плюс `ServicesChanged`.

@@ -245,8 +245,16 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
             CompletePendingSceneActivation(sceneKind, true);
         }
 
-        ApplyStateForScene(sceneKind);
+        if (!ShouldDeferSceneStateCommit())
+            ApplyStateForScene(sceneKind);
+
         return true;
+    }
+
+    private bool ShouldDeferSceneStateCommit()
+    {
+        IProjectSceneFlowService sceneFlowService = context?.SceneFlowService;
+        return sceneFlowService != null && sceneFlowService.HasPendingOperation;
     }
 
     private void ApplyStateForScene(ProjectSceneKind sceneKind)

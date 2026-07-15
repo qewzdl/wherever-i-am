@@ -121,8 +121,14 @@ public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowSe
                 out ProjectSceneTransitionDefinition transition))
             return false;
 
-        if (!postLoadActionRunner.Validate(transition.ServerActionsAfterLoad))
+        if (!postLoadActionRunner.Validate(
+                scene.Kind,
+                transition.ServerActionsAfterLoad,
+                out string postLoadValidationError))
+        {
+            Debug.LogError(postLoadValidationError, postLoadActionRunner);
             return false;
+        }
 
         if (!ValidateCompletionGates(scene.Kind))
             return false;
@@ -263,11 +269,58 @@ public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowSe
         ProjectSceneKind loadedScene,
         ProjectSceneServerAction[] serverActionsAfterLoad)
     {
-        if (!EndOperation(operationId))
-            return;
+        ProjectSceneActionBatch actionBatch;
 
-        ApplyTargetState(loadedScene);
-        postLoadActionRunner.Run(loadedScene, serverActionsAfterLoad);
+        try
+        {
+            actionBatch = postLoadActionRunner.Execute(
+                loadedScene,
+                serverActionsAfterLoad);
+        }
+        catch (Exception exception)
+        {
+            FailCompletion(
+                operationId,
+                loadedScene,
+                nameof(ProjectScenePostLoadActionRunner),
+                "Post-load action execution threw an unexpected exception.",
+                exception);
+            return;
+        }
+
+        if (!actionBatch.Succeeded)
+        {
+            RollbackActionBatch(actionBatch);
+            FailCompletion(
+                operationId,
+                loadedScene,
+                nameof(ProjectScenePostLoadActionRunner),
+                actionBatch.Error,
+                actionBatch.Exception);
+            return;
+        }
+
+        if (!projectContext.TryGetScene(
+                loadedScene,
+                out ProjectSceneDefinition scene))
+        {
+            RollbackActionBatch(actionBatch);
+            FailCompletion(
+                operationId,
+                loadedScene,
+                nameof(ProjectContext),
+                $"Scene state is not configured for {loadedScene}.");
+            return;
+        }
+
+        if (!EndOperation(operationId))
+        {
+            RollbackActionBatch(actionBatch);
+            return;
+        }
+
+        actionBatch.Commit();
+        stateMachine.ChangeState(scene.State);
         SceneLoadCompleted?.Invoke(loadedScene);
     }
 
@@ -308,30 +361,47 @@ public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowSe
     private void FailCompletion(
         long operationId,
         ProjectSceneKind sceneKind,
-        string sourceName)
+        string sourceName,
+        string details = null,
+        Exception exception = null)
     {
         if (!EndOperation(operationId))
             return;
 
         networkLoadCompletionTracker.CancelPending();
 
-        Debug.LogError(
-            $"{nameof(ProjectSceneFlowService)} completion source '{sourceName}' failed for scene '{sceneKind}'.",
-            this);
+        string message =
+            $"{nameof(ProjectSceneFlowService)} completion source '{sourceName}' " +
+            $"failed for scene '{sceneKind}'.";
+
+        if (!string.IsNullOrWhiteSpace(details))
+            message += $" {details}";
+
+        Debug.LogError(message, this);
+
+        if (exception != null)
+            Debug.LogException(exception, this);
 
         stateMachine.ChangeState(GameState.Error);
         SceneLoadFailed?.Invoke(sceneKind);
     }
 
-    private void ApplyTargetState(ProjectSceneKind sceneKind)
+    private void RollbackActionBatch(ProjectSceneActionBatch actionBatch)
     {
-        if (!projectContext.TryGetScene(sceneKind, out ProjectSceneDefinition scene))
-        {
-            Debug.LogError($"Scene state is not configured for {sceneKind}.", this);
+        if (actionBatch == null)
             return;
-        }
 
-        stateMachine.ChangeState(scene.State);
+        try
+        {
+            actionBatch.Rollback();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError(
+                "Failed to roll back project scene post-load actions before session shutdown.",
+                this);
+            Debug.LogException(exception, this);
+        }
     }
 
     private void SubscribeToNetworkLoadCompletion()

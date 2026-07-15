@@ -9,16 +9,26 @@ public static class NetworkObjectServiceContext
     {
         service = null;
 
+        return TryGetSessionServices(networkManager, out IServiceResolver services) &&
+               services.TryResolve(out service);
+    }
+
+    internal static bool TryGetSessionServices(
+        NetworkManager networkManager,
+        out IServiceResolver services)
+    {
+        services = null;
+
         if (networkManager == null)
             return false;
 
         NetworkSessionOrchestrator orchestrator =
             networkManager.GetComponent<NetworkSessionOrchestrator>();
 
-        IServiceResolver services = orchestrator != null
+        services = orchestrator != null
             ? orchestrator.SessionServices
             : null;
 
-        return services != null && services.TryResolve(out service);
+        return services != null && !services.IsDisposed;
     }
 }

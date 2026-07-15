@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using Unity.Netcode;
@@ -16,6 +18,66 @@ internal sealed class ShutdownReplicatedPlayerService : IReplicatedPlayerStateSe
 internal sealed class ShutdownLocalPlayerService : ILocalPlayerPresentationService
 {
     public bool IsPresentationActive => true;
+}
+
+internal sealed class FailingPostLoadActionHandler :
+    MonoBehaviour,
+    IProjectSceneFlowServerActionHandler
+{
+    private ProjectSceneServerAction expectedAction;
+    private ProjectSceneKind expectedScene;
+    private IProjectSceneFlowServerActionHandler innerHandler;
+
+    internal int ExecuteCount { get; private set; }
+    internal int RollbackCount { get; private set; }
+
+    internal void Configure(
+        ProjectSceneServerAction action,
+        ProjectSceneKind sceneKind,
+        IProjectSceneFlowServerActionHandler inner = null)
+    {
+        expectedAction = action;
+        expectedScene = sceneKind;
+        innerHandler = inner;
+    }
+
+    public bool CanHandle(ProjectSceneServerAction action)
+    {
+        return action == expectedAction;
+    }
+
+    public ProjectSceneActionResult Validate(
+        ProjectSceneServerAction action,
+        ProjectSceneKind loadedScene)
+    {
+        if (!CanHandle(action) || loadedScene != expectedScene)
+            return ProjectSceneActionResult.Failure("Unexpected test action or scene.");
+
+        return innerHandler != null
+            ? innerHandler.Validate(action, loadedScene)
+            : ProjectSceneActionResult.Success();
+    }
+
+    public ProjectSceneActionResult Execute(
+        ProjectSceneServerAction action,
+        ProjectSceneKind loadedScene)
+    {
+        ExecuteCount++;
+        ProjectSceneActionResult innerResult = innerHandler?.Execute(
+            action,
+            loadedScene);
+
+        if (innerResult != null && !innerResult.Succeeded)
+            return innerResult;
+
+        return ProjectSceneActionResult.Failure(
+            "Injected post-load action failure.",
+            rollback: () =>
+            {
+                RollbackCount++;
+                innerResult?.Rollback();
+            });
+    }
 }
 
 public sealed class NetworkSessionShutdownPlayModeTests
@@ -81,6 +143,8 @@ public sealed class NetworkSessionShutdownPlayModeTests
             runtimeContext.SessionOrchestrator.SessionServices;
         Assert.That(sessionServices, Is.Not.Null);
         Assert.That(sessionServices.IsDisposed, Is.False);
+        Assert.That(sessionServices.Resolve<IChatReadService>(), Is.TypeOf<NetworkChatSession>());
+        Assert.That(sessionServices.Resolve<IChatCommandService>(), Is.TypeOf<NetworkChatSession>());
 
         Assert.That(
             runtimeContext.SessionOrchestrator.TryOpenPlayerScope(
@@ -248,6 +312,169 @@ public sealed class NetworkSessionShutdownPlayModeTests
         Assert.That(sessionStoppedCount, Is.EqualTo(1));
 
         playerRegistration.Dispose();
+    }
+
+    [UnityTest]
+    public IEnumerator PostLoadActionFailure_RollsBackAndShutsDownBeforeLobbyCommit()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        ProjectScenePostLoadActionRunner actionRunner =
+            GetSinglePersistentComponent<ProjectScenePostLoadActionRunner>();
+        NetworkSessionShutdownCoordinator shutdownCoordinator =
+            GetSinglePersistentComponent<NetworkSessionShutdownCoordinator>();
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+        FieldInfo handlersField = typeof(ProjectScenePostLoadActionRunner).GetField(
+            "serverActionHandlers",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.That(handlersField, Is.Not.Null);
+
+        MonoBehaviour[] originalHandlers =
+            (MonoBehaviour[])handlersField.GetValue(actionRunner);
+        FailingPostLoadActionHandler failingHandler =
+            actionRunner.gameObject.AddComponent<FailingPostLoadActionHandler>();
+        failingHandler.Configure(
+            ProjectSceneServerAction.SpawnChatSession,
+            ProjectSceneKind.Lobby);
+        IServiceResolver failedSessionServices = null;
+        bool lobbyGameStateCommitted = false;
+        bool lobbySessionStateCommitted = false;
+
+        runtimeContext.StateMachine.StateChanged += (_, current) =>
+            lobbyGameStateCommitted |= current == GameState.Lobby;
+        sessionStateMachine.StateChanged += (_, current) =>
+            lobbySessionStateCommitted |= current == NetworkSessionState.Lobby;
+        shutdownCoordinator.SessionStarted += () =>
+            failedSessionServices = runtimeContext.SessionOrchestrator.SessionServices;
+
+        handlersField.SetValue(
+            actionRunner,
+            new MonoBehaviour[] { failingHandler });
+
+        LogAssert.Expect(
+            LogType.Error,
+            new Regex(
+                "ProjectSceneFlowService completion source " +
+                "'ProjectScenePostLoadActionRunner' failed for scene 'Lobby'.*" +
+                "Injected post-load action failure"));
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup call did not complete.");
+        yield return WaitForCondition(
+            () => runtimeContext.StateMachine.CurrentState == GameState.MainMenu &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.MainMenu &&
+                  !networkManager.IsListening &&
+                  !shutdownCoordinator.IsShutdownInProgress,
+            "Failed post-load action did not complete coordinated shutdown.");
+
+        handlersField.SetValue(actionRunner, originalHandlers);
+
+        Assert.That(failingHandler.ExecuteCount, Is.EqualTo(1));
+        Assert.That(failingHandler.RollbackCount, Is.EqualTo(1));
+        Assert.That(lobbyGameStateCommitted, Is.False);
+        Assert.That(lobbySessionStateCommitted, Is.False);
+        Assert.That(failedSessionServices, Is.Not.Null);
+        Assert.That(failedSessionServices.IsDisposed, Is.True);
+        Assert.That(networkManager.IsClient, Is.False);
+        Assert.That(networkManager.IsServer, Is.False);
+        Assert.That(G.IsReady, Is.True);
+
+        UnityEngine.Object.Destroy(failingHandler);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator PlayerPostLoadActionFailure_RollsBackScopesAndShutsDownBeforeInGameCommit()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionShutdownCoordinator shutdownCoordinator =
+            GetSinglePersistentComponent<NetworkSessionShutdownCoordinator>();
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+        IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup did not complete.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Lobby &&
+                  !sceneFlow.HasPendingOperation,
+            "Host did not reach Lobby before the player action failure test.");
+
+        IServiceResolver sessionServices =
+            runtimeContext.SessionOrchestrator.SessionServices;
+        IPlayerScopeRegistry playerRegistry =
+            sessionServices.Resolve<IPlayerScopeRegistry>();
+        ProjectScenePostLoadActionRunner actionRunner =
+            GetSinglePersistentComponent<ProjectScenePostLoadActionRunner>();
+        NetworkPlayerSpawner playerSpawner =
+            GetSinglePersistentComponent<NetworkPlayerSpawner>();
+        FieldInfo handlersField = typeof(ProjectScenePostLoadActionRunner).GetField(
+            "serverActionHandlers",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.That(handlersField, Is.Not.Null);
+
+        MonoBehaviour[] originalHandlers =
+            (MonoBehaviour[])handlersField.GetValue(actionRunner);
+        FailingPostLoadActionHandler failingHandler =
+            actionRunner.gameObject.AddComponent<FailingPostLoadActionHandler>();
+        failingHandler.Configure(
+            ProjectSceneServerAction.SpawnPlayers,
+            ProjectSceneKind.Game,
+            playerSpawner);
+
+        int playerScopesOpened = 0;
+        int playerScopesClosed = 0;
+        bool inGameStateCommitted = false;
+        bool inGameSessionStateCommitted = false;
+
+        playerRegistry.PlayerScopeOpened += _ => playerScopesOpened++;
+        playerRegistry.PlayerScopeClosing += _ => playerScopesClosed++;
+        runtimeContext.StateMachine.StateChanged += (_, current) =>
+            inGameStateCommitted |= current == GameState.InGame;
+        sessionStateMachine.StateChanged += (_, current) =>
+            inGameSessionStateCommitted |= current == NetworkSessionState.InGame;
+        handlersField.SetValue(
+            actionRunner,
+            new MonoBehaviour[] { failingHandler });
+
+        LogAssert.Expect(
+            LogType.Error,
+            new Regex(
+                "ProjectSceneFlowService completion source " +
+                "'ProjectScenePostLoadActionRunner' failed for scene 'Game'.*" +
+                "Injected post-load action failure"));
+
+        runtimeContext.SessionOrchestrator.StartGame(
+            G.Resolve<IGameMapCatalog>().DefaultMapId);
+        yield return WaitForCondition(
+            () => runtimeContext.StateMachine.CurrentState == GameState.MainMenu &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.MainMenu &&
+                  !networkManager.IsListening &&
+                  !shutdownCoordinator.IsShutdownInProgress,
+            "Failed player post-load action did not complete coordinated shutdown.");
+
+        handlersField.SetValue(actionRunner, originalHandlers);
+
+        Assert.That(failingHandler.ExecuteCount, Is.EqualTo(1));
+        Assert.That(failingHandler.RollbackCount, Is.EqualTo(1));
+        Assert.That(playerScopesOpened, Is.GreaterThan(0));
+        Assert.That(playerScopesClosed, Is.EqualTo(playerScopesOpened));
+        Assert.That(inGameStateCommitted, Is.False);
+        Assert.That(inGameSessionStateCommitted, Is.False);
+        Assert.That(sessionServices.IsDisposed, Is.True);
+        Assert.That(playerRegistry.IsDisposed, Is.True);
+        Assert.That(networkManager.IsClient, Is.False);
+        Assert.That(networkManager.IsServer, Is.False);
+
+        UnityEngine.Object.Destroy(failingHandler);
+        yield return null;
     }
 
     private IEnumerator StartBootstrapAndWaitUntilReady()

@@ -1,3 +1,4 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -13,7 +14,8 @@ public class NetworkChatSessionSpawner : MonoBehaviour, IProjectSceneFlowServerA
 
     private void Awake()
     {
-        HasRequiredReferences();
+        if (!TryValidateSetup(out string error))
+            Debug.LogError(error, this);
     }
 
     public bool CanHandle(ProjectSceneServerAction action)
@@ -21,101 +23,192 @@ public class NetworkChatSessionSpawner : MonoBehaviour, IProjectSceneFlowServerA
         return action == ProjectSceneServerAction.SpawnChatSession;
     }
 
-    public void Handle(ProjectSceneServerAction action, ProjectSceneKind loadedScene)
+    public ProjectSceneActionResult Validate(
+        ProjectSceneServerAction action,
+        ProjectSceneKind loadedScene)
     {
         if (!CanHandle(action))
-            return;
+        {
+            return ProjectSceneActionResult.Failure(
+                $"{nameof(NetworkChatSessionSpawner)} cannot handle action '{action}'.");
+        }
 
         if (loadedScene != ProjectSceneKind.Lobby)
         {
-            Debug.LogWarning(
-                $"{nameof(NetworkChatSessionSpawner)} received '{action}' for non-lobby scene '{loadedScene}'.",
-                this);
-            return;
+            return ProjectSceneActionResult.Failure(
+                $"Action '{action}' is valid only for the Lobby scene, not '{loadedScene}'.");
         }
 
-        SpawnForServer();
+        return TryValidateSetup(out string error)
+            ? ProjectSceneActionResult.Success()
+            : ProjectSceneActionResult.Failure(error);
     }
 
-    public void SpawnForServer()
+    public ProjectSceneActionResult Execute(
+        ProjectSceneServerAction action,
+        ProjectSceneKind loadedScene)
     {
-        if (!HasRequiredReferences())
-            return;
+        ProjectSceneActionResult validation = Validate(action, loadedScene);
+
+        if (!validation.Succeeded)
+            return validation;
 
         if (!networkManager.IsServer)
-            return;
+        {
+            return ProjectSceneActionResult.Failure(
+                "Only the server can spawn the network chat session.");
+        }
+
+        if (spawnedSession != null && spawnedSession.IsSpawned)
+            return ProjectSceneActionResult.Success();
 
         if (spawnedSession != null)
         {
-            if (spawnedSession.IsSpawned)
-                return;
-
             Destroy(spawnedSession.gameObject);
             spawnedSession = null;
         }
 
-        NetworkChatSession instance = Instantiate(chatSessionPrefab);
-        instance.Construct(stateMachine, chatConfig);
+        NetworkChatSession instance = null;
 
-        if (!instance.TryGetComponent(out NetworkObject networkObject))
+        try
         {
-            Debug.LogError("NetworkChatSession prefab is missing NetworkObject.", instance);
-            Destroy(instance.gameObject);
+            instance = Instantiate(chatSessionPrefab);
+            instance.Construct(stateMachine, chatConfig);
+
+            if (!instance.TryGetComponent(out NetworkObject networkObject))
+            {
+                Destroy(instance.gameObject);
+                return ProjectSceneActionResult.Failure(
+                    $"{nameof(NetworkChatSession)} prefab is missing {nameof(NetworkObject)}.");
+            }
+
+            spawnedSession = instance;
+            networkObject.Spawn(false);
+
+            if (!networkObject.IsSpawned)
+            {
+                RollbackSpawn(instance);
+                return ProjectSceneActionResult.Failure(
+                    $"{nameof(NetworkChatSession)} did not enter the spawned state.");
+            }
+
+            Action rollback = () => RollbackSpawn(instance);
+
+            if (!NetworkObjectServiceContext.TryResolveSessionService(
+                    networkManager,
+                    out IChatReadService readService) ||
+                !ReferenceEquals(readService, instance) ||
+                !NetworkObjectServiceContext.TryResolveSessionService(
+                    networkManager,
+                    out IChatCommandService commandService) ||
+                !ReferenceEquals(commandService, instance))
+            {
+                return ProjectSceneActionResult.Failure(
+                    $"Spawned {nameof(NetworkChatSession)} did not publish both chat " +
+                    "contracts in the active Session scope.",
+                    rollback: rollback);
+            }
+
+            return ProjectSceneActionResult.Success(
+                rollback);
+        }
+        catch (Exception exception)
+        {
+            RollbackSpawn(instance);
+            return ProjectSceneActionResult.Failure(
+                $"Failed to spawn {nameof(NetworkChatSession)}.",
+                exception);
+        }
+    }
+
+    public void SpawnForServer()
+    {
+        ProjectSceneActionResult result = Execute(
+            ProjectSceneServerAction.SpawnChatSession,
+            ProjectSceneKind.Lobby);
+
+        if (result.Succeeded)
+        {
+            result.Commit();
             return;
         }
 
-        spawnedSession = instance;
-        networkObject.Spawn(false);
+        result.Rollback();
+        Debug.LogError(result.Error, this);
+
+        if (result.Exception != null)
+            Debug.LogException(result.Exception, this);
     }
 
     public void DespawnForServer()
     {
-        if (spawnedSession == null)
+        NetworkChatSession session = spawnedSession;
+
+        if (session == null)
             return;
 
-        if (!HasRequiredReferences())
-            return;
-
-        if (!networkManager.IsServer)
-            return;
-
-        if (spawnedSession.IsSpawned)
+        if (networkManager == null || !networkManager.IsServer)
         {
-            spawnedSession.NetworkObject.Despawn(true);
-            spawnedSession = null;
+            Debug.LogWarning("Only the server can despawn the network chat session.", this);
             return;
         }
 
-        Destroy(spawnedSession.gameObject);
-        spawnedSession = null;
+        RollbackSpawn(session);
     }
 
-    private bool HasRequiredReferences()
+    private void RollbackSpawn(NetworkChatSession instance)
+    {
+        if (instance == null)
+            return;
+
+        if (spawnedSession == instance)
+            spawnedSession = null;
+
+        NetworkObject networkObject = instance.NetworkObject;
+
+        if (networkObject != null && networkObject.IsSpawned &&
+            networkManager != null && networkManager.IsServer)
+        {
+            networkObject.Despawn(true);
+            return;
+        }
+
+        Destroy(instance.gameObject);
+    }
+
+    private bool TryValidateSetup(out string error)
     {
         if (networkManager == null)
         {
-            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(NetworkManager)}.", this);
+            error = $"{nameof(NetworkChatSessionSpawner)} is missing '{nameof(networkManager)}'.";
             return false;
         }
 
         if (stateMachine == null)
         {
-            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(GameStateMachine)}.", this);
+            error = $"{nameof(NetworkChatSessionSpawner)} is missing '{nameof(stateMachine)}'.";
             return false;
         }
 
         if (chatSessionPrefab == null)
         {
-            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(NetworkChatSession)} prefab.", this);
+            error = $"{nameof(NetworkChatSessionSpawner)} is missing '{nameof(chatSessionPrefab)}'.";
+            return false;
+        }
+
+        if (!chatSessionPrefab.TryGetComponent(out NetworkObject _))
+        {
+            error = $"{nameof(NetworkChatSession)} prefab is missing {nameof(NetworkObject)}.";
             return false;
         }
 
         if (chatConfig == null)
         {
-            Debug.LogError($"{nameof(NetworkChatSessionSpawner)} is missing {nameof(ChatConfig)}.", this);
+            error = $"{nameof(NetworkChatSessionSpawner)} is missing '{nameof(chatConfig)}'.";
             return false;
         }
 
+        error = string.Empty;
         return true;
     }
 }

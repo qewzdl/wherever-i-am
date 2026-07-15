@@ -14,17 +14,16 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     [SerializeField] private string startReason = "Game scene network spawn completed";
     private bool isSubscribed;
     private IGameMapSessionService mapSessionService;
+    private IGameStateService gameStateService;
 
     public override void OnNetworkSpawn()
     {
+        if (!IsServer)
+            return;
+
         if (!ValidateSetup())
         {
             enabled = false;
-            return;
-        }
-
-        if (!IsServer)
-        {
             return;
         }
 
@@ -80,7 +79,8 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
 
         if (!gameFlow.IsServerReady ||
             !objectiveFlow.IsServerReady ||
-            !mapSessionService.IsReadyForMatch)
+            !mapSessionService.IsReadyForMatch ||
+            gameStateService.CurrentState != GameState.InGame)
         {
             return false;
         }
@@ -109,6 +109,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
         gameFlow.ServerReady += HandleDependencyReady;
         objectiveFlow.ServerReady += HandleDependencyReady;
         mapSessionService.MapReady += HandleDependencyReady;
+        gameStateService.StateChanged += HandleGameStateChanged;
         isSubscribed = true;
     }
 
@@ -134,6 +135,11 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             mapSessionService.MapReady -= HandleDependencyReady;
         }
 
+        if (gameStateService != null)
+        {
+            gameStateService.StateChanged -= HandleGameStateChanged;
+        }
+
         isSubscribed = false;
     }
 
@@ -143,6 +149,14 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
         {
             return;
         }
+
+        TryStartMatchWhenReadyServerOnly();
+    }
+
+    private void HandleGameStateChanged(GameState previous, GameState current)
+    {
+        if (!startOnServerSpawn || current != GameState.InGame)
+            return;
 
         TryStartMatchWhenReadyServerOnly();
     }
@@ -157,6 +171,10 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
                 NetworkManager,
                 out mapSessionService);
         }
+
+        NetworkObjectServiceContext.TryResolveSessionService(
+            NetworkManager,
+            out gameStateService);
 
         if (gameFlow == null)
         {
@@ -173,6 +191,12 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
         if (mapSessionService == null)
         {
             Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires {nameof(IGameMapSessionService)}.", this);
+            return false;
+        }
+
+        if (gameStateService == null)
+        {
+            Debug.LogError($"{nameof(NetworkGameFlowSceneStarter)} requires {nameof(IGameStateService)}.", this);
             return false;
         }
 

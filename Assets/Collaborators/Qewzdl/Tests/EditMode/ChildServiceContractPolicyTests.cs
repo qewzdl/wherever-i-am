@@ -1,8 +1,63 @@
 using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 
 public sealed class ChildServiceContractPolicyTests
 {
+    private sealed class DynamicSessionService :
+        IChatReadService,
+        IChatCommandService,
+        IMatchCompletionService
+    {
+        public event Action MessagesChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<ChatMessageData> MessageAdded
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action AvailabilityChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public bool CanSubmitMessages => true;
+        public ChatChannel CurrentChannel => ChatChannel.Lobby;
+        public int MessageCount => 0;
+        public bool IsMatchRunning => true;
+
+        public ChatMessageData GetMessage(int index)
+        {
+            return default;
+        }
+
+        public bool TryGetMessage(uint messageId, out ChatMessageData message)
+        {
+            message = default;
+            return false;
+        }
+
+        public bool IsLocalClient(ulong clientId)
+        {
+            return false;
+        }
+
+        public void SubmitMessage(string text)
+        {
+        }
+
+        public bool CompleteMatchServerOnly(GameResultData matchResult, string reason)
+        {
+            return true;
+        }
+    }
+
     private sealed class CrossScopeService : IChatCommandService, IPauseService
     {
         public bool IsPaused => false;
@@ -149,6 +204,105 @@ public sealed class ChildServiceContractPolicyTests
 
         Assert.That(session.LocalServiceCount, Is.Zero);
         Assert.That(session.TryResolve(out IChatCommandService _), Is.False);
+    }
+
+    [Test]
+    public void DynamicContractPolicy_RequiresChatForLobbyAndMatchFlowForGame()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        DynamicSessionService service = new();
+
+        Assert.That(
+            ProjectSceneDynamicContractPolicy.Validate(
+                ProjectSceneKind.Lobby,
+                session,
+                out string lobbyError),
+            Is.False);
+        Assert.That(lobbyError, Does.Contain(nameof(IChatReadService)));
+        Assert.That(lobbyError, Does.Contain(nameof(IChatCommandService)));
+
+        session.Register<IChatReadService>(service);
+        session.Register<IChatCommandService>(service);
+
+        Assert.That(
+            ProjectSceneDynamicContractPolicy.Validate(
+                ProjectSceneKind.Lobby,
+                session,
+                out lobbyError),
+            Is.True,
+            lobbyError);
+        Assert.That(
+            ProjectSceneDynamicContractPolicy.Validate(
+                ProjectSceneKind.Game,
+                session,
+                out string gameError),
+            Is.False);
+        Assert.That(gameError, Does.Contain(nameof(IMatchCompletionService)));
+
+        session.Register<IMatchCompletionService>(service);
+
+        Assert.That(
+            ProjectSceneDynamicContractPolicy.Validate(
+                ProjectSceneKind.Game,
+                session,
+                out gameError),
+            Is.True,
+            gameError);
+    }
+
+    [Test]
+    public void DynamicContractPolicy_DoesNotRequireSessionForMainMenu()
+    {
+        Assert.That(
+            ProjectSceneDynamicContractPolicy.Validate(
+                ProjectSceneKind.MainMenu,
+                null,
+                out string error),
+            Is.True,
+            error);
+    }
+
+    [Test]
+    public void SceneActionResult_FinalizesRollbackExactlyOnce()
+    {
+        int rollbackCount = 0;
+        ProjectSceneActionResult rolledBack = ProjectSceneActionResult.Success(
+            () => rollbackCount++);
+
+        rolledBack.Rollback();
+        rolledBack.Rollback();
+        rolledBack.Commit();
+
+        Assert.That(rollbackCount, Is.EqualTo(1));
+
+        ProjectSceneActionResult committed = ProjectSceneActionResult.Success(
+            () => rollbackCount++);
+        committed.Commit();
+        committed.Rollback();
+
+        Assert.That(rollbackCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void SceneActionBatch_RollsBackExecutedActionsInReverseOrder()
+    {
+        List<string> rollbackOrder = new();
+        ProjectSceneActionBatch batch = new();
+
+        batch.Add(ProjectSceneActionResult.Success(
+            () => rollbackOrder.Add("first")));
+        batch.Add(ProjectSceneActionResult.Failure(
+            "second failed",
+            rollback: () => rollbackOrder.Add("second")));
+        batch.Fail("second failed");
+        batch.Rollback();
+
+        CollectionAssert.AreEqual(
+            new[] { "second", "first" },
+            rollbackOrder);
     }
 
     private static void AssertExactPolicy(
