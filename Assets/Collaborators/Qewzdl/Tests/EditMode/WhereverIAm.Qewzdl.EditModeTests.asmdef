@@ -2,7 +2,8 @@
     "name": "WhereverIAm.Qewzdl.EditModeTests",
     "rootNamespace": "",
     "references": [
-        "WhereverIAm.Qewzdl"
+        "WhereverIAm.Qewzdl",
+        "WhereverIAm.Shared"
     ],
     "includePlatforms": [
         "Editor"

@@ -62,7 +62,7 @@ Global (ProjectContext: Ready -> Dispose)
 
 1. Регистрация выполняется по interface contract. На один contract допускается ровно один instance внутри конкретного scope; duplicate registration должна завершаться ошибкой.
 2. Child scope может разрешать зависимости из parent scope. Parent scope не видит child services.
-3. Global scope принимает только contracts из `GlobalServiceContractPolicy`; Session, Scene, Player и технические network services отклоняются до регистрации.
+3. Global scope принимает только contracts из `GlobalServiceContractPolicy`; в частности `IPauseService`, `IChatReadService`, `IChatCommandService`, replicated/local Player contracts и технические network services отклоняются до регистрации.
 4. Scene scope key — только `Scene.handle`; имя и path сцены не гарантируют уникальный runtime instance.
 5. Любая ошибка Compose/Initialize/Install откатывает только уже выполненные регистрации в обратном порядке.
 6. Unregister выполняется до `Dispose`. Повторные Shutdown, Uninstall и Dispose должны быть idempotent.

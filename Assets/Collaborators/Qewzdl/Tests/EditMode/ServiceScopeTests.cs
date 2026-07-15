@@ -438,6 +438,79 @@ public sealed class GTests
     {
     }
 
+    private sealed class ForbiddenPauseService : IPauseService
+    {
+        public bool IsPaused => false;
+
+        public event Action<bool> PauseStateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void Pause()
+        {
+        }
+
+        public void Resume()
+        {
+        }
+
+        public void TogglePause()
+        {
+        }
+    }
+
+    private sealed class ForbiddenChatService : IChatReadService, IChatCommandService
+    {
+        public event Action MessagesChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<ChatMessageData> MessageAdded
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action AvailabilityChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public bool CanSubmitMessages => false;
+        public ChatChannel CurrentChannel => default;
+        public int MessageCount => 0;
+
+        public ChatMessageData GetMessage(int index)
+        {
+            return default;
+        }
+
+        public bool TryGetMessage(uint messageId, out ChatMessageData message)
+        {
+            message = default;
+            return false;
+        }
+
+        public bool IsLocalClient(ulong clientId)
+        {
+            return false;
+        }
+
+        public void SubmitMessage(string text)
+        {
+        }
+    }
+
+    private sealed class ForbiddenPlayerService : IReplicatedPlayerStateService
+    {
+        public bool IsCrouching => false;
+    }
+
     [SetUp]
     public void SetUp()
     {
@@ -563,7 +636,7 @@ public sealed class GTests
     }
 
     [Test]
-    public void GlobalContractAllowlist_IsExactAndExcludesConnectionControl()
+    public void GlobalContractAllowlist_IsExactAndRejectsNonGlobalContracts()
     {
         Type[] expectedContracts =
         {
@@ -583,25 +656,63 @@ public sealed class GTests
         for (int i = 0; i < expectedContracts.Length; i++)
             Assert.That(GlobalServiceContractPolicy.IsAllowed(expectedContracts[i]), Is.True);
 
-        Assert.That(
-            GlobalServiceContractPolicy.IsAllowed(typeof(INetworkConnectionService)),
-            Is.False);
-        Assert.That(
-            GlobalServiceContractPolicy.IsAllowed(typeof(IScopedTestService)),
-            Is.False);
+        Type[] forbiddenContracts =
+        {
+            typeof(IPauseService),
+            typeof(IChatReadService),
+            typeof(IChatCommandService),
+            typeof(IReplicatedPlayerStateService),
+            typeof(ILocalPlayerInputService),
+            typeof(ILocalPlayerCameraService),
+            typeof(ILocalPlayerPresentationService),
+            typeof(INetworkConnectionService),
+            typeof(IScopedTestService)
+        };
+
+        for (int i = 0; i < forbiddenContracts.Length; i++)
+        {
+            Assert.That(
+                GlobalServiceContractPolicy.IsAllowed(forbiddenContracts[i]),
+                Is.False,
+                $"{forbiddenContracts[i].Name} must not be a Global contract.");
+        }
     }
 
     [Test]
-    public void GlobalScopePolicy_RejectsScopedRegistrationButDoesNotRestrictChild()
+    public void GlobalScopePolicy_RejectsSceneSessionAndPlayerRegistrations()
+    {
+        using ServiceScope globalScope = CreateGlobalScope();
+        ForbiddenPauseService pauseService = new();
+        ForbiddenChatService chatService = new();
+        ForbiddenPlayerService playerService = new();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            globalScope.Register<IPauseService>(pauseService));
+        Assert.Throws<InvalidOperationException>(() =>
+            globalScope.Register<IChatReadService>(chatService));
+        Assert.Throws<InvalidOperationException>(() =>
+            globalScope.Register<IChatCommandService>(chatService));
+        Assert.Throws<InvalidOperationException>(() =>
+            globalScope.Register<IReplicatedPlayerStateService>(playerService));
+
+        Assert.That(globalScope.LocalServiceCount, Is.Zero);
+    }
+
+    [Test]
+    public void GlobalScopePolicy_DoesNotRestrictChildScopes()
     {
         using ServiceScope globalScope = CreateGlobalScope();
         ServiceScope sessionScope = globalScope.CreateChild("Session");
-
-        Assert.Throws<InvalidOperationException>(() =>
-            globalScope.Register<IScopedTestService>(new ScopedTestService()));
+        ServiceScope sceneScope = globalScope.CreateChild("Game Scene");
+        ServiceScope playerScope = sessionScope.CreateChild("Player");
+        ForbiddenChatService chatService = new();
 
         Assert.DoesNotThrow(() =>
-            sessionScope.Register<IScopedTestService>(new ScopedTestService()));
+            sessionScope.Register<IChatReadService>(chatService));
+        Assert.DoesNotThrow(() =>
+            sceneScope.Register<IPauseService>(new ForbiddenPauseService()));
+        Assert.DoesNotThrow(() =>
+            playerScope.Register<IReplicatedPlayerStateService>(new ForbiddenPlayerService()));
     }
 
     private static ServiceScope CreateGlobalScope(string name = "Global")
