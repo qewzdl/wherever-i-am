@@ -12,6 +12,10 @@ internal interface ISceneScopeTestOwnedService
 {
 }
 
+internal interface ISceneScopeTestRegisteredService
+{
+}
+
 internal sealed class SceneScopeTestParentService : ISceneScopeTestParentService
 {
 }
@@ -20,20 +24,31 @@ internal sealed class SceneScopeTestOwnedService : ISceneScopeTestOwnedService
 {
 }
 
-internal sealed class SceneScopeTrackingFeature : SceneRuntimeFeature
+internal sealed class SceneScopeTrackingFeature :
+    SceneRuntimeFeature,
+    ISceneScopeTestRegisteredService
 {
     private IList<string> events;
     private string featureId;
     private bool installResult;
+    private bool registerService;
 
     public bool ResolvedParentDuringValidation { get; private set; }
     public bool ResolvedParentDuringUninstall { get; private set; }
+    public bool ResolvedRegistrationDuringInstall { get; private set; }
+    public bool ResolvedRegistrationDuringUninstall { get; private set; }
+    public ISceneServiceRegistrar Registrar { get; private set; }
 
-    public void Configure(string id, IList<string> lifecycleEvents, bool succeeds = true)
+    public void Configure(
+        string id,
+        IList<string> lifecycleEvents,
+        bool succeeds = true,
+        bool registersService = false)
     {
         featureId = id;
         events = lifecycleEvents;
         installResult = succeeds;
+        registerService = registersService;
     }
 
     protected override bool ValidateFeature(SceneFeatureContext context)
@@ -47,6 +62,17 @@ internal sealed class SceneScopeTrackingFeature : SceneRuntimeFeature
     protected override bool InstallFeature(SceneFeatureContext context)
     {
         events.Add($"install:{featureId}");
+
+        if (registerService)
+        {
+            Registrar = context.Registrar;
+            Registrar.Register<ISceneScopeTestRegisteredService>(this);
+            ResolvedRegistrationDuringInstall =
+                ReferenceEquals(
+                    context.Services.Resolve<ISceneScopeTestRegisteredService>(),
+                    this);
+        }
+
         return installResult;
     }
 
@@ -54,6 +80,15 @@ internal sealed class SceneScopeTrackingFeature : SceneRuntimeFeature
     {
         ResolvedParentDuringUninstall =
             context.Services.TryResolve(out ISceneScopeTestParentService _);
+
+        if (registerService)
+        {
+            ResolvedRegistrationDuringUninstall =
+                ReferenceEquals(
+                    context.Services.Resolve<ISceneScopeTestRegisteredService>(),
+                    this);
+        }
+
         events.Add($"uninstall:{featureId}");
     }
 }
@@ -85,6 +120,54 @@ public sealed class SceneRuntimeScopeTests
     }
 
     [Test]
+    public void Install_CommitsFeatureRegistrationAndClosesRegistrar()
+    {
+        using ServiceScope globalScope = new("Global");
+        globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
+        ServiceScope sceneServiceScope = globalScope.CreateChild("Scene[32]");
+        GameObject featureObject = new("Registering feature");
+        SceneRuntimeScope runtimeScope = null;
+
+        try
+        {
+            List<string> events = new();
+            SceneScopeTrackingFeature feature =
+                featureObject.AddComponent<SceneScopeTrackingFeature>();
+            feature.Configure("registrar", events, registersService: true);
+            runtimeScope = new SceneRuntimeScope(
+                32,
+                "Registration scene",
+                ProjectSceneKind.Game,
+                SceneServiceScopeParent.Session,
+                sceneServiceScope,
+                new SceneRuntimeFeature[] { feature });
+
+            Assert.That(runtimeScope.Services, Is.Null);
+            Assert.That(runtimeScope.Install(), Is.True);
+            Assert.That(feature.ResolvedRegistrationDuringInstall, Is.True);
+            Assert.That(
+                runtimeScope.Services.Resolve<ISceneScopeTestRegisteredService>(),
+                Is.SameAs(feature));
+            Assert.That(sceneServiceScope.LocalServiceCount, Is.EqualTo(1));
+            Assert.Throws<InvalidOperationException>(() =>
+                feature.Registrar.Register<ISceneScopeTestRegisteredService>(feature));
+
+            runtimeScope.Dispose();
+
+            Assert.That(feature.ResolvedRegistrationDuringUninstall, Is.True);
+            CollectionAssert.AreEqual(
+                new[] { "install:registrar", "uninstall:registrar" },
+                events);
+            Assert.That(sceneServiceScope.LocalServiceCount, Is.Zero);
+        }
+        finally
+        {
+            runtimeScope?.Dispose();
+            UnityEngine.Object.DestroyImmediate(featureObject);
+        }
+    }
+
+    [Test]
     public void Dispose_UninstallsFeaturesInReverseBeforeServiceScope()
     {
         List<string> events = new();
@@ -103,7 +186,7 @@ public sealed class SceneRuntimeScopeTests
         {
             SceneScopeTrackingFeature first = firstObject.AddComponent<SceneScopeTrackingFeature>();
             SceneScopeTrackingFeature second = secondObject.AddComponent<SceneScopeTrackingFeature>();
-            first.Configure("first", events);
+            first.Configure("first", events, registersService: true);
             second.Configure("second", events);
             runtimeScope = new SceneRuntimeScope(
                 42,
@@ -132,8 +215,11 @@ public sealed class SceneRuntimeScopeTests
                 },
                 events);
             Assert.That(first.ResolvedParentDuringUninstall, Is.True);
+            Assert.That(first.ResolvedRegistrationDuringInstall, Is.True);
+            Assert.That(first.ResolvedRegistrationDuringUninstall, Is.True);
             Assert.That(second.ResolvedParentDuringUninstall, Is.True);
             Assert.That(runtimeScope.Services, Is.Null);
+            Assert.That(sceneServiceScope.LocalServiceCount, Is.Zero);
             Assert.That(globalScope.ChildScopeCount, Is.Zero);
             Assert.Throws<ObjectDisposedException>(() =>
                 resolver.Resolve<ISceneScopeTestParentService>());
@@ -166,7 +252,7 @@ public sealed class SceneRuntimeScopeTests
         {
             SceneScopeTrackingFeature first = firstObject.AddComponent<SceneScopeTrackingFeature>();
             SceneScopeTrackingFeature failing = failingObject.AddComponent<SceneScopeTrackingFeature>();
-            first.Configure("first", events);
+            first.Configure("first", events, registersService: true);
             failing.Configure("failing", events, false);
             runtimeScope = new SceneRuntimeScope(
                 84,
@@ -193,7 +279,10 @@ public sealed class SceneRuntimeScopeTests
                 },
                 events);
             Assert.That(first.ResolvedParentDuringUninstall, Is.True);
+            Assert.That(first.ResolvedRegistrationDuringInstall, Is.True);
+            Assert.That(first.ResolvedRegistrationDuringUninstall, Is.True);
             Assert.That(failing.ResolvedParentDuringUninstall, Is.True);
+            Assert.That(sceneServiceScope.LocalServiceCount, Is.Zero);
             Assert.That(globalScope.ChildScopeCount, Is.Zero);
         }
         finally

@@ -15,6 +15,7 @@ public sealed class SceneRuntimeScope : IDisposable
     private readonly string sceneLabel;
     private readonly SceneServiceScopeParent serviceScopeParent;
     private readonly ServiceScope serviceScope;
+    private readonly SceneServiceRegistrar serviceRegistrar;
     private readonly SceneFeatureContext featureContext;
     private readonly SceneRuntimeFeature[] features;
     private int installedFeatureCount;
@@ -33,13 +34,18 @@ public sealed class SceneRuntimeScope : IDisposable
         sceneLabel = label;
         serviceScopeParent = parent;
         serviceScope = services ?? throw new ArgumentNullException(nameof(services));
-        featureContext = new SceneFeatureContext(handle, sceneKind, serviceScope);
+        serviceRegistrar = new SceneServiceRegistrar(serviceScope);
+        featureContext = new SceneFeatureContext(
+            handle,
+            sceneKind,
+            serviceScope,
+            serviceRegistrar);
         features = sceneFeatures ?? throw new ArgumentNullException(nameof(sceneFeatures));
     }
 
     public int SceneHandle => sceneHandle;
     public bool IsReady => ready && !disposed && !serviceScope.IsDisposed;
-    public IServiceResolver Services => !disposed && !serviceScope.IsDisposed
+    public IServiceResolver Services => IsReady
         ? serviceScope
         : null;
     internal SceneServiceScopeParent ServiceScopeParent => serviceScopeParent;
@@ -66,14 +72,29 @@ public sealed class SceneRuntimeScope : IDisposable
                 $"Scene feature validation failed at index {i} in '{sceneLabel}' ({sceneHandle}).",
                 feature);
 
-            return false;
+            return FailInstall(null);
+        }
+
+        ServiceRegistrationTransaction registrationTransaction = null;
+
+        try
+        {
+            registrationTransaction = serviceScope.BeginRegistrationTransaction();
+            serviceRegistrar.BeginRegistration();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError(
+                $"Failed to begin scene service registration for '{sceneLabel}' ({sceneHandle}).");
+            Debug.LogException(exception);
+            return FailInstall(registrationTransaction);
         }
 
         for (int i = 0; i < features.Length; i++)
         {
             SceneRuntimeFeature feature = features[i];
 
-            if (feature != null && feature.Install(featureContext))
+            if (feature != null && feature.InstallValidated(featureContext))
             {
                 installedFeatureCount++;
                 continue;
@@ -83,12 +104,23 @@ public sealed class SceneRuntimeScope : IDisposable
                 $"Scene feature install failed: '{GetFeatureName(feature)}' in '{sceneLabel}' ({sceneHandle}).",
                 feature);
 
-            RollbackInstalledFeatures();
-            return false;
+            return FailInstall(registrationTransaction);
         }
 
-        ready = true;
-        return true;
+        try
+        {
+            registrationTransaction.Commit();
+            serviceRegistrar.CloseRegistration();
+            ready = true;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError(
+                $"Failed to commit scene service registration for '{sceneLabel}' ({sceneHandle}).");
+            Debug.LogException(exception);
+            return FailInstall(registrationTransaction);
+        }
     }
 
     public void Dispose()
@@ -96,10 +128,42 @@ public sealed class SceneRuntimeScope : IDisposable
         if (disposed)
             return;
 
+        serviceRegistrar.CloseRegistration();
         disposed = true;
         ready = false;
         RollbackInstalledFeatures();
+        DisposeServiceScope();
+    }
 
+    private bool FailInstall(ServiceRegistrationTransaction registrationTransaction)
+    {
+        serviceRegistrar.CloseRegistration();
+        disposed = true;
+        ready = false;
+        RollbackInstalledFeatures();
+        RollbackRegistrations(registrationTransaction);
+        DisposeServiceScope();
+        return false;
+    }
+
+    private static void RollbackRegistrations(
+        ServiceRegistrationTransaction registrationTransaction)
+    {
+        if (registrationTransaction == null || registrationTransaction.IsCompleted)
+            return;
+
+        try
+        {
+            registrationTransaction.Rollback();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+    }
+
+    private void DisposeServiceScope()
+    {
         try
         {
             serviceScope.Dispose();

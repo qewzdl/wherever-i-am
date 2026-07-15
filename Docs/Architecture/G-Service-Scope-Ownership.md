@@ -37,8 +37,8 @@ Global (ProjectContext: Ready -> Dispose)
 | Session | `IGameMapSessionService` | `GameMapService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | map selection/load подтверждает server; clients читают результат |
 | Session | `IGameplayNoiseService` | `GameplayNoiseWorldService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | запись и поиск noise events разрешены только server |
 | Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | после `OnNetworkSpawn` | на `OnNetworkDespawn`, до закрытия session | client отправляет command, server валидирует и реплицирует сообщения |
-| Scene: Lobby | `ILobbyReadService`, `ILobbyCommandService` | `NetworkLobbyService` | после успешного install Lobby scene feature | reverse uninstall Lobby scope | client отправляет intent, server владеет lobby state и start decision |
-| Scene: Game shell | `IPauseService` | `GamePauseService` | после успешного install `PauseSceneFeature` | reverse uninstall Game scope | local-only pause UI; не останавливает server simulation |
+| Scene: Lobby | `ILobbyReadService`, `ILobbyCommandService` | `NetworkLobbyService` | scene transaction commit после install Lobby feature | reverse uninstall Lobby scope | client отправляет intent, server владеет lobby state и start decision |
+| Scene: Game shell | `IPauseService` | `GamePauseService` | scene transaction commit после install `PauseSceneFeature` | reverse uninstall Game scope | local-only pause UI; не останавливает server simulation |
 
 ## Не являются root-сервисами G
 
@@ -101,6 +101,10 @@ Global (ProjectContext: Ready -> Dispose)
 - MainMenu scene scope создаётся как child Global scope. Lobby, Game и сцены из `IGameMapCatalog` создаются как children активного Session scope.
 - Известная Map-сцена получает scope даже без `SceneRuntime`; это позволяет additive map instance иметь собственный lifetime до появления map-specific features.
 - Каждый feature получает `SceneFeatureContext` с scene handle, scene kind и `IServiceResolver` соответствующего scene scope.
+- `ISceneServiceRegistrar` разрешает регистрацию только во время feature install и не раскрывает mutable `ServiceScope`.
+- Все feature registrations сцены входят в одну transaction: commit выполняется перед `Ready`, а registrar после этого закрывается.
+- `LobbySceneFeature` регистрирует `ILobbyReadService` и `ILobbyCommandService`; `PauseSceneFeature` регистрирует `IPauseService` как Unity-owned contracts.
 - Feature validation/install использует interface contracts через resolver и наследует доступ к parent services.
 - Unload и install rollback сначала вызывают feature uninstall в обратном порядке, пока resolver ещё активен, и только затем закрывают scene `ServiceScope`.
+- Ошибка install сначала выполняет reverse feature uninstall, затем rollback registration transaction и Dispose scene scope.
 - После остановки NGO coordinator сначала удаляет все Session-owned scene scopes, затем закрывает Session scope, отправляет `SessionStopped` и загружает MainMenu.

@@ -65,7 +65,7 @@ public sealed class GameSceneFeature : SceneRuntimeFeature
         {
             SceneRuntimeFeature feature = installedFeatures[i];
 
-            if (feature != null && feature.Install(context))
+            if (feature != null && feature.InstallValidated(context))
             {
                 installedFeatureCount++;
                 continue;

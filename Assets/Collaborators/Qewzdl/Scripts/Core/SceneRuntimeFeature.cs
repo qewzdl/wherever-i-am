@@ -22,17 +22,8 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
 
     public bool Validate(SceneFeatureContext context)
     {
-        if (context == null)
-        {
-            Debug.LogError($"{GetType().Name} cannot validate without {nameof(SceneFeatureContext)}.", this);
+        if (!CanUseContext(context))
             return false;
-        }
-
-        if (context.Services == null || context.Services.IsDisposed)
-        {
-            Debug.LogError($"{GetType().Name} cannot validate with an inactive scene resolver.", this);
-            return false;
-        }
 
         if (lifecycleTransitionInProgress)
         {
@@ -53,6 +44,18 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
 
     public bool Install(SceneFeatureContext context)
     {
+        return InstallInternal(context, true);
+    }
+
+    internal bool InstallValidated(SceneFeatureContext context)
+    {
+        return InstallInternal(context, false);
+    }
+
+    private bool InstallInternal(
+        SceneFeatureContext context,
+        bool validateBeforeInstall)
+    {
         if (installed)
         {
             if (ReferenceEquals(installedContext, context))
@@ -65,8 +68,25 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
             return false;
         }
 
-        if (!Validate(context))
-            return false;
+        if (validateBeforeInstall)
+        {
+            if (!Validate(context))
+                return false;
+        }
+        else
+        {
+            if (!CanUseContext(context))
+                return false;
+
+            if (lifecycleTransitionInProgress)
+            {
+                Debug.LogError(
+                    $"{GetType().Name} cannot install during another lifecycle transition.",
+                    this);
+
+                return false;
+            }
+        }
 
         lifecycleTransitionInProgress = true;
 
@@ -210,6 +230,21 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
             owner);
 
         return null;
+    }
+
+    private bool CanUseContext(SceneFeatureContext context)
+    {
+        if (context == null)
+        {
+            Debug.LogError($"{GetType().Name} cannot run without {nameof(SceneFeatureContext)}.", this);
+            return false;
+        }
+
+        if (context.Services != null && !context.Services.IsDisposed)
+            return true;
+
+        Debug.LogError($"{GetType().Name} cannot run with an inactive scene resolver.", this);
+        return false;
     }
 
     private void RollbackFailedInstall(SceneFeatureContext context)

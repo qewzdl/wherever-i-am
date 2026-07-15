@@ -29,9 +29,12 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         INetworkSessionService sessionService = context.Services.Resolve<INetworkSessionService>();
 
         pauseService.Construct(stateService);
-        pauseMenu.Construct(pauseService, sessionService);
+        context.Registrar.Register<IPauseService>(pauseService);
 
-        return InstallPauseConsumers();
+        IPauseService pauseServiceContract = context.Services.Resolve<IPauseService>();
+        pauseMenu.Construct(pauseServiceContract, sessionService);
+
+        return InstallPauseConsumers(pauseServiceContract);
     }
 
     protected override void UninstallFeature(SceneFeatureContext context)
@@ -51,7 +54,7 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         RunCleanup(() => pauseService?.Dispose(), pauseService);
     }
 
-    private bool InstallPauseConsumers()
+    private bool InstallPauseConsumers(IPauseService pauseServiceContract)
     {
         if (pauseConsumers == null)
             return true;
@@ -63,7 +66,7 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
             if (consumer == null)
                 continue;
 
-            consumer.BindPauseService(pauseService);
+            consumer.BindPauseService(pauseServiceContract);
         }
 
         return true;
