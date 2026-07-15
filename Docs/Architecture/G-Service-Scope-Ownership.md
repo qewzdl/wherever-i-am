@@ -77,3 +77,11 @@ Global (ProjectContext: Ready -> Dispose)
 - Registration transaction откатывает все выполненные в ней регистрации в обратном порядке, если не был вызван `Commit`.
 - Dispose parent scope сначала закрывает child scopes в обратном порядке, затем собственные registrations.
 - После начала Dispose scope больше не разрешает Resolve, Register, создание child scope или новой transaction.
+
+## Global scope integration
+
+- `ProjectContext` создаёт Global `ServiceScope` в фазе Compose и наружу предоставляет только `IServiceResolver` через `Services`.
+- Global contracts регистрируются одной transaction после успешной scene service composition.
+- Resolver не публикуется до успешного Initialize и transaction `Commit`.
+- Bootstrap failure откатывает незавершённую transaction, затем закрывает Global scope.
+- Обычный shutdown сохраняет resolver доступным для cleanup; окончательный `ProjectContext.Dispose` закрывает scope ровно один раз.

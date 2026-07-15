@@ -28,10 +28,18 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
     private bool referencesValidated;
     private bool referenceValidationFailureLogged;
     private bool ownsRuntimeContext;
+    private ServiceScope globalServiceScope;
+    private ServiceRegistrationTransaction globalScopeTransaction;
+    private bool globalScopeCommitted;
 
     public static ProjectContext Instance => instance;
     public ProjectRuntimeLifecycleState LifecycleState { get; private set; }
     public bool IsReady => LifecycleState == ProjectRuntimeLifecycleState.Ready;
+    public IServiceResolver Services => globalScopeCommitted &&
+                                        globalServiceScope != null &&
+                                        !globalServiceScope.IsDisposed
+        ? globalServiceScope
+        : null;
 
     public ProjectSceneRegistry SceneRegistry => sceneRegistry;
     public ProjectSettings Settings => sceneRegistry != null ? sceneRegistry.Settings : null;
@@ -126,6 +134,8 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
             if (!InitializeProjectServices())
                 return FailStartup("Initialize");
 
+            CommitGlobalServiceScope();
+
             LifecycleState = ProjectRuntimeLifecycleState.Ready;
             return true;
         }
@@ -165,6 +175,7 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
         LifecycleState = ProjectRuntimeLifecycleState.Disposing;
         DisposeProjectServices();
+        DisposeGlobalServiceScope();
 
         referencesValidated = false;
         referenceValidationFailureLogged = false;
@@ -277,7 +288,13 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
     private bool ComposeProjectServices()
     {
-        return sceneServiceComposer != null && sceneServiceComposer.Compose(this);
+        if (!BeginGlobalScopeComposition())
+            return false;
+
+        if (sceneServiceComposer == null || !sceneServiceComposer.Compose(this))
+            return false;
+
+        return RegisterGlobalServiceContracts();
     }
 
     private bool InitializeProjectServices()
@@ -331,12 +348,113 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         }
     }
 
+    private bool BeginGlobalScopeComposition()
+    {
+        if (globalServiceScope != null || globalScopeTransaction != null)
+        {
+            Debug.LogError("Global service scope composition is already active.", this);
+            return false;
+        }
+
+        globalScopeCommitted = false;
+        globalServiceScope = new ServiceScope("Global");
+        globalScopeTransaction = globalServiceScope.BeginRegistrationTransaction();
+        return true;
+    }
+
+    private bool RegisterGlobalServiceContracts()
+    {
+        if (globalServiceScope == null || globalScopeTransaction == null)
+        {
+            Debug.LogError("Global service scope composition has not started.", this);
+            return false;
+        }
+
+        ProjectSceneFlowService projectSceneFlowService = SceneFlowService;
+        GameMapCatalog mapCatalog = gameMapService != null
+            ? gameMapService.Catalog
+            : null;
+
+        if (projectSceneFlowService == null)
+        {
+            Debug.LogError(
+                $"Cannot register {nameof(IProjectSceneFlowService)} before scene services are composed.",
+                this);
+
+            return false;
+        }
+
+        if (mapCatalog == null)
+        {
+            Debug.LogError(
+                $"Cannot register {nameof(IGameMapCatalog)} because {nameof(GameMapService)} has no catalog.",
+                this);
+
+            return false;
+        }
+
+        globalServiceScope.Register<IProjectSceneRegistry>(sceneRegistry);
+        globalServiceScope.Register<IGameStateService>(stateMachine);
+        globalServiceScope.Register<IProjectSceneFlowService>(projectSceneFlowService);
+        globalServiceScope.Register<INetworkSessionService>(sessionOrchestrator);
+        globalServiceScope.Register<INetworkConnectionService>(connectionService);
+        globalServiceScope.Register<IUiErrorService>(uiErrorManager);
+        globalServiceScope.Register<IAudioService>(audioManager);
+        globalServiceScope.Register<IGameMapCatalog>(mapCatalog);
+        return true;
+    }
+
+    private void CommitGlobalServiceScope()
+    {
+        if (globalServiceScope == null || globalScopeTransaction == null)
+            throw new InvalidOperationException("Global service scope is not ready to commit.");
+
+        globalScopeTransaction.Commit();
+        globalScopeTransaction = null;
+        globalScopeCommitted = true;
+    }
+
+    private void DisposeGlobalServiceScope()
+    {
+        globalScopeCommitted = false;
+
+        ServiceRegistrationTransaction transaction = globalScopeTransaction;
+        ServiceScope scope = globalServiceScope;
+        globalScopeTransaction = null;
+        globalServiceScope = null;
+
+        if (transaction != null)
+        {
+            try
+            {
+                transaction.Rollback();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception, this);
+            }
+        }
+
+        if (scope == null)
+            return;
+
+        try
+        {
+            scope.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+    }
+
     private bool FailStartup(string phase)
     {
         Debug.LogError($"{nameof(ProjectContext)} failed during {phase}. Rolling back bootstrap.", this);
 
         ShutdownProjectServices();
         DisposeProjectServices();
+        DisposeGlobalServiceScope();
 
         referencesValidated = false;
         LifecycleState = ProjectRuntimeLifecycleState.Disposed;
