@@ -62,14 +62,9 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         : null;
     private void OnDestroy()
     {
-        AppRuntime runtime = AppRuntime.Instance;
-
-        if (runtime != null)
-            runtime.DisposeSceneScopes(this);
-
+        DisposeSceneRuntimeScopes();
         ShutdownRuntime();
         DisposeRuntime();
-
     }
 
     public void MakePersistent()
@@ -539,14 +534,7 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
 
     private void DisposeGlobalServiceScope()
     {
-        try
-        {
-            sceneRuntimeScopes?.Dispose();
-        }
-        catch (Exception exception)
-        {
-            Debug.LogException(exception, this);
-        }
+        DisposeSceneRuntimeScopes();
 
         globalScopeCommitted = false;
 
@@ -573,6 +561,18 @@ public sealed class ProjectContext : MonoBehaviour, IDisposable
         try
         {
             scope.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+    }
+
+    private void DisposeSceneRuntimeScopes()
+    {
+        try
+        {
+            sceneRuntimeScopes?.Dispose();
         }
         catch (Exception exception)
         {

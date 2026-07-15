@@ -11,8 +11,6 @@ public sealed class AppRuntime : MonoBehaviour
 {
     public const string EditorStartupScenePathKey = "WhereverIAm.AppRuntime.EditorStartupScenePath";
 
-    private static AppRuntime instance;
-
     [Header("Startup")]
     [SerializeField] private bool loadStartupScene = true;
 
@@ -23,23 +21,10 @@ public sealed class AppRuntime : MonoBehaviour
     private ProjectSceneKind startupSceneOverride = ProjectSceneKind.Unknown;
     private bool runtimeStarted;
     private bool sceneEventsSubscribed;
-    private bool ownsRuntime;
-
-    public static AppRuntime Instance => instance;
-    public bool IsRuntimeStarted => runtimeStarted;
     public int SceneScopeCount => sceneScopes.Count;
 
     private void Awake()
     {
-        if (instance != null && instance != this)
-        {
-            Destroy(this);
-            return;
-        }
-
-        instance = this;
-        ownsRuntime = true;
-
         if (!EnsureContext())
             return;
 
@@ -57,13 +42,7 @@ public sealed class AppRuntime : MonoBehaviour
     {
         UnsubscribeFromSceneEvents();
 
-        if (!ownsRuntime)
-            return;
-
         ShutdownRuntime();
-
-        if (instance == this)
-            instance = null;
     }
 
     public void Configure(ProjectContext projectContext, ProjectSceneKind startupScene)
@@ -99,20 +78,18 @@ public sealed class AppRuntime : MonoBehaviour
 
     public void ShutdownRuntime()
     {
+        bool shouldShutdownContext = runtimeStarted;
         DisposeSceneScopes();
 
-        if (context == null)
+        if (!shouldShutdownContext || context == null)
             return;
 
         context.ShutdownRuntime();
         context.DisposeRuntime();
     }
 
-    internal void DisposeSceneScopes(ProjectContext projectContext = null)
+    private void DisposeSceneScopes()
     {
-        if (projectContext != null && projectContext != context)
-            return;
-
         runtimeStarted = false;
         sceneScopes.Dispose();
     }
@@ -232,34 +209,6 @@ public sealed class AppRuntime : MonoBehaviour
     private void HandleSceneUnloaded(Scene scene)
     {
         sceneScopes.Uninstall(scene.handle);
-    }
-
-    internal bool InstallSceneScope(Scene scene, ProjectContext projectContext)
-    {
-        if (!runtimeStarted || context == null || !context.IsReady)
-        {
-            Debug.LogError(
-                $"Cannot install scene scope '{scene.name}' before {nameof(AppRuntime)} is ready.",
-                this);
-
-            return false;
-        }
-
-        if (projectContext != context)
-        {
-            Debug.LogError(
-                $"Cannot install scene scope '{scene.name}' with another {nameof(ProjectContext)}.",
-                this);
-
-            return false;
-        }
-
-        return sceneScopes.Install(scene, context);
-    }
-
-    internal bool UninstallSceneScope(int sceneHandle)
-    {
-        return sceneScopes.Uninstall(sceneHandle);
     }
 
     private void ApplyStateForScene(Scene scene)

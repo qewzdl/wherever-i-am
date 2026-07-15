@@ -30,7 +30,8 @@ public sealed class SceneRuntimeScope : IDisposable
         ProjectSceneKind sceneKind,
         SceneServiceScopeParent parent,
         ServiceScope services,
-        SceneRuntimeFeature[] sceneFeatures)
+        SceneRuntimeFeature[] sceneFeatures,
+        Func<SceneFeatureContext, bool> scopeUninstallRequest = null)
         : this(
             runtimeScene,
             runtimeScene.handle,
@@ -38,7 +39,8 @@ public sealed class SceneRuntimeScope : IDisposable
             sceneKind,
             parent,
             services,
-            sceneFeatures)
+            sceneFeatures,
+            scopeUninstallRequest)
     {
     }
 
@@ -48,7 +50,8 @@ public sealed class SceneRuntimeScope : IDisposable
         ProjectSceneKind sceneKind,
         SceneServiceScopeParent parent,
         ServiceScope services,
-        SceneRuntimeFeature[] sceneFeatures)
+        SceneRuntimeFeature[] sceneFeatures,
+        Func<SceneFeatureContext, bool> scopeUninstallRequest = null)
         : this(
             default,
             handle,
@@ -56,7 +59,8 @@ public sealed class SceneRuntimeScope : IDisposable
             sceneKind,
             parent,
             services,
-            sceneFeatures)
+            sceneFeatures,
+            scopeUninstallRequest)
     {
     }
 
@@ -67,7 +71,8 @@ public sealed class SceneRuntimeScope : IDisposable
         ProjectSceneKind sceneKind,
         SceneServiceScopeParent parent,
         ServiceScope services,
-        SceneRuntimeFeature[] sceneFeatures)
+        SceneRuntimeFeature[] sceneFeatures,
+        Func<SceneFeatureContext, bool> scopeUninstallRequest)
     {
         scene = runtimeScene;
         sceneHandle = handle;
@@ -79,7 +84,8 @@ public sealed class SceneRuntimeScope : IDisposable
             sceneHandle,
             sceneKind,
             serviceScope,
-            serviceRegistrar);
+            serviceRegistrar,
+            scopeUninstallRequest);
         features = sceneFeatures ?? throw new ArgumentNullException(nameof(sceneFeatures));
     }
 
@@ -150,6 +156,12 @@ public sealed class SceneRuntimeScope : IDisposable
 
             if (feature != null && feature.InstallValidated(featureContext))
             {
+                if (disposed)
+                {
+                    feature.Uninstall();
+                    return false;
+                }
+
                 installedFeatureCount++;
                 continue;
             }
@@ -185,6 +197,7 @@ public sealed class SceneRuntimeScope : IDisposable
         serviceRegistrar.CloseRegistration();
         disposed = true;
         ready = false;
+        featureContext.DetachScopeLifetime();
         RollbackInstalledFeatures();
         DisposeAudioComposition();
         DisposeServiceScope();
@@ -195,6 +208,7 @@ public sealed class SceneRuntimeScope : IDisposable
         serviceRegistrar.CloseRegistration();
         disposed = true;
         ready = false;
+        featureContext.DetachScopeLifetime();
         RollbackInstalledFeatures();
         DisposeAudioComposition();
         RollbackRegistrations(registrationTransaction);
@@ -255,6 +269,11 @@ public sealed class SceneRuntimeScope : IDisposable
         return feature != null
             ? feature.GetType().Name
             : "Missing";
+    }
+
+    internal bool OwnsContext(SceneFeatureContext context)
+    {
+        return ReferenceEquals(featureContext, context);
     }
 }
 
@@ -356,7 +375,7 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
         scopeOrder.Clear();
     }
 
-    private static bool TryCreateScope(
+    private bool TryCreateScope(
         Scene scene,
         ProjectContext context,
         out SceneRuntimeScope scope)
@@ -471,7 +490,8 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
                 sceneKind,
                 parent,
                 sceneServiceScope,
-                features.ToArray());
+                features.ToArray(),
+                TryUninstallRequestedScope);
 
             return true;
         }
@@ -491,6 +511,18 @@ public sealed class SceneRuntimeScopeRegistry : IDisposable
             Debug.LogException(exception);
             return false;
         }
+    }
+
+    private bool TryUninstallRequestedScope(SceneFeatureContext context)
+    {
+        if (context == null ||
+            !scopes.TryGetValue(context.SceneHandle, out SceneRuntimeScope scope) ||
+            !scope.OwnsContext(context))
+        {
+            return false;
+        }
+
+        return Uninstall(context.SceneHandle);
     }
 
     private static string GetSceneLabel(Scene scene)

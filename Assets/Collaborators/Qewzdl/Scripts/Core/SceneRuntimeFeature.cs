@@ -14,10 +14,10 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         if (!installed)
             return;
 
-        AppRuntime runtime = AppRuntime.Instance;
+        SceneFeatureContext context = installedContext;
 
-        if (runtime != null)
-            runtime.UninstallSceneScope(gameObject.scene.handle);
+        if (context == null || !context.RequestScopeUninstall())
+            Uninstall();
     }
 
     public bool Validate(SceneFeatureContext context)
