@@ -156,6 +156,7 @@ GameObject:
   - component: {fileID: 481142999}
   - component: {fileID: 481143003}
   - component: {fileID: 481143005}
+  - component: {fileID: 481143007}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -528,8 +529,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   serverActionHandlers:
+  - {fileID: 481143007}
   - {fileID: 481142984}
   - {fileID: 481142990}
+--- !u!114 &481143007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4d5b8c3a7e2499fc2b3d4e5f6071829, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  networkManager: {fileID: 481142982}
+  phaseServicePrefab: {fileID: 7100000000000000004, guid: a1b2c3d4e5f6478899aabbccddeeff01, type: 3}
 --- !u!114 &481142999
 MonoBehaviour:
   m_ObjectHideFlags: 0

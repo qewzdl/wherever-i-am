@@ -241,6 +241,15 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
         return shutdownTask;
     }
 
+    internal void ForceAbortForApplicationQuit()
+    {
+        CancelPendingConnectionAttempt();
+        immediateShutdownRequested = true;
+
+        if (networkManager != null && !IsFullyStopped(networkManager))
+            networkManager.Shutdown(discardMessageQueue: true);
+    }
+
     private async Task ShutdownCoreAsync(
         NetworkManager manager,
         Task pendingConnectionAttempt)

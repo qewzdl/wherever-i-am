@@ -8,6 +8,7 @@ public sealed class ChildServiceContractPolicyTests
         IChatReadService,
         IChatCommandService,
         IMatchCompletionService,
+        ISessionPhaseService,
         ISessionServiceReadiness
     {
         public event Action MessagesChanged
@@ -33,6 +34,7 @@ public sealed class ChildServiceContractPolicyTests
         public int MessageCount => 0;
         public bool IsMatchRunning => true;
         public bool IsSessionServiceReady { get; set; } = true;
+        public ProjectSceneKind ServerScenePhase { get; set; } = ProjectSceneKind.Lobby;
 
         public ChatMessageData GetMessage(int index)
         {
@@ -58,6 +60,36 @@ public sealed class ChildServiceContractPolicyTests
         {
             return true;
         }
+
+        public bool TrySetServerScenePhase(ProjectSceneKind sceneKind)
+        {
+            ServerScenePhase = sceneKind;
+            return true;
+        }
+    }
+
+    private sealed class NonObservableChatService :
+        IChatReadService,
+        IChatCommandService
+    {
+        public event Action MessagesChanged { add { } remove { } }
+        public event Action<ChatMessageData> MessageAdded { add { } remove { } }
+        public event Action AvailabilityChanged { add { } remove { } }
+
+        public bool CanSubmitMessages => true;
+        public ChatChannel CurrentChannel => ChatChannel.Lobby;
+        public int MessageCount => 0;
+
+        public ChatMessageData GetMessage(int index) => default;
+
+        public bool TryGetMessage(uint messageId, out ChatMessageData message)
+        {
+            message = default;
+            return false;
+        }
+
+        public bool IsLocalClient(ulong clientId) => false;
+        public void SubmitMessage(string text) { }
     }
 
     private sealed class CrossScopeService : IChatCommandService, IPauseService
@@ -282,6 +314,39 @@ public sealed class ChildServiceContractPolicyTests
     }
 
     [Test]
+    public void SessionReadinessPolicy_RejectsServicesWithoutReadinessMarker()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        NonObservableChatService service = new();
+        session.Register<IChatReadService>(service);
+        session.Register<IChatCommandService>(service);
+
+        Assert.That(
+            SessionServiceReadinessPolicy.Validate(
+                ProjectSceneKind.Lobby,
+                session,
+                out string error),
+            Is.False);
+        Assert.That(error, Does.Contain("unready"));
+        Assert.That(error, Does.Contain(nameof(IChatReadService)));
+        Assert.That(error, Does.Contain(nameof(IChatCommandService)));
+    }
+
+    [Test]
+    public void SessionPhase_IsOwnedByDedicatedNetworkService()
+    {
+        Assert.That(
+            typeof(ISessionPhaseService).IsAssignableFrom(typeof(NetworkSessionPhaseService)),
+            Is.True);
+        Assert.That(
+            typeof(ISessionPhaseService).IsAssignableFrom(typeof(NetworkChatSession)),
+            Is.False);
+    }
+
+    [Test]
     public void SessionReadinessPolicy_DoesNotRequireSessionForInactiveStates()
     {
         Assert.That(
@@ -351,6 +416,7 @@ public sealed class ChildServiceContractPolicyTests
                 {
                     registrar.Register<IChatReadService>(service);
                     registrar.Register<IChatCommandService>(service);
+                    registrar.Register<ISessionPhaseService>(service);
                 },
                 out SessionServiceRegistration registration,
                 out Exception registrationFailure),
@@ -389,6 +455,72 @@ public sealed class ChildServiceContractPolicyTests
         replacement.Dispose();
 
         Assert.That(failureCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void SessionReadinessMonitor_HeartbeatDetectsUnreadyServiceAndPhaseMismatch()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        using SessionServiceRegistry registry = new(session);
+        DynamicSessionService service = new();
+
+        Assert.That(
+            registry.TryRegister(
+                registrar =>
+                {
+                    registrar.Register<IChatReadService>(service);
+                    registrar.Register<IChatCommandService>(service);
+                    registrar.Register<ISessionPhaseService>(service);
+                },
+                out SessionServiceRegistration registration,
+                out Exception registrationFailure),
+            Is.True,
+            registrationFailure?.ToString());
+
+        int readinessFailureCount = 0;
+        using SessionServiceReadinessMonitor readinessMonitor = new(
+            registry,
+            () => GameState.Lobby,
+            _ => readinessFailureCount++);
+
+        Assert.That(readinessMonitor.ValidateNow(), Is.True);
+        service.IsSessionServiceReady = false;
+        Assert.That(readinessMonitor.ValidateNow(), Is.False);
+        Assert.That(readinessFailureCount, Is.EqualTo(1));
+
+        registration.Dispose();
+
+        using ServiceScope phaseSession = global.CreateChild(
+            "Phase Session",
+            SessionContractPolicy.Instance);
+        using SessionServiceRegistry phaseRegistry = new(phaseSession);
+        service.IsSessionServiceReady = true;
+        service.ServerScenePhase = ProjectSceneKind.Game;
+        Assert.That(
+            phaseRegistry.TryRegister(
+                registrar =>
+                {
+                    registrar.Register<IChatReadService>(service);
+                    registrar.Register<IChatCommandService>(service);
+                    registrar.Register<ISessionPhaseService>(service);
+                },
+                out SessionServiceRegistration phaseRegistration,
+                out registrationFailure),
+            Is.True,
+            registrationFailure?.ToString());
+
+        string phaseFailure = string.Empty;
+        using SessionServiceReadinessMonitor phaseMonitor = new(
+            phaseRegistry,
+            () => GameState.Lobby,
+            error => phaseFailure = error);
+
+        Assert.That(phaseMonitor.ValidateNow(), Is.False);
+        Assert.That(phaseFailure, Does.Contain("expected 'Lobby'"));
+        phaseRegistration.Dispose();
     }
 
     [Test]

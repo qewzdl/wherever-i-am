@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
@@ -89,6 +90,43 @@ public sealed class LifecycleEventIsolationTests
         finally
         {
             LogAssert.ignoreFailingMessages = previousIgnoreState;
+            UnityEngine.Object.DestroyImmediate(root);
+        }
+    }
+
+    [Test]
+    public void SceneOperationCancellation_ClearsClientReadinessTracking()
+    {
+        GameObject root = new("Client readiness cancellation test");
+        root.SetActive(false);
+
+        try
+        {
+            AppRuntime runtime = root.AddComponent<AppRuntime>();
+            const BindingFlags flags =
+                BindingFlags.Instance | BindingFlags.NonPublic;
+            FieldInfo kindField = typeof(AppRuntime).GetField(
+                "pendingClientReadinessKind",
+                flags);
+            FieldInfo handleField = typeof(AppRuntime).GetField(
+                "pendingClientReadinessSceneHandle",
+                flags);
+
+            Assert.That(kindField, Is.Not.Null);
+            Assert.That(handleField, Is.Not.Null);
+            kindField.SetValue(runtime, ProjectSceneKind.Game);
+            handleField.SetValue(runtime, 1234);
+
+            ((IProjectSceneLoadCompletionGate)runtime).CancelPending(
+                ProjectOperationCancelReason.SessionShutdown);
+
+            Assert.That(
+                kindField.GetValue(runtime),
+                Is.EqualTo(ProjectSceneKind.Unknown));
+            Assert.That(handleField.GetValue(runtime), Is.EqualTo(0));
+        }
+        finally
+        {
             UnityEngine.Object.DestroyImmediate(root);
         }
     }

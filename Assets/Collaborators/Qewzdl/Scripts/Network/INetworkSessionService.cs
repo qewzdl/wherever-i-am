@@ -7,5 +7,10 @@ public interface INetworkSessionService
 
     void StartGame(int mapId);
     void ShutdownToMainMenu();
-    Task ShutdownToMainMenuAsync();
+
+    /// <summary>
+    /// Stops NGO, closes Scene/Player/Session scopes, and completes only after
+    /// MainMenu has been activated and committed.
+    /// </summary>
+    Task<NetworkShutdownResult> ShutdownToMainMenuAsync();
 }

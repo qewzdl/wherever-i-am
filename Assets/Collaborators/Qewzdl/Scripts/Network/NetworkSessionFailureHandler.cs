@@ -28,10 +28,16 @@ public sealed class NetworkSessionFailureHandler : MonoBehaviour
         _ = FailAndReturnToMainMenuAsync(result);
     }
 
-    public Task FailAndReturnToMainMenuAsync(ConnectionResult result)
+    public Task<NetworkShutdownResult> FailAndReturnToMainMenuAsync(ConnectionResult result)
     {
         if (!HasRequiredReferences())
-            return Task.CompletedTask;
+        {
+            return Task.FromResult(NetworkShutdownResult.Failure(
+                false,
+                false,
+                false,
+                "Network session failure handler is not configured."));
+        }
 
         return shutdownCoordinator.ShutdownAndWaitAsync(result);
     }

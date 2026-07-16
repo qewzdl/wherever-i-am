@@ -35,8 +35,9 @@ MonoBehaviour:
     authority: 1
     requiresActiveNetworkSession: 1
     allowEditorDirectLoad: 0
-    stateBeforeLoad: 3
+    stateBeforeLoad: 2
     serverActionsAfterLoad:
+    - 2
     - 0
   - fromScene: 3
     toScene: 4

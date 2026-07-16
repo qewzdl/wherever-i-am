@@ -54,27 +54,54 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
 
     private void HandleServicesChanged()
     {
-        ValidateCurrentState();
+        ValidateNow();
     }
 
     private void HandleGameStateChanged(GameState previousState, GameState newState)
     {
-        ValidateCurrentState();
+        ValidateNow();
     }
 
-    private void ValidateCurrentState()
+    internal bool ValidateNow()
     {
-        if (disposed || failureRaised ||
-            SessionServiceReadinessPolicy.Validate(
-                stateProvider.Invoke(),
+        if (disposed || failureRaised)
+            return false;
+
+        GameState currentState = stateProvider.Invoke();
+
+        if (SessionServiceReadinessPolicy.Validate(
+                currentState,
                 registry,
-                out string error))
+                out string error) &&
+            ValidateActiveServerPhase(currentState, out error))
         {
-            return;
+            return true;
         }
 
         failureRaised = true;
         readinessLost.Invoke(error);
+        return false;
+    }
+
+    private bool ValidateActiveServerPhase(GameState currentState, out string error)
+    {
+        ProjectSceneKind expectedScene = currentState switch
+        {
+            GameState.Lobby => ProjectSceneKind.Lobby,
+            GameState.InGame => ProjectSceneKind.Game,
+            _ => ProjectSceneKind.Unknown
+        };
+
+        if (expectedScene == ProjectSceneKind.Unknown)
+        {
+            error = string.Empty;
+            return true;
+        }
+
+        return SessionServiceReadinessPolicy.ValidateServerPhase(
+            expectedScene,
+            registry,
+            out error);
     }
 
     private static Func<GameState> CreateStateProvider(

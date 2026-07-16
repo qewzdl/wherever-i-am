@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -17,8 +18,13 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
 
     [Header("Shutdown Recovery")]
     [SerializeField] [Min(0)] private int shutdownTimeoutRecoveryAttempts = 1;
+    [SerializeField] [Min(1f)] private float mainMenuLoadTimeoutSeconds = 15f;
 
-    private Task shutdownTask = Task.CompletedTask;
+    [Header("Session Readiness")]
+    [SerializeField] [Min(0.05f)] private float readinessHealthCheckIntervalSeconds = 0.25f;
+
+    private Task<NetworkShutdownResult> shutdownTask =
+        Task.FromResult(NetworkShutdownResult.Success());
     private Task readinessFailureTask = Task.CompletedTask;
     private ConnectionResult pendingFailure;
     private SessionScopeController sessionScopeController;
@@ -26,8 +32,11 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     private SessionServiceReadinessMonitor readinessMonitor;
     private bool sessionStopRaised = true;
     private bool readinessFailureRaised;
+    private float nextReadinessHealthCheckTime;
 
     public bool IsShutdownInProgress => !shutdownTask.IsCompleted;
+    internal bool RequiresCoordinatedShutdown =>
+        IsSessionScopeOpen() || (connectionService != null && connectionService.IsRunning);
     internal IServiceResolver SessionServices => sessionScopeController != null
         ? sessionScopeController.Services
         : null;
@@ -38,6 +47,19 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     private void Awake()
     {
         HasRequiredReferences();
+    }
+
+    private void Update()
+    {
+        if (readinessMonitor == null ||
+            Time.unscaledTime < nextReadinessHealthCheckTime)
+        {
+            return;
+        }
+
+        nextReadinessHealthCheckTime = Time.unscaledTime +
+                                       Mathf.Max(0.05f, readinessHealthCheckIntervalSeconds);
+        readinessMonitor.ValidateNow();
     }
 
     public bool TryOpenSessionScope()
@@ -247,31 +269,61 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return;
 
         bool wasOpen = controller.IsOpen;
+        List<Exception> cleanupFailures = new();
 
         try
         {
             if (wasOpen)
-                runtimeSceneScopes?.UninstallSessionScopes();
+            {
+                try
+                {
+                    runtimeSceneScopes?.UninstallSessionScopes();
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add(exception);
+                }
+            }
 
-            controller.Dispose();
+            try
+            {
+                controller.Dispose();
+            }
+            catch (Exception exception)
+            {
+                cleanupFailures.Add(exception);
+            }
         }
         finally
         {
-            if (wasOpen && !sessionStopRaised)
+            if (wasOpen && !controller.IsOpen && !sessionStopRaised)
             {
                 sessionStopRaised = true;
                 RaiseSessionEvent(SessionStopped, nameof(SessionStopped));
             }
         }
+
+        for (int i = 0; i < cleanupFailures.Count; i++)
+            Debug.LogException(cleanupFailures[i], this);
     }
 
-    public Task ShutdownAndWaitAsync(
+    internal void ForceAbortForApplicationQuit()
+    {
+        disconnectHandler?.StopListening();
+        sceneFlowService?.CancelPendingOperations(
+            ProjectOperationCancelReason.SessionShutdown);
+        StopSessionReadinessMonitor();
+        connectionService?.ForceAbortForApplicationQuit();
+        DisposeSessionScopeController();
+    }
+
+    public Task<NetworkShutdownResult> ShutdownAndWaitAsync(
         NetworkShutdownMode mode = NetworkShutdownMode.Graceful)
     {
         return RequestShutdownAsync(mode, null);
     }
 
-    public Task ShutdownAndWaitAsync(ConnectionResult failure)
+    public Task<NetworkShutdownResult> ShutdownAndWaitAsync(ConnectionResult failure)
     {
         if (failure == null)
             throw new ArgumentNullException(nameof(failure));
@@ -279,12 +331,18 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
         return RequestShutdownAsync(NetworkShutdownMode.Immediate, failure);
     }
 
-    private Task RequestShutdownAsync(
+    private Task<NetworkShutdownResult> RequestShutdownAsync(
         NetworkShutdownMode mode,
         ConnectionResult failure)
     {
         if (!HasRequiredReferences())
-            return Task.CompletedTask;
+        {
+            return Task.FromResult(NetworkShutdownResult.Failure(
+                !connectionService || !connectionService.IsRunning,
+                !IsSessionScopeOpen(),
+                stateMachine != null && stateMachine.CurrentState == GameState.MainMenu,
+                "Network shutdown coordinator is not fully configured."));
+        }
 
         if (failure != null)
             RegisterFailure(failure);
@@ -297,18 +355,20 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return shutdownTask;
         }
 
-        if (!IsSessionScopeOpen() && !connectionService.IsRunning)
+        if (!IsSessionScopeOpen() &&
+            !connectionService.IsRunning &&
+            stateMachine.CurrentState == GameState.MainMenu)
         {
             PresentPendingFailure();
             pendingFailure = null;
-            return Task.CompletedTask;
+            return Task.FromResult(NetworkShutdownResult.Success());
         }
 
         shutdownTask = ShutdownCoreAsync(mode);
         return shutdownTask;
     }
 
-    private async Task ShutdownCoreAsync(NetworkShutdownMode mode)
+    private async Task<NetworkShutdownResult> ShutdownCoreAsync(NetworkShutdownMode mode)
     {
         bool completed = false;
 
@@ -321,9 +381,10 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             await ShutdownNetworkWithRecoveryAsync(mode);
 
             CloseSessionScopeOnce();
-            LoadMainMenuAfterShutdown();
+            await LoadMainMenuAfterShutdownAsync();
             PresentPendingFailure();
             completed = true;
+            return NetworkShutdownResult.Success();
         }
         catch (Exception exception)
         {
@@ -336,6 +397,13 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
 
             errorManager.ShowError(
                 $"{message} Shutdown can be retried without losing cleanup order.");
+
+            return NetworkShutdownResult.Failure(
+                !connectionService.IsRunning,
+                !IsSessionScopeOpen(),
+                stateMachine.CurrentState == GameState.MainMenu,
+                exception.Message,
+                exception);
         }
         finally
         {
@@ -409,11 +477,27 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return;
 
         StopSessionReadinessMonitor();
+        List<Exception> cleanupFailures = new();
 
         try
         {
-            sceneScopes.UninstallSessionScopes();
-            sessionScopeController.Close();
+            try
+            {
+                sceneScopes.UninstallSessionScopes();
+            }
+            catch (Exception exception)
+            {
+                cleanupFailures.Add(exception);
+            }
+
+            try
+            {
+                sessionScopeController.Close();
+            }
+            catch (Exception exception)
+            {
+                cleanupFailures.Add(exception);
+            }
         }
         finally
         {
@@ -423,9 +507,16 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
                 RaiseSessionEvent(SessionStopped, nameof(SessionStopped));
             }
         }
+
+        if (cleanupFailures.Count > 0)
+        {
+            throw new AggregateException(
+                "Network stopped, but one or more Session scopes failed to clean up.",
+                cleanupFailures);
+        }
     }
 
-    private void LoadMainMenuAfterShutdown()
+    private async Task LoadMainMenuAfterShutdownAsync()
     {
         if (connectionService.IsRunning)
         {
@@ -433,11 +524,59 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
                 "Main menu cannot be loaded before NetworkManager is fully stopped.");
         }
 
-        if (sceneFlowService.LoadScene(ProjectSceneKind.MainMenu))
-            return;
+        TaskCompletionSource<bool> completion = new();
 
-        stateMachine.ChangeState(GameState.Error);
-        throw new InvalidOperationException("Failed to load main menu after network shutdown.");
+        void HandleCompleted(ProjectSceneKind sceneKind)
+        {
+            if (sceneKind == ProjectSceneKind.MainMenu)
+                completion.TrySetResult(true);
+        }
+
+        void HandleFailed(ProjectSceneKind sceneKind)
+        {
+            if (sceneKind == ProjectSceneKind.MainMenu)
+            {
+                completion.TrySetException(
+                    new InvalidOperationException(
+                        "Main menu scene operation failed after network shutdown."));
+            }
+        }
+
+        sceneFlowService.SceneLoadCompleted += HandleCompleted;
+        sceneFlowService.SceneLoadFailed += HandleFailed;
+
+        try
+        {
+            if (!sceneFlowService.LoadScene(ProjectSceneKind.MainMenu))
+            {
+                throw new InvalidOperationException(
+                    "Failed to start main menu loading after network shutdown.");
+            }
+
+            Task finished = await Task.WhenAny(
+                completion.Task,
+                Task.Delay(TimeSpan.FromSeconds(
+                    Mathf.Max(1f, mainMenuLoadTimeoutSeconds))));
+
+            if (finished != completion.Task)
+            {
+                throw new TimeoutException(
+                    "Timed out while waiting for the MainMenu scene commit.");
+            }
+
+            await completion.Task;
+
+            if (stateMachine.CurrentState != GameState.MainMenu)
+            {
+                throw new InvalidOperationException(
+                    "Main menu scene completed without committing MainMenu state.");
+            }
+        }
+        finally
+        {
+            sceneFlowService.SceneLoadCompleted -= HandleCompleted;
+            sceneFlowService.SceneLoadFailed -= HandleFailed;
+        }
     }
 
     private void PresentPendingFailure()
@@ -480,6 +619,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
                 registry,
                 stateMachine,
                 HandleSessionReadinessLost);
+            nextReadinessHealthCheckTime = Time.unscaledTime;
             failure = null;
             return true;
         }
@@ -494,6 +634,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
     {
         SessionServiceReadinessMonitor monitor = readinessMonitor;
         readinessMonitor = null;
+        nextReadinessHealthCheckTime = 0f;
         monitor?.Dispose();
     }
 

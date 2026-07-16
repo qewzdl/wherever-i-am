@@ -11,6 +11,8 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
     internal IServiceResolver SessionServices => sessionFlowService != null
         ? sessionFlowService.SessionServices
         : null;
+    internal bool RequiresCoordinatedShutdown =>
+        sessionFlowService != null && sessionFlowService.RequiresCoordinatedShutdown;
 
     private void Awake()
     {
@@ -49,21 +51,33 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         sessionFlowService.ShutdownToMainMenu();
     }
 
-    public Task ShutdownToMainMenuAsync()
+    public Task<NetworkShutdownResult> ShutdownToMainMenuAsync()
     {
         if (!HasRequiredReferences())
-            return Task.CompletedTask;
+        {
+            return Task.FromResult(NetworkShutdownResult.Failure(
+                false,
+                false,
+                false,
+                "Network session orchestrator is not configured."));
+        }
 
         return sessionFlowService.ShutdownToMainMenuAsync();
     }
 
-    internal Task ShutdownAfterFailureAsync(ConnectionResult failure)
+    internal Task<NetworkShutdownResult> ShutdownAfterFailureAsync(ConnectionResult failure)
     {
         if (failure == null)
             throw new ArgumentNullException(nameof(failure));
 
         if (!HasRequiredReferences())
-            return Task.CompletedTask;
+        {
+            return Task.FromResult(NetworkShutdownResult.Failure(
+                false,
+                false,
+                false,
+                "Network session orchestrator is not configured."));
+        }
 
         return sessionFlowService.ShutdownAfterFailureAsync(failure);
     }
@@ -193,6 +207,11 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
     internal void DisposeSessionScopeController()
     {
         sessionFlowService?.DisposeSessionScopeController();
+    }
+
+    internal void ForceAbortForApplicationQuit()
+    {
+        sessionFlowService?.ForceAbortForApplicationQuit();
     }
 
     private bool HasRequiredReferences()

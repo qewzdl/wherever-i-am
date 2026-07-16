@@ -35,6 +35,7 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
     private bool runtimeStarted;
     private bool sceneEventsSubscribed;
     private bool sceneActivationHealthy = true;
+    private bool sessionSceneActivationQuarantined;
     public int SceneScopeCount => sceneScopes.Count;
 
     private void Awake()
@@ -55,8 +56,7 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
     private void OnDestroy()
     {
         UnsubscribeFromSceneEvents();
-
-        ShutdownRuntime();
+        ForceAbortRuntimeForApplicationQuit();
     }
 
     public void Configure(ProjectContext projectContext, ProjectSceneKind startupScene)
@@ -91,22 +91,21 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
         return true;
     }
 
-    public void ShutdownRuntime()
+    private void ForceAbortRuntimeForApplicationQuit()
     {
         bool shouldShutdownContext = runtimeStarted;
+
+        if (shouldShutdownContext && context != null)
+            context.ForceAbortRuntimeForApplicationQuit();
+
         DisposeSceneScopes();
-
-        if (!shouldShutdownContext || context == null)
-            return;
-
-        context.ShutdownRuntime();
-        context.DisposeRuntime();
     }
 
     private void DisposeSceneScopes()
     {
         runtimeStarted = false;
         sceneActivationHealthy = true;
+        sessionSceneActivationQuarantined = false;
         ClearPendingSceneActivation();
         CancelClientReadiness();
         sceneScopes.Dispose();
@@ -247,6 +246,9 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
                 isMapScene,
                 out ProjectSceneScopeRequirements requirements))
         {
+            if (ShouldIgnoreLateSessionScene(scene, requirements))
+                return true;
+
             if (!sceneScopes.Install(scene, context))
             {
                 HandleSceneActivationFailure(scene, sceneKind, requirements);
@@ -254,6 +256,10 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
             }
 
             sceneActivationHealthy = true;
+
+            if (requirements.Parent == SceneServiceScopeParent.Global)
+                sessionSceneActivationQuarantined = false;
+
             CompletePendingSceneActivation(sceneKind, true);
         }
 
@@ -262,6 +268,25 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
 
         if (!ShouldDeferSceneStateCommit())
             ApplyStateForScene(sceneKind);
+
+        return true;
+    }
+
+    private bool ShouldIgnoreLateSessionScene(
+        Scene scene,
+        ProjectSceneScopeRequirements requirements)
+    {
+        if (requirements.Parent != SceneServiceScopeParent.Session)
+            return false;
+
+        if (!sessionSceneActivationQuarantined)
+            return false;
+
+        RuntimeLog.Info(
+            $"Ignoring late scene completion for '{GetSceneLabel(scene)}' " +
+            $"(handle {scene.handle}) because its Session scene operation " +
+            "was cancelled before Unity finished loading it.",
+            this);
 
         return true;
     }
@@ -559,7 +584,14 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
 
     void IProjectSceneLoadCompletionGate.CancelPending(ProjectOperationCancelReason reason)
     {
+        if (reason == ProjectOperationCancelReason.SessionShutdown ||
+            reason == ProjectOperationCancelReason.SessionServiceReadinessLost)
+        {
+            sessionSceneActivationQuarantined = true;
+        }
+
         ClearPendingSceneActivation();
+        CancelClientReadiness();
     }
 
     private bool IsProjectSceneScopeReady(ProjectSceneKind sceneKind)
@@ -616,7 +648,15 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
                 throw new InvalidOperationException(
                     $"{nameof(NetworkSessionOrchestrator)} is not configured.");
 
-            await sessionOrchestrator.ShutdownAfterFailureAsync(failure);
+            NetworkShutdownResult result =
+                await sessionOrchestrator.ShutdownAfterFailureAsync(failure);
+
+            if (!result.Succeeded)
+            {
+                Debug.LogError(
+                    $"Session shutdown remained incomplete: {result.Message}",
+                    this);
+            }
         }
         catch (Exception exception)
         {

@@ -23,6 +23,8 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     internal IServiceResolver SessionServices => shutdownCoordinator != null
         ? shutdownCoordinator.SessionServices
         : null;
+    internal bool RequiresCoordinatedShutdown =>
+        shutdownCoordinator != null && shutdownCoordinator.RequiresCoordinatedShutdown;
 
     private void Awake()
     {
@@ -201,21 +203,33 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         _ = ShutdownToMainMenuAsync();
     }
 
-    public Task ShutdownToMainMenuAsync()
+    public Task<NetworkShutdownResult> ShutdownToMainMenuAsync()
     {
         if (!HasRequiredReferences())
-            return Task.CompletedTask;
+        {
+            return Task.FromResult(NetworkShutdownResult.Failure(
+                false,
+                false,
+                false,
+                "Network session flow is not configured."));
+        }
 
         return shutdownCoordinator.ShutdownAndWaitAsync(NetworkShutdownMode.Graceful);
     }
 
-    internal Task ShutdownAfterFailureAsync(ConnectionResult failure)
+    internal Task<NetworkShutdownResult> ShutdownAfterFailureAsync(ConnectionResult failure)
     {
         if (failure == null)
             throw new ArgumentNullException(nameof(failure));
 
         if (!HasRequiredReferences())
-            return Task.CompletedTask;
+        {
+            return Task.FromResult(NetworkShutdownResult.Failure(
+                false,
+                false,
+                false,
+                "Network session flow is not configured."));
+        }
 
         return shutdownCoordinator.ShutdownAndWaitAsync(failure);
     }
@@ -317,6 +331,11 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         shutdownCoordinator?.DisposeSessionScopeController();
     }
 
+    internal void ForceAbortForApplicationQuit()
+    {
+        shutdownCoordinator?.ForceAbortForApplicationQuit();
+    }
+
     private void HandleSceneLoadCompleted(ProjectSceneKind scene)
     {
         if (!HasRequiredReferences())
@@ -380,7 +399,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         ));
     }
 
-    private Task FailAsync(ConnectionResult result)
+    private Task<NetworkShutdownResult> FailAsync(ConnectionResult result)
     {
         return shutdownCoordinator.ShutdownAndWaitAsync(result);
     }

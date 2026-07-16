@@ -5,7 +5,8 @@
         "WhereverIAm.Qewzdl",
         "WhereverIAm.Shared",
         "Unity.Netcode.Runtime",
-        "Unity.Networking.Transport"
+        "Unity.Networking.Transport",
+        "Unity.Multiplayer.Playmode"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

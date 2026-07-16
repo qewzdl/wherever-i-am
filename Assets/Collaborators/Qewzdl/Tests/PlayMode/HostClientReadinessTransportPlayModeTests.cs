@@ -140,7 +140,7 @@ public sealed class ClientReadinessNetworkProbe : NetworkBehaviour,
     }
 }
 
-public sealed class HostClientReadinessBootstrapPlayModeTests
+public sealed class HostClientReadinessTransportPlayModeTests
 {
     private const float TimeoutSeconds = 10f;
 

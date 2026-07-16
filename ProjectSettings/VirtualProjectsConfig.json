@@ -1,4 +1,8 @@
 {
-  "PlayerTags": [],
+  "PlayerTags": [
+    "GHost",
+    "GClient",
+    "GLateClient"
+  ],
   "version": "1.6.3"
 }

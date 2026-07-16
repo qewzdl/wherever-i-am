@@ -21,6 +21,7 @@ internal sealed class SceneRuntimeScope : IDisposable
     private readonly SceneRuntimeFeature[] features;
     private readonly Func<ServiceScope, bool> readyValidator;
     private AudioServiceComposition audioComposition;
+    private readonly List<Exception> cleanupFailures = new();
     private int installedFeatureCount;
     private bool disposed;
     private bool ready;
@@ -206,6 +207,24 @@ internal sealed class SceneRuntimeScope : IDisposable
 
     public void Dispose()
     {
+        DisposeCore();
+        LogAndClearCleanupFailures();
+    }
+
+    internal void DisposeOrThrow()
+    {
+        DisposeCore();
+
+        if (cleanupFailures.Count > 0)
+        {
+            throw new AggregateException(
+                $"Failed to dispose scene scope '{sceneLabel}' ({sceneHandle}).",
+                cleanupFailures);
+        }
+    }
+
+    private void DisposeCore()
+    {
         if (disposed)
             return;
 
@@ -228,10 +247,13 @@ internal sealed class SceneRuntimeScope : IDisposable
         DisposeAudioComposition();
         RollbackRegistrations(registrationTransaction);
         DisposeServiceScope();
+
+        LogAndClearCleanupFailures();
+
         return false;
     }
 
-    private static void RollbackRegistrations(
+    private void RollbackRegistrations(
         ServiceRegistrationTransaction registrationTransaction)
     {
         if (registrationTransaction == null || registrationTransaction.IsCompleted)
@@ -243,7 +265,7 @@ internal sealed class SceneRuntimeScope : IDisposable
         }
         catch (Exception exception)
         {
-            Debug.LogException(exception);
+            cleanupFailures.Add(exception);
         }
     }
 
@@ -255,7 +277,7 @@ internal sealed class SceneRuntimeScope : IDisposable
         }
         catch (Exception exception)
         {
-            Debug.LogException(exception);
+            cleanupFailures.Add(exception);
         }
     }
 
@@ -263,7 +285,15 @@ internal sealed class SceneRuntimeScope : IDisposable
     {
         AudioServiceComposition composition = audioComposition;
         audioComposition = null;
-        composition?.Dispose();
+
+        try
+        {
+            composition?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            cleanupFailures.Add(exception);
+        }
     }
 
     private void RollbackInstalledFeatures()
@@ -273,10 +303,23 @@ internal sealed class SceneRuntimeScope : IDisposable
             SceneRuntimeFeature feature = features[i];
 
             if (feature != null)
-                feature.Uninstall();
+            {
+                Exception failure = feature.UninstallForScope();
+
+                if (failure != null)
+                    cleanupFailures.Add(failure);
+            }
         }
 
         installedFeatureCount = 0;
+    }
+
+    private void LogAndClearCleanupFailures()
+    {
+        for (int i = 0; i < cleanupFailures.Count; i++)
+            Debug.LogException(cleanupFailures[i]);
+
+        cleanupFailures.Clear();
     }
 
     private static string GetFeatureName(SceneRuntimeFeature feature)
@@ -353,6 +396,7 @@ internal sealed class SceneRuntimeScopeRegistry : IDisposable
     internal int UninstallSessionScopes()
     {
         int uninstallCount = 0;
+        List<Exception> failures = null;
 
         for (int i = scopeOrder.Count - 1; i >= 0; i--)
         {
@@ -366,8 +410,25 @@ internal sealed class SceneRuntimeScopeRegistry : IDisposable
 
             scopes.Remove(sceneHandle);
             scopeOrder.RemoveAt(i);
-            scope.Dispose();
+
+            try
+            {
+                scope.DisposeOrThrow();
+            }
+            catch (Exception exception)
+            {
+                failures ??= new List<Exception>();
+                failures.Add(exception);
+            }
+
             uninstallCount++;
+        }
+
+        if (failures != null)
+        {
+            throw new AggregateException(
+                "One or more Session scene scopes failed to clean up.",
+                failures);
         }
 
         return uninstallCount;

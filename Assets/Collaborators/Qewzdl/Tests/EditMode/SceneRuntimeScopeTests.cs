@@ -76,6 +76,7 @@ internal sealed class SceneScopeTrackingFeature :
     private string featureId;
     private bool installResult;
     private bool registerService;
+    private bool throwOnUninstall;
 
     public bool ResolvedParentDuringValidation { get; private set; }
     public bool ResolvedParentDuringUninstall { get; private set; }
@@ -87,12 +88,14 @@ internal sealed class SceneScopeTrackingFeature :
         string id,
         IList<string> lifecycleEvents,
         bool succeeds = true,
-        bool registersService = false)
+        bool registersService = false,
+        bool failsUninstall = false)
     {
         featureId = id;
         events = lifecycleEvents;
         installResult = succeeds;
         registerService = registersService;
+        throwOnUninstall = failsUninstall;
     }
 
     protected override bool ValidateFeature(SceneFeatureContext context)
@@ -134,6 +137,13 @@ internal sealed class SceneScopeTrackingFeature :
         }
 
         events.Add($"uninstall:{featureId}");
+
+        if (throwOnUninstall)
+        {
+            RunCleanup(() =>
+                throw new InvalidOperationException(
+                    $"Injected uninstall failure: {featureId}"));
+        }
     }
 }
 
@@ -502,6 +512,59 @@ public sealed class SceneRuntimeScopeTests
             UnityEngine.Object.DestroyImmediate(secondObject);
             UnityEngine.Object.DestroyImmediate(firstObject);
             globalScope.Dispose();
+        }
+    }
+
+    [Test]
+    public void DisposeOrThrow_ReportsFeatureCleanupFailureAfterDisposingScope()
+    {
+        using ServiceScope globalScope = new("Global");
+        globalScope.Register<ISceneScopeTestParentService>(
+            new SceneScopeTestParentService());
+        ServiceScope sceneServiceScope = globalScope.CreateChild(
+            "Scene[77]",
+            TestServiceRegistrationPolicy.Instance);
+        GameObject featureObject = new("Failing uninstall feature");
+        SceneRuntimeScope runtimeScope = null;
+
+        try
+        {
+            List<string> events = new();
+            SceneScopeTrackingFeature feature =
+                featureObject.AddComponent<SceneScopeTrackingFeature>();
+            feature.Configure(
+                "cleanup-failure",
+                events,
+                failsUninstall: true);
+            runtimeScope = new SceneRuntimeScope(
+                77,
+                "Cleanup failure scene",
+                ProjectSceneKind.Game,
+                SceneServiceScopeParent.Session,
+                sceneServiceScope,
+                new SceneRuntimeFeature[] { feature });
+
+            Assert.That(runtimeScope.Install(), Is.True);
+
+            AggregateException failure = Assert.Throws<AggregateException>(
+                runtimeScope.DisposeOrThrow);
+
+            Assert.That(
+                failure.ToString(),
+                Does.Contain("Injected uninstall failure: cleanup-failure"));
+            Assert.That(sceneServiceScope.IsDisposed, Is.True);
+            Assert.That(globalScope.ChildScopeCount, Is.Zero);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "install:cleanup-failure",
+                    "uninstall:cleanup-failure"
+                },
+                events);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(featureObject);
         }
     }
 

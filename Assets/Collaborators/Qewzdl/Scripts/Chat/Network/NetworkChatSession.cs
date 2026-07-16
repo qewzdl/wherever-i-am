@@ -7,7 +7,6 @@ using UnityEngine;
 public class NetworkChatSession : NetworkBehaviour,
     IChatReadService,
     IChatCommandService,
-    ISessionPhaseService,
     ISessionServiceReadiness
 {
     [Header("References")]
@@ -41,12 +40,6 @@ public class NetworkChatSession : NetworkBehaviour,
         NetworkVariableWritePermission.Server
     );
 
-    private readonly NetworkVariable<ProjectSceneKind> serverScenePhase =
-        new NetworkVariable<ProjectSceneKind>(
-            ProjectSceneKind.Unknown,
-            NetworkVariableReadPermission.Everyone,
-            NetworkVariableWritePermission.Server);
-
     private NetworkList<ChatMessageData> messages;
     private SessionServiceRegistration serviceRegistrations;
     private bool isSubscribedToMessages;
@@ -64,26 +57,11 @@ public class NetworkChatSession : NetworkBehaviour,
 
     public int MessageCount => messages != null ? messages.Count : 0;
 
-    ProjectSceneKind ISessionPhaseService.ServerScenePhase => serverScenePhase.Value;
-
     bool ISessionServiceReadiness.IsSessionServiceReady =>
         IsSpawned &&
         isActiveAndEnabled &&
         messages != null &&
         (!IsServer || stateMachine != null);
-
-    bool ISessionPhaseService.TrySetServerScenePhase(ProjectSceneKind sceneKind)
-    {
-        if (!IsSpawned || !IsServer ||
-            (sceneKind != ProjectSceneKind.Lobby &&
-             sceneKind != ProjectSceneKind.Game))
-        {
-            return false;
-        }
-
-        serverScenePhase.Value = sceneKind;
-        return true;
-    }
 
     public void Construct(GameStateMachine injectedStateMachine, IChatConfig config)
     {
@@ -679,7 +657,6 @@ public class NetworkChatSession : NetworkBehaviour,
                 {
                     registrar.Register<IChatReadService>(this);
                     registrar.Register<IChatCommandService>(this);
-                    registrar.Register<ISessionPhaseService>(this);
                 },
                 out serviceRegistrations,
                 out Exception failure))

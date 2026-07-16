@@ -147,7 +147,7 @@ public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowSe
             return false;
         }
 
-        stateMachine.ChangeState(transition.StateBeforeLoad);
+        ApplyPreLoadState(scene, transition);
 
         if (!sceneLoadExecutor.Load(scene, transition))
         {
@@ -163,6 +163,16 @@ public sealed class ProjectSceneFlowService : MonoBehaviour, IProjectSceneFlowSe
 
         BeginCompletion(operationId, scene.Kind, transition.ServerActionsAfterLoad, 0);
         return true;
+    }
+
+    private void ApplyPreLoadState(
+        ProjectSceneDefinition targetScene,
+        ProjectSceneTransitionDefinition transition)
+    {
+        if (transition.StateBeforeLoad == targetScene.State)
+            return;
+
+        stateMachine.ChangeState(transition.StateBeforeLoad);
     }
 
     public void CancelPendingOperations(ProjectOperationCancelReason reason)

@@ -195,7 +195,7 @@ internal static class SessionServiceReadinessPolicy
             return false;
         }
 
-        return service is not ISessionServiceReadiness readiness ||
+        return service is ISessionServiceReadiness readiness &&
                readiness.IsSessionServiceReady;
     }
 }

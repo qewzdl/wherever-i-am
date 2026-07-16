@@ -130,6 +130,25 @@ public sealed class NetworkSessionShutdownPlayModeTests
             GetSinglePersistentComponent<NetworkSessionStateMachine>();
         NetworkManager networkManager = runtimeContext.NetworkManager;
         IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
+        bool lobbyCommittedWithoutReadyServices = false;
+
+        runtimeContext.StateMachine.StateChanged += (previous, current) =>
+        {
+            if (current != GameState.Lobby)
+                return;
+
+            IServiceResolver services =
+                runtimeContext.SessionOrchestrator.SessionServices;
+            lobbyCommittedWithoutReadyServices =
+                !SessionServiceReadinessPolicy.Validate(
+                    ProjectSceneKind.Lobby,
+                    services,
+                    out string _) ||
+                !SessionServiceReadinessPolicy.ValidateServerPhase(
+                    ProjectSceneKind.Lobby,
+                    services,
+                    out string _);
+        };
 
         Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
         yield return WaitForTask(hostStart, "Host startup did not complete.");
@@ -139,12 +158,20 @@ public sealed class NetworkSessionShutdownPlayModeTests
                   !sceneFlow.HasPendingOperation,
             "Host did not reach the ready Lobby state.");
 
+        Assert.That(
+            lobbyCommittedWithoutReadyServices,
+            Is.False,
+            "Lobby state was committed before dynamic Session services were ready.");
+
         IServiceResolver sessionServices =
             runtimeContext.SessionOrchestrator.SessionServices;
         Assert.That(sessionServices, Is.Not.Null);
         Assert.That(sessionServices.IsDisposed, Is.False);
         Assert.That(sessionServices.Resolve<IChatReadService>(), Is.TypeOf<NetworkChatSession>());
         Assert.That(sessionServices.Resolve<IChatCommandService>(), Is.TypeOf<NetworkChatSession>());
+        Assert.That(
+            sessionServices.Resolve<ISessionPhaseService>(),
+            Is.TypeOf<NetworkSessionPhaseService>());
 
         Assert.That(
             runtimeContext.SessionOrchestrator.TryOpenPlayerScope(
@@ -265,18 +292,24 @@ public sealed class NetworkSessionShutdownPlayModeTests
                 playerRegistry.IsDisposed;
         };
 
-        Task shutdown = shutdownCoordinator.ShutdownAndWaitAsync();
-        Task repeatedShutdown = shutdownCoordinator.ShutdownAndWaitAsync();
+        Task<NetworkShutdownResult> shutdown =
+            shutdownCoordinator.ShutdownAndWaitAsync();
+        Task<NetworkShutdownResult> repeatedShutdown =
+            shutdownCoordinator.ShutdownAndWaitAsync();
 
         Assert.That(repeatedShutdown, Is.SameAs(shutdown));
         Assert.That(sceneFlow.HasPendingOperation, Is.False);
         Assert.That(mapService.HasPendingOperation, Is.False);
 
         yield return WaitForTask(shutdown, "Coordinated host shutdown did not complete.");
-        yield return WaitForCondition(
-            () => runtimeContext.StateMachine.CurrentState == GameState.MainMenu &&
-                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.MainMenu,
-            "MainMenu was not activated after host cleanup.");
+
+        NetworkShutdownResult shutdownResult = shutdown.Result;
+        Assert.That(shutdownResult.Succeeded, Is.True, shutdownResult.Message);
+        Assert.That(shutdownResult.NetworkStopped, Is.True);
+        Assert.That(shutdownResult.SessionScopeClosed, Is.True);
+        Assert.That(shutdownResult.MainMenuReady, Is.True);
+        Assert.That(runtimeContext.StateMachine.CurrentState, Is.EqualTo(GameState.MainMenu));
+        Assert.That(runtimeContext.GetActiveSceneKind(), Is.EqualTo(ProjectSceneKind.MainMenu));
 
         Assert.That(clientStoppedCount, Is.EqualTo(1));
         Assert.That(serverStoppedCount, Is.EqualTo(1));
@@ -312,6 +345,98 @@ public sealed class NetworkSessionShutdownPlayModeTests
         Assert.That(sessionStoppedCount, Is.EqualTo(1));
 
         playerRegistration.Dispose();
+    }
+
+    [UnityTest]
+    public IEnumerator ShutdownResult_ReportsMainMenuFailureAndKeepsTaskHonest()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionShutdownCoordinator shutdownCoordinator =
+            GetSinglePersistentComponent<NetworkSessionShutdownCoordinator>();
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        ProjectSceneFlowService sceneFlow = runtimeContext.SceneFlowService;
+        bool previousIgnoreState = LogAssert.ignoreFailingMessages;
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup did not complete.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Lobby,
+            "Host did not reach Lobby before the injected MainMenu failure.");
+
+        Assert.Throws<InvalidOperationException>(() => runtimeContext.DisposeRuntime());
+
+        try
+        {
+            LogAssert.ignoreFailingMessages = true;
+            sceneFlow.enabled = false;
+
+            Task<NetworkShutdownResult> shutdown =
+                shutdownCoordinator.ShutdownAndWaitAsync();
+            yield return WaitForTask(
+                shutdown,
+                "Shutdown result did not complete after MainMenu load rejection.");
+
+            NetworkShutdownResult result = shutdown.Result;
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.NetworkStopped, Is.True);
+            Assert.That(result.SessionScopeClosed, Is.True);
+            Assert.That(result.MainMenuReady, Is.False);
+            Assert.That(result.Exception, Is.Not.Null);
+            Assert.That(result.Message, Does.Contain("main menu").IgnoreCase);
+            Assert.That(runtimeContext.StateMachine.CurrentState, Is.EqualTo(GameState.Error));
+        }
+        finally
+        {
+            LogAssert.ignoreFailingMessages = previousIgnoreState;
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator ImmediateShutdown_IgnoresLateLobbySceneCompletion()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionShutdownCoordinator shutdownCoordinator =
+            GetSinglePersistentComponent<NetworkSessionShutdownCoordinator>();
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+        IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
+        bool enteredErrorAfterShutdownStarted = false;
+        bool shutdownStarted = false;
+
+        runtimeContext.StateMachine.StateChanged += (_, current) =>
+        {
+            if (shutdownStarted && current == GameState.Error)
+                enteredErrorAfterShutdownStarted = true;
+        };
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForCondition(
+            () => sceneFlow.HasPendingOperation,
+            "Host did not start the Lobby scene operation.");
+
+        shutdownStarted = true;
+        Task<NetworkShutdownResult> shutdown =
+            shutdownCoordinator.ShutdownAndWaitAsync(
+                NetworkShutdownMode.Immediate);
+
+        yield return WaitForTask(hostStart, "Host startup task did not finish.");
+        yield return WaitForTask(
+            shutdown,
+            "Immediate shutdown did not survive late Lobby completion.");
+
+        NetworkShutdownResult result = shutdown.Result;
+        Assert.That(result.Succeeded, Is.True, result.Message);
+        Assert.That(result.NetworkStopped, Is.True);
+        Assert.That(result.SessionScopeClosed, Is.True);
+        Assert.That(result.MainMenuReady, Is.True);
+        Assert.That(enteredErrorAfterShutdownStarted, Is.False);
+        Assert.That(networkManager.IsListening, Is.False);
+        Assert.That(runtimeContext.GetActiveSceneKind(), Is.EqualTo(ProjectSceneKind.MainMenu));
+        Assert.That(runtimeContext.StateMachine.CurrentState, Is.EqualTo(GameState.MainMenu));
+        Assert.That(sceneFlow.HasPendingOperation, Is.False);
     }
 
     [UnityTest]

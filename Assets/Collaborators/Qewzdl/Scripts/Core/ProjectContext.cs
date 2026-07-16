@@ -63,9 +63,7 @@ public sealed class ProjectContext : MonoBehaviour
         : null;
     private void OnDestroy()
     {
-        DisposeSceneRuntimeScopes();
-        ShutdownRuntime();
-        DisposeRuntime();
+        ForceAbortRuntimeForApplicationQuit();
     }
 
     internal void MakePersistent()
@@ -120,6 +118,12 @@ public sealed class ProjectContext : MonoBehaviour
 
     internal void ShutdownRuntime()
     {
+        EnsureNoActiveNetworkSessionForSynchronousTeardown();
+        ShutdownRuntimeCore();
+    }
+
+    private void ShutdownRuntimeCore()
+    {
         if (LifecycleState == ProjectRuntimeLifecycleState.None ||
             LifecycleState == ProjectRuntimeLifecycleState.Disposed ||
             LifecycleState == ProjectRuntimeLifecycleState.ShuttingDown ||
@@ -134,11 +138,17 @@ public sealed class ProjectContext : MonoBehaviour
 
     internal void DisposeRuntime()
     {
+        EnsureNoActiveNetworkSessionForSynchronousTeardown();
+        DisposeRuntimeCore();
+    }
+
+    private void DisposeRuntimeCore()
+    {
         if (LifecycleState == ProjectRuntimeLifecycleState.Disposed)
             return;
 
         if (LifecycleState != ProjectRuntimeLifecycleState.ShuttingDown)
-            ShutdownRuntime();
+            ShutdownRuntimeCore();
 
         LifecycleState = ProjectRuntimeLifecycleState.Disposing;
         DisposeProjectServices();
@@ -147,6 +157,31 @@ public sealed class ProjectContext : MonoBehaviour
         referencesValidated = false;
         referenceValidationFailureLogged = false;
         LifecycleState = ProjectRuntimeLifecycleState.Disposed;
+    }
+
+    internal void ForceAbortRuntimeForApplicationQuit()
+    {
+        if (LifecycleState == ProjectRuntimeLifecycleState.Disposed)
+            return;
+
+        sessionOrchestrator?.ForceAbortForApplicationQuit();
+        DisposeSceneRuntimeScopes();
+        ShutdownRuntimeCore();
+        DisposeRuntimeCore();
+    }
+
+    private void EnsureNoActiveNetworkSessionForSynchronousTeardown()
+    {
+        if (sessionOrchestrator == null ||
+            !sessionOrchestrator.RequiresCoordinatedShutdown)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"{nameof(ProjectContext)} cannot synchronously tear down an active network " +
+            $"session. Await {nameof(INetworkSessionService)}." +
+            $"{nameof(INetworkSessionService.ShutdownToMainMenuAsync)} first.");
     }
 
     internal string GetSceneName(ProjectSceneKind sceneKind)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
@@ -6,6 +7,7 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
     private SceneFeatureContext installedContext;
     private bool installed;
     private bool lifecycleTransitionInProgress;
+    private List<Exception> uninstallFailures;
 
     public bool IsInstalled => installed;
 
@@ -116,18 +118,27 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
 
     public void Uninstall()
     {
+        Exception failure = UninstallForScope();
+
+        if (failure != null)
+            Debug.LogException(failure, this);
+    }
+
+    internal Exception UninstallForScope()
+    {
         if (!installed)
-            return;
+            return null;
 
         if (lifecycleTransitionInProgress)
         {
-            Debug.LogError($"{GetType().Name} cannot uninstall during another lifecycle transition.", this);
-            return;
+            return new InvalidOperationException(
+                $"{GetType().Name} cannot uninstall during another lifecycle transition.");
         }
 
         lifecycleTransitionInProgress = true;
         SceneFeatureContext context = installedContext;
         installed = false;
+        uninstallFailures = new List<Exception>();
 
         try
         {
@@ -135,13 +146,24 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         }
         catch (Exception exception)
         {
-            Debug.LogException(exception, this);
+            uninstallFailures.Add(exception);
         }
         finally
         {
             installedContext = null;
             lifecycleTransitionInProgress = false;
         }
+
+        Exception failure = uninstallFailures.Count switch
+        {
+            0 => null,
+            1 => uninstallFailures[0],
+            _ => new AggregateException(
+                $"{GetType().Name} reported multiple uninstall failures.",
+                uninstallFailures)
+        };
+        uninstallFailures = null;
+        return failure;
     }
 
     public void Dispose()
@@ -167,6 +189,12 @@ public abstract class SceneRuntimeFeature : MonoBehaviour, IDisposable
         }
         catch (Exception exception)
         {
+            if (uninstallFailures != null)
+            {
+                uninstallFailures.Add(exception);
+                return;
+            }
+
             Debug.LogException(exception, owner != null ? owner : this);
         }
     }
