@@ -277,7 +277,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     }
 
     internal bool TryRegisterSessionServices(
-        Action<ISessionServiceRegistrar> registerServices,
+        Action<IServiceRegistrar> registerServices,
         out SessionServiceRegistration registrations,
         out Exception failure)
     {
@@ -301,8 +301,8 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         ulong networkObjectId,
         ulong ownerClientId,
         bool isLocalPlayer,
-        Action<IPlayerServiceRegistrar> registerReplicatedServices,
-        Action<IPlayerServiceRegistrar> registerLocalServices,
+        Action<IServiceRegistrar> registerReplicatedServices,
+        Action<IServiceRegistrar> registerLocalServices,
         out PlayerScopeRegistration registration,
         out Exception failure)
     {

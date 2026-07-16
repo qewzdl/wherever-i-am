@@ -2,22 +2,10 @@ using System;
 
 internal sealed class SessionContractPolicy : ServiceContractPolicy
 {
-    private static readonly Type[] AllowedContracts =
-    {
-        typeof(ISessionServiceRegistry),
-        typeof(IPlayerScopeRegistry),
-        typeof(IGameMapSessionService),
-        typeof(IGameplayNoiseService),
-        typeof(IChatReadService),
-        typeof(IChatCommandService),
-        typeof(ISessionPhaseService),
-        typeof(IMatchCompletionService)
-    };
-
     internal static readonly SessionContractPolicy Instance = new();
 
     private SessionContractPolicy()
-        : base("Session", AllowedContracts)
+        : base("Session", ServiceContractCatalog.Session)
     {
     }
 

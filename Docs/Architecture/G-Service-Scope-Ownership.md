@@ -40,7 +40,7 @@ Global (ProjectContext: Ready -> Dispose)
 | Session | `ISessionServiceRegistry` | `SessionServiceRegistry` | synchronous Session transaction | вместе с Session scope | read/subscription API для динамических Session contracts; mutable scope не публикуется |
 | Session | `IPlayerScopeRegistry` | `PlayerScopeRegistry` | synchronous Session transaction | `CloseAll` до Session Dispose | read-only registry Player scopes по `NetworkObjectId` на каждом peer |
 | Session, NetworkObject | `IChatReadService`, `IChatCommandService` | `NetworkChatSession` | atomic batch на `OnNetworkSpawn` | registration handles на `OnNetworkDespawn`, до закрытия session | client вызывает command contract, server валидирует и реплицирует сообщения |
-| Session, NetworkObject | `ISessionPhaseService` | `NetworkChatSession` | в одном atomic batch с chat contracts на `OnNetworkSpawn` | вместе с chat registration handles на `OnNetworkDespawn` | server публикует committed `ProjectSceneKind` через `NetworkVariable`; clients только читают фазу |
+| Session, NetworkObject | `ISessionPhaseService` | `NetworkSessionPhaseService` | atomic registration через `NetworkObjectServiceContext` на `OnNetworkSpawn` | registration handle на `OnNetworkDespawn` | server публикует committed `ProjectSceneKind` через `NetworkVariable`; clients только читают фазу |
 | Session, NetworkObject | `IMatchCompletionService` | `NetworkGameFlow` | atomic registration на `OnNetworkSpawn` | registration handle первым снимается на `OnNetworkDespawn` | контракт доступен на всех peers, но завершение матча принимает только server |
 | Player | `IPlayerNetworkService`, `IReplicatedPlayerStateService`, `IEnemyAttackReceiver` | `PlayerScopeLifetime`, `PlayerNetwork`, `PlayerEnemyAttackReceiver` | Player transaction на `OnNetworkSpawn` | Player scope на `OnNetworkDespawn` | replicated state читается на peers; gameplay mutation остаётся server-authoritative |
 | Player/Local | `ILocalPlayerInputService`, `ILocalPlayerCameraService`, `ILocalPlayerPresentationService` | `PlayerInputHandler`, `CameraLook`, `PlayerUI` | Local transaction только для owner | вместе с Player scope | никогда не создаётся для remote player или dedicated server |
@@ -73,6 +73,75 @@ Global (ProjectContext: Ready -> Dispose)
 9. Новый код не использует `Find*`, `Resources.Load`, `ProjectContext.Instance`, `AudioManager.Instance` или `NetworkManager.Singleton` как fallback service resolution.
 10. `G` является единственной глобальной runtime-точкой доступа; ambient `Instance` у runtime-компонентов запрещён.
 11. `G` не определяет network authority: каждый contract сохраняет server/client правила из ownership table.
+
+## Как добавить новый сервис
+
+Регистрация начинается не с `G.Resolve`, а с выбора владельца lifetime. Один и тот же порядок используется для любого нового сервиса:
+
+1. Создать узкий interface contract, например `IInventoryReadService`.
+2. Выбрать ровно один owner: Global, Session, конкретный Scene kind, Player или Local Player.
+3. Добавить `typeof(IInventoryReadService)` в соответствующий список `ServiceContractCatalog`. Это единственная таблица разрешённых регистраций в коде.
+4. Зарегистрировать contract только в lifecycle-точке владельца.
+5. Передать consumer-у interface через `Construct`, `SceneFeatureContext.Services`, Player resolver или `NetworkObjectServiceContext`.
+6. Добавить policy/lifecycle test. Для обязательного динамического Session contract также обновить `SessionServiceReadinessPolicy`.
+
+Если шаг 3 пропущен или выбран неправильный owner, регистрация fail-closed завершится ошибкой с именем contract и scope.
+
+### Scene service
+
+Scene-сервис регистрируется внутри `SceneRuntimeFeature.InstallFeature`:
+
+```csharp
+protected override bool InstallFeature(SceneFeatureContext context)
+{
+    inventoryService.Construct(context.Services.Resolve<INetworkSessionService>());
+    context.Register<IInventoryReadService>(inventoryService);
+
+    inventoryUi.Construct(context.Services.Resolve<IInventoryReadService>());
+    return true;
+}
+```
+
+`context.Register` работает только во время общей scene transaction. Ошибка любого feature откатит все регистрации, а unload сначала выполнит reverse uninstall и только затем закроет scene scope.
+
+### Dynamic Session NetworkObject service
+
+Обязательный сетевой сервис регистрируется на каждом peer в `OnNetworkSpawn`:
+
+```csharp
+private IDisposable serviceRegistration;
+
+public override void OnNetworkSpawn()
+{
+    if (!NetworkObjectServiceContext.TryRegisterRequiredSessionServices(
+            this,
+            registration =>
+            {
+                registration.Register<IInventoryReadService>(this);
+                registration.Register<IInventoryCommandService>(this);
+            },
+            out serviceRegistration))
+    {
+        enabled = false;
+    }
+}
+
+public override void OnNetworkDespawn()
+{
+    serviceRegistration?.Dispose();
+    serviceRegistration = null;
+}
+```
+
+Batch атомарен: либо зарегистрированы все contracts, либо ни одного. Для необязательного сервиса используется `TryRegisterSessionServices`, который возвращает причину ошибки без автоматического coordinated shutdown.
+
+### Player и Local Player services
+
+`PlayerScopeLifetime` открывает оба scope одним вызовом `NetworkObjectServiceContext.TryOpenRequiredPlayerScope`. Replicated contracts регистрируются на server и clients; Local contracts — только для `IsLocalPlayer`. Registration handle хранится до `OnNetworkDespawn`; ошибка transaction запускает coordinated shutdown.
+
+### Global service
+
+Global contracts намеренно добавляются реже и явно: reference/создание в `ProjectContext`, validation, `Construct`, регистрация в `RegisterGlobalServiceContracts`, shutdown/dispose и строка в `ServiceContractCatalog.Global`. `G` публикует новый contract только после успешного bootstrap commit.
 
 ## Public G API
 
@@ -136,7 +205,7 @@ Global (ProjectContext: Ready -> Dispose)
 - MainMenu scene scope создаётся как child Global scope. Lobby, Game и сцены из `IGameMapCatalog` создаются как children активного Session scope.
 - Известная Map-сцена получает scope даже без `SceneRuntime`; это позволяет additive map instance иметь собственный lifetime до появления map-specific features.
 - Каждый feature получает `SceneFeatureContext` с scene handle, scene kind и `IServiceResolver` соответствующего scene scope.
-- `ISceneServiceRegistrar` разрешает регистрацию только во время feature install и не раскрывает mutable `ServiceScope`.
+- `SceneFeatureContext.Register<T>` разрешает регистрацию только во время feature install и не раскрывает mutable `ServiceScope`.
 - Все feature registrations сцены входят в одну transaction: commit выполняется перед `Ready`, а registrar после этого закрывается.
 - `LobbySceneFeature` регистрирует `ILobbyReadService` и `ILobbyCommandService`; `PauseSceneFeature` регистрирует `IPauseService` как Unity-owned contracts.
 - Feature validation/install использует interface contracts через resolver и наследует доступ к parent services.
@@ -157,9 +226,10 @@ Global (ProjectContext: Ready -> Dispose)
 ## Динамические Session services
 
 - `ISessionServiceRegistry` публикуется внутри Session scope и предоставляет только resolve плюс `ServicesChanged`.
-- Session-owned `NetworkObject` регистрирует interface contracts атомарным batch через внутренний registrar; `ServiceScope` наружу не передаётся.
+- Session-owned `NetworkObject` регистрирует interface contracts атомарным batch через `NetworkObjectServiceContext`; `ServiceScope` наружу не передаётся.
 - Успешный batch публикует одно изменение после commit. Ошибка, включая duplicate contract, откатывает весь batch без уведомления consumers.
-- `NetworkChatSession` хранит одну группу handles для `IChatReadService`, `IChatCommandService` и внутреннего `ISessionPhaseService` и освобождает её в начале `OnNetworkDespawn`.
+- `NetworkChatSession` хранит одну группу handles для `IChatReadService` и `IChatCommandService` и освобождает её в начале `OnNetworkDespawn`.
+- `NetworkSessionPhaseService` отдельно публикует внутренний `ISessionPhaseService`, поэтому синхронизация session phase не зависит от наличия чата.
 - `NetworkGameFlow` публикует `IMatchCompletionService` на spawn и снимает handle до остального despawn cleanup; duplicate flow отклоняется Session scope.
 - Scene UI получает registry через parent lookup своего scene scope. Gameplay `NetworkBehaviour` разрешает Session contracts через `NetworkObjectServiceContext` с явным `NetworkManager`; перебор `SpawnedObjectsList` как service discovery запрещён.
 - Удаление dynamic registration физически удаляет её из registration order; частый spawn/despawn не увеличивает память Session scope.

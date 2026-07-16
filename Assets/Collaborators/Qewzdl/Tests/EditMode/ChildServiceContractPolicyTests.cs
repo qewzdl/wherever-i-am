@@ -234,6 +234,7 @@ public sealed class ChildServiceContractPolicyTests
             session.Register<IPauseService>(service));
         Assert.That(failure.Message, Does.Contain(nameof(IPauseService)));
         Assert.That(failure.Message, Does.Contain("Session"));
+        Assert.That(failure.Message, Does.Contain(nameof(ServiceContractCatalog)));
 
         transaction.Rollback();
 

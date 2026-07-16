@@ -14,7 +14,7 @@ public sealed class NetworkSessionPhaseService : NetworkBehaviour,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
-    private SessionServiceRegistration serviceRegistration;
+    private IDisposable serviceRegistration;
 
     ProjectSceneKind ISessionPhaseService.ServerScenePhase => serverScenePhase.Value;
 
@@ -60,51 +60,15 @@ public sealed class NetworkSessionPhaseService : NetworkBehaviour,
         if (serviceRegistration != null)
             return true;
 
-        if (NetworkManager == null)
-        {
-            Debug.LogError(
-                $"{nameof(NetworkSessionPhaseService)} has no owning {nameof(NetworkManager)}.",
-                this);
-            return false;
-        }
-
-        NetworkSessionOrchestrator orchestrator =
-            NetworkManager.GetComponent<NetworkSessionOrchestrator>();
-
-        if (orchestrator == null)
-        {
-            Debug.LogError(
-                $"{nameof(NetworkSessionPhaseService)} requires " +
-                $"{nameof(NetworkSessionOrchestrator)} on the {nameof(NetworkManager)} object.",
-                this);
-            return false;
-        }
-
-        if (orchestrator.TryRegisterSessionServices(
-                registrar => registrar.Register<ISessionPhaseService>(this),
-                out serviceRegistration,
-                out Exception failure))
-        {
-            return true;
-        }
-
-        Debug.LogError(
-            $"{nameof(NetworkSessionPhaseService)} failed to register the authoritative " +
-            "Session phase contract.",
-            this);
-
-        if (failure != null)
-            Debug.LogException(failure, this);
-
-        _ = orchestrator.ReportSessionReadinessFailureAsync(
-            nameof(NetworkSessionPhaseService),
-            failure?.Message ?? "Failed to register ISessionPhaseService.");
-        return false;
+        return NetworkObjectServiceContext.TryRegisterRequiredSessionServices(
+            this,
+            registration => registration.Register<ISessionPhaseService>(this),
+            out serviceRegistration);
     }
 
     private void UnregisterSessionService()
     {
-        SessionServiceRegistration registration = serviceRegistration;
+        IDisposable registration = serviceRegistration;
         serviceRegistration = null;
         registration?.Dispose();
     }

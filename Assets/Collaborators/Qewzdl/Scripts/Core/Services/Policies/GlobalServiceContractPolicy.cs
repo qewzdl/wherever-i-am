@@ -2,21 +2,10 @@ using System;
 
 internal sealed class GlobalServiceContractPolicy : ServiceContractPolicy
 {
-    private static readonly Type[] AllowedContracts =
-    {
-        typeof(IProjectSceneRegistry),
-        typeof(IGameStateService),
-        typeof(IProjectSceneFlowService),
-        typeof(INetworkSessionService),
-        typeof(IUiErrorService),
-        typeof(IAudioService),
-        typeof(IGameMapCatalog)
-    };
-
     internal static readonly GlobalServiceContractPolicy Instance = new();
 
     private GlobalServiceContractPolicy()
-        : base("Global", AllowedContracts)
+        : base("Global", ServiceContractCatalog.Global)
     {
     }
 

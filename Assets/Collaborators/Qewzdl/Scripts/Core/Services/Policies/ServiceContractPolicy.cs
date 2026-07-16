@@ -61,6 +61,8 @@ internal abstract class ServiceContractPolicy : IServiceRegistrationPolicy
             : "Missing";
 
         throw new InvalidOperationException(
-            $"Service contract '{contractName}' is not allowed in {scopeKind} scope '{scopeName}'.");
+            $"Service contract '{contractName}' is not allowed in {scopeKind} scope " +
+            $"'{scopeName}'. Declare its owner in {nameof(ServiceContractCatalog)} " +
+            "before registering it.");
     }
 }

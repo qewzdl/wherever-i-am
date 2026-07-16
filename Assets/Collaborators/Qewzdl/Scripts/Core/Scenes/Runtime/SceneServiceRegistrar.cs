@@ -1,6 +1,6 @@
 using System;
 
-internal sealed class SceneServiceRegistrar : ISceneServiceRegistrar
+internal sealed class SceneServiceRegistrar : IServiceRegistrar
 {
     private enum RegistrarState
     {

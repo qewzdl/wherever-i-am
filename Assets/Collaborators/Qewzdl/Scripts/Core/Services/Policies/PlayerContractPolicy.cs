@@ -2,17 +2,10 @@ using System;
 
 internal sealed class PlayerContractPolicy : ServiceContractPolicy
 {
-    private static readonly Type[] AllowedContracts =
-    {
-        typeof(IPlayerNetworkService),
-        typeof(IReplicatedPlayerStateService),
-        typeof(IEnemyAttackReceiver)
-    };
-
     internal static readonly PlayerContractPolicy Instance = new();
 
     private PlayerContractPolicy()
-        : base("Player", AllowedContracts)
+        : base("Player", ServiceContractCatalog.Player)
     {
     }
 

@@ -39,7 +39,7 @@ internal sealed class SceneScopePauseRegistrationFeature :
 
     protected override bool InstallFeature(SceneFeatureContext context)
     {
-        context.Registrar.Register<IPauseService>(this);
+        context.Register<IPauseService>(this);
         return true;
     }
 
@@ -82,7 +82,7 @@ internal sealed class SceneScopeTrackingFeature :
     public bool ResolvedParentDuringUninstall { get; private set; }
     public bool ResolvedRegistrationDuringInstall { get; private set; }
     public bool ResolvedRegistrationDuringUninstall { get; private set; }
-    public ISceneServiceRegistrar Registrar { get; private set; }
+    public IServiceRegistrar Registrar { get; private set; }
 
     public void Configure(
         string id,
@@ -113,7 +113,7 @@ internal sealed class SceneScopeTrackingFeature :
         if (registerService)
         {
             Registrar = context.Registrar;
-            Registrar.Register<ISceneScopeTestRegisteredService>(this);
+            context.Register<ISceneScopeTestRegisteredService>(this);
             ResolvedRegistrationDuringInstall =
                 ReferenceEquals(
                     context.Services.Resolve<ISceneScopeTestRegisteredService>(),

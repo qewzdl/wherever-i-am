@@ -2,15 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-internal interface IPlayerServiceRegistrar
-{
-    void Register<TContract>(TContract service)
-        where TContract : class;
-}
-
 internal sealed class PlayerScopeRegistry : IPlayerScopeRegistry, IDisposable
 {
-    private sealed class Registrar : IPlayerServiceRegistrar
+    private sealed class Registrar : IServiceRegistrar
     {
         private readonly ServiceScope scope;
 
@@ -81,8 +75,8 @@ internal sealed class PlayerScopeRegistry : IPlayerScopeRegistry, IDisposable
         ulong networkObjectId,
         ulong ownerClientId,
         bool isLocalPlayer,
-        Action<IPlayerServiceRegistrar> registerReplicatedServices,
-        Action<IPlayerServiceRegistrar> registerLocalServices,
+        Action<IServiceRegistrar> registerReplicatedServices,
+        Action<IServiceRegistrar> registerLocalServices,
         out PlayerScopeRegistration registration,
         out Exception failure)
     {

@@ -41,7 +41,7 @@ public class NetworkChatSession : NetworkBehaviour,
     );
 
     private NetworkList<ChatMessageData> messages;
-    private SessionServiceRegistration serviceRegistrations;
+    private IDisposable serviceRegistrations;
     private bool isSubscribedToMessages;
     private bool isSubscribedToStateMachine;
     private bool isSubscribedToConnectionCallbacks;
@@ -630,59 +630,19 @@ public class NetworkChatSession : NetworkBehaviour,
         if (serviceRegistrations != null)
             return true;
 
-        if (NetworkManager == null)
-        {
-            Debug.LogError(
-                $"{nameof(NetworkChatSession)} cannot register without an active {nameof(NetworkManager)}.",
-                this);
-
-            return false;
-        }
-
-        NetworkSessionOrchestrator orchestrator =
-            NetworkManager.GetComponent<NetworkSessionOrchestrator>();
-
-        if (orchestrator == null)
-        {
-            Debug.LogError(
-                $"{nameof(NetworkChatSession)} requires {nameof(NetworkSessionOrchestrator)} " +
-                $"on the {nameof(NetworkManager)} object.",
-                this);
-
-            return false;
-        }
-
-        if (orchestrator.TryRegisterSessionServices(
-                registrar =>
-                {
-                    registrar.Register<IChatReadService>(this);
-                    registrar.Register<IChatCommandService>(this);
-                },
-                out serviceRegistrations,
-                out Exception failure))
-        {
-            return true;
-        }
-
-        Debug.LogError(
-            $"{nameof(NetworkChatSession)} failed to register chat contracts in the Session scope.",
-            this);
-
-        if (failure != null)
-            Debug.LogException(failure, this);
-
-        _ = orchestrator.ReportSessionReadinessFailureAsync(
-            nameof(NetworkChatSession),
-            failure != null
-                ? failure.Message
-                : "Failed to register both chat contracts.");
-
-        return false;
+        return NetworkObjectServiceContext.TryRegisterRequiredSessionServices(
+            this,
+            registration =>
+            {
+                registration.Register<IChatReadService>(this);
+                registration.Register<IChatCommandService>(this);
+            },
+            out serviceRegistrations);
     }
 
     private void UnregisterSessionServices()
     {
-        SessionServiceRegistration registrations = serviceRegistrations;
+        IDisposable registrations = serviceRegistrations;
         serviceRegistrations = null;
 
         if (registrations == null)

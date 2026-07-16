@@ -31,7 +31,7 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         IPlayerScopeRegistry playerScopes = context.Services.Resolve<IPlayerScopeRegistry>();
 
         pauseService.Construct(stateService);
-        context.Registrar.Register<IPauseService>(pauseService);
+        context.Register<IPauseService>(pauseService);
 
         IPauseService pauseServiceContract = context.Services.Resolve<IPauseService>();
         pauseMenu.Construct(pauseServiceContract, sessionService, playerScopes);

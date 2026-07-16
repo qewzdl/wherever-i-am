@@ -46,6 +46,19 @@ public sealed class ServiceScopeTests
         }
     }
 
+    private sealed class RecordingRegistrar : IServiceRegistrar
+    {
+        public Type ContractType { get; private set; }
+        public object Service { get; private set; }
+
+        public void Register<TContract>(TContract service)
+            where TContract : class
+        {
+            ContractType = typeof(TContract);
+            Service = service;
+        }
+    }
+
     [Test]
     public void ScopeInfrastructure_ExposesOnlyReadOnlyResolverBoundaries()
     {
@@ -64,7 +77,8 @@ public sealed class ServiceScopeTests
             typeof(ProjectRuntimeLifecycleState),
             typeof(SceneRuntimeScope),
             typeof(SceneRuntimeScopeRegistry),
-            typeof(ISceneServiceRegistrar),
+            typeof(IServiceRegistrar),
+            typeof(ServiceContractCatalog),
             typeof(ISessionServiceRegistry),
             typeof(ISessionPhaseService),
             typeof(ISessionServiceReadiness),
@@ -84,6 +98,13 @@ public sealed class ServiceScopeTests
         Assert.That(typeof(IPlayerScope).IsVisible, Is.True);
         Assert.That(typeof(IPlayerScopeRegistry).IsVisible, Is.True);
         Assert.That(typeof(NetworkObjectServiceContext).IsVisible, Is.True);
+        Assert.That(
+            typeof(NetworkObjectServiceContext.RegistrationContext).IsVisible,
+            Is.True);
+        Assert.That(
+            typeof(NetworkObjectServiceContext.RegistrationContext).GetConstructors(
+                BindingFlags.Public | BindingFlags.Instance),
+            Is.Empty);
         Assert.That(typeof(IMatchCompletionService).IsVisible, Is.True);
         Assert.That(
             typeof(NetworkObjectServiceContext).GetMethod(
@@ -96,6 +117,26 @@ public sealed class ServiceScopeTests
                 ?.GetMethod
                 ?.IsPublic,
             Is.True);
+        Assert.That(
+            typeof(SceneFeatureContext)
+                .GetMethod(nameof(SceneFeatureContext.Register))
+                ?.IsPublic,
+            Is.True);
+        Assert.That(
+            typeof(NetworkObjectServiceContext).GetMethod(
+                nameof(NetworkObjectServiceContext.TryRegisterSessionServices),
+                BindingFlags.Public | BindingFlags.Static),
+            Is.Not.Null);
+        Assert.That(
+            typeof(NetworkObjectServiceContext).GetMethod(
+                nameof(NetworkObjectServiceContext.TryOpenPlayerScope),
+                BindingFlags.Public | BindingFlags.Static),
+            Is.Not.Null);
+        Assert.That(
+            typeof(NetworkObjectServiceContext).GetMethod(
+                nameof(NetworkObjectServiceContext.TryOpenRequiredPlayerScope),
+                BindingFlags.Public | BindingFlags.Static),
+            Is.Not.Null);
 
         AssertAssemblyInternalGetter(typeof(ProjectContext), "Services");
         AssertAssemblyInternalGetter(typeof(SceneFeatureContext), "Registrar");
@@ -117,6 +158,39 @@ public sealed class ServiceScopeTests
         Assert.That(
             typeof(G).GetMethod("Register", BindingFlags.Public | BindingFlags.Static),
             Is.Null);
+    }
+
+    [Test]
+    public void SceneFeatureContext_Register_UsesNarrowRegistrar()
+    {
+        using ServiceScope services = new("Scene Test");
+        RecordingRegistrar registrar = new();
+        SceneFeatureContext context = new(
+            1,
+            ProjectSceneKind.Game,
+            services,
+            registrar);
+        PlainService service = new("scene");
+
+        context.Register<IFirstService>(service);
+
+        Assert.That(registrar.ContractType, Is.EqualTo(typeof(IFirstService)));
+        Assert.That(registrar.Service, Is.SameAs(service));
+    }
+
+    [Test]
+    public void NetworkRegistrationContext_CannotBeUsedAfterBatchCloses()
+    {
+        RecordingRegistrar registrar = new();
+        NetworkObjectServiceContext.RegistrationContext context = new(registrar);
+        PlainService service = new("network");
+
+        context.Register<IFirstService>(service);
+        context.Close();
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(
+            () => context.Register<ISecondService>(service));
+        Assert.That(failure.Message, Does.Contain("no longer active"));
     }
 
     [Test]

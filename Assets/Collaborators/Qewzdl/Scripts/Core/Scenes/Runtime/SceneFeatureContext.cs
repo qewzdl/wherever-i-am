@@ -8,7 +8,7 @@ public sealed class SceneFeatureContext
         int sceneHandle,
         ProjectSceneKind sceneKind,
         IServiceResolver services,
-        ISceneServiceRegistrar registrar,
+        IServiceRegistrar registrar,
         Func<SceneFeatureContext, bool> scopeUninstallRequest = null)
     {
         if (sceneHandle == 0)
@@ -24,7 +24,17 @@ public sealed class SceneFeatureContext
     public int SceneHandle { get; }
     public ProjectSceneKind SceneKind { get; }
     public IServiceResolver Services { get; }
-    internal ISceneServiceRegistrar Registrar { get; }
+    internal IServiceRegistrar Registrar { get; }
+
+    /// <summary>
+    /// Registers a Unity-owned scene service for the lifetime of this scene scope.
+    /// This method is available only while the owning feature is being installed.
+    /// </summary>
+    public void Register<TContract>(TContract service)
+        where TContract : class
+    {
+        Registrar.Register<TContract>(service);
+    }
 
     internal bool RequestScopeUninstall()
     {

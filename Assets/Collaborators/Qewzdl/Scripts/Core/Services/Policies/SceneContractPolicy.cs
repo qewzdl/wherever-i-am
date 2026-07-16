@@ -2,28 +2,17 @@ using System;
 
 internal sealed class SceneContractPolicy : ServiceContractPolicy
 {
-    private static readonly Type[] LobbyContracts =
-    {
-        typeof(ILobbyReadService),
-        typeof(ILobbyCommandService)
-    };
-
-    private static readonly Type[] GameContracts =
-    {
-        typeof(IPauseService)
-    };
-
     internal static readonly SceneContractPolicy MainMenu =
-        new("MainMenu Scene", Array.Empty<Type>());
+        new("MainMenu Scene", ServiceContractCatalog.MainMenuScene);
 
     internal static readonly SceneContractPolicy Lobby =
-        new("Lobby Scene", LobbyContracts);
+        new("Lobby Scene", ServiceContractCatalog.LobbyScene);
 
     internal static readonly SceneContractPolicy Game =
-        new("Game Scene", GameContracts);
+        new("Game Scene", ServiceContractCatalog.GameScene);
 
     internal static readonly SceneContractPolicy Map =
-        new("Map Scene", Array.Empty<Type>());
+        new("Map Scene", ServiceContractCatalog.MapScene);
 
     private SceneContractPolicy(string scopeKind, Type[] allowedContracts)
         : base(scopeKind, allowedContracts)

@@ -34,7 +34,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
     private bool matchResolvedRaised;
     private bool matchFinishedRaised;
     private bool serverReady;
-    private SessionServiceRegistration serviceRegistration;
+    private IDisposable serviceRegistration;
 
     public event Action<GamePhase, GamePhase> PhaseChanged;
     public event Action<GameResultData, GameResultData> ResultChanged;
@@ -219,57 +219,15 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
         if (serviceRegistration != null)
             return true;
 
-        if (NetworkManager == null)
-        {
-            Debug.LogError(
-                $"{nameof(NetworkGameFlow)} cannot register without an active " +
-                $"{nameof(NetworkManager)}.",
-                this);
-
-            return false;
-        }
-
-        NetworkSessionOrchestrator orchestrator =
-            NetworkManager.GetComponent<NetworkSessionOrchestrator>();
-
-        if (orchestrator == null)
-        {
-            Debug.LogError(
-                $"{nameof(NetworkGameFlow)} requires {nameof(NetworkSessionOrchestrator)} " +
-                $"on the {nameof(NetworkManager)} object.",
-                this);
-
-            return false;
-        }
-
-        if (orchestrator.TryRegisterSessionServices(
-                registrar => registrar.Register<IMatchCompletionService>(this),
-                out serviceRegistration,
-                out Exception failure))
-        {
-            return true;
-        }
-
-        Debug.LogError(
-            $"{nameof(NetworkGameFlow)} failed to register " +
-            $"{nameof(IMatchCompletionService)} in the Session scope.",
-            this);
-
-        if (failure != null)
-            Debug.LogException(failure, this);
-
-        _ = orchestrator.ReportSessionReadinessFailureAsync(
-            nameof(NetworkGameFlow),
-            failure != null
-                ? failure.Message
-                : $"Failed to register {nameof(IMatchCompletionService)}.");
-
-        return false;
+        return NetworkObjectServiceContext.TryRegisterRequiredSessionServices(
+            this,
+            registration => registration.Register<IMatchCompletionService>(this),
+            out serviceRegistration);
     }
 
     private void UnregisterSessionService()
     {
-        SessionServiceRegistration registration = serviceRegistration;
+        IDisposable registration = serviceRegistration;
         serviceRegistration = null;
 
         if (registration == null)

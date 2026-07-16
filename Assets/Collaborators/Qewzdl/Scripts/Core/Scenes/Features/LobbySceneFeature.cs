@@ -32,8 +32,8 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
             return false;
 
         lobbyService.Construct(lobbyState, lobbyController, sessionService);
-        context.Registrar.Register<ILobbyReadService>(lobbyService);
-        context.Registrar.Register<ILobbyCommandService>(lobbyService);
+        context.Register<ILobbyReadService>(lobbyService);
+        context.Register<ILobbyCommandService>(lobbyService);
 
         ILobbyReadService readService = context.Services.Resolve<ILobbyReadService>();
         ILobbyCommandService commandService = context.Services.Resolve<ILobbyCommandService>();

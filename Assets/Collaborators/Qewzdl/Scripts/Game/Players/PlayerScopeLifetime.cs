@@ -15,7 +15,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     [SerializeField] private CameraLook cameraService;
     [SerializeField] private PlayerUI presentationService;
 
-    private PlayerScopeRegistration scopeRegistration;
+    private IDisposable scopeRegistration;
 
     private void Awake()
     {
@@ -29,61 +29,29 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         if (!ValidateReferences(createLocalScope))
             return;
 
-        if (NetworkManager == null)
-        {
-            Debug.LogError(
-                $"{nameof(PlayerScopeLifetime)} cannot create a Player scope without " +
-                $"an active {nameof(NetworkManager)}.",
-                this);
-
-            return;
-        }
-
-        NetworkSessionOrchestrator orchestrator =
-            NetworkManager.GetComponent<NetworkSessionOrchestrator>();
-
-        if (orchestrator == null)
-        {
-            Debug.LogError(
-                $"{nameof(PlayerScopeLifetime)} requires {nameof(NetworkSessionOrchestrator)} " +
-                $"on the {nameof(NetworkManager)} object.",
-                this);
-
-            return;
-        }
-
-        Action<IPlayerServiceRegistrar> registerLocalServices = createLocalScope
-            ? registrar =>
+        Action<NetworkObjectServiceContext.RegistrationContext> registerLocalServices =
+            createLocalScope
+            ? registration =>
             {
-                registrar.Register<ILocalPlayerInputService>(inputService);
-                registrar.Register<ILocalPlayerCameraService>(cameraService);
-                registrar.Register<ILocalPlayerPresentationService>(presentationService);
+                registration.Register<ILocalPlayerInputService>(inputService);
+                registration.Register<ILocalPlayerCameraService>(cameraService);
+                registration.Register<ILocalPlayerPresentationService>(presentationService);
             }
             : null;
 
-        if (orchestrator.TryOpenPlayerScope(
-                NetworkObjectId,
-                OwnerClientId,
-                createLocalScope,
-                registrar =>
+        if (NetworkObjectServiceContext.TryOpenRequiredPlayerScope(
+                this,
+                registration =>
                 {
-                    registrar.Register<IPlayerNetworkService>(this);
-                    registrar.Register<IReplicatedPlayerStateService>(replicatedStateService);
-                    registrar.Register<IEnemyAttackReceiver>(enemyAttackReceiver);
+                    registration.Register<IPlayerNetworkService>(this);
+                    registration.Register<IReplicatedPlayerStateService>(replicatedStateService);
+                    registration.Register<IEnemyAttackReceiver>(enemyAttackReceiver);
                 },
                 registerLocalServices,
-                out scopeRegistration,
-                out Exception failure))
+                out scopeRegistration))
         {
             return;
         }
-
-        Debug.LogError(
-            $"Failed to create Player scope '{NetworkObjectId}' for owner '{OwnerClientId}'.",
-            this);
-
-        if (failure != null)
-            Debug.LogException(failure, this);
     }
 
     public override void OnNetworkDespawn()
@@ -99,7 +67,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 
     private void CloseScope()
     {
-        PlayerScopeRegistration registration = scopeRegistration;
+        IDisposable registration = scopeRegistration;
         scopeRegistration = null;
         registration?.Dispose();
     }

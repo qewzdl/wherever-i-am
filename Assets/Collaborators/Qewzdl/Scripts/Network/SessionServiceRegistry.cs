@@ -2,15 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-internal interface ISessionServiceRegistrar
-{
-    void Register<TContract>(TContract service)
-        where TContract : class;
-}
-
 internal sealed class SessionServiceRegistry : ISessionServiceRegistry, IDisposable
 {
-    private sealed class Registrar : ISessionServiceRegistrar
+    private sealed class Registrar : IServiceRegistrar
     {
         private readonly ServiceScope scope;
         private readonly List<ServiceRegistration> registrations;
@@ -68,7 +62,7 @@ internal sealed class SessionServiceRegistry : ISessionServiceRegistry, IDisposa
     }
 
     internal bool TryRegister(
-        Action<ISessionServiceRegistrar> registerServices,
+        Action<IServiceRegistrar> registerServices,
         out SessionServiceRegistration registrations,
         out Exception failure)
     {
