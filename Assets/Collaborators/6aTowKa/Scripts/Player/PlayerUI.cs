@@ -19,7 +19,10 @@ public class PlayerUI :
     public void Cleanup()
     {
         CrosshairUI.ActiveChanged -= BindCrosshair;
-        signals.CrosshairSpriteSignal.Unlisten(UpdateCrosshairSprite);
+
+        if (signals != null)
+            signals.CrosshairSpriteSignal.Unlisten(UpdateCrosshairSprite);
+
         crosshairUI = null;
     }
 

@@ -42,10 +42,13 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     public void Cleanup()
     {
-        signals.Interact.Unlisten(Interact);
-        signals.Uninteract.Unlisten(Uninteract);
-        signals.PickUp.Unlisten(PickUp);
-        signals.Drop.Unlisten(Drop);
+        if (signals != null)
+        {
+            signals.Interact.Unlisten(Interact);
+            signals.Uninteract.Unlisten(Uninteract);
+            signals.PickUp.Unlisten(PickUp);
+            signals.Drop.Unlisten(Drop);
+        }
 
         if (HitPoint != null)
             Destroy(HitPoint);
@@ -84,7 +87,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private void SetFocusedInteractable(InteractableObject interactable)
     {
-        focusedInteractable = interactable; 
+        focusedInteractable = interactable;
         signals.CrosshairSpriteSignal.Trigger(interactable.GetIteractionSprite());
         crosshairIsDefualt = false;
     }
@@ -106,7 +109,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     {
         if (states.IsCarrying && interactable is DraggableObject and not ItemInteractableDraggable) return false;
 
-        return true;    
+        return true;
     }
 
     //Interacting
@@ -216,7 +219,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             PlayerInteraction = this,
         };
     }
-    
+
     //other
     public void SetIsCarrying(bool value)
     {

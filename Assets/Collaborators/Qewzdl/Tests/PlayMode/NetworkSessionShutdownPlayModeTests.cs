@@ -390,6 +390,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
         }
         finally
         {
+            sceneFlow.enabled = true;
             LogAssert.ignoreFailingMessages = previousIgnoreState;
         }
     }
@@ -479,7 +480,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
         LogAssert.Expect(
             LogType.Warning,
             new Regex(
-                "SessionServiceReadinessPolicy: Game state 'Lobby' is missing " +
+                "SessionServiceReadinessPolicy: Game state 'Lobby' missing " +
                 "required dynamic Session contract\\(s\\): .*IChatReadService.*" +
                 "IChatCommandService"));
 
@@ -547,7 +548,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
         LogAssert.Expect(
             LogType.Warning,
             new Regex(
-                "SessionServiceReadinessPolicy: Game state 'InGame' is missing " +
+                "SessionServiceReadinessPolicy: Game state 'InGame' missing " +
                 "required dynamic Session contract\\(s\\): IMatchCompletionService"));
 
         gameFlow.NetworkObject.Despawn(true);
@@ -587,9 +588,15 @@ public sealed class NetworkSessionShutdownPlayModeTests
             (MonoBehaviour[])handlersField.GetValue(actionRunner);
         FailingPostLoadActionHandler failingHandler =
             actionRunner.gameObject.AddComponent<FailingPostLoadActionHandler>();
+        MonoBehaviour[] overriddenHandlers = ReplaceServerActionHandler(
+            originalHandlers,
+            ProjectSceneServerAction.SpawnChatSession,
+            failingHandler,
+            out IProjectSceneFlowServerActionHandler chatHandler);
         failingHandler.Configure(
             ProjectSceneServerAction.SpawnChatSession,
-            ProjectSceneKind.Lobby);
+            ProjectSceneKind.Lobby,
+            chatHandler);
         IServiceResolver failedSessionServices = null;
         bool lobbyGameStateCommitted = false;
         bool lobbySessionStateCommitted = false;
@@ -603,7 +610,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
 
         handlersField.SetValue(
             actionRunner,
-            new MonoBehaviour[] { failingHandler });
+            overriddenHandlers);
 
         LogAssert.Expect(
             LogType.Error,
@@ -663,8 +670,6 @@ public sealed class NetworkSessionShutdownPlayModeTests
             sessionServices.Resolve<IPlayerScopeRegistry>();
         ProjectScenePostLoadActionRunner actionRunner =
             GetSinglePersistentComponent<ProjectScenePostLoadActionRunner>();
-        NetworkPlayerSpawner playerSpawner =
-            GetSinglePersistentComponent<NetworkPlayerSpawner>();
         FieldInfo handlersField = typeof(ProjectScenePostLoadActionRunner).GetField(
             "serverActionHandlers",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -675,10 +680,15 @@ public sealed class NetworkSessionShutdownPlayModeTests
             (MonoBehaviour[])handlersField.GetValue(actionRunner);
         FailingPostLoadActionHandler failingHandler =
             actionRunner.gameObject.AddComponent<FailingPostLoadActionHandler>();
+        MonoBehaviour[] overriddenHandlers = ReplaceServerActionHandler(
+            originalHandlers,
+            ProjectSceneServerAction.SpawnPlayers,
+            failingHandler,
+            out IProjectSceneFlowServerActionHandler playerHandler);
         failingHandler.Configure(
             ProjectSceneServerAction.SpawnPlayers,
             ProjectSceneKind.Game,
-            playerSpawner);
+            playerHandler);
 
         int playerScopesOpened = 0;
         int playerScopesClosed = 0;
@@ -693,7 +703,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
             inGameSessionStateCommitted |= current == NetworkSessionState.InGame;
         handlersField.SetValue(
             actionRunner,
-            new MonoBehaviour[] { failingHandler });
+            overriddenHandlers);
 
         LogAssert.Expect(
             LogType.Error,
@@ -833,6 +843,50 @@ public sealed class NetworkSessionShutdownPlayModeTests
         }
 
         return true;
+    }
+
+    private static MonoBehaviour[] ReplaceServerActionHandler(
+        MonoBehaviour[] originalHandlers,
+        ProjectSceneServerAction action,
+        MonoBehaviour replacement,
+        out IProjectSceneFlowServerActionHandler replacedHandler)
+    {
+        if (originalHandlers == null)
+            throw new ArgumentNullException(nameof(originalHandlers));
+
+        if (replacement == null)
+            throw new ArgumentNullException(nameof(replacement));
+
+        MonoBehaviour[] handlers = (MonoBehaviour[])originalHandlers.Clone();
+        replacedHandler = null;
+        int replacementIndex = -1;
+
+        for (int i = 0; i < originalHandlers.Length; i++)
+        {
+            if (originalHandlers[i] is not IProjectSceneFlowServerActionHandler candidate ||
+                !candidate.CanHandle(action))
+            {
+                continue;
+            }
+
+            if (replacementIndex >= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Multiple server action handlers can execute '{action}'.");
+            }
+
+            replacementIndex = i;
+            replacedHandler = candidate;
+        }
+
+        if (replacementIndex < 0)
+        {
+            throw new InvalidOperationException(
+                $"No server action handler can execute '{action}'.");
+        }
+
+        handlers[replacementIndex] = replacement;
+        return handlers;
     }
 
     private static bool IsProjectRuntimeRoot(GameObject root)

@@ -64,6 +64,12 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
     public void Cleanup()
     {
+        if (signals == null)
+        {
+            listensToCrouchSync = false;
+            return;
+        }
+
         signals.MoveSignal.Unlisten(SetDirection);
         signals.CrouchInputSignal.Unlisten(UpdateIsCrouching);
 
