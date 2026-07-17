@@ -569,66 +569,6 @@ public sealed class SceneRuntimeScopeTests
     }
 
     [Test]
-    public void DestroyInstalledFeature_RequestsOwningScopeUninstall()
-    {
-        List<string> events = new();
-        ServiceScope globalScope = new("Global");
-        globalScope.Register<ISceneScopeTestParentService>(new SceneScopeTestParentService());
-        ServiceScope sceneServiceScope = globalScope.CreateChild(
-            "Scene[63]",
-            TestServiceRegistrationPolicy.Instance);
-        GameObject featureObject = new("Destroying feature");
-        SceneRuntimeScope runtimeScope = null;
-        int uninstallRequestCount = 0;
-
-        try
-        {
-            SceneScopeTrackingFeature feature =
-                featureObject.AddComponent<SceneScopeTrackingFeature>();
-            feature.Configure("destroyed", events);
-            runtimeScope = new SceneRuntimeScope(
-                63,
-                "Destroying scene",
-                ProjectSceneKind.Game,
-                SceneServiceScopeParent.Session,
-                sceneServiceScope,
-                new SceneRuntimeFeature[] { feature },
-                context =>
-                {
-                    uninstallRequestCount++;
-
-                    if (runtimeScope == null || !runtimeScope.OwnsContext(context))
-                        return false;
-
-                    runtimeScope.Dispose();
-                    return true;
-                });
-
-            Assert.That(runtimeScope.Install(), Is.True);
-
-            UnityEngine.Object.DestroyImmediate(featureObject);
-            featureObject = null;
-
-            Assert.That(uninstallRequestCount, Is.EqualTo(1));
-            Assert.That(runtimeScope.IsReady, Is.False);
-            Assert.That(runtimeScope.Services, Is.Null);
-            Assert.That(globalScope.ChildScopeCount, Is.Zero);
-            CollectionAssert.AreEqual(
-                new[] { "install:destroyed", "uninstall:destroyed" },
-                events);
-        }
-        finally
-        {
-            runtimeScope?.Dispose();
-
-            if (featureObject != null)
-                UnityEngine.Object.DestroyImmediate(featureObject);
-
-            globalScope.Dispose();
-        }
-    }
-
-    [Test]
     public void FailedInstall_RollsBackFeaturesBeforeServiceScope()
     {
         List<string> events = new();

@@ -34,11 +34,13 @@ public sealed class LifecycleEventIsolationTests
     }
 
     [Test]
-    public void ShutdownRecovery_RemainsFailClosedAfterRetryExhaustion()
+    public async Task ShutdownRecovery_RemainsFailClosedAfterRetryExhaustion()
     {
         int attemptCount = 0;
+        TimeoutException failure = null;
 
-        TimeoutException failure = Assert.ThrowsAsync<TimeoutException>(async () =>
+        try
+        {
             await NetworkShutdownRecoveryPolicy.ExecuteAsync(
                 _ =>
                 {
@@ -47,9 +49,17 @@ public sealed class LifecycleEventIsolationTests
                         new TimeoutException("Injected timeout."));
                 },
                 NetworkShutdownMode.Graceful,
-                2));
+                2);
+
+            Assert.Fail("Expected shutdown recovery to throw TimeoutException.");
+        }
+        catch (TimeoutException exception)
+        {
+            failure = exception;
+        }
 
         Assert.That(attemptCount, Is.EqualTo(3));
+        Assert.That(failure, Is.Not.Null);
         Assert.That(failure.Message, Does.Contain("fail-closed"));
     }
 
