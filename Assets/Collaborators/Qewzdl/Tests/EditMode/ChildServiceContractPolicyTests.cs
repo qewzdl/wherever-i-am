@@ -459,6 +459,29 @@ public sealed class ChildServiceContractPolicyTests
     }
 
     [Test]
+    public void SessionReadinessMonitor_DefersHealthUntilSceneStateIsCommitted()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        using SessionServiceRegistry registry = new(session);
+        GameState state = GameState.LoadingGame;
+        int failureCount = 0;
+        using SessionServiceReadinessMonitor monitor = new(
+            registry,
+            () => state,
+            _ => failureCount++);
+
+        Assert.That(monitor.ValidateNow(), Is.True);
+        Assert.That(failureCount, Is.Zero);
+
+        state = GameState.InGame;
+        Assert.That(monitor.ValidateNow(), Is.False);
+        Assert.That(failureCount, Is.EqualTo(1));
+    }
+
+    [Test]
     public void SessionReadinessMonitor_HeartbeatDetectsUnreadyServiceAndPhaseMismatch()
     {
         using ServiceScope global = new("Global");

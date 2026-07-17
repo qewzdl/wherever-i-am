@@ -13,5 +13,6 @@ MonoBehaviour:
   m_Name: NetworkConnectionApprovalConfig
   m_EditorClassIdentifier: 
   remoteClientAllowedState: 3
-  remoteClientDeniedReason: The game has already started. You can only join while
-    the host is in the lobby.
+  allowInGameLateJoin: 1
+  remoteClientDeniedReason: The network session is not accepting new players right
+    now.

@@ -28,6 +28,35 @@ internal sealed class GameStateServiceStub : IGameStateService
 public sealed class MapLobbyAndGameplayLogicTests
 {
     [Test]
+    public void ConnectionApproval_AllowsConfiguredLobbyAndCommittedLateJoinOnly()
+    {
+        NetworkConnectionApprovalConfig config =
+            ScriptableObject.CreateInstance<NetworkConnectionApprovalConfig>();
+
+        try
+        {
+            TestReflection.SetField(
+                config,
+                "remoteClientAllowedState",
+                GameState.Lobby);
+            TestReflection.SetField(config, "allowInGameLateJoin", true);
+
+            Assert.That(config.CanAcceptRemoteClient(GameState.Lobby), Is.True);
+            Assert.That(config.CanAcceptRemoteClient(GameState.InGame), Is.True);
+            Assert.That(config.CanAcceptRemoteClient(GameState.LoadingGame), Is.False);
+            Assert.That(config.CanAcceptRemoteClient(GameState.Connecting), Is.False);
+            Assert.That(config.CanAcceptRemoteClient(GameState.MainMenu), Is.False);
+
+            TestReflection.SetField(config, "allowInGameLateJoin", false);
+            Assert.That(config.CanAcceptRemoteClient(GameState.InGame), Is.False);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(config);
+        }
+    }
+
+    [Test]
     public void MapDefinition_MatchesSceneByCaseInsensitiveNameOrNormalizedPath()
     {
         GameMapDefinition map = ScriptableObject.CreateInstance<GameMapDefinition>();

@@ -5,14 +5,17 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
 {
     [Header("Remote Clients")]
     [SerializeField] private GameState remoteClientAllowedState;
+    [SerializeField] private bool allowInGameLateJoin;
     [SerializeField] private string remoteClientDeniedReason;
 
     public GameState RemoteClientAllowedState => remoteClientAllowedState;
+    public bool AllowInGameLateJoin => allowInGameLateJoin;
     public string RemoteClientDeniedReason => remoteClientDeniedReason;
 
     public bool CanAcceptRemoteClient(GameState currentState)
     {
-        return currentState == remoteClientAllowedState;
+        return currentState == remoteClientAllowedState ||
+               (allowInGameLateJoin && currentState == GameState.InGame);
     }
 
     public bool Validate(Object context)

@@ -69,6 +69,16 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
 
         GameState currentState = stateProvider.Invoke();
 
+        // Connecting and LoadingGame are composition windows. Dynamic NGO
+        // services may not have spawned on a joining client yet; the explicit
+        // client/server readiness gates validate them before committing Lobby
+        // or InGame. The monitor owns health only after that commit.
+        if (currentState != GameState.Lobby &&
+            currentState != GameState.InGame)
+        {
+            return true;
+        }
+
         if (SessionServiceReadinessPolicy.Validate(
                 currentState,
                 registry,

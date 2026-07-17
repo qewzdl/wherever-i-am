@@ -1,0 +1,45 @@
+name: Production Bootstrap
+
+on:
+  pull_request:
+    branches:
+      - Qewzdl
+  push:
+    branches:
+      - Qewzdl
+  workflow_dispatch:
+
+concurrency:
+  group: production-bootstrap-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  host-client-late-client:
+    name: Host + Client + LateClient
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Run production bootstrap
+        shell: pwsh
+        env:
+          UNITY_EDITOR_PATH: ${{ vars.UNITY_EDITOR_PATH }}
+          WIA_BOOTSTRAP_TIMEOUT_SECONDS: "120"
+        run: ./ci/run-production-bootstrap.ps1
+
+      - name: Upload bootstrap artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-bootstrap
+          if-no-files-found: warn
+          retention-days: 14

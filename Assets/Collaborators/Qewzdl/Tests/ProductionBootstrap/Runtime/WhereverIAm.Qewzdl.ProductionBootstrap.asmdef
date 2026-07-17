@@ -1,0 +1,19 @@
+{
+    "name": "WhereverIAm.Qewzdl.ProductionBootstrap",
+    "rootNamespace": "",
+    "references": [
+        "WhereverIAm.Qewzdl",
+        "Unity.Netcode.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "WIA_PRODUCTION_BOOTSTRAP_TEST"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
