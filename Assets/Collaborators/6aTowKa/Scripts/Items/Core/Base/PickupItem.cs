@@ -39,28 +39,17 @@ public abstract class PickupItem : DraggableObject
         }
     }
 
-    public override void OnNetworkSpawn()
+    protected override void OnOwnershipChanged(ulong previous, ulong current)
     {
-        base.OnNetworkSpawn();
+        base.OnOwnershipChanged(previous, current);
 
-        if (IsServer)
-            NetworkManager.OnClientDisconnectCallback += HandlePickupOwnerDisconnect;
-    }
+        if (!IsServer ||
+            current != NetworkManager.ServerClientId ||
+            !netIsPickedUp.Value)
+        {
+            return;
+        }
 
-    public override void OnNetworkDespawn()
-    {
-        base.OnNetworkDespawn();
-
-        if (IsServer)
-            NetworkManager.OnClientDisconnectCallback -= HandlePickupOwnerDisconnect;
-    }
-
-    private void HandlePickupOwnerDisconnect(ulong clientId)
-    {
-        if (!netIsPickedUp.Value) return;
-        if (clientId != OwnerClientId) return;
-
-        GetComponent<NetworkObject>().ChangeOwnership(NetworkManager.ServerClientId);
         netIsPickedUp.Value = false;
 
         rb.position = spawnPosition;

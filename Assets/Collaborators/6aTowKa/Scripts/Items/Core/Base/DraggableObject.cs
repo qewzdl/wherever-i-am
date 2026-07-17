@@ -78,6 +78,11 @@ public abstract class DraggableObject : InteractableObject
         rb.mass = ((DraggableObjectData)data).Mass;
         originalMass = ((DraggableObjectData)data).Mass;
 
+        NetworkObject networkObject = GetComponent<NetworkObject>();
+
+        if (networkObject != null)
+            networkObject.DontDestroyWithOwner = true;
+
         int samples = Mathf.Max(1, (int)((DraggableObjectData)data).ThrowVelocitySamples);
         velocityBuffer = new Vector3[samples]; //create buffer
 
@@ -326,9 +331,6 @@ public abstract class DraggableObject : InteractableObject
 
     public override void OnNetworkSpawn()
     {
-        if (IsServer)
-            NetworkManager.OnClientDisconnectCallback += HandleClientDisconnect;
-
         // Runs on every client: non-owner proxies are kinematic (NetworkRigidbody) and would
         // shove local players via the solver unless the pairs are ignored locally too.
         netIsDragging.OnValueChanged += HandleDraggingCollisionChanged;
@@ -339,10 +341,21 @@ public abstract class DraggableObject : InteractableObject
 
     public override void OnNetworkDespawn()
     {
-        if (IsServer)
-            NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnect;
-
         netIsDragging.OnValueChanged -= HandleDraggingCollisionChanged;
+    }
+
+    protected override void OnOwnershipChanged(ulong previous, ulong current)
+    {
+        base.OnOwnershipChanged(previous, current);
+
+        if (!IsServer ||
+            current != NetworkManager.ServerClientId ||
+            !netIsDragging.Value)
+        {
+            return;
+        }
+
+        netIsDragging.Value = false;
     }
 
     public override void OnDestroy()
@@ -350,16 +363,6 @@ public abstract class DraggableObject : InteractableObject
         RestoreIgnoredCollisions();
         ActiveDraggedObjects.Remove(this);
         base.OnDestroy();
-    }
-
-    private void HandleClientDisconnect(ulong clientId)
-    {
-        if (!netIsDragging.Value) return;
-
-        if (clientId != OwnerClientId) return;
-
-        GetComponent<NetworkObject>().ChangeOwnership(NetworkManager.ServerClientId);
-        netIsDragging.Value = false;
     }
 
     public override void OnInteract(InteractionContext context)

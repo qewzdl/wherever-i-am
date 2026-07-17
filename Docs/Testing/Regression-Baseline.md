@@ -27,12 +27,13 @@ The current working tree was verified with Unity `6000.0.73f1`:
 | Suite | Passed | Failed | Skipped |
 |---|---:|---:|---:|
 | EditMode | 161 | 0 | 0 |
-| PlayMode | 41 | 0 | 0 |
+| PlayMode | 45 | 0 | 0 |
 
-The PlayMode run includes real UTP host/client/late-client transport, NGO host
-spawn/despawn paths, coordinated shutdown, scene lifecycle, and deterministic
-Unity physics/UI lifecycle tests. The separate `GRealBootstrap` Multiplayer
-Play Mode scenario remains the production multi-process acceptance check.
+The PlayMode run includes real UTP host/client/late-client transport, a
+dedicated server with two item clients, NGO spawn/despawn and ownership paths,
+coordinated shutdown, scene lifecycle, and deterministic Unity physics/UI
+lifecycle tests. The separate `GRealBootstrap` Multiplayer Play Mode scenario
+remains the production multi-process acceptance check.
 
 ## Coverage matrix
 
@@ -54,7 +55,7 @@ Play Mode scenario remains the production multi-process acceptance check.
 | Enemy memory, perception points and attack pipeline | Yes | NGO host attack | Host | Covered deterministically |
 | Player signals, input blockers, posture and camera | Yes | Yes | Player scopes | Covered deterministically |
 | Doors and item requirements | Yes | Physics/lifecycle | Server rules | Covered deterministically |
-| Item pickup/drag/drop ownership | Data helpers | Local state | Partial | Needs two-client ownership test |
+| Item pickup/drag/drop ownership | Data helpers | Physics/lifecycle | Dedicated server + 2 clients | Covered |
 | UI state, layout and events | Yes | Yes | N/A | Manual visual check remains |
 | Full production bootstrap | N/A | Host | Manual scenario | Needs automated multi-process CI |
 
@@ -75,10 +76,9 @@ Play Mode scenario remains the production multi-process acceptance check.
 ## Remaining high-value automation
 
 1. Run `GRealBootstrap.unity` automatically in separate Unity processes in CI.
-2. Add real item pickup/drag/drop ownership tests with two clients.
-3. Add enemy perception, attack, and objective progression tests on a baked
+2. Add enemy perception, attack, and objective progression tests on a baked
    NavMesh test scene.
-4. Add screenshot/audio-routing smoke checks only where deterministic assertions
+3. Add screenshot/audio-routing smoke checks only where deterministic assertions
    are possible; keep subjective presentation in the manual smoke route.
 
 These items are not gaps in unit-testable pure logic. They need a real
