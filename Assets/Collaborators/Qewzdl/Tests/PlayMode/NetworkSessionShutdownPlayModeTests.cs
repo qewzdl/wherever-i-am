@@ -348,6 +348,55 @@ public sealed class NetworkSessionShutdownPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator ApplicationQuitForceAbort_ClosesRuntimeExactlyOnce()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        AppRuntime appRuntime = GetSinglePersistentComponent<AppRuntime>();
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup failed before force-abort test.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Lobby &&
+                  runtimeContext.SessionOrchestrator.SessionServices != null,
+            "Host did not reach Lobby before force abort.");
+
+        IServiceResolver sessionServices =
+            runtimeContext.SessionOrchestrator.SessionServices;
+
+        Assert.That(G.IsReady, Is.True);
+        Assert.That(sessionServices.IsDisposed, Is.False);
+        Assert.That(networkManager.IsListening, Is.True);
+
+        runtimeContext.ForceAbortRuntimeForApplicationQuit();
+
+        Assert.That(
+            runtimeContext.LifecycleState,
+            Is.EqualTo(ProjectRuntimeLifecycleState.Disposed));
+        Assert.That(G.IsReady, Is.False);
+        Assert.That(sessionServices.IsDisposed, Is.True);
+        Assert.That(appRuntime.SceneScopeCount, Is.Zero);
+
+        yield return WaitForCondition(
+            () => !networkManager.IsListening &&
+                  !networkManager.IsClient &&
+                  !networkManager.IsServer,
+            "NGO did not stop after application-quit force abort.");
+
+        Assert.DoesNotThrow(runtimeContext.ForceAbortRuntimeForApplicationQuit);
+        Assert.That(
+            runtimeContext.LifecycleState,
+            Is.EqualTo(ProjectRuntimeLifecycleState.Disposed));
+        Assert.That(G.IsReady, Is.False);
+
+        yield return null;
+    }
+
+    [UnityTest]
     public IEnumerator ShutdownResult_ReportsMainMenuFailureAndKeepsTaskHonest()
     {
         yield return StartBootstrapAndWaitUntilReady();
@@ -795,6 +844,23 @@ public sealed class NetworkSessionShutdownPlayModeTests
                 continue;
 
             runtimeRoots.Add(root);
+            ProjectContext[] rootContexts =
+                root.GetComponentsInChildren<ProjectContext>(true);
+            bool runtimeAlreadyDisposed = rootContexts.Length > 0;
+
+            for (int contextIndex = 0;
+                 contextIndex < rootContexts.Length && runtimeAlreadyDisposed;
+                 contextIndex++)
+            {
+                runtimeAlreadyDisposed =
+                    rootContexts[contextIndex] == null ||
+                    rootContexts[contextIndex].LifecycleState ==
+                    ProjectRuntimeLifecycleState.Disposed;
+            }
+
+            if (runtimeAlreadyDisposed)
+                continue;
+
             NetworkSessionShutdownCoordinator[] coordinators =
                 root.GetComponentsInChildren<NetworkSessionShutdownCoordinator>(true);
 

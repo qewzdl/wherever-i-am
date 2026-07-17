@@ -31,7 +31,3 @@ MonoBehaviour:
     sceneName: Game
     scenePath: Assets/Collaborators/Qewzdl/Scenes/Game.unity
     state: 5
-  - kind: 100
-    sceneName: Test
-    scenePath: Assets/Collaborators/6aTowKa/Scenes/Test.unity
-    state: 5
