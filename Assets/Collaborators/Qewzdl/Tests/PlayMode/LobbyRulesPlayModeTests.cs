@@ -149,6 +149,100 @@ public sealed class LobbyRulesPlayModeTests
         Assert.That(session.StartGameCount, Is.EqualTo(1));
     }
 
+    [UnityTest]
+    public IEnumerator SettingsAndCustomization_RejectInvalidMutationsAndCommitValidOnes()
+    {
+        LobbyState state = CreateLobbyState();
+        LobbyConfig config = ScriptableObject.CreateInstance<LobbyConfig>();
+        GameMapCatalog catalog = ScriptableObject.CreateInstance<GameMapCatalog>();
+        GameMapDefinition map = ScriptableObject.CreateInstance<GameMapDefinition>();
+
+        try
+        {
+            PlayModeTestReflection.SetField(map, "mapId", 7);
+            PlayModeTestReflection.SetField(map, "displayName", "Test map");
+            PlayModeTestReflection.SetField(map, "sceneName", "Game");
+            PlayModeTestReflection.SetField(
+                map,
+                "scenePath",
+                "Assets/Scenes/Game.unity");
+            PlayModeTestReflection.SetField(catalog, "defaultMapId", 7);
+            PlayModeTestReflection.SetField(
+                catalog,
+                "maps",
+                new[] { map });
+            PlayModeTestReflection.SetField(
+                config,
+                "gameModeIds",
+                new[] { 2, 3 });
+            PlayModeTestReflection.SetField(config, "mapCatalog", catalog);
+
+            yield return null;
+
+            LobbySettingsService settings = new(state, config);
+            settings.InitializeFromConfig();
+            Assert.That(state.Phase.Value, Is.EqualTo(LobbyPhase.Open));
+            Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(2));
+            Assert.That(state.Settings.Value.MapId, Is.EqualTo(7));
+
+            LogAssert.Expect(
+                LogType.Warning,
+                "Rejected invalid lobby game mode id: 99.");
+            settings.SetGameMode(99);
+            Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(2));
+
+            settings.SetGameMode(3);
+            Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(3));
+
+            LobbyOwnershipService ownership = new(state);
+            LobbyPlayerRegistry registry = new(state, ownership);
+            registry.TryAddPlayer(10);
+            LobbyPlayerCustomizationService customization = new(state);
+            customization.SetReady(10, true);
+            customization.SetReady(999, true);
+
+            Assert.That(state.Players[0].IsReady, Is.True);
+            Assert.That(state.Players.Count, Is.EqualTo(1));
+
+            state.Phase.Value = LobbyPhase.Starting;
+            LogAssert.Expect(
+                LogType.Warning,
+                "Lobby settings cannot be changed while lobby phase is Starting.");
+            settings.SetMap(7);
+            Assert.That(state.Settings.Value.MapId, Is.EqualTo(7));
+        }
+        finally
+        {
+            Object.Destroy(config);
+            Object.Destroy(catalog);
+            Object.Destroy(map);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator StartService_MissingSessionFailsClosedWithoutPhaseCommit()
+    {
+        LobbyState state = CreateLobbyState();
+        yield return null;
+
+        state.Settings.Value = new LobbySettingsData(
+            minPlayersToStart: 1,
+            maxPlayers: 4,
+            requireAllPlayersReady: false,
+            gameModeId: 0,
+            mapId: 3);
+        state.Phase.Value = LobbyPhase.Open;
+        state.Players.Add(new LobbyPlayerData(1, "Owner", false));
+        LobbyStartService service =
+            new(state, new LobbyStartRules(), sessionService: null);
+
+        LogAssert.Expect(LogType.Error, "Network session service is missing.");
+        service.TryStartGame();
+
+        Assert.That(state.Phase.Value, Is.EqualTo(LobbyPhase.Open));
+        Assert.That(state.CanStartGame.Value, Is.True);
+    }
+
     private LobbyState CreateLobbyState()
     {
         GameObject stateObject = new("Lobby state test");

@@ -20,6 +20,20 @@ Run these checks before merging runtime changes:
 Save the exported Unity test result next to the commit or CI run that produced
 it. A baseline is only valid for the exact source revision that was tested.
 
+## Verified local baseline
+
+The current working tree was verified with Unity `6000.0.73f1`:
+
+| Suite | Passed | Failed | Skipped |
+|---|---:|---:|---:|
+| EditMode | 161 | 0 | 0 |
+| PlayMode | 41 | 0 | 0 |
+
+The PlayMode run includes real UTP host/client/late-client transport, NGO host
+spawn/despawn paths, coordinated shutdown, scene lifecycle, and deterministic
+Unity physics/UI lifecycle tests. The separate `GRealBootstrap` Multiplayer
+Play Mode scenario remains the production multi-process acceptance check.
+
 ## Coverage matrix
 
 | System | EditMode | PlayMode | Multiplayer | Current status |
@@ -32,15 +46,16 @@ it. A baseline is only valid for the exact source revision that was tested.
 | NGO shutdown and MainMenu activation | Yes | Yes | Host/client transport | Covered |
 | Project scenes and serialized references | Yes | Startup | N/A | Baseline validation |
 | Network prefab catalog | Yes | Spawn paths | Yes | Baseline validation |
-| Maps and objective definitions | Yes | Host flow | Indirect | Baseline validation |
-| Chat validation and data | Yes | Session flow | Yes | Characterized |
-| Lobby rules | Yes | Session flow | Yes | Characterized |
-| Audio selectors and configuration | Yes | Bootstrap composition | Manual | Characterized |
+| Maps and objective definitions | Yes | Host flow | Indirect | Covered |
+| Chat validation, unread state and phone UI | Yes | Yes | Yes | Covered |
+| Lobby rules, settings and ownership | Yes | Yes | Yes | Covered |
+| Audio selectors and configuration | Yes | Bootstrap composition | Manual listening | Covered deterministically |
 | Pause service | Yes | Game scene | N/A | Characterized |
-| Enemy memory and stimulus decisions | Yes | Contract loss | Partial | Characterized |
-| Player signals and orchestration | Yes | Player scope | Partial | Characterized |
-| Items and interaction | Data helpers | Asset validation | Partial | Needs deeper NGO tests |
-| UI presentation | Asset validation | Startup/error UI | N/A | Manual visual check |
+| Enemy memory, perception points and attack pipeline | Yes | NGO host attack | Host | Covered deterministically |
+| Player signals, input blockers, posture and camera | Yes | Yes | Player scopes | Covered deterministically |
+| Doors and item requirements | Yes | Physics/lifecycle | Server rules | Covered deterministically |
+| Item pickup/drag/drop ownership | Data helpers | Local state | Partial | Needs two-client ownership test |
+| UI state, layout and events | Yes | Yes | N/A | Manual visual check remains |
 | Full production bootstrap | N/A | Host | Manual scenario | Needs automated multi-process CI |
 
 ## Test policy for future changes
@@ -65,3 +80,7 @@ it. A baseline is only valid for the exact source revision that was tested.
    NavMesh test scene.
 4. Add screenshot/audio-routing smoke checks only where deterministic assertions
    are possible; keep subjective presentation in the manual smoke route.
+
+These items are not gaps in unit-testable pure logic. They need a real
+multi-process player, baked scene data, rendered frames, audio devices, or
+human perception and therefore belong to integration/acceptance testing.

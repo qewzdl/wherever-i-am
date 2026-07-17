@@ -4,6 +4,7 @@
     "references": [
         "WhereverIAm.Qewzdl",
         "WhereverIAm.Shared",
+        "WhereverIAm.Player",
         "Unity.Collections",
         "Unity.Netcode.Runtime",
         "Unity.Networking.Transport",

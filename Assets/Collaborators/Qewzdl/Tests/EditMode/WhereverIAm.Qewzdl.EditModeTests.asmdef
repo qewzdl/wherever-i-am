@@ -5,6 +5,7 @@
         "WhereverIAm.Qewzdl",
         "WhereverIAm.Shared",
         "WhereverIAm.Player",
+        "Unity.Collections",
         "Unity.Netcode.Runtime"
     ],
     "includePlatforms": [
