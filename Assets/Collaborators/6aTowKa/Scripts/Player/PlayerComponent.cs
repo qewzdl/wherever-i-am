@@ -19,10 +19,12 @@ public abstract class PlayerComponent : MonoBehaviour
 public abstract class PlayerNetworkComponent : NetworkBehaviour
 {
     protected PlayerSignals signals;
+    protected PlayerStates states;
 
     public void Init(PlayerOrchestrator orch)
     {
         signals = orch.Signals;
+        states = orch.States;
         OnPostInit(orch);
     }
 

@@ -24,6 +24,8 @@ public class PlayerSetup : NetworkBehaviour
         NetworkObject networkObject = RequireComponentOnPlayer<NetworkObject>();
         NetworkTransform networkTransform = RequireComponentOnPlayer<NetworkTransform>();
         PlayerNetwork playerNetwork = RequireComponentOnPlayer<PlayerNetwork>();
+        PlayerHidingController playerHiding =
+            RequireComponentOnPlayer<PlayerHidingController>();
         PlayerPostureController playerPosture = RequireComponentOnPlayer<PlayerPostureController>();
         PlayerInput playerInput = RequireComponentOnPlayer<PlayerInput>();
         PlayerInputHandler playerInputHandler = RequireComponentOnPlayer<PlayerInputHandler>();
@@ -54,6 +56,7 @@ public class PlayerSetup : NetworkBehaviour
             networkTransform.enabled = true;
 
             playerNetwork.enabled = true;
+            playerHiding.enabled = true;
             playerPosture.enabled = true;
 
             if (isLocalControl)
@@ -87,6 +90,7 @@ public class PlayerSetup : NetworkBehaviour
             AddDestroyingComponent(networkObject);
             AddDestroyingComponent(networkTransform);
             AddDestroyingComponent(playerNetwork);
+            AddDestroyingComponent(playerHiding);
 
             playerInput.enabled = true;
             playerInputHandler.enabled = true;

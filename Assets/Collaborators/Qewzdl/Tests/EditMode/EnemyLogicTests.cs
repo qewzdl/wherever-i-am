@@ -1,11 +1,75 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
+using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.TestTools;
+
+internal sealed class EnemyTargetHidingStateProbe :
+    MonoBehaviour,
+    IReplicatedPlayerHidingStateService
+{
+    internal bool Hidden { get; set; }
+
+    public bool IsHidden => Hidden;
+    public ulong HidingPlaceNetworkObjectId =>
+        HidingPlaceInteractable.NoOccupantNetworkObjectId;
+}
 
 [Category("Baseline")]
 public sealed class EnemyLogicTests
 {
+    [Test]
+    public void EnemyTarget_HiddenPlayerCannotBeDetected()
+    {
+        GameObject player = new("Hidden enemy target");
+        player.SetActive(false);
+
+        try
+        {
+            player.AddComponent<NetworkObject>();
+            EnemyTargetHidingStateProbe hidingState =
+                player.AddComponent<EnemyTargetHidingStateProbe>();
+
+            GameObject visibilityPoint = new("Visibility Point");
+            visibilityPoint.transform.SetParent(player.transform, false);
+
+            LogAssert.Expect(
+                LogType.Error,
+                new System.Text.RegularExpressions.Regex(
+                    "EnemyTarget has invalid visibility configuration:"
+                )
+            );
+            EnemyTarget target = player.AddComponent<EnemyTarget>();
+            typeof(EnemyTarget)
+                .GetField(
+                    "visibilityPoints",
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic
+                )
+                ?.SetValue(
+                    target,
+                    new[] { visibilityPoint.transform }
+                );
+
+            player.SetActive(true);
+
+            Assert.That(target.CanBeDetected, Is.True);
+
+            hidingState.Hidden = true;
+
+            Assert.That(target.CanBeDetected, Is.False);
+
+            hidingState.Hidden = false;
+
+            Assert.That(target.CanBeDetected, Is.True);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(player);
+        }
+    }
+
     [Test]
     public void AttackCooldown_ClampsTicksAndCanBeReset()
     {

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 internal sealed class PlayerComponentInitializationProbe :
@@ -47,6 +48,47 @@ internal sealed class PlayerNetworkInitializationProbe : PlayerNetworkComponent
 [Category("Baseline")]
 public sealed class PlayerAndItemLogicTests
 {
+    private const string ProductionPlayerPrefabPath =
+        "Assets/Collaborators/6aTowKa/Prefabs/Player.prefab";
+
+    [Test]
+    public void ProductionPlayerPrefab_ContainsHidingRuntimeAndScopeBinding()
+    {
+        GameObject playerPrefab =
+            AssetDatabase.LoadAssetAtPath<GameObject>(
+                ProductionPlayerPrefabPath
+            );
+
+        Assert.That(playerPrefab, Is.Not.Null);
+
+        PlayerHidingController hidingController =
+            playerPrefab.GetComponent<PlayerHidingController>();
+        PlayerInteraction interaction =
+            playerPrefab.GetComponent<PlayerInteraction>();
+        PlayerScopeLifetime scopeLifetime =
+            playerPrefab.GetComponent<PlayerScopeLifetime>();
+
+        Assert.That(hidingController, Is.Not.Null);
+        Assert.That(interaction, Is.Not.Null);
+        Assert.That(scopeLifetime, Is.Not.Null);
+
+        SerializedObject interactionObject = new(interaction);
+        SerializedObject scopeObject = new(scopeLifetime);
+
+        Assert.That(
+            interactionObject
+                .FindProperty("playerHidingController")
+                .objectReferenceValue,
+            Is.SameAs(hidingController)
+        );
+        Assert.That(
+            scopeObject
+                .FindProperty("hidingStateService")
+                .objectReferenceValue,
+            Is.SameAs(hidingController)
+        );
+    }
+
     [Test]
     public void PlayerSignals_RegisterUniqueNamedSignalsAndDispatchListeners()
     {
@@ -122,7 +164,7 @@ public sealed class PlayerAndItemLogicTests
     }
 
     [Test]
-    public void PlayerStates_KeepDraggingAndCarryingIndependent()
+    public void PlayerStates_KeepInteractionStatesIndependent()
     {
         PlayerStates states = new();
 
@@ -135,6 +177,14 @@ public sealed class PlayerAndItemLogicTests
 
         Assert.That(states.IsDragging, Is.False);
         Assert.That(states.IsCarrying, Is.True);
+        Assert.That(states.IsHiding, Is.False);
+
+        states.IsHiding = true;
+        states.IsCarrying = false;
+
+        Assert.That(states.IsHiding, Is.True);
+        Assert.That(states.IsDragging, Is.False);
+        Assert.That(states.IsCarrying, Is.False);
     }
 
     [Test]

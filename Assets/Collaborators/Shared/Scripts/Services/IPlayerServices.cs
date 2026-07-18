@@ -11,6 +11,12 @@ public interface IReplicatedPlayerStateService
     bool IsCrouching { get; }
 }
 
+public interface IReplicatedPlayerHidingStateService
+{
+    bool IsHidden { get; }
+    ulong HidingPlaceNetworkObjectId { get; }
+}
+
 public interface ILocalPlayerInputService
 {
     void SetInputActive(bool value);

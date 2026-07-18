@@ -49,6 +49,7 @@ internal static class ServiceContractCatalog
     {
         typeof(IPlayerNetworkService),
         typeof(IReplicatedPlayerStateService),
+        typeof(IReplicatedPlayerHidingStateService),
         typeof(IEnemyAttackReceiver)
     };
 

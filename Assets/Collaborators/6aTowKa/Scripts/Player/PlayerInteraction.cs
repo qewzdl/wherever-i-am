@@ -11,6 +11,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     [SerializeField] private Sprite defaultCrosshair;
     [SerializeField] private Transform playerCameraTransform;
     [SerializeField] private PlayerController playerController;
+    [SerializeField] private PlayerHidingController playerHidingController;
 
     // Items
     [SerializeField] private Transform viewModelContainer;
@@ -30,6 +31,9 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
+        if (playerHidingController == null)
+            playerHidingController = GetComponent<PlayerHidingController>();
+
         HitPoint = new GameObject();
         HitPoint.transform.parent = transform;
         HitPoint.name = "ContactPoint";
@@ -62,7 +66,13 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     // Focusing
     private void Raycast()
     {
-        if (!CanFocus()) return;
+        if (!CanFocus())
+        {
+            if (focusedInteractable != null || !crosshairIsDefualt)
+                ResetFocusedInteractable();
+
+            return;
+        }
 
         Debug.DrawRay(rayOrigin.position, rayOrigin.forward * interactionRange, Color.red);
         Ray ray = new Ray(rayOrigin.position, rayOrigin.forward);
@@ -101,6 +111,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private bool CanFocus()
     {
+        if (states.IsHiding) return false;
         if (states.IsDragging || dragRequestPending) return false;
         return true;
     }
@@ -115,6 +126,12 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     //Interacting
     private void Interact()
     {
+        if (states.IsHiding)
+        {
+            playerHidingController?.RequestExitHiding();
+            return;
+        }
+
         if (currentItem != null && focusedInteractable == null)
         {
             if (currentItem is UsableItem usableItem and not ActivatableUsableItem)
@@ -157,6 +174,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             HitPoint = HitPoint.transform,
             PlayerCameraTransform = playerCameraTransform,
             PlayerController = playerController,
+            PlayerHidingController = playerHidingController,
             RayOriginPosition = rayOrigin.position,
             CurrentItem = currentItem,
             PlayerInteraction = this,
@@ -241,6 +259,28 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     public void DenyPickup()
     {
         pickupRequestPending = false;
+    }
+
+    public bool CanEnterHiding()
+    {
+        return !states.IsHiding &&
+               !states.IsDragging &&
+               !states.IsCarrying &&
+               !dragRequestPending &&
+               !pickupRequestPending;
+    }
+
+    public void SetHidingActive(bool value)
+    {
+        if (!value)
+            return;
+
+        dragRequestPending = false;
+        pickupRequestPending = false;
+
+        if (signals != null &&
+            (focusedInteractable != null || !crosshairIsDefualt))
+            ResetFocusedInteractable();
     }
 
     //debug

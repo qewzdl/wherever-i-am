@@ -19,11 +19,13 @@ public class EnemyTarget : MonoBehaviour
     [SerializeField] private bool canBeDetected = true;
 
     private NetworkObject cachedNetworkObject;
+    private IReplicatedPlayerHidingStateService hidingState;
     private bool invalidVisibilityConfigurationLogged;
 
     public Transform AimPoint => aimPoint != null ? aimPoint : transform;
     public Vector3 AimPosition => AimPoint.position;
-    public bool CanBeDetected => canBeDetected;
+    public bool CanBeDetected =>
+        canBeDetected && (hidingState == null || !hidingState.IsHidden);
 
     public NetworkObject NetworkObject
     {
@@ -50,6 +52,7 @@ public class EnemyTarget : MonoBehaviour
     private void Awake()
     {
         CacheNetworkObject();
+        CacheHidingState();
         ValidateVisibilityConfiguration();
     }
 
@@ -337,10 +340,25 @@ public class EnemyTarget : MonoBehaviour
         cachedNetworkObject = GetComponentInParent<NetworkObject>();
     }
 
+    private void CacheHidingState()
+    {
+        MonoBehaviour[] behaviours = GetComponentsInParent<MonoBehaviour>(true);
+
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            if (behaviours[i] is IReplicatedPlayerHidingStateService service)
+            {
+                hidingState = service;
+                return;
+            }
+        }
+    }
+
 #if UNITY_EDITOR
     private void Reset()
     {
         CacheNetworkObject();
+        CacheHidingState();
         boundsInset = Mathf.Max(0f, boundsInset);
         ValidateVisibilityConfiguration();
     }
@@ -350,6 +368,7 @@ public class EnemyTarget : MonoBehaviour
         boundsInset = Mathf.Max(0f, boundsInset);
 
         CacheNetworkObject();
+        CacheHidingState();
         ValidateVisibilityConfiguration();
     }
 

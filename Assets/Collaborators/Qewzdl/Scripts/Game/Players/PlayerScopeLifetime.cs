@@ -8,6 +8,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 {
     [Header("Replicated Services")]
     [SerializeField] private PlayerNetwork replicatedStateService;
+    [SerializeField] private PlayerHidingController hidingStateService;
     [SerializeField] private PlayerEnemyAttackReceiver enemyAttackReceiver;
 
     [Header("Local-only Services")]
@@ -45,6 +46,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
                 {
                     registration.Register<IPlayerNetworkService>(this);
                     registration.Register<IReplicatedPlayerStateService>(replicatedStateService);
+                    registration.Register<IReplicatedPlayerHidingStateService>(hidingStateService);
                     registration.Register<IEnemyAttackReceiver>(enemyAttackReceiver);
                 },
                 registerLocalServices,
@@ -77,6 +79,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         ResolveReferences();
         bool valid = true;
         valid &= ValidateReference(replicatedStateService, nameof(replicatedStateService));
+        valid &= ValidateReference(hidingStateService, nameof(hidingStateService));
         valid &= ValidateReference(enemyAttackReceiver, nameof(enemyAttackReceiver));
 
         if (requireLocalServices)
@@ -96,6 +99,9 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 
         if (enemyAttackReceiver == null)
             enemyAttackReceiver = GetComponent<PlayerEnemyAttackReceiver>();
+
+        if (hidingStateService == null)
+            hidingStateService = GetComponent<PlayerHidingController>();
 
         if (inputService == null)
             inputService = GetComponent<PlayerInputHandler>();

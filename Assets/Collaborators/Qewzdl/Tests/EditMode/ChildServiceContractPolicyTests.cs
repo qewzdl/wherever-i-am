@@ -143,6 +143,10 @@ public sealed class ChildServiceContractPolicyTests
             SessionContractPolicy.IsAllowed(typeof(IReplicatedPlayerStateService)),
             Is.False);
         Assert.That(
+            SessionContractPolicy.IsAllowed(
+                typeof(IReplicatedPlayerHidingStateService)),
+            Is.False);
+        Assert.That(
             SessionContractPolicy.IsAllowed(typeof(ILocalPlayerInputService)),
             Is.False);
     }
@@ -180,6 +184,7 @@ public sealed class ChildServiceContractPolicyTests
         {
             typeof(IPlayerNetworkService),
             typeof(IReplicatedPlayerStateService),
+            typeof(IReplicatedPlayerHidingStateService),
             typeof(IEnemyAttackReceiver)
         };
         Type[] localContracts =

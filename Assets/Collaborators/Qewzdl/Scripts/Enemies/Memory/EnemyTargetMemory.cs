@@ -13,6 +13,7 @@ public sealed class EnemyTargetMemory
         get
         {
             return CurrentTarget != null &&
+                   CurrentTarget.CanBeDetected &&
                    CurrentTarget.IsValidNetworkTarget &&
                    CurrentTargetIdentity.HasTarget;
         }

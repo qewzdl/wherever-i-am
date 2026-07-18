@@ -16,7 +16,7 @@ public sealed class EnemyAttackContextFactory
         context = default;
         failureType = EnemyAttackResultType.None;
 
-        if (target == null || config == null)
+        if (target == null || !target.CanBeDetected || config == null)
         {
             failureType = EnemyAttackResultType.InvalidTarget;
             return false;

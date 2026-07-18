@@ -33,6 +33,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     private bool isCrouching;
     private bool hasLocalControl;
     private bool listensToCrouchSync;
+    private readonly HashSet<object> movementBlockers = new();
 
     private readonly List<Vector3> blockingContactNormals = new(8);
     private readonly List<(Vector3 normal, float allowedIntoSpeed)> itemVelocityConstraints = new(8);
@@ -102,6 +103,11 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
     private void Move(bool isGrounded)
     {
+        if (movementBlockers.Count > 0)
+        {
+            direction = Vector2.zero;
+        }
+
         Vector3 localDirection = new Vector3(direction.x, 0f, direction.y);
         Vector3 worldDirection = rb.rotation * localDirection;
 
@@ -428,6 +434,9 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
     public void UpdateIsCrouching()
     {
+        if (movementBlockers.Count > 0)
+            return;
+
         bool nextIsCrouching = !isCrouching;
 
         if (!nextIsCrouching && !CanStandUp())
@@ -466,4 +475,27 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     {
         return speed;
     }
+
+    public void SetMovementActive(object source, bool value)
+    {
+        if (source == null)
+        {
+            movementBlockers.Clear();
+        }
+        else if (value)
+        {
+            movementBlockers.Remove(source);
+        }
+        else
+        {
+            movementBlockers.Add(source);
+        }
+
+        if (movementBlockers.Count > 0)
+        {
+            direction = Vector2.zero;
+        }
+    }
+
+    public bool IsMovementActive => movementBlockers.Count == 0;
 }

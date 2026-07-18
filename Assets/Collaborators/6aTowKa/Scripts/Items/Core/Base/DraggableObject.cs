@@ -33,6 +33,8 @@ public abstract class DraggableObject : InteractableObject
         get { return itemColliders; }
     }
 
+    public bool IsBeingDragged => netIsDragging.Value;
+
     // Real velocity of the item for player-side clipping. While dragged, rb.linearVelocity holds
     // the commanded follow speed (nonzero even when a wall blocks the item), so the measured
     // per-tick displacement is used instead.
@@ -447,7 +449,12 @@ public abstract class DraggableObject : InteractableObject
     [Rpc(SendTo.Server)]
     private void RequestOwnershipServerRpc(RpcParams rpcParams = default)
     {
-        if (netIsDragging.Value || !CanStartDragging())
+        if (netIsDragging.Value ||
+            !CanStartDragging() ||
+            PlayerHidingController.IsClientHidden(
+                NetworkManager,
+                rpcParams.Receive.SenderClientId
+            ))
         {
             DenyDraggingRpc(RpcTarget.Single(rpcParams.Receive.SenderClientId, RpcTargetUse.Temp));
             return;

@@ -22,6 +22,8 @@ public abstract class PickupItem : DraggableObject
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
 
+    public bool IsPickedUp => netIsPickedUp.Value;
+
     protected override void Awake()
     {
         base.Awake();
@@ -115,9 +117,17 @@ public abstract class PickupItem : DraggableObject
     [Rpc(SendTo.Server)]
     private void RequestPickUpItemServerRpc(ulong ownerId, RpcParams rpcParams = default)
     {
-        if (netIsPickedUp.Value || netIsDragging.Value)
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (ownerId != senderClientId ||
+            netIsPickedUp.Value ||
+            netIsDragging.Value ||
+            PlayerHidingController.IsClientHidden(
+                NetworkManager,
+                senderClientId
+            ))
         {
-            DenyPickupRpc(RpcTarget.Single(rpcParams.Receive.SenderClientId, RpcTargetUse.Temp));
+            DenyPickupRpc(RpcTarget.Single(senderClientId, RpcTargetUse.Temp));
             return;
         }
         netIsPickedUp.Value = true;
