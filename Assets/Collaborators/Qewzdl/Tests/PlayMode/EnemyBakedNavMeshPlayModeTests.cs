@@ -359,6 +359,190 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator PatrolPlanner_OnPrebuiltNavMesh_BuildsSafeBoundedVariation()
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyConfig config = Track(UnityEngine.Object.Instantiate(enemyConfig));
+        EnemyPatrolConfig patrolProfile = Track(
+            UnityEngine.Object.Instantiate(enemyConfig.PatrolProfile));
+        patrolProfile.patrolRouteVariation = 2f;
+        patrolProfile.patrolEdgeClearance = 1f;
+        patrolProfile.patrolMaxDetourRatio = 1.5f;
+        patrolProfile.patrolIntermediatePointSpacing = 4f;
+        patrolProfile.patrolRouteSampleAttempts = 32;
+        PlayModeTestReflection.SetField(config, "patrolProfile", patrolProfile);
+
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = standingAgentTypeId,
+            areaMask = NavMesh.AllAreas
+        };
+
+        Assert.That(
+            NavMesh.SamplePosition(
+                new Vector3(-6f, 0f, 0f),
+                out NavMeshHit startHit,
+                1f,
+                filter),
+            Is.True);
+        Assert.That(
+            NavMesh.SamplePosition(
+                new Vector3(6f, 0f, 0f),
+                out NavMeshHit destinationHit,
+                1f,
+                filter),
+            Is.True);
+
+        EnemyPatrolPathPlanner planner = new(12345);
+        List<Vector3> plan = new();
+
+        Assert.That(
+            planner.TryBuildPlan(
+                startHit.position,
+                destinationHit.position,
+                filter,
+                config,
+                plan),
+            Is.True);
+        Assert.That(
+            plan.Count,
+            Is.GreaterThan(1),
+            "A long open patrol leg should contain safe intermediate points.");
+        Assert.That(
+            plan.Exists(point => Mathf.Abs(point.z) > 0.2f),
+            Is.True,
+            "The patrol plan should vary from the direct shortest line.");
+
+        for (int i = 0; i < plan.Count - 1; i++)
+        {
+            Assert.That(
+                NavMesh.FindClosestEdge(plan[i], out NavMeshHit edgeHit, filter),
+                Is.True);
+            Assert.That(
+                edgeHit.distance,
+                Is.GreaterThanOrEqualTo(patrolProfile.patrolEdgeClearance - 0.05f),
+                $"Intermediate patrol point {i} is too close to the NavMesh edge.");
+        }
+
+        float directLength = CalculatePathLength(
+            startHit.position,
+            destinationHit.position,
+            filter);
+        float planLength = CalculatePlanLength(
+            startHit.position,
+            plan,
+            filter);
+
+        Assert.That(
+            planLength,
+            Is.LessThanOrEqualTo(
+                directLength * patrolProfile.patrolMaxDetourRatio + 0.05f));
+
+        patrolProfile.patrolEdgeClearance = 100f;
+        EnemyPatrolPathPlanner fallbackPlanner = new(12345);
+
+        Assert.That(
+            fallbackPlanner.TryBuildPlan(
+                startHit.position,
+                destinationHit.position,
+                filter,
+                config,
+                plan),
+            Is.True);
+        Assert.That(
+            plan.Count,
+            Is.EqualTo(1),
+            "An impossible clearance must fall back to the valid direct route.");
+
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator PatrolController_OnPrebuiltNavMesh_FollowsCompletePlannedLeg()
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyConfig config = CloneNavigationConfig(enemyConfig);
+        EnemyMovementConfig movementProfile = config.MovementProfile;
+        movementProfile.patrolSpeed = 4f;
+
+        EnemyPatrolConfig patrolProfile = Track(
+            UnityEngine.Object.Instantiate(enemyConfig.PatrolProfile));
+        patrolProfile.patrolRouteVariation = 2f;
+        patrolProfile.patrolEdgeClearance = 1f;
+        patrolProfile.patrolMaxDetourRatio = 1.5f;
+        patrolProfile.patrolIntermediatePointSpacing = 4f;
+        patrolProfile.patrolRouteSampleAttempts = 32;
+        PlayModeTestReflection.SetField(config, "patrolProfile", patrolProfile);
+
+        GameObject routeObject = Track(new GameObject("Planned patrol route"));
+        GameObject routePoint = new("Planned patrol destination");
+        routePoint.transform.SetParent(routeObject.transform);
+        routePoint.transform.position = new Vector3(6f, 0f, 0f);
+
+        EnemyPatrolRoute route = routeObject.AddComponent<EnemyPatrolRoute>();
+        PlayModeTestReflection.SetField(
+            route,
+            "points",
+            new[] { routePoint.transform });
+
+        GameObject actor = Track(new GameObject("Planned patrol enemy"));
+        actor.SetActive(false);
+        actor.transform.position = new Vector3(-6f, 0f, 0f);
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Patrol test actor could not be placed on the baked surface.");
+        navigator.Configure(config);
+
+        EnemyBlackboard blackboard = new();
+        EnemyPatrolController controller = new(
+            route,
+            navigator,
+            config,
+            blackboard);
+
+        Assert.That(controller.MoveToNextRoutePoint(), Is.True);
+        Assert.That(blackboard.HasCurrentDestination, Is.True);
+        Assert.That(
+            Vector3.Distance(
+                blackboard.CurrentDestination,
+                routePoint.transform.position),
+            Is.GreaterThan(1f),
+            "The controller skipped the generated intermediate patrol route.");
+
+        bool reachedRoutePoint = false;
+
+        yield return WaitForCondition(
+            () =>
+            {
+                reachedRoutePoint = controller.HasReachedCurrentRoutePoint();
+                return reachedRoutePoint;
+            },
+            "Patrol controller did not advance through the complete planned leg.");
+
+        Assert.That(reachedRoutePoint, Is.True);
+        Assert.That(
+            Vector3.Distance(actor.transform.position, routePoint.transform.position),
+            Is.LessThanOrEqualTo(config.patrolPointReachDistance + 0.1f));
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_OnDualBakedNavMeshes_CrawlsUnderCeilingAndStandsAfterExit()
     {
         EnemyConfig sourceConfig = enemyConfig;
@@ -712,6 +896,46 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                    filter) &&
                agent.Warp(hit.position) &&
                agent.isOnNavMesh;
+    }
+
+    private static float CalculatePlanLength(
+        Vector3 start,
+        IReadOnlyList<Vector3> plan,
+        NavMeshQueryFilter filter)
+    {
+        float length = 0f;
+        Vector3 segmentStart = start;
+
+        for (int i = 0; i < plan.Count; i++)
+        {
+            length += CalculatePathLength(segmentStart, plan[i], filter);
+            segmentStart = plan[i];
+        }
+
+        return length;
+    }
+
+    private static float CalculatePathLength(
+        Vector3 start,
+        Vector3 destination,
+        NavMeshQueryFilter filter)
+    {
+        NavMeshPath path = new();
+
+        Assert.That(
+            NavMesh.CalculatePath(start, destination, filter, path),
+            Is.True);
+        Assert.That(path.status, Is.EqualTo(NavMeshPathStatus.PathComplete));
+
+        float length = 0f;
+        Vector3[] corners = path.corners;
+
+        for (int i = 1; i < corners.Length; i++)
+        {
+            length += Vector3.Distance(corners[i - 1], corners[i]);
+        }
+
+        return length;
     }
 
     private static void GetProductionAgentTypes(

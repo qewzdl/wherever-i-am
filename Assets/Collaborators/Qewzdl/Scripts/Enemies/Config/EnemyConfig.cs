@@ -109,6 +109,12 @@ public class EnemyConfig : ScriptableObject
         attackHitValidationProfile.attackLineOfHitTriggerInteraction;
 
     public float patrolPointReachDistance => patrolProfile.patrolPointReachDistance;
+    public float patrolRouteVariation => patrolProfile.patrolRouteVariation;
+    public float patrolEdgeClearance => patrolProfile.patrolEdgeClearance;
+    public float patrolMaxDetourRatio => patrolProfile.patrolMaxDetourRatio;
+    public float patrolIntermediatePointSpacing =>
+        patrolProfile.patrolIntermediatePointSpacing;
+    public int patrolRouteSampleAttempts => patrolProfile.patrolRouteSampleAttempts;
     public float patrolStopDuration => patrolProfile.patrolStopDuration;
     public float patrolStopWanderRadius => patrolProfile.patrolStopWanderRadius;
     public float patrolStopWanderSpeed => patrolProfile.patrolStopWanderSpeed;

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 public sealed class EnemyPatrolController
 {
@@ -7,8 +9,11 @@ public sealed class EnemyPatrolController
     private readonly EnemyConfig config;
     private readonly EnemyBlackboard blackboard;
     private readonly EnemyPatrolStopWanderPlanner stopWanderPlanner = new();
+    private readonly EnemyPatrolPathPlanner pathPlanner;
+    private readonly List<Vector3> plannedRoutePoints = new();
 
     private int patrolPointIndex;
+    private int nextPlannedRoutePointIndex;
     private Transform currentRoutePoint;
     private bool hasActiveWanderDestination;
 
@@ -30,11 +35,15 @@ public sealed class EnemyPatrolController
         this.navigator = navigator;
         this.config = config;
         this.blackboard = blackboard;
+
+        int plannerSeed = navigator != null ? navigator.GetInstanceID() : 0;
+        pathPlanner = new EnemyPatrolPathPlanner(plannerSeed);
     }
 
     public bool MoveToNextRoutePoint()
     {
         hasActiveWanderDestination = false;
+        ClearPlannedRoute();
 
         if (!HasRoute || navigator == null || config == null)
         {
@@ -52,13 +61,10 @@ public sealed class EnemyPatrolController
             return false;
         }
 
-        bool moved = navigator.TryMoveTo(currentRoutePoint.position, config.patrolSpeed);
+        BuildPlannedRoute(currentRoutePoint.position);
+        bool moved = TryMoveToNextPlannedRoutePoint();
 
-        if (moved)
-        {
-            blackboard?.SetCurrentDestination(currentRoutePoint.position);
-        }
-        else
+        if (!moved)
         {
             blackboard?.ClearCurrentDestination();
         }
@@ -73,7 +79,18 @@ public sealed class EnemyPatrolController
             return false;
         }
 
-        return navigator.HasReached(config.patrolPointReachDistance);
+        if (!navigator.HasReached(config.patrolPointReachDistance))
+        {
+            return false;
+        }
+
+        if (nextPlannedRoutePointIndex >= plannedRoutePoints.Count)
+        {
+            return true;
+        }
+
+        TryMoveToNextPlannedRoutePoint();
+        return false;
     }
 
     public bool ShouldUseStopWander()
@@ -143,6 +160,77 @@ public sealed class EnemyPatrolController
         patrolPointIndex = 0;
         currentRoutePoint = null;
         hasActiveWanderDestination = false;
+        ClearPlannedRoute();
         blackboard?.ClearCurrentDestination();
+    }
+
+    private void BuildPlannedRoute(Vector3 destination)
+    {
+        ClearPlannedRoute();
+
+        if (TryBuildPlannedRouteForPosture(destination, EnemyPosture.Standing))
+        {
+            return;
+        }
+
+        if (config.crawlingEnabled &&
+            TryBuildPlannedRouteForPosture(destination, EnemyPosture.Crawling))
+        {
+            return;
+        }
+
+        plannedRoutePoints.Add(destination);
+    }
+
+    private bool TryBuildPlannedRouteForPosture(
+        Vector3 destination,
+        EnemyPosture posture
+    )
+    {
+        plannedRoutePoints.Clear();
+
+        return navigator.TryGetNavigationQueryFilter(posture, out NavMeshQueryFilter filter) &&
+               pathPlanner.TryBuildPlan(
+                   navigator.Position,
+                   destination,
+                   filter,
+                   config,
+                   plannedRoutePoints
+               ) &&
+               plannedRoutePoints.Count > 0;
+    }
+
+    private bool TryMoveToNextPlannedRoutePoint()
+    {
+        while (nextPlannedRoutePointIndex < plannedRoutePoints.Count)
+        {
+            bool isFinalPoint =
+                nextPlannedRoutePointIndex == plannedRoutePoints.Count - 1;
+
+            Vector3 destination = plannedRoutePoints[nextPlannedRoutePointIndex];
+
+            if (navigator.TryMoveTo(destination, config.patrolSpeed))
+            {
+                nextPlannedRoutePointIndex++;
+                blackboard?.SetCurrentDestination(destination);
+                return true;
+            }
+
+            if (isFinalPoint)
+            {
+                blackboard?.ClearCurrentDestination();
+                return false;
+            }
+
+            nextPlannedRoutePointIndex++;
+        }
+
+        return false;
+    }
+
+    private void ClearPlannedRoute()
+    {
+        plannedRoutePoints.Clear();
+        nextPlannedRoutePointIndex = 0;
     }
 }

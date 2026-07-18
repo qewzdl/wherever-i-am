@@ -142,4 +142,32 @@ public sealed class EnemyLogicTests
             Is.EqualTo(EnemyTargetIdentity.NoTargetClientId));
         Assert.That(identity.TryGetNetworkObject(out _), Is.False);
     }
+
+    [Test]
+    public void PatrolProfile_ClampsUnsafeRoutePlanningValues()
+    {
+        EnemyPatrolConfig config =
+            ScriptableObject.CreateInstance<EnemyPatrolConfig>();
+
+        try
+        {
+            config.patrolRouteVariation = -1f;
+            config.patrolEdgeClearance = -2f;
+            config.patrolMaxDetourRatio = 0.5f;
+            config.patrolIntermediatePointSpacing = 0f;
+            config.patrolRouteSampleAttempts = 0;
+
+            config.Validate();
+
+            Assert.That(config.patrolRouteVariation, Is.Zero);
+            Assert.That(config.patrolEdgeClearance, Is.Zero);
+            Assert.That(config.patrolMaxDetourRatio, Is.EqualTo(1f));
+            Assert.That(config.patrolIntermediatePointSpacing, Is.EqualTo(1f));
+            Assert.That(config.patrolRouteSampleAttempts, Is.EqualTo(1));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(config);
+        }
+    }
 }

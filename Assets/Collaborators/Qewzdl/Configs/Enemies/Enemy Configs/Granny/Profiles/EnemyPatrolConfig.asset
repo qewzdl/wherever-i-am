@@ -13,6 +13,11 @@ MonoBehaviour:
   m_Name: EnemyPatrolConfig
   m_EditorClassIdentifier: 
   patrolPointReachDistance: 0.4
+  patrolRouteVariation: 1.5
+  patrolEdgeClearance: 0.75
+  patrolMaxDetourRatio: 1.35
+  patrolIntermediatePointSpacing: 5
+  patrolRouteSampleAttempts: 12
   patrolStopDuration: 4
   patrolStopWanderRadius: 2
   patrolStopWanderSpeed: 1.2

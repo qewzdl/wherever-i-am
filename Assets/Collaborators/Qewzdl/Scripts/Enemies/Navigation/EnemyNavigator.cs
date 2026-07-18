@@ -243,6 +243,30 @@ public class EnemyNavigator : MonoBehaviour
         return false;
     }
 
+    internal bool TryGetNavigationQueryFilter(
+        EnemyPosture posture,
+        out NavMeshQueryFilter filter
+    )
+    {
+        if (!TryEnsureOnNavMesh())
+        {
+            filter = default;
+            return false;
+        }
+
+        int agentTypeId = postureController != null
+            ? postureController.GetAgentTypeIdForPosture(posture)
+            : agent.agentTypeID;
+
+        filter = new NavMeshQueryFilter
+        {
+            agentTypeID = agentTypeId,
+            areaMask = agent.areaMask
+        };
+
+        return true;
+    }
+
     private void RememberRequestedNavigation(Vector3 destination, float speed)
     {
         requestedNavigationDestination = destination;
