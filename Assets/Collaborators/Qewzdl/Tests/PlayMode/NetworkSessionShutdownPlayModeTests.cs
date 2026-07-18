@@ -653,8 +653,12 @@ public sealed class NetworkSessionShutdownPlayModeTests
             },
             "Host did not reach the active production objective.");
 
+        ObjectiveSequenceDefinition defaultSequence =
+            PlayModeTestReflection.GetField<ObjectiveSequenceDefinition>(
+                objectiveFlow,
+                "objectiveSequence");
         ObjectiveDefinition activeObjective =
-            objectiveFlow.DefaultObjectiveSequenceEditor.GetObjective(0);
+            defaultSequence.GetObjective(0);
         ObjectiveSequenceDefinition brokenSequence =
             ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
         PlayModeTestReflection.SetField(

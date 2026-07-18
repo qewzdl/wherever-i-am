@@ -124,9 +124,11 @@ public sealed class EnemyTargetVisibilityPlayModeTests
 
     private static void ExpectInitialValidationBeforeTestComposition()
     {
+#if UNITY_EDITOR
         LogAssert.Expect(
             LogType.Error,
             new Regex("EnemyTarget has invalid visibility configuration:"));
+#endif
     }
 
     private T Track<T>(T value)

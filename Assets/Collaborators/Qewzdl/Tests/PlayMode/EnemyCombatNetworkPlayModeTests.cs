@@ -128,9 +128,11 @@ public sealed class EnemyCombatNetworkPlayModeTests
         targetObject.transform.position = position;
         NetworkObject networkObject = targetObject.AddComponent<NetworkObject>();
         BoxCollider collider = targetObject.AddComponent<BoxCollider>();
+#if UNITY_EDITOR
         LogAssert.Expect(
             LogType.Error,
             new Regex("EnemyTarget has invalid visibility configuration:"));
+#endif
         EnemyTarget target = targetObject.AddComponent<EnemyTarget>();
         PlayModeTestReflection.SetField(
             target,

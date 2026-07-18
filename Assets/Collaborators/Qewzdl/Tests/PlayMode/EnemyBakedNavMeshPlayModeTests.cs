@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -7,9 +6,12 @@ using NUnit.Framework;
 using Unity.AI.Navigation;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
-using UnityEditor;
+#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
+#endif
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
 internal sealed class BakedNavMeshAttackEffectProbe : IEnemyAttackEffect
@@ -26,10 +28,8 @@ internal sealed class BakedNavMeshAttackEffectProbe : IEnemyAttackEffect
 [Category("Gameplay")]
 public sealed class EnemyBakedNavMeshPlayModeTests
 {
-    private const string EnemyPrefabPath =
-        "Assets/Collaborators/Qewzdl/Prefabs/Entities/Enemy.prefab";
-    private const string EnemyConfigPath =
-        "Assets/Collaborators/Qewzdl/Configs/Enemies/Enemy Configs/Granny/GrannyEnemyConfig.asset";
+    private const string FixtureScenePath =
+        "Assets/Collaborators/Qewzdl/Tests/PlayMode/Scenarios/EnemyBakedNavMeshFixture.unity";
     private const float TimeoutSeconds = 12f;
     private const int EnvironmentLayer = 7;
     private const int PlayerLayer = 3;
@@ -38,6 +38,65 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     private readonly List<NavMeshSurface> surfaces = new();
 
     private NetworkManager manager;
+    private Scene fixtureScene;
+    private GameObject enemyPrefab;
+    private EnemyConfig enemyConfig;
+
+    [UnitySetUp]
+    public IEnumerator SetUpFixture()
+    {
+        Assert.That(
+            SceneManager.GetSceneByPath(FixtureScenePath).isLoaded,
+            Is.False,
+            "Enemy baked NavMesh fixture scene was already loaded.");
+
+#if UNITY_EDITOR
+        AsyncOperation loadOperation =
+            EditorSceneManager.LoadSceneAsyncInPlayMode(
+                FixtureScenePath,
+                new LoadSceneParameters(LoadSceneMode.Additive));
+#else
+        AsyncOperation loadOperation = SceneManager.LoadSceneAsync(
+            FixtureScenePath,
+            LoadSceneMode.Additive);
+#endif
+        Assert.That(
+            loadOperation,
+            Is.Not.Null,
+            $"Could not load test fixture scene '{FixtureScenePath}'.");
+        yield return loadOperation;
+
+        fixtureScene = SceneManager.GetSceneByPath(FixtureScenePath);
+        Assert.That(fixtureScene.IsValid(), Is.True);
+        Assert.That(fixtureScene.isLoaded, Is.True);
+
+        EnemyBakedNavMeshTestFixture fixture = null;
+        GameObject[] roots = fixtureScene.GetRootGameObjects();
+
+        for (int i = 0; i < roots.Length; i++)
+        {
+            EnemyBakedNavMeshTestFixture candidate =
+                roots[i].GetComponent<EnemyBakedNavMeshTestFixture>();
+
+            if (candidate == null)
+                continue;
+
+            Assert.That(
+                fixture,
+                Is.Null,
+                "Fixture scene contains multiple enemy test fixtures.");
+            fixture = candidate;
+        }
+
+        Assert.That(
+            fixture,
+            Is.Not.Null,
+            "Fixture scene has no enemy test fixture.");
+        enemyPrefab = fixture.EnemyPrefab;
+        enemyConfig = fixture.EnemyConfig;
+        Assert.That(enemyPrefab, Is.Not.Null);
+        Assert.That(enemyConfig, Is.Not.Null);
+    }
 
     [UnityTearDown]
     public IEnumerator TearDown()
@@ -70,6 +129,19 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         cleanup.Clear();
         manager = null;
+
+        if (fixtureScene.IsValid() && fixtureScene.isLoaded)
+        {
+            AsyncOperation unloadOperation =
+                SceneManager.UnloadSceneAsync(fixtureScene);
+
+            if (unloadOperation != null)
+                yield return unloadOperation;
+        }
+
+        fixtureScene = default;
+        enemyPrefab = null;
+        enemyConfig = null;
         yield return null;
     }
 
@@ -78,8 +150,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     {
         yield return StartHost();
 
-        GameObject enemyPrefab = LoadRequiredAsset<GameObject>(EnemyPrefabPath);
-        EnemyConfig config = LoadRequiredAsset<EnemyConfig>(EnemyConfigPath);
+        EnemyConfig config = enemyConfig;
         GetProductionAgentTypes(
             enemyPrefab,
             out int standingAgentTypeId,
@@ -190,8 +261,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     [UnityTest]
     public IEnumerator Navigator_OnPrebuiltNavMesh_OpensBlockingDoorBeforeContinuing()
     {
-        GameObject enemyPrefab = LoadRequiredAsset<GameObject>(EnemyPrefabPath);
-        EnemyConfig config = LoadRequiredAsset<EnemyConfig>(EnemyConfigPath);
+        EnemyConfig config = enemyConfig;
         GetProductionAgentTypes(
             enemyPrefab,
             out int standingAgentTypeId,
@@ -275,9 +345,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     [UnityTest]
     public IEnumerator Navigator_OnDualBakedNavMeshes_CrawlsUnderCeilingAndStandsAfterExit()
     {
-        GameObject enemyPrefab = LoadRequiredAsset<GameObject>(EnemyPrefabPath);
-        EnemyConfig sourceConfig =
-            LoadRequiredAsset<EnemyConfig>(EnemyConfigPath);
+        EnemyConfig sourceConfig = enemyConfig;
         GetProductionAgentTypes(
             enemyPrefab,
             out int standingAgentTypeId,
@@ -447,9 +515,11 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         collider.radius = 0.35f;
         collider.center = Vector3.up;
 
+#if UNITY_EDITOR
         LogAssert.Expect(
             LogType.Error,
             new Regex("EnemyTarget has invalid visibility configuration:"));
+#endif
         EnemyTarget target = targetObject.AddComponent<EnemyTarget>();
         PlayModeTestReflection.SetField(
             target,
@@ -652,14 +722,6 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.EqualTo(crawlingAgentTypeId));
     }
 
-    private static T LoadRequiredAsset<T>(string path)
-        where T : UnityEngine.Object
-    {
-        T asset = AssetDatabase.LoadAssetAtPath<T>(path);
-        Assert.That(asset, Is.Not.Null, $"Missing test asset '{path}'.");
-        return asset;
-    }
-
     private static IEnumerator WaitForCondition(
         Func<bool> condition,
         string failureMessage)
@@ -679,4 +741,3 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         return value;
     }
 }
-#endif

@@ -338,6 +338,9 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         LocalPlayerFixture loser = clientAWon ? playerB : playerA;
         Endpoint winnerEndpoint = clientAWon ? clientA : clientB;
         Endpoint remainingEndpoint = clientAWon ? clientB : clientA;
+        NetworkItemTestDraggable remainingItem =
+            clientAWon ? itemB : itemA;
+        Rigidbody remainingBody = remainingItem.GetComponent<Rigidbody>();
 
         Assert.That(winner.Orchestrator.States.IsDragging, Is.True);
         Assert.That(loser.Orchestrator.States.IsDragging, Is.False);
@@ -354,15 +357,21 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         yield return WaitForCondition(
             () => !winnerEndpoint.Manager.IsListening &&
                   serverItem.OwnerClientId == NetworkManager.ServerClientId &&
-                  !IsDragging(serverItem),
-            "Owner disconnect did not release the dragged item on the server.");
+                  !IsDragging(serverItem) &&
+                  remainingItem.OwnerClientId ==
+                      NetworkManager.ServerClientId &&
+                  !IsDragging(remainingItem) &&
+                  remainingBody.isKinematic &&
+                  !DraggableObject.ActiveDraggedObjects.Contains(
+                      remainingItem),
+            "Owner disconnect cleanup did not reach the server and remaining client.");
 
-        NetworkItemTestDraggable remainingItem =
+        Assert.That(
             GetSpawnedComponent<NetworkItemTestDraggable>(
                 remainingEndpoint,
-                networkObjectId);
+                networkObjectId),
+            Is.SameAs(remainingItem));
         Rigidbody serverBody = serverItem.GetComponent<Rigidbody>();
-        Rigidbody remainingBody = remainingItem.GetComponent<Rigidbody>();
 
         Assert.That(serverBody.isKinematic, Is.False);
         Assert.That(serverBody.useGravity, Is.True);
