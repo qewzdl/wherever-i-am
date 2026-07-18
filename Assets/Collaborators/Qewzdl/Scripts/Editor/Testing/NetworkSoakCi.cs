@@ -20,7 +20,10 @@ public static class NetworkSoakCi
     private const int DefaultJitterMs = 20;
     private const float DefaultPacketLossPercent = 2f;
 
-    [MenuItem("Tools/Wherever I Am/Tests/Run Network Soak (15 min)")]
+    [MenuItem(
+        TestingMenu.Root + "Run Network Soak (15 min)",
+        false,
+        TestingMenu.Priority)]
     public static void Run()
     {
         bool smoke = ReadBoolean("WIA_NETWORK_SOAK_SMOKE");

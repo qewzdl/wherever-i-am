@@ -19,7 +19,10 @@ public static class ProductionBootstrapCi
     private const string ShutdownSignal = "shutdown.signal";
     private const int DefaultStepTimeoutSeconds = 120;
 
-    [MenuItem("Tools/Wherever I Am/Tests/Run Production Bootstrap")]
+    [MenuItem(
+        TestingMenu.Root + "Run Production Bootstrap",
+        false,
+        TestingMenu.Priority)]
     public static void Run()
     {
         string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
