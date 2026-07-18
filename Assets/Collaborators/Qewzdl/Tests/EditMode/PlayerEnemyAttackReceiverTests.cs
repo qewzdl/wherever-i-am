@@ -51,6 +51,7 @@ public sealed class PlayerEnemyAttackReceiverTests
                 "enemy hit"),
             Is.True);
         Assert.That(service.CompletionCount, Is.EqualTo(1));
+        Assert.That(completionGate.CanAttempt, Is.False);
     }
 
     [Test]
@@ -75,6 +76,7 @@ public sealed class PlayerEnemyAttackReceiverTests
                 "enemy hit"),
             Is.True);
         Assert.That(service.CompletionCount, Is.EqualTo(1));
+        Assert.That(completionGate.CanAttempt, Is.False);
     }
 
     [Test]

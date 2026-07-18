@@ -1074,6 +1074,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   networkTransform: {fileID: 5093514779859453878}
   playerBody: {fileID: 7921583413856064293}
+  bodyCollider: {fileID: 7461241867225673140}
   playerController: {fileID: 1852548442045173992}
   playerInteraction: {fileID: 4637864106236086122}
 --- !u!114 &8546633882858530306

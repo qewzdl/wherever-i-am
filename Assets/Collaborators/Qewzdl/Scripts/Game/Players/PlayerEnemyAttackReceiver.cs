@@ -3,7 +3,10 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
-public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackReceiver
+public sealed class PlayerEnemyAttackReceiver :
+    NetworkBehaviour,
+    IEnemyAttackReceiver,
+    IHidingEntryEligibility
 {
     [SerializeField] private GameResultType hitResult = GameResultType.Defeat;
     [SerializeField] private string hitReason = "A player was caught by an enemy";
@@ -11,6 +14,9 @@ public sealed class PlayerEnemyAttackReceiver : NetworkBehaviour, IEnemyAttackRe
 
     private NetworkObject networkObject;
     private readonly PlayerEnemyAttackCompletionGate completionGate = new();
+
+    public bool CanEnterHiding =>
+        isActiveAndEnabled && completionGate.CanAttempt;
 
     private void Awake()
     {

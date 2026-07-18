@@ -50,6 +50,10 @@ public sealed class PlayerAndItemLogicTests
 {
     private const string ProductionPlayerPrefabPath =
         "Assets/Collaborators/6aTowKa/Prefabs/Player.prefab";
+    private const string ProductionHidingPlacePrefabPath =
+        "Assets/Collaborators/Qewzdl/Prefabs/Hiding Objects/Test Hiding Box.prefab";
+    private const string ProductionHidingPlaceDataPath =
+        "Assets/Collaborators/Qewzdl/Configs/Items/Interactable/Hiding/HidingPlaceData.asset";
 
     [Test]
     public void ProductionPlayerPrefab_ContainsHidingRuntimeAndScopeBinding()
@@ -67,14 +71,28 @@ public sealed class PlayerAndItemLogicTests
             playerPrefab.GetComponent<PlayerInteraction>();
         PlayerScopeLifetime scopeLifetime =
             playerPrefab.GetComponent<PlayerScopeLifetime>();
+        PlayerEnemyAttackReceiver attackReceiver =
+            playerPrefab.GetComponent<PlayerEnemyAttackReceiver>();
 
         Assert.That(hidingController, Is.Not.Null);
         Assert.That(interaction, Is.Not.Null);
         Assert.That(scopeLifetime, Is.Not.Null);
+        Assert.That(attackReceiver, Is.Not.Null);
+        Assert.That(
+            attackReceiver,
+            Is.InstanceOf<IHidingEntryEligibility>()
+        );
 
+        SerializedObject hidingObject = new(hidingController);
         SerializedObject interactionObject = new(interaction);
         SerializedObject scopeObject = new(scopeLifetime);
 
+        Assert.That(
+            hidingObject
+                .FindProperty("bodyCollider")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
         Assert.That(
             interactionObject
                 .FindProperty("playerHidingController")
@@ -86,6 +104,93 @@ public sealed class PlayerAndItemLogicTests
                 .FindProperty("hidingStateService")
                 .objectReferenceValue,
             Is.SameAs(hidingController)
+        );
+    }
+
+    [Test]
+    public void ProductionHidingPlace_HasFailClosedSafetyConfiguration()
+    {
+        GameObject hidingPrefab =
+            AssetDatabase.LoadAssetAtPath<GameObject>(
+                ProductionHidingPlacePrefabPath
+            );
+        HidingPlaceData hidingData =
+            AssetDatabase.LoadAssetAtPath<HidingPlaceData>(
+                ProductionHidingPlaceDataPath
+            );
+
+        Assert.That(hidingPrefab, Is.Not.Null);
+        Assert.That(hidingData, Is.Not.Null);
+        Assert.That(
+            hidingPrefab.layer,
+            Is.EqualTo(LayerMask.NameToLayer("Interactable"))
+        );
+        Assert.That(
+            hidingPrefab.GetComponent<Unity.Netcode.NetworkObject>(),
+            Is.Not.Null
+        );
+
+        HidingPlaceInteractable hidingPlace =
+            hidingPrefab.GetComponent<HidingPlaceInteractable>();
+
+        Assert.That(hidingPlace, Is.Not.Null);
+
+        SerializedObject hidingPlaceObject = new(hidingPlace);
+
+        Assert.That(
+            hidingPlaceObject
+                .FindProperty("data")
+                .objectReferenceValue,
+            Is.SameAs(hidingData)
+        );
+        Assert.That(
+            hidingPlaceObject
+                .FindProperty("interactionAnchor")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
+        Assert.That(
+            hidingPlaceObject
+                .FindProperty("hidingPoint")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
+        Assert.That(
+            hidingPlaceObject
+                .FindProperty("exitPoint")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
+        SerializedProperty fallbackExitPoints =
+            hidingPlaceObject.FindProperty("fallbackExitPoints");
+        Assert.That(fallbackExitPoints, Is.Not.Null);
+        Assert.That(
+            fallbackExitPoints.arraySize,
+            Is.GreaterThanOrEqualTo(2),
+            "The production hiding prefab must provide alternative exits."
+        );
+        for (int i = 0; i < fallbackExitPoints.arraySize; i++)
+        {
+            Assert.That(
+                fallbackExitPoints
+                    .GetArrayElementAtIndex(i)
+                    .objectReferenceValue,
+                Is.Not.Null
+            );
+        }
+
+        Assert.That(hidingData.RequireEntryLineOfSight, Is.True);
+        Assert.That(
+            hidingData.EntryLineOfSightBlockingMask.value,
+            Is.Not.Zero
+        );
+        Assert.That(
+            hidingData.ExitObstructionMask.value,
+            Is.Not.Zero
+        );
+        Assert.That(
+            hidingData.ExitCollisionSkin,
+            Is.GreaterThanOrEqualTo(0f)
         );
     }
 

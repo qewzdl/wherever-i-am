@@ -10,6 +10,15 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
+internal sealed class HidingEntryEligibilityProbe :
+    MonoBehaviour,
+    IHidingEntryEligibility
+{
+    internal bool Allowed { get; set; } = true;
+
+    public bool CanEnterHiding => Allowed;
+}
+
 [Category("Multiplayer")]
 public sealed class TwoClientHidingPlacePlayModeTests
 {
@@ -260,6 +269,256 @@ public sealed class TwoClientHidingPlacePlayModeTests
                   !playerB.IsHidden,
             "Hiding place despawn did not release its active occupant."
         );
+
+        Vector3 recoveredPosition =
+            GetComponent<PlayerHidingController>(
+                server,
+                playerBId
+            ).transform.position;
+
+        Assert.That(
+            Vector3.Distance(recoveredPosition, Vector3.back),
+            Is.LessThan(0.05f)
+        );
+    }
+
+    [UnityTest]
+    public IEnumerator BlockedLineOfSight_ServerRejectsEntry()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(
+            clientA.Manager.LocalClientId,
+            Vector3.back * 2f
+        );
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        GameObject wall = Track(new GameObject("Hiding entry wall"));
+        wall.transform.position = Vector3.back;
+        BoxCollider wallCollider = wall.AddComponent<BoxCollider>();
+        wallCollider.size = new Vector3(3f, 3f, 0.25f);
+        Physics.SyncTransforms();
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return new WaitForSecondsRealtime(0.25f);
+
+        Assert.That(serverPlace.IsOccupied, Is.False);
+        Assert.That(
+            GetComponent<PlayerHidingController>(
+                server,
+                playerId
+            ).IsHidden,
+            Is.False
+        );
+
+        Object.Destroy(wall);
+        yield return null;
+        Physics.SyncTransforms();
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.OccupantNetworkObjectId == playerId &&
+                  player.IsHidden,
+            "Entry remained blocked after line of sight was restored."
+        );
+    }
+
+    [UnityTest]
+    public IEnumerator OutOfRangePlayer_ServerRejectsEntry()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(
+            clientA.Manager.LocalClientId,
+            Vector3.back * 3f
+        );
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return new WaitForSecondsRealtime(0.25f);
+
+        Assert.That(serverPlace.IsOccupied, Is.False);
+        Assert.That(player.IsHidden, Is.False);
+    }
+
+    [UnityTest]
+    public IEnumerator UnavailablePlayer_ServerRejectsEntry()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        HidingEntryEligibilityProbe serverEligibility =
+            GetComponent<HidingEntryEligibilityProbe>(
+                server,
+                playerId
+            );
+        serverEligibility.Allowed = false;
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return new WaitForSecondsRealtime(0.25f);
+
+        Assert.That(serverPlace.IsOccupied, Is.False);
+        Assert.That(player.IsHidden, Is.False);
+
+        serverEligibility.Allowed = true;
+        PlayerHidingController serverPlayer =
+            GetComponent<PlayerHidingController>(
+                server,
+                playerId
+            );
+        Assert.That(
+            (bool)PlayModeTestReflection.Invoke(
+                serverPlayer,
+                "CanEnterHidingServer"
+            ),
+            Is.True,
+            "The server still considered the player unavailable after " +
+            "the eligibility condition was restored."
+        );
+    }
+
+    [UnityTest]
+    public IEnumerator BlockedExit_KeepsPlayerHidden_ThenUsesFallback()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.OccupantNetworkObjectId == playerId &&
+                  player.IsHidden,
+            "Player did not enter before exit validation."
+        );
+
+        GameObject primaryBlocker =
+            CreateExitBlocker("Primary exit blocker", Vector3.back);
+        GameObject fallbackBlocker =
+            CreateExitBlocker("Fallback exit blocker", Vector3.right * 2f);
+
+        player.RequestExitHiding();
+        yield return new WaitForSecondsRealtime(0.25f);
+
+        Assert.That(serverPlace.IsOccupied, Is.True);
+        Assert.That(player.IsHidden, Is.True);
+
+        Object.Destroy(fallbackBlocker);
+        yield return null;
+        Physics.SyncTransforms();
+
+        player.RequestExitHiding();
+
+        yield return WaitForCondition(
+            () => !serverPlace.IsOccupied &&
+                  !player.IsHidden &&
+                  Vector3.Distance(
+                      player.transform.position,
+                      Vector3.right * 2f
+                  ) < 0.05f,
+            "Player did not use the first available fallback exit."
+        );
+
+        Assert.That(
+            Vector3.Distance(
+                player.transform.position,
+                Vector3.right * 2f
+            ),
+            Is.LessThan(0.05f)
+        );
+
+        Object.Destroy(primaryBlocker);
     }
 
     private IEnumerator StartNetwork()
@@ -299,6 +558,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
     {
         playerPrefab = Track(new GameObject("Hiding player prefab"));
         playerPrefab.SetActive(false);
+        playerPrefab.layer = LayerMask.NameToLayer("Player");
         playerPrefab.transform.position =
             new Vector3(10000f, 10000f, 10000f);
 
@@ -316,8 +576,10 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
         Rigidbody body = playerPrefab.AddComponent<Rigidbody>();
         body.useGravity = false;
-        playerPrefab.AddComponent<CapsuleCollider>();
+        CapsuleCollider bodyCollider =
+            playerPrefab.AddComponent<CapsuleCollider>();
         playerPrefab.AddComponent<MeshRenderer>();
+        playerPrefab.AddComponent<HidingEntryEligibilityProbe>();
 
         PlayerController movement =
             playerPrefab.AddComponent<PlayerController>();
@@ -333,6 +595,11 @@ public sealed class TwoClientHidingPlacePlayModeTests
         PlayModeTestReflection.SetField(hiding, "playerBody", body);
         PlayModeTestReflection.SetField(
             hiding,
+            "bodyCollider",
+            bodyCollider
+        );
+        PlayModeTestReflection.SetField(
+            hiding,
             "playerController",
             movement
         );
@@ -346,6 +613,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
             new GameObject("Hiding place prefab")
         );
         hidingPlacePrefab.SetActive(false);
+        hidingPlacePrefab.layer = LayerMask.NameToLayer("Interactable");
         hidingPlacePrefab.transform.position =
             new Vector3(10000f, 10000f, 10000f);
 
@@ -367,6 +635,11 @@ public sealed class TwoClientHidingPlacePlayModeTests
             "Exit Point",
             Vector3.back
         );
+        Transform fallbackExitPoint = CreateChild(
+            hidingPlacePrefab.transform,
+            "Fallback Exit Point",
+            Vector3.right * 2f
+        );
 
         HidingPlaceInteractable hidingPlace =
             hidingPlacePrefab.AddComponent<HidingPlaceInteractable>();
@@ -385,6 +658,11 @@ public sealed class TwoClientHidingPlacePlayModeTests
             hidingPlace,
             "exitPoint",
             exitPoint
+        );
+        PlayModeTestReflection.SetField(
+            hidingPlace,
+            "fallbackExitPoints",
+            new[] { fallbackExitPoint }
         );
 
         hidingPlacePrefab.SetActive(true);
@@ -425,11 +703,14 @@ public sealed class TwoClientHidingPlacePlayModeTests
         }
     }
 
-    private ulong SpawnPlayer(ulong ownerClientId)
+    private ulong SpawnPlayer(
+        ulong ownerClientId,
+        Vector3? spawnPosition = null
+    )
     {
         GameObject instance = Object.Instantiate(
             playerPrefab,
-            Vector3.zero,
+            spawnPosition ?? Vector3.zero,
             Quaternion.identity
         );
         Track(instance);
@@ -443,6 +724,19 @@ public sealed class TwoClientHidingPlacePlayModeTests
         );
         networkObject.SpawnWithOwnership(ownerClientId);
         return networkObject.NetworkObjectId;
+    }
+
+    private GameObject CreateExitBlocker(
+        string blockerName,
+        Vector3 position
+    )
+    {
+        GameObject blocker = Track(new GameObject(blockerName));
+        blocker.transform.position = position;
+        BoxCollider collider = blocker.AddComponent<BoxCollider>();
+        collider.size = new Vector3(1.5f, 3f, 1.5f);
+        Physics.SyncTransforms();
+        return blocker;
     }
 
     private ulong SpawnHidingPlace()
