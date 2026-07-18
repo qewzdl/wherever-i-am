@@ -3,7 +3,9 @@
     "rootNamespace": "",
     "references": [
         "WhereverIAm.Qewzdl",
+        "WhereverIAm.Player",
         "Unity.Netcode.Runtime",
+        "Unity.Networking.Transport",
         "Unity.Collections"
     ],
     "includePlatforms": [],

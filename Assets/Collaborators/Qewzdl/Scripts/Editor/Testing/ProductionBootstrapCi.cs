@@ -142,7 +142,7 @@ public static class ProductionBootstrapCi
         }
     }
 
-    private static string BuildProductionBootstrapPlayer(
+    internal static string BuildProductionBootstrapPlayer(
         string projectRoot,
         string artifactRoot)
     {

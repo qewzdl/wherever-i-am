@@ -34,3 +34,35 @@ a self-hosted Windows runner. Set the repository variable `UNITY_EDITOR_PATH` if
 Unity Hub is not installed in its default location. The
 `Production Bootstrap` workflow runs automatically for pushes and pull requests
 to `Qewzdl`.
+
+## Network soak and fault injection
+
+Use `Tools/Wherever I Am/Tests/Run Network Soak (15 min)` for the long-running
+P1 multiplayer gate. It starts the real production Bootstrap in Host and two
+Client processes, applies Unity Transport latency, jitter and packet loss, and
+repeats Lobby to Game to MainMenu until the requested duration has elapsed.
+When started from this Editor menu, all three Players open as 960x540 windows.
+Each window shows its role, cycle, phase and network simulation. Use
+`Stop network soak` in any window (or close it) to cancel the run and close the
+remaining processes. CI and the PowerShell runner stay headless by default; set
+`WIA_NETWORK_SOAK_SHOW_WINDOWS=1` to show their Player windows as well.
+
+Across every four cycles Client B is disconnected during map loading, an active
+objective, an authoritative drag and an enemy attack. The same process rejoins
+the running Game after the objective, drag and enemy faults. An incomplete map
+load is expected to fail closed, so all roles roll back to MainMenu and reconnect
+in the next cycle. Every MainMenu return compares Global/Scene/Player/Session
+scope counts, registration order, spawned NGO objects, live NetworkObjects and
+active drag state with the clean startup baseline.
+
+The default and CI duration is 900 seconds. A local smoke run can be selected
+without weakening CI:
+
+```powershell
+$env:WIA_NETWORK_SOAK_SMOKE = "1"
+$env:WIA_NETWORK_SOAK_DURATION_SECONDS = "90"
+./ci/run-network-soak.ps1
+```
+
+Artifacts and NUnit XML are written to `artifacts/network-soak`. The
+`Network Soak` workflow runs on pushes to `Qewzdl`, every night and manually.
