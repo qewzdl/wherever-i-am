@@ -296,7 +296,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         GameObject actor = Track(new GameObject("Door navigation enemy"));
         actor.SetActive(false);
         actor.layer = 6;
-        actor.transform.position = new Vector3(0f, 0f, -1f);
+        actor.transform.position = new Vector3(0f, 0f, -5f);
 
         NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
         agent.agentTypeID = standingAgentTypeId;
@@ -319,7 +319,23 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         Vector3 destination = new Vector3(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
-        Assert.That(door.IsReservedByEnemy, Is.True);
+        Assert.That(
+            door.IsReservedByEnemy,
+            Is.False,
+            "The door should initially be outside the configured detection radius.");
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                return door.IsReservedByEnemy;
+            },
+            "Enemy did not detect the blocking door while following a previously requested path.");
+
+        Assert.That(
+            actor.transform.position.z,
+            Is.LessThan(-0.1f),
+            "Enemy crossed the closed door before beginning the authoritative interaction.");
         Assert.That(agent.isStopped, Is.True);
 
         yield return WaitForCondition(
@@ -333,10 +349,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         yield return WaitForCondition(
             () =>
             {
-                navigator.TryMoveTo(destination, 3f);
+                navigator.TickNavigationGate();
                 return actor.transform.position.z > 0.5f;
             },
-            "Enemy did not continue along the baked path after opening the door.");
+            "Enemy did not resume the original path after opening the door.");
 
         Assert.That(door.IsOpen, Is.True);
         Assert.That(door.IsReservedByEnemy, Is.True);

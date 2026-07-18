@@ -103,6 +103,56 @@ public class EnemyNavigator : MonoBehaviour
             }
         }
 
+        return TryMoveAfterDoorNavigation(destination, speed);
+    }
+
+    public void TickNavigationGate()
+    {
+        if (doorInteractor == null)
+        {
+            return;
+        }
+
+        if (!hasRequestedNavigation)
+        {
+            doorInteractor.CancelActiveInteraction();
+            return;
+        }
+
+        bool hadActiveInteraction = doorInteractor.HasActiveInteraction;
+        Vector3 probeDestination = GetDoorNavigationProbeDestination();
+        EnemyDoorNavigationResult doorResult = doorInteractor.EvaluateNavigation(
+            transform.position,
+            probeDestination
+        );
+
+        if (doorResult.ShouldStop)
+        {
+            StopForDoorInteraction();
+            return;
+        }
+
+        if (doorResult.HasOverrideDestination)
+        {
+            TryMoveAfterDoorNavigation(
+                doorResult.OverrideDestination,
+                requestedNavigationSpeed
+            );
+
+            return;
+        }
+
+        if (hadActiveInteraction)
+        {
+            TryMoveAfterDoorNavigation(
+                requestedNavigationDestination,
+                requestedNavigationSpeed
+            );
+        }
+    }
+
+    private bool TryMoveAfterDoorNavigation(Vector3 destination, float speed)
+    {
         if (postureController != null && postureController.IsPostureTransitionInProgress)
         {
             StopForPostureTransition();
@@ -115,33 +165,6 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         return TryMoveToWithCurrentPosture(destination, speed);
-    }
-
-    public void TickNavigationGate()
-    {
-        if (doorInteractor == null || !doorInteractor.HasActiveInteraction)
-        {
-            return;
-        }
-
-        if (!hasRequestedNavigation)
-        {
-            doorInteractor.CancelActiveInteraction();
-            return;
-        }
-
-        EnemyDoorNavigationResult doorResult = doorInteractor.EvaluateNavigation(
-            transform.position,
-            requestedNavigationDestination
-        );
-
-        if (doorResult.ShouldStop)
-        {
-            StopForDoorInteraction();
-            return;
-        }
-
-        TryMoveTo(requestedNavigationDestination, requestedNavigationSpeed);
     }
 
     public void Stop()
@@ -241,6 +264,26 @@ public class EnemyNavigator : MonoBehaviour
 
         doorResult = doorInteractor.EvaluateNavigation(transform.position, destination);
         return doorResult.IsHandled;
+    }
+
+    private Vector3 GetDoorNavigationProbeDestination()
+    {
+        if (agent == null ||
+            !agent.enabled ||
+            !agent.isOnNavMesh ||
+            agent.pathPending ||
+            !agent.hasPath)
+        {
+            return requestedNavigationDestination;
+        }
+
+        Vector3 steeringTarget = agent.steeringTarget;
+        Vector3 flatDelta = steeringTarget - transform.position;
+        flatDelta.y = 0f;
+
+        return flatDelta.sqrMagnitude > 0.0025f
+            ? steeringTarget
+            : requestedNavigationDestination;
     }
 
     private void StopForDoorInteraction()
