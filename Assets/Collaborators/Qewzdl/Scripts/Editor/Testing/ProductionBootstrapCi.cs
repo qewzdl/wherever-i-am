@@ -73,6 +73,37 @@ public static class ProductionBootstrapCi
             players.Add(lateClient);
             WaitForMarker(runDirectory, "late-client.game.ready", players, timeoutSeconds);
 
+            WaitForMarker(
+                runDirectory,
+                "host.objective-progress.ready",
+                players,
+                timeoutSeconds);
+            WaitForMarker(
+                runDirectory,
+                "client.objective-progress.ready",
+                players,
+                timeoutSeconds);
+            WaitForMarker(
+                runDirectory,
+                "late-client.objective-progress.ready",
+                players,
+                timeoutSeconds);
+            WaitForMarker(
+                runDirectory,
+                "host.objective-complete.ready",
+                players,
+                timeoutSeconds);
+            WaitForMarker(
+                runDirectory,
+                "client.objective-complete.ready",
+                players,
+                timeoutSeconds);
+            WaitForMarker(
+                runDirectory,
+                "late-client.objective-complete.ready",
+                players,
+                timeoutSeconds);
+
             WriteAtomic(
                 Path.Combine(runDirectory, ShutdownSignal),
                 DateTime.UtcNow.ToString("O"));
@@ -285,6 +316,8 @@ public static class ProductionBootstrapCi
             "network",
             "lobby",
             "game",
+            "objective-progress",
+            "objective-complete",
             "shutdown");
         ValidateRolePhases(
             results.Single(result => result.role == "client"),
@@ -292,6 +325,8 @@ public static class ProductionBootstrapCi
             "network",
             "lobby",
             "game",
+            "objective-progress",
+            "objective-complete",
             "shutdown");
 
         RoleResultData lateClient =
@@ -301,6 +336,8 @@ public static class ProductionBootstrapCi
             "main-menu",
             "network",
             "game",
+            "objective-progress",
+            "objective-complete",
             "shutdown");
 
         if (lateClient.phases != null && lateClient.phases.Contains("lobby"))

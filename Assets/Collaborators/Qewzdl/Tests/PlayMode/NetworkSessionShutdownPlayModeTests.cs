@@ -616,6 +616,102 @@ public sealed class NetworkSessionShutdownPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator ObjectiveTransitionFailure_RollsBackAndCoordinatesShutdown()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionShutdownCoordinator shutdownCoordinator =
+            GetSinglePersistentComponent<NetworkSessionShutdownCoordinator>();
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+        IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup did not complete.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  !sceneFlow.HasPendingOperation,
+            "Host did not reach Lobby before the objective failure test.");
+
+        IServiceResolver sessionServices =
+            runtimeContext.SessionOrchestrator.SessionServices;
+        runtimeContext.SessionOrchestrator.StartGame(
+            G.Resolve<IGameMapCatalog>().DefaultMapId);
+
+        NetworkObjectiveFlow objectiveFlow = null;
+        yield return WaitForCondition(
+            () =>
+            {
+                objectiveFlow =
+                    UnityEngine.Object.FindFirstObjectByType<NetworkObjectiveFlow>();
+                return sessionStateMachine.CurrentState ==
+                           NetworkSessionState.InGame &&
+                       objectiveFlow != null &&
+                       objectiveFlow.HasActiveObjective &&
+                       !sceneFlow.HasPendingOperation;
+            },
+            "Host did not reach the active production objective.");
+
+        ObjectiveDefinition activeObjective =
+            objectiveFlow.DefaultObjectiveSequenceEditor.GetObjective(0);
+        ObjectiveSequenceDefinition brokenSequence =
+            ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
+        PlayModeTestReflection.SetField(
+            brokenSequence,
+            "objectives",
+            new ObjectiveDefinition[] { activeObjective, null });
+        PlayModeTestReflection.SetField(
+            objectiveFlow,
+            "activeObjectiveSequence",
+            brokenSequence);
+
+        int sessionStoppedCount = 0;
+        bool errorObserved = false;
+        shutdownCoordinator.SessionStopped += () => sessionStoppedCount++;
+        runtimeContext.StateMachine.StateChanged += (_, current) =>
+            errorObserved |= current == GameState.Error;
+
+        LogAssert.Expect(
+            LogType.Error,
+            new Regex(
+                "NetworkObjectiveFlow cannot activate objective at index 1: " +
+                "definition is null\\."));
+        LogAssert.Expect(
+            LogType.Warning,
+            new Regex(
+                "NetworkObjectiveFlow: NetworkObjectiveFlow cannot activate " +
+                "objective at index 1: definition is null\\."));
+
+        string objectiveId =
+            objectiveFlow.CurrentObjective.ObjectiveId.ToString();
+        Assert.That(
+            objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveId,
+                networkManager.LocalClientId),
+            Is.False);
+        Assert.That(
+            objectiveFlow.CurrentObjective.State,
+            Is.EqualTo(ObjectiveRuntimeState.Failed));
+
+        yield return WaitForCondition(
+            () => runtimeContext.StateMachine.CurrentState ==
+                      GameState.MainMenu &&
+                  runtimeContext.GetActiveSceneKind() ==
+                      ProjectSceneKind.MainMenu &&
+                  !networkManager.IsListening &&
+                  !shutdownCoordinator.IsShutdownInProgress,
+            "Objective failure did not complete coordinated shutdown.");
+
+        Assert.That(errorObserved, Is.True);
+        Assert.That(sessionStoppedCount, Is.EqualTo(1));
+        Assert.That(sessionServices.IsDisposed, Is.True);
+
+        UnityEngine.Object.Destroy(brokenSequence);
+        yield return null;
+    }
+
+    [UnityTest]
     public IEnumerator PostLoadActionFailure_RollsBackAndShutsDownBeforeLobbyCommit()
     {
         yield return StartBootstrapAndWaitUntilReady();

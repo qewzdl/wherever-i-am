@@ -261,7 +261,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         yield return WaitForCondition(
             () => serverItem.OwnerClientId == clientA.Manager.LocalClientId &&
                   IsDragging(serverItem) &&
-                  player.Orchestrator.States.IsDragging,
+                  player.Orchestrator.States.IsDragging &&
+                  DraggableObject.ActiveDraggedObjects.Contains(clientItem),
             "Client A did not start the authoritative drag.");
 
         Assert.That(player.Controller.GetSpeed(), Is.EqualTo(6.25f).Within(0.001f));

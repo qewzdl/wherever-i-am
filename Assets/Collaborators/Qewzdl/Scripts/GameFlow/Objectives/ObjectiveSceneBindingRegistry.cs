@@ -71,13 +71,20 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
         return true;
     }
 
-    public void BindAll(NetworkObjectiveFlow flow)
+    public bool TryBindAll(NetworkObjectiveFlow flow, out string error)
     {
+        if (flow == null)
+        {
+            error =
+                $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' received null objective flow.";
+            return false;
+        }
+
         if (bindings == null)
         {
-            Debug.LogError($"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has null bindings array.", this);
-            enabled = false;
-            return;
+            error =
+                $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has null bindings array.";
+            return false;
         }
 
         for (int i = 0; i < bindings.Length; i++)
@@ -86,13 +93,28 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
 
             if (binding == null)
             {
-                Debug.LogError($"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has null binding at index {i}.", this);
-                enabled = false;
-                return;
+                UnbindAll();
+                error =
+                    $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has null binding at index {i}.";
+                return false;
             }
 
-            binding.Bind(flow);
+            try
+            {
+                binding.Bind(flow);
+            }
+            catch (Exception exception)
+            {
+                UnbindAll();
+                error =
+                    $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' " +
+                    $"failed to bind objective at index {i}: {exception.Message}";
+                return false;
+            }
         }
+
+        error = string.Empty;
+        return true;
     }
 
     public void DeactivateAll()

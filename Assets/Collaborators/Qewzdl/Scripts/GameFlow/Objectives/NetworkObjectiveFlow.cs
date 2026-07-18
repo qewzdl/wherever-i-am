@@ -28,6 +28,8 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     private IGameMapSessionService gameMapService;
     private bool subscribedToGameMap;
     private bool serverReady;
+    private bool failureReported;
+    private bool matchCompletionCommitted;
 
     public event Action ServerReady;
     public event Action<ObjectiveNetworkState, ObjectiveNetworkState> ObjectiveStateChanged;
@@ -45,11 +47,15 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         serverReady = false;
+        failureReported = false;
+        matchCompletionCommitted = false;
         currentObjective.OnValueChanged += HandleObjectiveStateChanged;
         lastObjectiveReason.OnValueChanged += HandleObjectiveReasonChanged;
 
         if (!ValidateStaticSetup())
         {
+            FailObjectiveFlowServer(
+                $"{nameof(NetworkObjectiveFlow)} static setup validation failed.");
             enabled = false;
             return;
         }
@@ -79,11 +85,20 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (!ValidateRuntimeSetup())
         {
+            FailObjectiveFlowServer(
+                $"{nameof(NetworkObjectiveFlow)} runtime setup validation failed.");
             enabled = false;
             return;
         }
 
-        sceneBindingRegistry.BindAll(this);
+        if (!sceneBindingRegistry.TryBindAll(this, out string bindingError))
+        {
+            Debug.LogError(bindingError, this);
+            FailObjectiveFlowServer(bindingError);
+            enabled = false;
+            return;
+        }
+
         currentObjective.Value = ObjectiveNetworkState.None;
         lastObjectiveReason.Value = "Objective flow spawned";
 
@@ -118,6 +133,8 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         activeBinding = null;
         serverReady = false;
+        failureReported = false;
+        matchCompletionCommitted = false;
     }
 
     public bool StartFirstObjectiveServerOnly()
@@ -138,7 +155,21 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return false;
         }
 
-        return TryActivateObjectiveServerOnly(0, "Match entered Playing phase");
+        if (TryPrepareObjectiveActivation(
+                0,
+                out ObjectiveDefinition objective,
+                out ObjectiveSceneBinding binding,
+                out string error))
+        {
+            CommitObjectiveActivation(
+                0,
+                objective,
+                binding,
+                "Match entered Playing phase");
+            return true;
+        }
+
+        return FailObjectiveFlowServer(error);
     }
 
     public bool ReportObjectiveProgressServerOnly(string objectiveId, float progress01, ulong instigatorClientId)
@@ -190,14 +221,17 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return false;
         }
 
+        if (normalizedProgress >= 1f)
+        {
+            return CompleteObjectiveServerOnly(
+                state,
+                objective,
+                instigatorClientId);
+        }
+
         state.Progress01 = normalizedProgress;
         currentObjective.Value = state;
         lastObjectiveReason.Value = reason;
-
-        if (state.Progress01 >= 1f)
-        {
-            return CompleteObjectiveServerOnly(state, objective, instigatorClientId);
-        }
 
         return true;
     }
@@ -207,28 +241,44 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         ObjectiveDefinition objective,
         ulong instigatorClientId)
     {
-        state.State = ObjectiveRuntimeState.Completed;
-        state.Progress01 = 1f;
-        currentObjective.Value = state;
-        lastObjectiveReason.Value = $"Objective '{objective.ObjectiveId}' completed";
-
-        DeactivateActiveBinding();
-
         int nextIndex = state.SequenceIndex + 1;
 
         if (nextIndex < activeObjectiveSequence.Count)
         {
-            return TryActivateObjectiveServerOnly(nextIndex, $"Objective '{objective.ObjectiveId}' completed");
+            if (!TryPrepareObjectiveActivation(
+                    nextIndex,
+                    out ObjectiveDefinition nextObjective,
+                    out ObjectiveSceneBinding nextBinding,
+                    out string activationError))
+            {
+                return FailObjectiveFlowServer(activationError);
+            }
+
+            state.State = ObjectiveRuntimeState.Completed;
+            state.Progress01 = 1f;
+            currentObjective.Value = state;
+            lastObjectiveReason.Value =
+                $"Objective '{objective.ObjectiveId}' completed";
+
+            CommitObjectiveActivation(
+                nextIndex,
+                nextObjective,
+                nextBinding,
+                $"Objective '{objective.ObjectiveId}' completed");
+            return true;
         }
 
         if (!objective.CompletesGame)
         {
-            Debug.LogError(
-                $"{nameof(NetworkObjectiveFlow)} sequence ended with objective '{objective.ObjectiveId}' but it does not complete the game.",
-                this);
-
-            return false;
+            string error =
+                $"{nameof(NetworkObjectiveFlow)} sequence ended with objective " +
+                $"'{objective.ObjectiveId}' but it does not complete the game.";
+            Debug.LogError(error, this);
+            return FailObjectiveFlowServer(error);
         }
+
+        if (matchCompletionCommitted)
+            return false;
 
         GameResultData result = GameResultData.Create(
             objective.CompletionResult,
@@ -237,40 +287,91 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             objective.CompletionReason,
             instigatorClientId);
 
-        return gameFlow.CompleteMatchServerOnly(result, objective.CompletionReason);
+        bool matchCompleted;
+
+        try
+        {
+            matchCompleted = gameFlow.CompleteMatchServerOnly(
+                result,
+                objective.CompletionReason);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, this);
+            return FailObjectiveFlowServer(
+                $"{nameof(NetworkObjectiveFlow)} match completion threw for " +
+                $"objective '{objective.ObjectiveId}': {exception.Message}");
+        }
+
+        if (!matchCompleted)
+        {
+            string error =
+                $"{nameof(NetworkObjectiveFlow)} could not commit match completion " +
+                $"for objective '{objective.ObjectiveId}'.";
+            Debug.LogError(error, this);
+            return FailObjectiveFlowServer(error);
+        }
+
+        matchCompletionCommitted = true;
+        state.State = ObjectiveRuntimeState.Completed;
+        state.Progress01 = 1f;
+        currentObjective.Value = state;
+        lastObjectiveReason.Value =
+            $"Objective '{objective.ObjectiveId}' completed";
+        DeactivateActiveBinding();
+        return true;
     }
 
-    private bool TryActivateObjectiveServerOnly(int index, string reason)
+    private bool TryPrepareObjectiveActivation(
+        int index,
+        out ObjectiveDefinition objective,
+        out ObjectiveSceneBinding binding,
+        out string error)
     {
-        ObjectiveDefinition objective = activeObjectiveSequence.GetObjective(index);
+        objective = activeObjectiveSequence.GetObjective(index);
+        binding = null;
 
         if (objective == null)
         {
-            Debug.LogError($"{nameof(NetworkObjectiveFlow)} cannot activate objective at index {index}: definition is null.", this);
+            error =
+                $"{nameof(NetworkObjectiveFlow)} cannot activate objective at " +
+                $"index {index}: definition is null.";
+            Debug.LogError(error, this);
             return false;
         }
 
-        if (!objective.IsValid(out string error))
+        if (!objective.IsValid(out string validationError))
         {
-            Debug.LogError($"{nameof(NetworkObjectiveFlow)} cannot activate objective '{objective.name}': {error}", this);
+            error =
+                $"{nameof(NetworkObjectiveFlow)} cannot activate objective " +
+                $"'{objective.name}': {validationError}";
+            Debug.LogError(error, this);
             return false;
         }
-
-        DeactivateActiveBinding();
-
-        ObjectiveSceneBinding binding = null;
 
         if (objective.RequiresSceneBinding)
         {
             if (!sceneBindingRegistry.TryGetBinding(objective.ObjectiveId, out binding))
             {
-                Debug.LogError(
-                    $"{nameof(NetworkObjectiveFlow)} cannot activate objective '{objective.ObjectiveId}': required scene binding is missing.",
-                    this);
-
+                error =
+                    $"{nameof(NetworkObjectiveFlow)} cannot activate objective " +
+                    $"'{objective.ObjectiveId}': required scene binding is missing.";
+                Debug.LogError(error, this);
                 return false;
             }
         }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private void CommitObjectiveActivation(
+        int index,
+        ObjectiveDefinition objective,
+        ObjectiveSceneBinding binding,
+        string reason)
+    {
+        DeactivateActiveBinding();
 
         ObjectiveNetworkState nextState = new ObjectiveNetworkState
         {
@@ -289,8 +390,6 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         {
             activeBinding.SetActiveState(true);
         }
-
-        return true;
     }
 
     private bool TryGetActiveObjective(
@@ -480,6 +579,32 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             activeBinding.SetActiveState(false);
             activeBinding = null;
         }
+    }
+
+    private bool FailObjectiveFlowServer(string details)
+    {
+        if (!IsServer || failureReported)
+            return false;
+
+        failureReported = true;
+        serverReady = false;
+
+        ObjectiveNetworkState failedState = currentObjective.Value;
+        failedState.State = ObjectiveRuntimeState.Failed;
+        currentObjective.Value = failedState;
+
+        string failureDetails = string.IsNullOrWhiteSpace(details)
+            ? "Objective flow failed."
+            : details;
+        lastObjectiveReason.Value = failureDetails;
+
+        DeactivateActiveBinding();
+        sceneBindingRegistry?.UnbindAll();
+
+        _ = NetworkObjectServiceContext.ReportSessionReadinessFailureAsync(
+            this,
+            failureDetails);
+        return false;
     }
 
     private void HandleObjectiveStateChanged(ObjectiveNetworkState previousValue, ObjectiveNetworkState newValue)

@@ -8,7 +8,8 @@
         "Unity.Collections",
         "Unity.Netcode.Runtime",
         "Unity.Networking.Transport",
-        "Unity.Multiplayer.Playmode"
+        "Unity.Multiplayer.Playmode",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

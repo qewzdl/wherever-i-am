@@ -200,9 +200,91 @@ internal sealed class ProductionBootstrapProcessHarness : MonoBehaviour
         await WaitForReadySceneAsync(ProjectSceneKind.Game);
         ReportPhase("game");
 
+        NetworkObjectiveFlow objectiveFlow = null;
         await WaitUntilAsync(
-            () => networkManager.ConnectedClientsIds.Count >= 3,
-            "Host did not observe the ready late client.");
+            () =>
+            {
+                objectiveFlow =
+                    FindFirstObjectByType<NetworkObjectiveFlow>();
+                return objectiveFlow != null &&
+                       objectiveFlow.HasActiveObjective;
+            },
+            "Host objective flow did not activate its first objective.");
+
+        string objectiveId =
+            objectiveFlow.CurrentObjective.ObjectiveId.ToString();
+
+        if (!objectiveFlow.ReportObjectiveProgressServerOnly(
+                objectiveId,
+                0.5f,
+                networkManager.LocalClientId) ||
+            !Mathf.Approximately(
+                objectiveFlow.CurrentObjective.Progress01,
+                0.5f))
+        {
+            throw new InvalidOperationException(
+                "Host could not commit server-authoritative objective progress.");
+        }
+
+        ReportPhase("objective-progress");
+
+        await WaitUntilAsync(
+            () => networkManager.ConnectedClientsIds.Count >= 3 &&
+                  File.Exists(GetProtocolPath(
+                      "client.objective-progress.ready")) &&
+                  File.Exists(GetProtocolPath(
+                      "late-client.objective-progress.ready")),
+            "Host did not receive objective snapshots from both clients.");
+
+        IServiceResolver services =
+            context.SessionOrchestrator.SessionServices;
+
+        if (services == null ||
+            !services.TryResolve(
+                out IMatchCompletionService matchService) ||
+            matchService is not NetworkGameFlow gameFlow)
+        {
+            throw new InvalidOperationException(
+                "Host could not resolve the production match service.");
+        }
+
+        int matchResolvedCount = 0;
+        gameFlow.MatchResolved += _ => matchResolvedCount++;
+
+        if (!objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveId,
+                networkManager.LocalClientId))
+        {
+            throw new InvalidOperationException(
+                "Host could not complete the active objective.");
+        }
+
+        await WaitUntilAsync(
+            () => objectiveFlow.CurrentObjective.State ==
+                      ObjectiveRuntimeState.Completed &&
+                  gameFlow.CurrentResult.Source ==
+                      MatchResultSource.Objective,
+            "Objective completion did not commit the match result.");
+
+        bool duplicateCompletionAccepted =
+            objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveId,
+                networkManager.LocalClientId);
+
+        if (duplicateCompletionAccepted || matchResolvedCount != 1)
+        {
+            throw new InvalidOperationException(
+                "Objective completion was accepted or raised MatchResolved more than once.");
+        }
+
+        ReportPhase("objective-complete");
+
+        await WaitUntilAsync(
+            () => File.Exists(GetProtocolPath(
+                      "client.objective-complete.ready")) &&
+                  File.Exists(GetProtocolPath(
+                      "late-client.objective-complete.ready")),
+            "Host did not receive objective completion from both clients.");
         await WaitUntilAsync(
             () => File.Exists(GetProtocolPath(ShutdownSignal)),
             "Host did not receive the shutdown signal.");
@@ -236,6 +318,41 @@ internal sealed class ProductionBootstrapProcessHarness : MonoBehaviour
 
         await WaitForReadySceneAsync(ProjectSceneKind.Game);
         ReportPhase("game");
+
+        NetworkObjectiveFlow objectiveFlow = null;
+        await WaitUntilAsync(
+            () =>
+            {
+                objectiveFlow =
+                    FindFirstObjectByType<NetworkObjectiveFlow>();
+                return objectiveFlow != null &&
+                       objectiveFlow.CurrentObjective.State ==
+                           ObjectiveRuntimeState.Active &&
+                       Mathf.Approximately(
+                           objectiveFlow.CurrentObjective.Progress01,
+                           0.5f);
+            },
+            lateClient
+                ? "Late client did not receive the current objective snapshot."
+                : "Client did not receive server-authoritative objective progress.");
+        ReportPhase("objective-progress");
+
+        await WaitUntilAsync(
+            () =>
+            {
+                IServiceResolver services =
+                    context.SessionOrchestrator.SessionServices;
+                return objectiveFlow.CurrentObjective.State ==
+                           ObjectiveRuntimeState.Completed &&
+                       services != null &&
+                       services.TryResolve(
+                           out IMatchCompletionService matchService) &&
+                       matchService is NetworkGameFlow gameFlow &&
+                       gameFlow.CurrentResult.Source ==
+                           MatchResultSource.Objective;
+            },
+            "Client did not synchronize objective match completion.");
+        ReportPhase("objective-complete");
 
         await WaitUntilAsync(
             () => File.Exists(GetProtocolPath(ShutdownSignal)),

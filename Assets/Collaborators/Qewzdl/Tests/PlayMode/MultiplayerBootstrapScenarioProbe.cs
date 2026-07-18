@@ -79,6 +79,31 @@ public sealed class MultiplayerBootstrapScenarioProbe : MonoBehaviour
         yield return WaitUntil(
             () => sessionState.CurrentState == NetworkSessionState.InGame,
             "Host did not commit InGame readiness.");
+
+        NetworkObjectiveFlow objectiveFlow =
+            UnityEngine.Object.FindFirstObjectByType<NetworkObjectiveFlow>();
+        yield return WaitUntil(
+            () => objectiveFlow != null && objectiveFlow.HasActiveObjective,
+            "Host objective flow did not activate its first objective.");
+
+        if (failed)
+            yield break;
+
+        string objectiveId = objectiveFlow.CurrentObjective.ObjectiveId.ToString();
+
+        if (!objectiveFlow.ReportObjectiveProgressServerOnly(
+                objectiveId,
+                0.5f,
+                networkManager.LocalClientId) ||
+            !Mathf.Approximately(
+                objectiveFlow.CurrentObjective.Progress01,
+                0.5f))
+        {
+            ReportFailure(
+                "Host could not commit server-authoritative objective progress.");
+            yield break;
+        }
+
         yield return WaitUntil(
             () => networkManager.ConnectedClientsIds.Count >= 3,
             "Late-joining production client did not connect.");
@@ -100,6 +125,40 @@ public sealed class MultiplayerBootstrapScenarioProbe : MonoBehaviour
             yield break;
         }
 
+        int matchResolvedCount = 0;
+        gameFlow.MatchResolved += _ => matchResolvedCount++;
+
+        if (!objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveId,
+                networkManager.LocalClientId))
+        {
+            ReportFailure("Host could not complete the active objective.");
+            yield break;
+        }
+
+        yield return WaitUntil(
+            () => objectiveFlow.CurrentObjective.State ==
+                      ObjectiveRuntimeState.Completed &&
+                  gameFlow.CurrentResult.Source ==
+                      MatchResultSource.Objective,
+            "Objective completion did not synchronize into the match result.");
+
+        if (failed)
+            yield break;
+
+        bool duplicateCompletionAccepted =
+            objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveId,
+                networkManager.LocalClientId);
+
+        if (duplicateCompletionAccepted || matchResolvedCount != 1)
+        {
+            ReportFailure(
+                "Objective completion was accepted or raised MatchResolved more than once.");
+            yield break;
+        }
+
+        yield return new WaitForSecondsRealtime(1f);
         gameFlow.NetworkObject.Despawn(true);
         yield return WaitUntil(
             () => !networkManager.IsListening &&
@@ -149,6 +208,19 @@ public sealed class MultiplayerBootstrapScenarioProbe : MonoBehaviour
                 ? "Late client did not synchronize directly into InGame."
                 : "Client did not commit InGame readiness.");
 
+        NetworkObjectiveFlow objectiveFlow =
+            UnityEngine.Object.FindFirstObjectByType<NetworkObjectiveFlow>();
+        yield return WaitUntil(
+            () => objectiveFlow != null &&
+                  objectiveFlow.CurrentObjective.State ==
+                      ObjectiveRuntimeState.Active &&
+                  Mathf.Approximately(
+                      objectiveFlow.CurrentObjective.Progress01,
+                      0.5f),
+            lateJoin
+                ? "Late client did not receive the current objective snapshot."
+                : "Client did not receive server-authoritative objective progress.");
+
         IServiceResolver services = orchestrator != null
             ? orchestrator.SessionServices
             : null;
@@ -164,6 +236,19 @@ public sealed class MultiplayerBootstrapScenarioProbe : MonoBehaviour
                 "Client production state history or authoritative phase was incomplete.");
             yield break;
         }
+
+        yield return WaitUntil(
+            () => objectiveFlow.CurrentObjective.State ==
+                      ObjectiveRuntimeState.Completed &&
+                  services.TryResolve(
+                      out IMatchCompletionService matchService) &&
+                  matchService is NetworkGameFlow gameFlow &&
+                  gameFlow.CurrentResult.Source ==
+                      MatchResultSource.Objective,
+            "Client did not synchronize objective match completion.");
+
+        if (failed)
+            yield break;
 
         yield return WaitUntil(
             () => G.Resolve<IGameStateService>().CurrentState == GameState.MainMenu &&
