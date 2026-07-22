@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Unity.Netcode;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.AI;
 
 [Category("Baseline")]
 public sealed class HidingPlaceEditorSetupTests
@@ -19,6 +20,15 @@ public sealed class HidingPlaceEditorSetupTests
 
             Assert.That(root.GetComponent<NetworkObject>(), Is.Not.Null);
             Assert.That(root.GetComponent<Collider>(), Is.Not.Null);
+            Assert.That(
+                root.GetComponent<HidingPlaceNavigationObstacle>(),
+                Is.Not.Null
+            );
+            NavMeshObstacle navigationObstacle =
+                root.GetComponent<NavMeshObstacle>();
+            Assert.That(navigationObstacle, Is.Not.Null);
+            Assert.That(navigationObstacle.carving, Is.True);
+            Assert.That(navigationObstacle.carveOnlyStationary, Is.True);
             Assert.That(
                 root.GetComponent<HidingPlacePresentation>(),
                 Is.Not.Null

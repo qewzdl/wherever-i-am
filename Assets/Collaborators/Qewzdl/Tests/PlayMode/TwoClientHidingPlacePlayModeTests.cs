@@ -7,6 +7,7 @@ using Unity.Netcode;
 using Unity.Netcode.Components;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
@@ -118,6 +119,29 @@ public sealed class TwoClientHidingPlacePlayModeTests
                 server,
                 hidingPlaceId
             );
+        HidingPlaceNavigationObstacle serverNavigation =
+            GetComponent<HidingPlaceNavigationObstacle>(
+                server,
+                hidingPlaceId
+            );
+        HidingPlaceNavigationObstacle clientNavigationA =
+            GetComponent<HidingPlaceNavigationObstacle>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceNavigationObstacle clientNavigationB =
+            GetComponent<HidingPlaceNavigationObstacle>(
+                clientB,
+                hidingPlaceId
+            );
+
+        Assert.That(serverNavigation.IsBlockingNavigation, Is.True);
+        Assert.That(clientNavigationA.IsBlockingNavigation, Is.False);
+        Assert.That(clientNavigationB.IsBlockingNavigation, Is.False);
+        Assert.That(
+            serverNavigation.GetComponent<NavMeshObstacle>().carveOnlyStationary,
+            Is.True
+        );
         List<HidingTransitionState> observedServerStates = new();
         List<HidingTransitionState> observedClientBStates = new();
         List<HidingNoiseCue> observedNoiseCues = new();

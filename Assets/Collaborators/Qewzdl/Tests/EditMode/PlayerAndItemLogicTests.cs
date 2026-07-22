@@ -56,6 +56,43 @@ public sealed class PlayerAndItemLogicTests
         "Assets/Collaborators/Qewzdl/Configs/Items/Interactable/Hiding/HidingPlaceData.asset";
 
     [Test]
+    public void ProductionDraggablePrefabs_DeclareNavigationObstacle()
+    {
+        string[] prefabGuids = AssetDatabase.FindAssets(
+            "t:Prefab",
+            new[] { "Assets/Collaborators/6aTowKa/Prefabs" });
+        int draggablePrefabCount = 0;
+
+        for (int i = 0; i < prefabGuids.Length; i++)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(prefabGuids[i]);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            DraggableObject draggable =
+                prefab != null ? prefab.GetComponent<DraggableObject>() : null;
+
+            if (draggable == null)
+            {
+                continue;
+            }
+
+            draggablePrefabCount++;
+            Assert.That(
+                prefab.GetComponent<ItemNavigationObstacle>(),
+                Is.Not.Null,
+                $"Draggable prefab '{path}' has no navigation adapter.");
+            Assert.That(
+                prefab.GetComponent<UnityEngine.AI.NavMeshObstacle>(),
+                Is.Not.Null,
+                $"Draggable prefab '{path}' has no NavMeshObstacle.");
+        }
+
+        Assert.That(
+            draggablePrefabCount,
+            Is.GreaterThan(0),
+            "No production draggable prefabs were found.");
+    }
+
+    [Test]
     public void ProductionPlayerPrefab_ContainsHidingRuntimeAndScopeBinding()
     {
         GameObject playerPrefab =
@@ -201,6 +238,15 @@ public sealed class PlayerAndItemLogicTests
             hidingPrefab.GetComponent<HidingPlacePresentation>(),
             Is.Not.Null
         );
+        Assert.That(
+            hidingPrefab.GetComponent<HidingPlaceNavigationObstacle>(),
+            Is.Not.Null
+        );
+        UnityEngine.AI.NavMeshObstacle navigationObstacle =
+            hidingPrefab.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+        Assert.That(navigationObstacle, Is.Not.Null);
+        Assert.That(navigationObstacle.carving, Is.True);
+        Assert.That(navigationObstacle.carveOnlyStationary, Is.True);
 
         HidingPlaceInteractable hidingPlace =
             hidingPrefab.GetComponent<HidingPlaceInteractable>();

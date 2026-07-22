@@ -7,6 +7,7 @@ using Unity.Netcode;
 using Unity.Netcode.Components;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
@@ -99,13 +100,23 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             GetSpawnedComponent<NetworkItemTestPickup>(clientB, networkObjectId);
         NetworkItemTestPickup serverItem =
             GetSpawnedComponent<NetworkItemTestPickup>(server, networkObjectId);
+        ItemNavigationObstacle serverNavigation =
+            serverItem.GetComponent<ItemNavigationObstacle>();
+        ItemNavigationObstacle clientNavigation =
+            itemA.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () => serverNavigation.IsBlockingNavigation &&
+                  !clientNavigation.IsBlockingNavigation,
+            "Dropped pickup navigation obstacle was not server-only.");
 
         BeginPickupRequest(itemA, playerA);
 
         yield return WaitForCondition(
             () => serverItem.OwnerClientId == clientA.Manager.LocalClientId &&
                   IsPickedUp(serverItem) &&
-                  playerA.Orchestrator.States.IsCarrying,
+                  playerA.Orchestrator.States.IsCarrying &&
+                  !serverNavigation.IsBlockingNavigation,
             "Client A did not receive pickup ownership and confirmation.");
 
         Assert.That(itemA.GetComponent<Rigidbody>().isKinematic, Is.True);
@@ -115,7 +126,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
         yield return WaitForCondition(
             () => !IsPickedUp(serverItem) &&
-                  !playerA.Orchestrator.States.IsCarrying,
+                  !playerA.Orchestrator.States.IsCarrying &&
+                  serverNavigation.IsBlockingNavigation,
             "Drop did not clear replicated pickup and local carrying state.");
 
         Assert.That(
@@ -255,6 +267,16 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 server,
                 networkObjectId);
         Rigidbody clientBody = clientItem.GetComponent<Rigidbody>();
+        ItemNavigationObstacle serverNavigation =
+            serverItem.GetComponent<ItemNavigationObstacle>();
+        ItemNavigationObstacle clientNavigation =
+            clientItem.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () => serverNavigation.IsBlockingNavigation &&
+                  serverNavigation.GetComponent<NavMeshObstacle>().carving &&
+                  !clientNavigation.IsBlockingNavigation,
+            "Stationary draggable navigation obstacle was not server-only.");
 
         BeginDragRequest(
             clientItem,
@@ -265,7 +287,9 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             () => serverItem.OwnerClientId == clientA.Manager.LocalClientId &&
                   IsDragging(serverItem) &&
                   player.Orchestrator.States.IsDragging &&
-                  DraggableObject.ActiveDraggedObjects.Contains(clientItem),
+                  DraggableObject.ActiveDraggedObjects.Contains(clientItem) &&
+                  serverNavigation.IsBlockingNavigation &&
+                  !serverNavigation.GetComponent<NavMeshObstacle>().carving,
             "Client A did not start the authoritative drag.");
 
         Assert.That(player.Controller.GetSpeed(), Is.EqualTo(6.25f).Within(0.001f));
@@ -280,7 +304,9 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         yield return WaitForCondition(
             () => !IsDragging(serverItem) &&
                   !player.Orchestrator.States.IsDragging &&
-                  !DraggableObject.ActiveDraggedObjects.Contains(clientItem),
+                  !DraggableObject.ActiveDraggedObjects.Contains(clientItem) &&
+                  serverNavigation.IsBlockingNavigation &&
+                  serverNavigation.GetComponent<NavMeshObstacle>().carving,
             "Drag release left replicated or local dragging state active.");
 
         Assert.That(player.Controller.GetSpeed(), Is.EqualTo(InitialPlayerSpeed));
@@ -510,6 +536,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
     private static void ConfigureItemData(DraggableObjectData data)
     {
+        data.BlocksEnemyNavigation = true;
         data.Mass = ItemMass;
         data.MaxFollowSpeed = 15f;
         data.FollowSpeedMultiplier = 2f;

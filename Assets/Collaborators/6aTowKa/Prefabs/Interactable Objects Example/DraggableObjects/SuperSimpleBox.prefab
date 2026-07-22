@@ -124,6 +124,8 @@ GameObject:
   - component: {fileID: 651679035172868864}
   - component: {fileID: 733918204617395028}
   - component: {fileID: 1603606388886022930}
+  - component: {fileID: 880000000000000001}
+  - component: {fileID: 880000000000000002}
   m_Layer: 10
   m_Name: SuperSimpleBox
   m_TagString: Untagged
@@ -131,6 +133,39 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!208 &880000000000000001
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8699262637063399811}
+  m_Enabled: 0
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.5, y: 0.5, z: 0.5}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0, z: 0}
+  m_TimeToStationary: 0.25
+--- !u!114 &880000000000000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8699262637063399811}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 782a45f2d6d44a95be4a63494476f398, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  item: {fileID: 5973565326412591840}
+  obstacle: {fileID: 880000000000000001}
+  boundsPadding: 0.05
+  moveThreshold: 0.1
+  timeToStationary: 0.25
 --- !u!4 &4319477939530567757
 Transform:
   m_ObjectHideFlags: 0

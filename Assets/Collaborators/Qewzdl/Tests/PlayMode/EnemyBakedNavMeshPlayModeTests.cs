@@ -360,6 +360,161 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_OnPrebuiltNavMesh_RoutesAroundSpawnedItem()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item =
+            CreateSpawnedNavigationItem(Vector3.zero);
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+        NavMeshObstacle obstacle = item.GetComponent<NavMeshObstacle>();
+
+        yield return WaitForCondition(
+            () => itemNavigation.IsBlockingNavigation && obstacle.carving,
+            "Spawned item did not become a server navigation obstacle.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Item avoidance enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -5f);
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Item avoidance enemy could not be placed on NavMesh.");
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+
+        float maxLateralDistance = 0f;
+        float minimumItemDistance = float.PositiveInfinity;
+        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (actor.transform.position.z < 2f &&
+               Time.realtimeSinceStartup < timeout)
+        {
+            Vector3 position = actor.transform.position;
+            maxLateralDistance = Mathf.Max(
+                maxLateralDistance,
+                Mathf.Abs(position.x));
+            minimumItemDistance = Mathf.Min(
+                minimumItemDistance,
+                Vector2.Distance(
+                    new Vector2(position.x, position.z),
+                    Vector2.zero));
+            yield return null;
+        }
+
+        Assert.That(
+            actor.transform.position.z,
+            Is.GreaterThanOrEqualTo(2f),
+            "Enemy did not continue after routing around the item.");
+        Assert.That(
+            maxLateralDistance,
+            Is.GreaterThan(1f),
+            "Enemy kept a straight route through the item obstacle.");
+        Assert.That(
+            minimumItemDistance,
+            Is.GreaterThan(1f),
+            "Enemy capsule intersected the item while navigating around it.");
+    }
+
+    [UnityTest]
+    public IEnumerator Navigator_OnPrebuiltNavMesh_RoutesAroundHidingPlace()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        HidingPlaceNavigationObstacle hidingNavigation =
+            CreateSpawnedHidingNavigationObstacle(Vector3.zero);
+        NavMeshObstacle obstacle =
+            hidingNavigation.GetComponent<NavMeshObstacle>();
+
+        yield return WaitForCondition(
+            () => hidingNavigation.IsBlockingNavigation,
+            "Spawned hiding place did not carve the server NavMesh.");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        GameObject actor = Track(new GameObject("Hiding avoidance enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -5f);
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Hiding avoidance enemy could not be placed on NavMesh.");
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+
+        float maxLateralDistance = 0f;
+        float minimumHidingPlaceDistance = float.PositiveInfinity;
+        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (actor.transform.position.z < 2f &&
+               Time.realtimeSinceStartup < timeout)
+        {
+            Vector3 position = actor.transform.position;
+            maxLateralDistance = Mathf.Max(
+                maxLateralDistance,
+                Mathf.Abs(position.x));
+            minimumHidingPlaceDistance = Mathf.Min(
+                minimumHidingPlaceDistance,
+                Vector2.Distance(
+                    new Vector2(position.x, position.z),
+                    Vector2.zero));
+            yield return null;
+        }
+
+        Assert.That(obstacle.enabled, Is.True);
+        Assert.That(obstacle.carving, Is.True);
+        Assert.That(
+            actor.transform.position.z,
+            Is.GreaterThanOrEqualTo(2f),
+            "Enemy did not continue after routing around the hiding place.");
+        Assert.That(
+            maxLateralDistance,
+            Is.GreaterThan(1f),
+            "Enemy kept a straight route through the hiding place.");
+        Assert.That(
+            minimumHidingPlaceDistance,
+            Is.GreaterThan(1f),
+            "Enemy capsule intersected the hiding place while navigating.");
+    }
+
+    [UnityTest]
     public IEnumerator PatrolPlanner_OnPrebuiltNavMesh_BuildsSafeBoundedVariation()
     {
         GetProductionAgentTypes(
@@ -740,6 +895,83 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         Assert.That(networkObject.IsSpawned, Is.True);
         return target;
+    }
+
+    private NetworkItemTestDraggable CreateSpawnedNavigationItem(
+        Vector3 position)
+    {
+        DraggableObjectData itemData =
+            Track(ScriptableObject.CreateInstance<DraggableObjectData>());
+        itemData.BlocksEnemyNavigation = true;
+        itemData.Mass = 5f;
+        itemData.MaxFollowSpeed = 15f;
+        itemData.FollowSpeedMultiplier = 2f;
+        itemData.MaxDragDistance = 6f;
+        itemData.ThrowVelocitySamples = 3f;
+        itemData.MinDistance = 1f;
+
+        GameObject itemObject = Track(new GameObject("Enemy blocking item"));
+        itemObject.SetActive(false);
+        itemObject.layer = 10;
+        itemObject.transform.position = position;
+
+        NetworkObject networkObject = itemObject.AddComponent<NetworkObject>();
+        Rigidbody body = itemObject.AddComponent<Rigidbody>();
+        body.useGravity = false;
+        body.isKinematic = true;
+        BoxCollider collider = itemObject.AddComponent<BoxCollider>();
+        collider.size = new Vector3(2f, 1.5f, 2f);
+        collider.center = new Vector3(0f, 0.75f, 0f);
+
+        NetworkItemTestDraggable item =
+            itemObject.AddComponent<NetworkItemTestDraggable>();
+        PlayModeTestReflection.SetField(item, "data", itemData);
+        itemObject.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(networkObject.IsSpawned, Is.True);
+        Assert.That(
+            itemObject.GetComponent<ItemNavigationObstacle>(),
+            Is.Not.Null,
+            "DraggableObject did not compose its navigation adapter.");
+        return item;
+    }
+
+    private HidingPlaceNavigationObstacle
+        CreateSpawnedHidingNavigationObstacle(Vector3 position)
+    {
+        GameObject hidingPlace = Track(
+            new GameObject("Enemy blocking hiding place"));
+        hidingPlace.SetActive(false);
+        hidingPlace.layer = 10;
+        hidingPlace.transform.position = position;
+
+        NetworkObject networkObject =
+            hidingPlace.AddComponent<NetworkObject>();
+        BoxCollider collider = hidingPlace.AddComponent<BoxCollider>();
+        collider.size = new Vector3(2f, 1.5f, 2f);
+        collider.center = new Vector3(0f, 0.75f, 0f);
+        HidingPlaceNavigationObstacle navigation =
+            hidingPlace.AddComponent<HidingPlaceNavigationObstacle>();
+        hidingPlace.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(networkObject.IsSpawned, Is.True);
+        Assert.That(
+            hidingPlace.GetComponent<NavMeshObstacle>(),
+            Is.Not.Null,
+            "Hiding place did not compose its NavMesh obstacle.");
+        return navigation;
     }
 
     private DoorInteractableObject CreateEnemyDoor(

@@ -3,6 +3,10 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "NewInteractableObjectData", menuName = "Wherever I Am/Items/Draggable Object data")]
 public class DraggableObjectData : InteractableObjectData
 {
+    [Header("Enemy Navigation")]
+    public bool BlocksEnemyNavigation = true;
+
+    [Header("Dragging")]
     public float Mass = 1f;
     public float MaxFollowSpeed = 15f;
     [Range(0f, 20f)] public float FollowSpeedMultiplier = 2f;

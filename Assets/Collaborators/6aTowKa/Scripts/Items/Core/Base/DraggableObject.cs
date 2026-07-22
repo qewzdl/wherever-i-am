@@ -1,8 +1,10 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+[RequireComponent(typeof(ItemNavigationObstacle))]
 public abstract class DraggableObject : InteractableObject
 {
     protected NetworkVariable<bool> netIsDragging = new(
@@ -34,6 +36,11 @@ public abstract class DraggableObject : InteractableObject
     }
 
     public bool IsBeingDragged => netIsDragging.Value;
+    public bool BlocksEnemyNavigation =>
+        data is DraggableObjectData settings &&
+        settings.BlocksEnemyNavigation;
+
+    public event Action<bool> DraggingChanged;
 
     // Real velocity of the item for player-side clipping. While dragged, rb.linearVelocity holds
     // the commanded follow speed (nonzero even when a wall blocks the item), so the measured
@@ -120,6 +127,8 @@ public abstract class DraggableObject : InteractableObject
             EnableDraggedPhysicsMode();
         else
             DisableDraggedPhysicsMode();
+
+        DraggingChanged?.Invoke(newValue);
     }
 
     private void EnableDraggedPhysicsMode()

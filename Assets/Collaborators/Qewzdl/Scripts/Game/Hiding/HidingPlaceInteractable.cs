@@ -4,6 +4,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
+[RequireComponent(typeof(HidingPlaceNavigationObstacle))]
 public sealed class HidingPlaceInteractable : InteractableObject
 {
     public const ulong NoOccupantNetworkObjectId = ulong.MaxValue;

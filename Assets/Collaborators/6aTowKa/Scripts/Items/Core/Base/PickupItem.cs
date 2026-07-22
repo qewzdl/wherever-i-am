@@ -1,3 +1,4 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -23,6 +24,7 @@ public abstract class PickupItem : DraggableObject
     private Quaternion spawnRotation;
 
     public bool IsPickedUp => netIsPickedUp.Value;
+    public event Action<bool> PickedUpChanged;
 
     protected override void Awake()
     {
@@ -30,6 +32,12 @@ public abstract class PickupItem : DraggableObject
 
         spawnPosition = transform.position;
         spawnRotation = transform.rotation;
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        netIsPickedUp.OnValueChanged += HandlePickedUpChanged;
     }
 
     private void OnValidate()
@@ -67,6 +75,8 @@ public abstract class PickupItem : DraggableObject
 
     public override void OnNetworkDespawn()
     {
+        netIsPickedUp.OnValueChanged -= HandlePickedUpChanged;
+
         if (IsServer && netIsPickedUp.Value)
         {
             PlayerActionGateContext.TryEnd(
@@ -87,6 +97,11 @@ public abstract class PickupItem : DraggableObject
         context = null;
         ownerTransform = null;
         base.OnNetworkDespawn();
+    }
+
+    private void HandlePickedUpChanged(bool _, bool isPickedUp)
+    {
+        PickedUpChanged?.Invoke(isPickedUp);
     }
 
     //OnInteract here is dragging.

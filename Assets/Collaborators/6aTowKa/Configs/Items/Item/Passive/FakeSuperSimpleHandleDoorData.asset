@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: FakeSuperSimpleHandleDoorData
   m_EditorClassIdentifier: 
   InteractionSprite: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
+  BlocksEnemyNavigation: 0
   Mass: 0.5
   FollowSpeed: 15
   MaxDragDistance: 6

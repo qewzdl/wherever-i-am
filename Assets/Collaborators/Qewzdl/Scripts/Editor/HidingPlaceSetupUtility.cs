@@ -106,6 +106,7 @@ public static class HidingPlaceSetupUtility
         GameObject root = hidingPlace.gameObject;
         EnsureRootComponent<NetworkObject>(root);
         EnsureRootCollider(root);
+        EnsureRootComponent<HidingPlaceNavigationObstacle>(root);
         EnsureRootComponent<HidingPlacePresentation>(root);
         EnsureRootComponent<NetworkHidingGameplayNoiseEmitter>(root);
 
@@ -296,6 +297,14 @@ public static class HidingPlaceSetupUtility
         if (root.GetComponent<Collider>() == null)
         {
             problems.Add("The root object has no Collider.");
+        }
+
+        HidingPlaceNavigationObstacle navigationObstacle =
+            root.GetComponent<HidingPlaceNavigationObstacle>();
+        if (navigationObstacle == null ||
+            root.GetComponent<UnityEngine.AI.NavMeshObstacle>() == null)
+        {
+            problems.Add("Enemy navigation obstacle is missing.");
         }
 
         if (root.GetComponent<HidingPlacePresentation>() == null)
