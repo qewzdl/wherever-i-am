@@ -8,6 +8,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 {
     [Header("Replicated Services")]
     [SerializeField] private PlayerNetwork replicatedStateService;
+    [SerializeField] private PlayerActionGate actionGateService;
     [SerializeField] private PlayerHidingController hidingStateService;
     [SerializeField] private PlayerEnemyAttackReceiver enemyAttackReceiver;
 
@@ -34,6 +35,8 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
             createLocalScope
             ? registration =>
             {
+                registration.Register<IPlayerHidingCommandService>(
+                    hidingStateService);
                 registration.Register<ILocalPlayerInputService>(inputService);
                 registration.Register<ILocalPlayerCameraService>(cameraService);
                 registration.Register<ILocalPlayerPresentationService>(presentationService);
@@ -45,6 +48,8 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
                 registration =>
                 {
                     registration.Register<IPlayerNetworkService>(this);
+                    registration.Register<IPlayerActionGate>(
+                        actionGateService);
                     registration.Register<IReplicatedPlayerStateService>(replicatedStateService);
                     registration.Register<IReplicatedPlayerHidingStateService>(hidingStateService);
                     registration.Register<IEnemyAttackReceiver>(enemyAttackReceiver);
@@ -79,6 +84,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         ResolveReferences();
         bool valid = true;
         valid &= ValidateReference(replicatedStateService, nameof(replicatedStateService));
+        valid &= ValidateReference(actionGateService, nameof(actionGateService));
         valid &= ValidateReference(hidingStateService, nameof(hidingStateService));
         valid &= ValidateReference(enemyAttackReceiver, nameof(enemyAttackReceiver));
 
@@ -96,6 +102,9 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     {
         if (replicatedStateService == null)
             replicatedStateService = GetComponent<PlayerNetwork>();
+
+        if (actionGateService == null)
+            actionGateService = GetComponent<PlayerActionGate>();
 
         if (enemyAttackReceiver == null)
             enemyAttackReceiver = GetComponent<PlayerEnemyAttackReceiver>();

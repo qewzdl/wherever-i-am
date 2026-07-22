@@ -38,6 +38,8 @@ public sealed class HidingPlaceInteractable : InteractableObject
     private double transitionCompletesAt;
     private Pose pendingExitPose;
     private bool pendingExitTeleport;
+    private ulong pendingLocalPlayerNetworkObjectId =
+        NoOccupantNetworkObjectId;
 
     public event Action<bool> OccupancyChanged;
     public event Action<
@@ -75,6 +77,8 @@ public sealed class HidingPlaceInteractable : InteractableObject
 
         networkSceneUnloadInProgress = false;
         transitionPending = false;
+        pendingLocalPlayerNetworkObjectId =
+            NoOccupantNetworkObjectId;
         acceptingEntries = HasValidConfiguration();
 
         SubscribeToNetworkSceneUnload();
@@ -98,6 +102,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
     {
         acceptingEntries = false;
         CancelTransition();
+        CancelPendingLocalHidingRequest();
 
         if (IsServer)
         {
@@ -137,42 +142,57 @@ public sealed class HidingPlaceInteractable : InteractableObject
     public override void OnInteract(InteractionContext context)
     {
         PlayerInteraction interaction = context?.PlayerInteraction;
-        PlayerHidingController playerHiding =
-            context?.PlayerHidingController;
+        IPlayerHidingCommandService hidingCommands =
+            context?.PlayerHidingCommands;
 
         if (interaction == null ||
-            playerHiding == null ||
+            hidingCommands == null ||
+            context.PlayerActionGate == null ||
             !interaction.CanEnterHiding())
         {
             return;
         }
 
-        TryRequestEnter(playerHiding);
+        TryRequestEnter(hidingCommands);
     }
 
-    public bool TryRequestEnter(PlayerHidingController playerHiding)
+    public bool TryRequestEnter(
+        IPlayerHidingCommandService hidingCommands
+    )
     {
-        if (playerHiding == null ||
-            !playerHiding.IsSpawned ||
-            !playerHiding.IsOwner ||
+        if (hidingCommands == null ||
+            !hidingCommands.IsSpawned ||
+            !hidingCommands.IsOwner ||
             !IsAvailable)
         {
             return false;
         }
 
-        NetworkObjectReference playerReference = new(
-            playerHiding.NetworkObject
-        );
+        if (!hidingCommands.TryBeginHidingRequest())
+        {
+            return false;
+        }
+
+        pendingLocalPlayerNetworkObjectId =
+            hidingCommands.NetworkObjectId;
 
         if (IsServer)
         {
-            return TryEnterServer(
-                playerReference,
-                playerHiding.OwnerClientId
-            );
+            bool accepted = TryEnterServer(
+                hidingCommands.NetworkObjectId,
+                hidingCommands.OwnerClientId);
+
+            if (!accepted)
+            {
+                hidingCommands.CancelHidingRequest();
+                pendingLocalPlayerNetworkObjectId =
+                    NoOccupantNetworkObjectId;
+            }
+
+            return accepted;
         }
 
-        RequestEnterHidingServerRpc(playerReference);
+        RequestEnterHidingServerRpc(hidingCommands.NetworkObjectId);
         return true;
     }
 
@@ -272,24 +292,69 @@ public sealed class HidingPlaceInteractable : InteractableObject
         InvokePermission = RpcInvokePermission.Everyone
     )]
     private void RequestEnterHidingServerRpc(
-        NetworkObjectReference playerReference,
+        ulong playerNetworkObjectId,
         RpcParams rpcParams = default
     )
     {
-        TryEnterServer(
-            playerReference,
-            rpcParams.Receive.SenderClientId
-        );
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (TryEnterServer(playerNetworkObjectId, senderClientId))
+        {
+            return;
+        }
+
+        RejectHidingRequestRpc(
+            playerNetworkObjectId,
+            RpcTarget.Single(senderClientId, RpcTargetUse.Temp));
+    }
+
+    [Rpc(
+        SendTo.SpecifiedInParams,
+        InvokePermission = RpcInvokePermission.Server
+    )]
+    private void RejectHidingRequestRpc(
+        ulong playerNetworkObjectId,
+        RpcParams rpcParams = default
+    )
+    {
+        NetworkManager manager = NetworkManager;
+
+        if (manager == null ||
+            manager.SpawnManager == null ||
+            !manager.SpawnManager.SpawnedObjects.TryGetValue(
+                playerNetworkObjectId,
+                out NetworkObject playerObject) ||
+            playerObject == null)
+        {
+            return;
+        }
+
+        IPlayerHidingCommandService commands =
+            playerObject.GetComponent<PlayerHidingController>();
+        commands?.CancelHidingRequest();
+
+        if (pendingLocalPlayerNetworkObjectId ==
+            playerNetworkObjectId)
+        {
+            pendingLocalPlayerNetworkObjectId =
+                NoOccupantNetworkObjectId;
+        }
     }
 
     private bool TryEnterServer(
-        NetworkObjectReference playerReference,
+        ulong playerNetworkObjectId,
         ulong senderClientId
     )
     {
+        NetworkManager manager = NetworkManager;
+
         if (!IsServer ||
             !IsAvailable ||
-            !playerReference.TryGet(out NetworkObject playerObject) ||
+            manager == null ||
+            manager.SpawnManager == null ||
+            !manager.SpawnManager.SpawnedObjects.TryGetValue(
+                playerNetworkObjectId,
+                out NetworkObject playerObject) ||
             playerObject == null ||
             !playerObject.IsSpawned ||
             playerObject.OwnerClientId != senderClientId)
@@ -645,6 +710,47 @@ public sealed class HidingPlaceInteractable : InteractableObject
         {
             OccupancyChanged?.Invoke(isOccupied);
         }
+
+        if (pendingLocalPlayerNetworkObjectId ==
+            NoOccupantNetworkObjectId ||
+            currentOccupant == NoOccupantNetworkObjectId)
+        {
+            return;
+        }
+
+        if (currentOccupant == pendingLocalPlayerNetworkObjectId)
+        {
+            pendingLocalPlayerNetworkObjectId =
+                NoOccupantNetworkObjectId;
+            return;
+        }
+
+        CancelPendingLocalHidingRequest();
+    }
+
+    private void CancelPendingLocalHidingRequest()
+    {
+        ulong playerNetworkObjectId =
+            pendingLocalPlayerNetworkObjectId;
+        pendingLocalPlayerNetworkObjectId =
+            NoOccupantNetworkObjectId;
+
+        NetworkManager manager = NetworkManager;
+
+        if (playerNetworkObjectId == NoOccupantNetworkObjectId ||
+            manager == null ||
+            manager.SpawnManager == null ||
+            !manager.SpawnManager.SpawnedObjects.TryGetValue(
+                playerNetworkObjectId,
+                out NetworkObject playerObject) ||
+            playerObject == null)
+        {
+            return;
+        }
+
+        IPlayerHidingCommandService commands =
+            playerObject.GetComponent<PlayerHidingController>();
+        commands?.CancelHidingRequest();
     }
 
     private void HandleStateChanged(

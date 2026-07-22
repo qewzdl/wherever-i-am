@@ -21,6 +21,47 @@ public interface IReplicatedPlayerHidingStateService
     ulong HidingPlaceNetworkObjectId { get; }
 }
 
+public enum PlayerActionKind
+{
+    None = 0,
+    Pickup = 1,
+    Drag = 2,
+    Hiding = 3
+}
+
+/// <summary>
+/// Owns the one mutually-exclusive gameplay action currently performed by a
+/// player. The owner token prevents one mechanic from releasing another
+/// mechanic's action.
+/// </summary>
+public interface IPlayerActionGate
+{
+    bool IsBusy { get; }
+    PlayerActionKind ActiveAction { get; }
+
+    bool IsActive(PlayerActionKind action);
+    bool CanBegin(PlayerActionKind action, object owner);
+    bool TryBegin(PlayerActionKind action, object owner);
+    void Confirm(PlayerActionKind action, object owner);
+    bool End(PlayerActionKind action, object owner);
+}
+
+/// <summary>
+/// Owner-side commands used by interaction composition without exposing the
+/// concrete hiding implementation.
+/// </summary>
+public interface IPlayerHidingCommandService
+{
+    ulong NetworkObjectId { get; }
+    ulong OwnerClientId { get; }
+    bool IsSpawned { get; }
+    bool IsOwner { get; }
+
+    bool TryBeginHidingRequest();
+    void CancelHidingRequest();
+    void RequestExitHiding();
+}
+
 public interface ILocalPlayerInputService
 {
     void SetInputActive(bool value);

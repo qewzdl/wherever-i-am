@@ -10,7 +10,8 @@ using UnityEngine;
 public sealed class PlayerHidingController :
     PlayerNetworkComponent,
     IPlayerSignalListener,
-    IReplicatedPlayerHidingStateService
+    IReplicatedPlayerHidingStateService,
+    IPlayerHidingCommandService
 {
     private readonly NetworkVariable<PlayerHidingSnapshot> hidingState = new(
         PlayerHidingSnapshot.NotHidden,
@@ -26,11 +27,22 @@ public sealed class PlayerHidingController :
     [SerializeField] private PlayerInteraction playerInteraction;
     [SerializeField] private CameraLook cameraLook;
     [SerializeField] private PlayerHidingVignette hidingVignette;
+    [SerializeField] private MonoBehaviour playerActionGateSource;
+
+    [Header("Explicit Hiding Effects")]
+    [SerializeField] private Transform visualRoot;
+    [SerializeField] private Collider[] gameplayColliders =
+        System.Array.Empty<Collider>();
+    [SerializeField] private Collider[] hitboxColliders =
+        System.Array.Empty<Collider>();
+    [SerializeField] private Transform localViewmodelRoot;
 
     private readonly HidingExitPlacementResolver exitPlacementResolver = new();
+    private IPlayerActionGate playerActionGate;
     private PlayerHidingEffects hidingEffects;
     private MonoBehaviour[] entryEligibilityProviders;
     private bool listensToHidingState;
+    private bool hidingRequestPending;
     private bool hasRecoveryPose;
     private Pose recoveryPose;
     private LayerMask recoveryObstructionMask = ~0;
@@ -122,6 +134,35 @@ public sealed class PlayerHidingController :
         RequestExitHidingServerRpc();
     }
 
+    public bool TryBeginHidingRequest()
+    {
+        ResolveReferences();
+
+        if (!IsSpawned ||
+            !IsOwner ||
+            hidingRequestPending ||
+            IsInHidingSequence ||
+            playerActionGate == null ||
+            !playerActionGate.TryBegin(PlayerActionKind.Hiding, this))
+        {
+            return false;
+        }
+
+        hidingRequestPending = true;
+        return true;
+    }
+
+    public void CancelHidingRequest()
+    {
+        if (!hidingRequestPending)
+        {
+            return;
+        }
+
+        hidingRequestPending = false;
+        playerActionGate?.End(PlayerActionKind.Hiding, this);
+    }
+
     internal bool BeginEnteringHidingServer(
         HidingPlaceInteractable hidingPlace,
         HidingPlaceData settings
@@ -132,7 +173,14 @@ public sealed class PlayerHidingController :
             hidingPlace == null ||
             !hidingPlace.IsSpawned ||
             settings == null ||
+            !HasRequiredHidingEffects(settings) ||
             !CanEnterHidingServer())
+        {
+            return false;
+        }
+
+        if (playerActionGate == null ||
+            !playerActionGate.TryBegin(PlayerActionKind.Hiding, this))
         {
             return false;
         }
@@ -290,10 +338,8 @@ public sealed class PlayerHidingController :
             return false;
         }
 
-        if (states != null &&
-            (states.IsHiding ||
-             states.IsDragging ||
-             states.IsCarrying))
+        if (playerActionGate == null ||
+            !playerActionGate.CanBegin(PlayerActionKind.Hiding, this))
         {
             return false;
         }
@@ -324,8 +370,7 @@ public sealed class PlayerHidingController :
             }
         }
 
-        return hasEligibilityProvider &&
-               !HasActiveItemInteractionServer();
+        return hasEligibilityProvider;
     }
 
     internal bool TryGetRecoveryPose(out Pose pose)
@@ -472,28 +517,6 @@ public sealed class PlayerHidingController :
         return true;
     }
 
-    internal static bool IsClientHidden(
-        NetworkManager networkManager,
-        ulong clientId
-    )
-    {
-        if (networkManager == null ||
-            !networkManager.IsServer ||
-            !networkManager.ConnectedClients.TryGetValue(
-                clientId,
-                out NetworkClient client
-            ) ||
-            client.PlayerObject == null)
-        {
-            return false;
-        }
-
-        PlayerHidingController hidingController =
-            client.PlayerObject.GetComponent<PlayerHidingController>();
-
-        return hidingController != null && hidingController.IsHidden;
-    }
-
     [Rpc(
         SendTo.Server,
         InvokePermission = RpcInvokePermission.Owner
@@ -595,47 +618,6 @@ public sealed class PlayerHidingController :
         transform.SetPositionAndRotation(position, rotation);
     }
 
-    private bool HasActiveItemInteractionServer()
-    {
-        NetworkManager manager = NetworkManager;
-
-        if (manager == null ||
-            !manager.IsServer ||
-            manager.SpawnManager == null)
-        {
-            return false;
-        }
-
-        foreach (NetworkObject spawnedObject in
-                 manager.SpawnManager.SpawnedObjects.Values)
-        {
-            if (spawnedObject == null ||
-                spawnedObject.OwnerClientId != OwnerClientId)
-            {
-                continue;
-            }
-
-            PickupItem pickupItem =
-                spawnedObject.GetComponent<PickupItem>();
-
-            if (pickupItem != null && pickupItem.IsPickedUp)
-            {
-                return true;
-            }
-
-            DraggableObject draggableObject =
-                spawnedObject.GetComponent<DraggableObject>();
-
-            if (draggableObject != null &&
-                draggableObject.IsBeingDragged)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private void ClearRecoveryPose()
     {
         hasRecoveryPose = false;
@@ -643,6 +625,45 @@ public sealed class PlayerHidingController :
         recoveryObstructionMask = ~0;
         recoveryTriggerInteraction = QueryTriggerInteraction.Ignore;
         recoveryCollisionSkin = 0.02f;
+    }
+
+    private bool HasRequiredHidingEffects(HidingPlaceData settings)
+    {
+        if (settings == null)
+        {
+            return false;
+        }
+
+        if (settings.HidePlayerVisuals && visualRoot == null)
+        {
+            return false;
+        }
+
+        if (!settings.DisablePlayerColliders)
+        {
+            return true;
+        }
+
+        return HasCollider(gameplayColliders) ||
+               HasCollider(hitboxColliders);
+    }
+
+    private static bool HasCollider(Collider[] colliders)
+    {
+        if (colliders == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void CacheEntryEligibilityProviders()
@@ -683,6 +704,17 @@ public sealed class PlayerHidingController :
     )
     {
         ResolveReferences();
+
+        hidingRequestPending = false;
+
+        if (currentState.IsInHidingSequence)
+        {
+            playerActionGate?.Confirm(PlayerActionKind.Hiding, this);
+        }
+        else
+        {
+            playerActionGate?.End(PlayerActionKind.Hiding, this);
+        }
 
         if (states != null)
         {
@@ -738,6 +770,8 @@ public sealed class PlayerHidingController :
         hidingEffects?.Restore();
         cameraLook?.ClearHidingView();
         hidingVignette?.HideImmediate();
+        hidingRequestPending = false;
+        playerActionGate?.End(PlayerActionKind.Hiding, this);
     }
 
     private void ResolveReferences()
@@ -777,11 +811,34 @@ public sealed class PlayerHidingController :
             hidingVignette = GetComponent<PlayerHidingVignette>();
         }
 
-        if (hidingEffects == null && playerBody != null)
+        playerActionGate =
+            playerActionGateSource as IPlayerActionGate;
+
+        if (playerActionGate == null)
+        {
+            MonoBehaviour[] behaviours = GetComponents<MonoBehaviour>();
+
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] is not IPlayerActionGate actionGate)
+                {
+                    continue;
+                }
+
+                playerActionGateSource = behaviours[i];
+                playerActionGate = actionGate;
+                break;
+            }
+        }
+
+        if (hidingEffects == null)
         {
             hidingEffects = new PlayerHidingEffects(
-                transform,
-                playerBody
+                playerBody,
+                visualRoot,
+                gameplayColliders,
+                hitboxColliders,
+                localViewmodelRoot
             );
         }
 

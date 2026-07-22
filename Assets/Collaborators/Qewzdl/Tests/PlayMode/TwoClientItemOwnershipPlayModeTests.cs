@@ -29,6 +29,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private const float ItemMass = 2f;
     private const uint DraggablePrefabHash = 0x17A60001u;
     private const uint PickupPrefabHash = 0x17A60002u;
+    private const uint PlayerPrefabHash = 0x17A60003u;
 
     private readonly List<Endpoint> endpoints = new();
     private readonly List<Object> cleanup = new();
@@ -38,6 +39,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private Endpoint clientB;
     private GameObject draggablePrefab;
     private GameObject pickupPrefab;
+    private GameObject actionGatePlayerPrefab;
 
     [UnityTearDown]
     public IEnumerator TearDown()
@@ -74,6 +76,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         clientB = null;
         draggablePrefab = null;
         pickupPrefab = null;
+        actionGatePlayerPrefab = null;
         yield return null;
     }
 
@@ -410,10 +413,29 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                   clientB.Manager.IsConnectedClient &&
                   server.Manager.ConnectedClientsIds.Count == 2,
             "Both item test clients did not connect.");
+
+        SpawnActionGatePlayer(clientA.Manager.LocalClientId);
+        SpawnActionGatePlayer(clientB.Manager.LocalClientId);
+
+        yield return WaitForCondition(
+            () => HasPlayerObject(server, clientA.Manager.LocalClientId) &&
+                  HasPlayerObject(server, clientB.Manager.LocalClientId) &&
+                  clientA.Manager.LocalClient?.PlayerObject != null &&
+                  clientB.Manager.LocalClient?.PlayerObject != null,
+            "Action-gated player objects were not spawned on every endpoint.");
     }
 
     private void CreateNetworkPrefabs()
     {
+        actionGatePlayerPrefab = Track(
+            new GameObject("Action gate player prefab"));
+        actionGatePlayerPrefab.SetActive(false);
+        NetworkObject playerNetworkObject =
+            actionGatePlayerPrefab.AddComponent<NetworkObject>();
+        ConfigureNetworkObject(playerNetworkObject, PlayerPrefabHash);
+        actionGatePlayerPrefab.AddComponent<PlayerActionGate>();
+        actionGatePlayerPrefab.SetActive(true);
+
         DraggableObjectData draggableData =
             Track(ScriptableObject.CreateInstance<DraggableObjectData>());
         ConfigureItemData(draggableData);
@@ -448,12 +470,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         prefab.transform.position = new Vector3(10000f, 10000f, 10000f);
 
         NetworkObject networkObject = prefab.AddComponent<NetworkObject>();
-        PlayModeTestReflection.SetField(networkObject, "GlobalObjectIdHash", hash);
-        PropertyInfo sceneObjectProperty = typeof(NetworkObject).GetProperty(
-            nameof(NetworkObject.IsSceneObject),
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        Assert.That(sceneObjectProperty, Is.Not.Null);
-        sceneObjectProperty.SetValue(networkObject, false);
+        ConfigureNetworkObject(networkObject, hash);
 
         Rigidbody body = prefab.AddComponent<Rigidbody>();
         body.mass = ItemMass;
@@ -476,6 +493,21 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         return prefab;
     }
 
+    private static void ConfigureNetworkObject(
+        NetworkObject networkObject,
+        uint hash)
+    {
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "GlobalObjectIdHash",
+            hash);
+        PropertyInfo sceneObjectProperty = typeof(NetworkObject).GetProperty(
+            nameof(NetworkObject.IsSceneObject),
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        Assert.That(sceneObjectProperty, Is.Not.Null);
+        sceneObjectProperty.SetValue(networkObject, false);
+    }
+
     private static void ConfigureItemData(DraggableObjectData data)
     {
         data.Mass = ItemMass;
@@ -490,6 +522,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     {
         for (int i = 0; i < targets.Length; i++)
         {
+            targets[i].Manager.NetworkConfig.Prefabs.Add(
+                new NetworkPrefab { Prefab = actionGatePlayerPrefab });
             targets[i].Manager.NetworkConfig.Prefabs.Add(
                 new NetworkPrefab { Prefab = draggablePrefab });
             targets[i].Manager.NetworkConfig.Prefabs.Add(
@@ -553,10 +587,17 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         LocalPlayerFixture player,
         Vector3 hitPosition)
     {
+        Assert.That(
+            player.ActionGate.TryBegin(PlayerActionKind.Drag, item),
+            Is.True);
         PlayModeTestReflection.SetField(
             player.Interaction,
             "dragRequestPending",
             true);
+        PlayModeTestReflection.SetField(
+            player.Interaction,
+            "pendingDraggable",
+            item);
         item.OnInteract(player.CreateInteractionContext(hitPosition));
     }
 
@@ -564,10 +605,17 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         NetworkItemTestPickup item,
         LocalPlayerFixture player)
     {
+        Assert.That(
+            player.ActionGate.TryBegin(PlayerActionKind.Pickup, item),
+            Is.True);
         PlayModeTestReflection.SetField(
             player.Interaction,
             "pickupRequestPending",
             true);
+        PlayModeTestReflection.SetField(
+            player.Interaction,
+            "pendingPickup",
+            item);
         item.OnPickup(player.CreatePickupContext());
     }
 
@@ -581,6 +629,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         PlayerController controller = root.AddComponent<PlayerController>();
         controller.enabled = false;
         controller.SetSpeed(InitialPlayerSpeed);
+        PlayerActionGate actionGate = root.AddComponent<PlayerActionGate>();
 
         Transform rayOrigin = CreateChild(root.transform, "Ray origin");
         Transform camera = CreateChild(root.transform, "Camera");
@@ -607,6 +656,10 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             interaction,
             "itemDropTransform",
             dropPoint);
+        PlayModeTestReflection.SetField(
+            interaction,
+            "playerActionGateSource",
+            actionGate);
 
         PlayerOrchestrator orchestrator = root.AddComponent<PlayerOrchestrator>();
         root.SetActive(true);
@@ -615,6 +668,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         return new LocalPlayerFixture(
             orchestrator,
             interaction,
+            actionGate,
             controller,
             camera,
             viewModel,
@@ -627,6 +681,28 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         GameObject child = new(name);
         child.transform.SetParent(parent, false);
         return child.transform;
+    }
+
+    private void SpawnActionGatePlayer(ulong ownerClientId)
+    {
+        GameObject instance = Object.Instantiate(actionGatePlayerPrefab);
+        Track(instance);
+        NetworkObject networkObject = instance.GetComponent<NetworkObject>();
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            server.Manager);
+        networkObject.SpawnAsPlayerObject(ownerClientId);
+    }
+
+    private static bool HasPlayerObject(
+        Endpoint endpoint,
+        ulong clientId)
+    {
+        return endpoint.Manager.ConnectedClients.TryGetValue(
+                   clientId,
+                   out NetworkClient client) &&
+               client.PlayerObject != null;
     }
 
     private Endpoint CreateEndpoint(string name)
@@ -693,6 +769,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         internal LocalPlayerFixture(
             PlayerOrchestrator orchestrator,
             PlayerInteraction interaction,
+            PlayerActionGate actionGate,
             PlayerController controller,
             Transform camera,
             Transform viewModel,
@@ -701,6 +778,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         {
             Orchestrator = orchestrator;
             Interaction = interaction;
+            ActionGate = actionGate;
             Controller = controller;
             Camera = camera;
             ViewModel = viewModel;
@@ -710,6 +788,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
         internal PlayerOrchestrator Orchestrator { get; }
         internal PlayerInteraction Interaction { get; }
+        internal PlayerActionGate ActionGate { get; }
         internal PlayerController Controller { get; }
         internal Transform Camera { get; }
         internal Transform ViewModel { get; }
@@ -724,6 +803,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 HitPoint = InteractionPoint,
                 PlayerCameraTransform = Camera,
                 PlayerController = Controller,
+                PlayerActionGate = ActionGate,
                 RayOriginPosition = Camera.position,
                 PlayerInteraction = Interaction
             };

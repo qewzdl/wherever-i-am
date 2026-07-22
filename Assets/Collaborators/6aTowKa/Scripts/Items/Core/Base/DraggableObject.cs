@@ -343,6 +343,25 @@ public abstract class DraggableObject : InteractableObject
 
     public override void OnNetworkDespawn()
     {
+        if (IsServer && netIsDragging.Value)
+        {
+            PlayerActionGateContext.TryEnd(
+                NetworkManager,
+                OwnerClientId,
+                PlayerActionKind.Drag,
+                this);
+        }
+
+        draggableContext?.PlayerInteraction?.HandleDraggableUnavailable(this);
+
+        if (playerInteraction != draggableContext?.PlayerInteraction)
+            playerInteraction?.HandleDraggableUnavailable(this);
+
+        RestorePlayerAfterDragging();
+        CleanupHoldPoint();
+        DisableDraggedPhysicsMode();
+        draggableContext = null;
+        playerInteraction = null;
         netIsDragging.OnValueChanged -= HandleDraggingCollisionChanged;
     }
 
@@ -357,6 +376,11 @@ public abstract class DraggableObject : InteractableObject
             return;
         }
 
+        PlayerActionGateContext.TryEnd(
+            NetworkManager,
+            previous,
+            PlayerActionKind.Drag,
+            this);
         netIsDragging.Value = false;
     }
 
@@ -369,17 +393,23 @@ public abstract class DraggableObject : InteractableObject
 
     public override void OnInteract(InteractionContext context)
     {
-        if (netIsDragging.Value) return;
+        if (netIsDragging.Value)
+        {
+            context?.PlayerInteraction?.DenyDragging();
+            return;
+        }
 
         if (NetworkManager == null)
         {
             Debug.LogWarning("NetworkManager is not initialized. Cannot interact with draggable object.");
+            context?.PlayerInteraction?.DenyDragging();
             return;
         }
 
-        if (context.HitPoint == null)
+        if (context == null || context.HitPoint == null)
         {
             Debug.LogWarning("HitPoint is null in InteractionContext. Cannot interact with draggable object.");
+            context?.PlayerInteraction?.DenyDragging();
             return;
         }
 
@@ -449,20 +479,32 @@ public abstract class DraggableObject : InteractableObject
     [Rpc(SendTo.Server)]
     private void RequestOwnershipServerRpc(RpcParams rpcParams = default)
     {
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
         if (netIsDragging.Value ||
             !CanStartDragging() ||
-            PlayerHidingController.IsClientHidden(
+            !PlayerActionGateContext.TryBegin(
                 NetworkManager,
-                rpcParams.Receive.SenderClientId
-            ))
+                senderClientId,
+                PlayerActionKind.Drag,
+                this,
+                out IPlayerActionGate actionGate))
         {
-            DenyDraggingRpc(RpcTarget.Single(rpcParams.Receive.SenderClientId, RpcTargetUse.Temp));
+            DenyDraggingRpc(RpcTarget.Single(senderClientId, RpcTargetUse.Temp));
             return;
         }
 
-        GetComponent<NetworkObject>().ChangeOwnership(rpcParams.Receive.SenderClientId);
-        netIsDragging.Value = true;
-        StartDraggingOwnerRpc();
+        try
+        {
+            GetComponent<NetworkObject>().ChangeOwnership(senderClientId);
+            netIsDragging.Value = true;
+            StartDraggingOwnerRpc();
+        }
+        catch
+        {
+            actionGate.End(PlayerActionKind.Drag, this);
+            throw;
+        }
     }
 
     // Overridable by subclasses that need to reject a drag start (e.g. item already picked up).
@@ -486,6 +528,11 @@ public abstract class DraggableObject : InteractableObject
             return;
 
         netIsDragging.Value = false;
+        PlayerActionGateContext.TryEnd(
+            NetworkManager,
+            rpcParams.Receive.SenderClientId,
+            PlayerActionKind.Drag,
+            this);
     }
 
     [Rpc(SendTo.Owner)]

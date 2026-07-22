@@ -1,9 +1,14 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 internal sealed class PlayerHidingEffects
 {
-    private readonly Transform playerRoot;
     private readonly Rigidbody playerBody;
+    private readonly Transform visualRoot;
+    private readonly Collider[] gameplayColliders;
+    private readonly Collider[] hitboxColliders;
+    private readonly Transform localViewmodelRoot;
 
     private Collider[] playerColliders;
     private Renderer[] playerRenderers;
@@ -14,12 +19,20 @@ internal sealed class PlayerHidingEffects
     private bool effectsApplied;
 
     internal PlayerHidingEffects(
-        Transform playerRoot,
-        Rigidbody playerBody
+        Rigidbody playerBody,
+        Transform visualRoot,
+        Collider[] gameplayColliders,
+        Collider[] hitboxColliders,
+        Transform localViewmodelRoot
     )
     {
-        this.playerRoot = playerRoot;
         this.playerBody = playerBody;
+        this.visualRoot = visualRoot;
+        this.gameplayColliders = gameplayColliders ??
+                                 Array.Empty<Collider>();
+        this.hitboxColliders = hitboxColliders ??
+                               Array.Empty<Collider>();
+        this.localViewmodelRoot = localViewmodelRoot;
     }
 
     internal void Apply(
@@ -72,12 +85,8 @@ internal sealed class PlayerHidingEffects
 
     private void Capture()
     {
-        playerColliders = playerRoot != null
-            ? playerRoot.GetComponentsInChildren<Collider>(true)
-            : System.Array.Empty<Collider>();
-        playerRenderers = playerRoot != null
-            ? playerRoot.GetComponentsInChildren<Renderer>(true)
-            : System.Array.Empty<Renderer>();
+        playerColliders = CollectExplicitColliders();
+        playerRenderers = CollectExplicitRenderers();
 
         colliderEnabledStates = new bool[playerColliders.Length];
         rendererEnabledStates = new bool[playerRenderers.Length];
@@ -99,6 +108,66 @@ internal sealed class PlayerHidingEffects
         if (playerBody != null)
         {
             originalConstraints = playerBody.constraints;
+        }
+    }
+
+    private Collider[] CollectExplicitColliders()
+    {
+        HashSet<Collider> unique = new();
+
+        AddColliders(unique, gameplayColliders);
+        AddColliders(unique, hitboxColliders);
+
+        Collider[] result = new Collider[unique.Count];
+        unique.CopyTo(result);
+        return result;
+    }
+
+    private Renderer[] CollectExplicitRenderers()
+    {
+        HashSet<Renderer> unique = new();
+
+        AddRenderers(unique, visualRoot);
+        AddRenderers(unique, localViewmodelRoot);
+
+        Renderer[] result = new Renderer[unique.Count];
+        unique.CopyTo(result);
+        return result;
+    }
+
+    private static void AddColliders(
+        HashSet<Collider> destination,
+        Collider[] source
+    )
+    {
+        for (int i = 0; i < source.Length; i++)
+        {
+            if (source[i] != null)
+            {
+                destination.Add(source[i]);
+            }
+        }
+    }
+
+    private static void AddRenderers(
+        HashSet<Renderer> destination,
+        Transform root
+    )
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        Renderer[] renderers =
+            root.GetComponentsInChildren<Renderer>(true);
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+            {
+                destination.Add(renderers[i]);
+            }
         }
     }
 

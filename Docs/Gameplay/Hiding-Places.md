@@ -88,9 +88,10 @@ HUD и не блокирует UI raycasts. Она появляется во в�
 - При выходе сервер проверяет capsule игрока через `Physics.CheckCapsule` и
   выбирает первую свободную exit-точку. Пока свободной точки нет, игрок
   остаётся внутри.
-- Игрок не двигается в течение всей последовательности. Только в
-  `Occupied` он при настройке теряет colliders/renderers и перестаёт быть
-  обычной целью зрения врага.
+- Игрок не двигается в течение всей последовательности. Только в `Occupied`
+  отключаются явно назначенные `visualRoot`, `gameplayColliders`,
+  `hitboxColliders` и renderers внутри `localViewmodelRoot`. Новые trigger,
+  hitbox или VFX под player root не затрагиваются автоматически.
 - Враг видит `Entering`/`Exiting`, запоминает связанное укрытие, слышит шум,
   исследует его последнее известное положение и может открыть занятое
   укрытие с разрешённой дистанции.
@@ -98,4 +99,10 @@ HUD и не блокирует UI raycasts. Она появляется во в�
   сцены и shutdown сессии выполняют cleanup без gameplay-телепорта.
 - Exit, disconnect, despawn игрока и cleanup укрытия освобождают occupant
   идемпотентно.
-- `IReplicatedPlayerHidingStateService` доступен только в Player scope.
+- `IPlayerActionGate` и `IReplicatedPlayerHidingStateService` доступны только
+  в Player scope. Pickup, drag и hiding занимают один gate, поэтому сервер
+  атомарно принимает одно конфликтующее действие без поиска предметов среди
+  всех spawned objects.
+- `IPlayerHidingCommandService` доступен владельцу через Local Player scope и
+  используется `InteractionContext` вместо concrete
+  `PlayerHidingController`.

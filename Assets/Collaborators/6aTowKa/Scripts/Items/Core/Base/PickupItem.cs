@@ -52,12 +52,41 @@ public abstract class PickupItem : DraggableObject
             return;
         }
 
+        PlayerActionGateContext.TryEnd(
+            NetworkManager,
+            previous,
+            PlayerActionKind.Pickup,
+            this);
         netIsPickedUp.Value = false;
 
         rb.position = spawnPosition;
         rb.rotation = spawnRotation;
 
         DropClientRpc();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (IsServer && netIsPickedUp.Value)
+        {
+            PlayerActionGateContext.TryEnd(
+                NetworkManager,
+                OwnerClientId,
+                PlayerActionKind.Pickup,
+                this);
+        }
+
+        context?.PlayerInteraction?.HandlePickupUnavailable(this);
+
+        if (playerInteraction != context?.PlayerInteraction)
+            playerInteraction?.HandlePickupUnavailable(this);
+
+        if (viewModel != null)
+            Destroy(viewModel);
+
+        context = null;
+        ownerTransform = null;
+        base.OnNetworkDespawn();
     }
 
     //OnInteract here is dragging.
@@ -79,7 +108,12 @@ public abstract class PickupItem : DraggableObject
 
     private void PickUp(PickUpContext context)
     {
-        if (NetworkManager == null) return;
+        if (NetworkManager == null)
+        {
+            context?.PlayerInteraction?.DenyPickup();
+            return;
+        }
+
         this.context = context;
         RequestPickUpItemServerRpc(NetworkManager.LocalClientId);
     }
@@ -107,9 +141,14 @@ public abstract class PickupItem : DraggableObject
     // Server RPCs
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
-    private void DropServerRpc()
+    private void DropServerRpc(RpcParams rpcParams = default)
     {
         netIsPickedUp.Value = false;
+        PlayerActionGateContext.TryEnd(
+            NetworkManager,
+            rpcParams.Receive.SenderClientId,
+            PlayerActionKind.Pickup,
+            this);
         DropClientRpc();
     }
 
@@ -122,22 +161,33 @@ public abstract class PickupItem : DraggableObject
         if (ownerId != senderClientId ||
             netIsPickedUp.Value ||
             netIsDragging.Value ||
-            PlayerHidingController.IsClientHidden(
+            !PlayerActionGateContext.TryBegin(
                 NetworkManager,
-                senderClientId
-            ))
+                senderClientId,
+                PlayerActionKind.Pickup,
+                this,
+                out IPlayerActionGate actionGate))
         {
             DenyPickupRpc(RpcTarget.Single(senderClientId, RpcTargetUse.Temp));
             return;
         }
-        netIsPickedUp.Value = true;
-        PickUpServer(ownerId);
+
+        try
+        {
+            netIsPickedUp.Value = true;
+            PickUpServer(ownerId);
+        }
+        catch
+        {
+            actionGate.End(PlayerActionKind.Pickup, this);
+            throw;
+        }
     }
 
     [Rpc(SendTo.SpecifiedInParams)]
     private void DenyPickupRpc(RpcParams rpcParams = default)
     {
-        context.PlayerInteraction.DenyPickup();
+        context?.PlayerInteraction?.DenyPickup();
         context = null;
     }
 

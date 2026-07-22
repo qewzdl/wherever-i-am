@@ -48,6 +48,7 @@ internal static class ServiceContractCatalog
     internal static readonly Type[] Player =
     {
         typeof(IPlayerNetworkService),
+        typeof(IPlayerActionGate),
         typeof(IReplicatedPlayerStateService),
         typeof(IReplicatedPlayerHidingStateService),
         typeof(IEnemyAttackReceiver)
@@ -55,6 +56,7 @@ internal static class ServiceContractCatalog
 
     internal static readonly Type[] LocalPlayer =
     {
+        typeof(IPlayerHidingCommandService),
         typeof(ILocalPlayerInputService),
         typeof(ILocalPlayerCameraService),
         typeof(ILocalPlayerPresentationService)

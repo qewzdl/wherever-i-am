@@ -11,7 +11,8 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     [SerializeField] private Sprite defaultCrosshair;
     [SerializeField] private Transform playerCameraTransform;
     [SerializeField] private PlayerController playerController;
-    [SerializeField] private PlayerHidingController playerHidingController;
+    [SerializeField] private MonoBehaviour playerHidingCommandSource;
+    [SerializeField] private MonoBehaviour playerActionGateSource;
 
     // Items
     [SerializeField] private Transform viewModelContainer;
@@ -20,6 +21,11 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     private InteractableObject focusedInteractable;
     private PickupItem currentItem;
     private DraggableObject currentDraggable;
+    private PickupItem pendingPickup;
+    private DraggableObject pendingDraggable;
+
+    private IPlayerHidingCommandService playerHidingCommands;
+    private IPlayerActionGate playerActionGate;
 
     private bool dragRequestPending;
     private bool pickupRequestPending;
@@ -31,8 +37,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
-        if (playerHidingController == null)
-            playerHidingController = GetComponent<PlayerHidingController>();
+        ResolvePlayerServices();
 
         HitPoint = new GameObject();
         HitPoint.transform.parent = transform;
@@ -46,6 +51,8 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     public void Cleanup()
     {
+        ReleaseInteractionActions();
+
         if (signals != null)
         {
             signals.Interact.Unlisten(Interact);
@@ -111,8 +118,10 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private bool CanFocus()
     {
-        if (states.IsHiding) return false;
-        if (states.IsDragging || dragRequestPending) return false;
+        if (playerActionGate != null &&
+            (playerActionGate.IsActive(PlayerActionKind.Hiding) ||
+             playerActionGate.IsActive(PlayerActionKind.Drag))) return false;
+        if (dragRequestPending) return false;
         return true;
     }
 
@@ -126,9 +135,10 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     //Interacting
     private void Interact()
     {
-        if (states.IsHiding)
+        if (playerActionGate != null &&
+            playerActionGate.IsActive(PlayerActionKind.Hiding))
         {
-            playerHidingController?.RequestExitHiding();
+            playerHidingCommands?.RequestExitHiding();
             return;
         }
 
@@ -151,8 +161,17 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
         if (focusedInteractable is DraggableObject draggingObject)
         {
+            if (playerActionGate == null ||
+                !playerActionGate.TryBegin(
+                    PlayerActionKind.Drag,
+                    draggingObject))
+            {
+                return;
+            }
+
             HitPoint.transform.position = hit.point;
 
+            pendingDraggable = draggingObject;
             dragRequestPending = true;
             draggingObject.OnInteract(ctx);
         }
@@ -174,7 +193,8 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             HitPoint = HitPoint.transform,
             PlayerCameraTransform = playerCameraTransform,
             PlayerController = playerController,
-            PlayerHidingController = playerHidingController,
+            PlayerHidingCommands = playerHidingCommands,
+            PlayerActionGate = playerActionGate,
             RayOriginPosition = rayOrigin.position,
             CurrentItem = currentItem,
             PlayerInteraction = this,
@@ -188,6 +208,7 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             DraggableObject draggable = currentDraggable;
             currentDraggable = null;
             states.IsDragging = false;
+            playerActionGate?.End(PlayerActionKind.Drag, draggable);
 
             draggable.OnUninteract();
         }
@@ -198,9 +219,12 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     {
         if (focusedInteractable is not PickupItem item) return;
         if (!CanPickUp()) return;
+        if (playerActionGate == null ||
+            !playerActionGate.TryBegin(PlayerActionKind.Pickup, item)) return;
 
         PickUpContext pickUpContext = BuildPickUpContext();
 
+        pendingPickup = item;
         pickupRequestPending = true;
         item.OnPickup(pickUpContext);
     }
@@ -215,16 +239,32 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private bool CanPickUp()
     {
-        if (states.IsCarrying || pickupRequestPending) return false;
-        if (states.IsDragging) return false;
-        return true;
+        if (pickupRequestPending) return false;
+        return playerActionGate != null &&
+               playerActionGate.CanBegin(
+                   PlayerActionKind.Pickup,
+                   focusedInteractable);
     }
 
 
     public void SetCurrentItem(PickupItem item)
     {
+        PickupItem previousItem = currentItem;
         pickupRequestPending = false;
+        pendingPickup = null;
         currentItem = item;
+
+        if (item != null)
+        {
+            playerActionGate?.Confirm(PlayerActionKind.Pickup, item);
+        }
+        else if (previousItem != null)
+        {
+            playerActionGate?.End(
+                PlayerActionKind.Pickup,
+                previousItem);
+        }
+
         states.IsCarrying = item != null;
     }
 
@@ -247,25 +287,71 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
     public void ConfirmDragging(DraggableObject draggable)
     {
         dragRequestPending = false;
+        pendingDraggable = null;
         currentDraggable = draggable;
+        playerActionGate?.Confirm(PlayerActionKind.Drag, draggable);
         states.IsDragging = true;
     }
 
     public void DenyDragging()
     {
+        DraggableObject rejected = pendingDraggable;
         dragRequestPending = false;
+        pendingDraggable = null;
+
+        if (rejected != null)
+            playerActionGate?.End(PlayerActionKind.Drag, rejected);
     }
 
     public void DenyPickup()
     {
+        PickupItem rejected = pendingPickup;
         pickupRequestPending = false;
+        pendingPickup = null;
+
+        if (rejected != null)
+            playerActionGate?.End(PlayerActionKind.Pickup, rejected);
+    }
+
+    public void HandleDraggableUnavailable(DraggableObject draggable)
+    {
+        if (draggable == null)
+            return;
+
+        if (pendingDraggable == draggable)
+            DenyDragging();
+
+        if (currentDraggable != draggable)
+            return;
+
+        currentDraggable = null;
+        states.IsDragging = false;
+        playerActionGate?.End(PlayerActionKind.Drag, draggable);
+    }
+
+    public void HandlePickupUnavailable(PickupItem item)
+    {
+        if (item == null)
+            return;
+
+        if (pendingPickup == item)
+            DenyPickup();
+
+        if (currentItem != item)
+            return;
+
+        currentItem = null;
+        states.IsCarrying = false;
+        playerActionGate?.End(PlayerActionKind.Pickup, item);
     }
 
     public bool CanEnterHiding()
     {
-        return !states.IsHiding &&
-               !states.IsDragging &&
-               !states.IsCarrying &&
+        return playerActionGate != null &&
+               playerHidingCommands != null &&
+               playerActionGate.CanBegin(
+                   PlayerActionKind.Hiding,
+                   playerHidingCommands) &&
                !dragRequestPending &&
                !pickupRequestPending;
     }
@@ -275,6 +361,18 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
         if (!value)
             return;
 
+        if (pendingDraggable != null)
+            playerActionGate?.End(
+                PlayerActionKind.Drag,
+                pendingDraggable);
+
+        if (pendingPickup != null)
+            playerActionGate?.End(
+                PlayerActionKind.Pickup,
+                pendingPickup);
+
+        pendingDraggable = null;
+        pendingPickup = null;
         dragRequestPending = false;
         pickupRequestPending = false;
 
@@ -282,6 +380,59 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             (focusedInteractable != null || !crosshairIsDefualt))
             ResetFocusedInteractable();
     }
+
+    private void ResolvePlayerServices()
+    {
+        playerHidingCommands =
+            playerHidingCommandSource as IPlayerHidingCommandService;
+        playerActionGate = playerActionGateSource as IPlayerActionGate;
+
+        MonoBehaviour[] behaviours = GetComponents<MonoBehaviour>();
+
+        for (int i = 0;
+             i < behaviours.Length &&
+             (playerHidingCommands == null || playerActionGate == null);
+             i++)
+        {
+            MonoBehaviour behaviour = behaviours[i];
+
+            if (playerHidingCommands == null &&
+                behaviour is IPlayerHidingCommandService hidingCommands)
+            {
+                playerHidingCommandSource = behaviour;
+                playerHidingCommands = hidingCommands;
+            }
+
+            if (playerActionGate == null &&
+                behaviour is IPlayerActionGate actionGate)
+            {
+                playerActionGateSource = behaviour;
+                playerActionGate = actionGate;
+            }
+        }
+    }
+
+    private void ReleaseInteractionActions()
+    {
+        if (playerActionGate == null)
+            return;
+
+        if (pendingDraggable != null)
+            playerActionGate.End(PlayerActionKind.Drag, pendingDraggable);
+        if (currentDraggable != null)
+            playerActionGate.End(PlayerActionKind.Drag, currentDraggable);
+        if (pendingPickup != null)
+            playerActionGate.End(PlayerActionKind.Pickup, pendingPickup);
+        if (currentItem != null)
+            playerActionGate.End(PlayerActionKind.Pickup, currentItem);
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        ResolvePlayerServices();
+    }
+#endif
 
     //debug
     private void OnDrawGizmos()

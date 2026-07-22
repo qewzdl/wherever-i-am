@@ -75,6 +75,107 @@ public sealed class PlayerMechanicsPlayModeTests
     }
 
     [Test]
+    public void PlayerActionGate_ArbitratesConflictingActionsAtomically()
+    {
+        GameObject player = Track(new GameObject("Action gate player"));
+        PlayerActionGate gate = player.AddComponent<PlayerActionGate>();
+        object pickup = new();
+        object drag = new();
+        object hiding = new();
+
+        Assert.That(
+            gate.TryBegin(PlayerActionKind.Pickup, pickup),
+            Is.True);
+        Assert.That(gate.ActiveAction, Is.EqualTo(PlayerActionKind.Pickup));
+        Assert.That(
+            gate.TryBegin(PlayerActionKind.Drag, drag),
+            Is.False);
+        Assert.That(
+            gate.TryBegin(PlayerActionKind.Hiding, hiding),
+            Is.False);
+        Assert.That(
+            gate.End(PlayerActionKind.Pickup, drag),
+            Is.False,
+            "A different mechanic must not release the active action.");
+
+        gate.Confirm(PlayerActionKind.Hiding, hiding);
+
+        Assert.That(gate.ActiveAction, Is.EqualTo(PlayerActionKind.Hiding));
+        Assert.That(
+            gate.End(PlayerActionKind.Pickup, pickup),
+            Is.False,
+            "A late pickup response must not clear authoritative hiding.");
+        Assert.That(
+            gate.End(PlayerActionKind.Hiding, hiding),
+            Is.True);
+        Assert.That(gate.IsBusy, Is.False);
+    }
+
+    [Test]
+    public void HidingEffects_TouchOnlyExplicitVisualsAndColliders()
+    {
+        GameObject player = Track(new GameObject("Explicit hiding player"));
+        Rigidbody body = player.AddComponent<Rigidbody>();
+        body.useGravity = false;
+        body.constraints = RigidbodyConstraints.FreezeRotation;
+
+        Transform visualRoot = CreateChild(player.transform, "Visual root");
+        Renderer bodyRenderer =
+            visualRoot.gameObject.AddComponent<MeshRenderer>();
+        Collider gameplayCollider =
+            visualRoot.gameObject.AddComponent<CapsuleCollider>();
+
+        Transform viewmodelRoot =
+            CreateChild(player.transform, "Local viewmodel root");
+        Renderer viewmodelRenderer =
+            viewmodelRoot.gameObject.AddComponent<MeshRenderer>();
+
+        GameObject hitboxObject = new("Explicit hitbox");
+        hitboxObject.transform.SetParent(player.transform, false);
+        Collider hitboxCollider = hitboxObject.AddComponent<BoxCollider>();
+
+        GameObject unrelatedObject = new("Unrelated future component");
+        unrelatedObject.transform.SetParent(player.transform, false);
+        Renderer unrelatedRenderer =
+            unrelatedObject.AddComponent<MeshRenderer>();
+        Collider unrelatedCollider =
+            unrelatedObject.AddComponent<SphereCollider>();
+
+        PlayerHidingEffects effects = new(
+            body,
+            visualRoot,
+            new[] { gameplayCollider },
+            new[] { hitboxCollider },
+            viewmodelRoot);
+
+        effects.Apply(
+            hidePlayerVisuals: true,
+            disablePlayerColliders: true);
+
+        Assert.That(bodyRenderer.enabled, Is.False);
+        Assert.That(viewmodelRenderer.enabled, Is.False);
+        Assert.That(gameplayCollider.enabled, Is.False);
+        Assert.That(hitboxCollider.enabled, Is.False);
+        Assert.That(unrelatedRenderer.enabled, Is.True);
+        Assert.That(unrelatedCollider.enabled, Is.True);
+        Assert.That(
+            body.constraints,
+            Is.EqualTo(RigidbodyConstraints.FreezeAll));
+
+        effects.Restore();
+
+        Assert.That(bodyRenderer.enabled, Is.True);
+        Assert.That(viewmodelRenderer.enabled, Is.True);
+        Assert.That(gameplayCollider.enabled, Is.True);
+        Assert.That(hitboxCollider.enabled, Is.True);
+        Assert.That(unrelatedRenderer.enabled, Is.True);
+        Assert.That(unrelatedCollider.enabled, Is.True);
+        Assert.That(
+            body.constraints,
+            Is.EqualTo(RigidbodyConstraints.FreezeRotation));
+    }
+
+    [Test]
     public void PlayerController_AppliesDeadZoneClampAndRuntimeSpeed()
     {
         GameObject player = Track(new GameObject("Movement player"));
@@ -280,6 +381,13 @@ public sealed class PlayerMechanicsPlayModeTests
 
         follow.SetLocalControl(false);
         Assert.That(follow.enabled, Is.False);
+    }
+
+    private static Transform CreateChild(Transform parent, string name)
+    {
+        GameObject child = new(name);
+        child.transform.SetParent(parent, false);
+        return child.transform;
     }
 
     private T Track<T>(T value)

@@ -872,6 +872,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
         PlayerController movement =
             playerPrefab.AddComponent<PlayerController>();
         movement.enabled = false;
+        PlayerActionGate actionGate =
+            playerPrefab.AddComponent<PlayerActionGate>();
 
         PlayerHidingController hiding =
             playerPrefab.AddComponent<PlayerHidingController>();
@@ -890,6 +892,26 @@ public sealed class TwoClientHidingPlacePlayModeTests
             hiding,
             "playerController",
             movement
+        );
+        PlayModeTestReflection.SetField(
+            hiding,
+            "playerActionGateSource",
+            actionGate
+        );
+        PlayModeTestReflection.SetField(
+            hiding,
+            "visualRoot",
+            playerPrefab.transform
+        );
+        PlayModeTestReflection.SetField(
+            hiding,
+            "gameplayColliders",
+            new Collider[] { bodyCollider }
+        );
+        PlayModeTestReflection.SetField(
+            hiding,
+            "hitboxColliders",
+            System.Array.Empty<Collider>()
         );
 
         playerPrefab.SetActive(true);

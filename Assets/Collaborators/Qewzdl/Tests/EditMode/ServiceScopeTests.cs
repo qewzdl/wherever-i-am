@@ -915,6 +915,8 @@ public sealed class GTests
             typeof(IMatchCompletionService),
             typeof(IReplicatedPlayerStateService),
             typeof(IReplicatedPlayerHidingStateService),
+            typeof(IPlayerActionGate),
+            typeof(IPlayerHidingCommandService),
             typeof(ILocalPlayerInputService),
             typeof(ILocalPlayerCameraService),
             typeof(ILocalPlayerPresentationService),

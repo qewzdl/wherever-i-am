@@ -183,12 +183,14 @@ public sealed class ChildServiceContractPolicyTests
         Type[] replicatedContracts =
         {
             typeof(IPlayerNetworkService),
+            typeof(IPlayerActionGate),
             typeof(IReplicatedPlayerStateService),
             typeof(IReplicatedPlayerHidingStateService),
             typeof(IEnemyAttackReceiver)
         };
         Type[] localContracts =
         {
+            typeof(IPlayerHidingCommandService),
             typeof(ILocalPlayerInputService),
             typeof(ILocalPlayerCameraService),
             typeof(ILocalPlayerPresentationService)

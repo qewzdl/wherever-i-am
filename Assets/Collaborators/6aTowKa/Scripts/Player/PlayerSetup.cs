@@ -24,6 +24,7 @@ public class PlayerSetup : NetworkBehaviour
         NetworkObject networkObject = RequireComponentOnPlayer<NetworkObject>();
         NetworkTransform networkTransform = RequireComponentOnPlayer<NetworkTransform>();
         PlayerNetwork playerNetwork = RequireComponentOnPlayer<PlayerNetwork>();
+        RequireComponentOnPlayer<PlayerActionGate>();
         PlayerHidingController playerHiding =
             RequireComponentOnPlayer<PlayerHidingController>();
         PlayerPostureController playerPosture = RequireComponentOnPlayer<PlayerPostureController>();

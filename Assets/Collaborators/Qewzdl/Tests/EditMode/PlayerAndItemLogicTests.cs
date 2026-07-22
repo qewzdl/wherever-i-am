@@ -75,12 +75,19 @@ public sealed class PlayerAndItemLogicTests
             playerPrefab.GetComponent<PlayerEnemyAttackReceiver>();
         PlayerHidingVignette hidingVignette =
             playerPrefab.GetComponent<PlayerHidingVignette>();
+        PlayerActionGate actionGate =
+            playerPrefab.GetComponent<PlayerActionGate>();
 
         Assert.That(hidingController, Is.Not.Null);
         Assert.That(interaction, Is.Not.Null);
         Assert.That(scopeLifetime, Is.Not.Null);
         Assert.That(attackReceiver, Is.Not.Null);
         Assert.That(hidingVignette, Is.Not.Null);
+        Assert.That(actionGate, Is.Not.Null);
+        Assert.That(
+            hidingController,
+            Is.InstanceOf<IPlayerHidingCommandService>()
+        );
         Assert.That(
             attackReceiver,
             Is.InstanceOf<IHidingEntryEligibility>()
@@ -109,10 +116,52 @@ public sealed class PlayerAndItemLogicTests
             Is.SameAs(hidingVignette)
         );
         Assert.That(
+            hidingObject
+                .FindProperty("playerActionGateSource")
+                .objectReferenceValue,
+            Is.SameAs(actionGate)
+        );
+        Assert.That(
+            hidingObject
+                .FindProperty("visualRoot")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
+        Assert.That(
+            hidingObject
+                .FindProperty("gameplayColliders")
+                .arraySize,
+            Is.GreaterThan(0)
+        );
+        Assert.That(
+            hidingObject
+                .FindProperty("hitboxColliders")
+                .arraySize,
+            Is.Zero
+        );
+        Assert.That(
+            hidingObject
+                .FindProperty("localViewmodelRoot")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
+        Assert.That(
             interactionObject
-                .FindProperty("playerHidingController")
+                .FindProperty("playerHidingCommandSource")
                 .objectReferenceValue,
             Is.SameAs(hidingController)
+        );
+        Assert.That(
+            interactionObject
+                .FindProperty("playerActionGateSource")
+                .objectReferenceValue,
+            Is.SameAs(actionGate)
+        );
+        Assert.That(
+            scopeObject
+                .FindProperty("actionGateService")
+                .objectReferenceValue,
+            Is.SameAs(actionGate)
         );
         Assert.That(
             scopeObject
