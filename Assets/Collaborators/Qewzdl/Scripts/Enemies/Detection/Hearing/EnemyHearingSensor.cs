@@ -72,13 +72,53 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
+        TryResolveHidingPlace(
+            noiseEvent.SourceObject,
+            out HidingPlaceInteractable hidingPlace
+        );
+
         stimulus = EnemyPerceptionStimulus.ForSuspiciousPosition(
             noiseEvent.Position,
             score,
-            EnemyPerceptionSource.Hearing
+            EnemyPerceptionSource.Hearing,
+            hidingPlace
         );
 
         return true;
+    }
+
+    private static bool TryResolveHidingPlace(
+        Object sourceObject,
+        out HidingPlaceInteractable hidingPlace
+    )
+    {
+        hidingPlace = null;
+
+        GameObject sourceGameObject = sourceObject switch
+        {
+            GameObject gameObject => gameObject,
+            Component component => component.gameObject,
+            _ => null
+        };
+
+        if (sourceGameObject == null)
+        {
+            return false;
+        }
+
+        hidingPlace =
+            sourceGameObject.GetComponentInParent<HidingPlaceInteractable>();
+
+        if (hidingPlace != null)
+        {
+            return true;
+        }
+
+        PlayerHidingController playerHiding =
+            sourceGameObject.GetComponentInParent<PlayerHidingController>();
+
+        return playerHiding != null &&
+               playerHiding.TryGetCurrentHidingPlace(out hidingPlace);
     }
 
     private bool ValidateConfig(EnemyConfig config)

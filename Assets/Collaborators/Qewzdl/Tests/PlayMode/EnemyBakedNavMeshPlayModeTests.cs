@@ -160,7 +160,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
         EnemyTarget target = CreateSpawnedTarget(
             new Vector3(0f, 0f, 1.2f),
-            canBeDetected: false);
+            canBeDetected: true);
 
         BakedNavMeshAttackEffectProbe attackEffect = new();
         EnemyAttackPipeline attackPipeline = new(
@@ -196,6 +196,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Does.Contain(EnemyAttackResultType.LineOfHitBlocked));
         Assert.That(attackEffect.ApplyCount, Is.Zero);
 
+        PlayModeTestReflection.SetField(target, "canBeDetected", false);
         attackBlocker.SetActive(false);
         target.transform.position = new Vector3(0f, 0f, 5f);
         Physics.SyncTransforms();

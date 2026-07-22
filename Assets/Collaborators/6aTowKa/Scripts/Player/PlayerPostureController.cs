@@ -48,6 +48,7 @@ public class PlayerPostureController : PlayerComponent, IPlayerSignalListener
     private Vector3 cameraBaseLocalPosition;
     private float targetCameraHeight;
     private float cameraHeightVelocity;
+    private CameraLook cameraLook;
 
     private bool hasLocalControl;
     private bool isInitialized;
@@ -97,6 +98,7 @@ public class PlayerPostureController : PlayerComponent, IPlayerSignalListener
     public void SetCameraPivot(Transform pivot)
     {
         cameraPivot = pivot;
+        CacheCameraLook();
     }
 
     public void SetCrouching(bool value)
@@ -172,6 +174,12 @@ public class PlayerPostureController : PlayerComponent, IPlayerSignalListener
         if (!hasLocalControl || cameraPivot == null)
             return;
 
+        if (cameraLook != null && cameraLook.IsHidingViewActive)
+        {
+            cameraHeightVelocity = 0f;
+            return;
+        }
+
         float nextHeight = cameraHeightSmoothTime <= 0f
             ? targetCameraHeight
             : Mathf.SmoothDamp(
@@ -205,10 +213,20 @@ public class PlayerPostureController : PlayerComponent, IPlayerSignalListener
         standingColliderCenter = bodyCollider.center;
 
         if (cameraPivot != null)
+        {
             cameraBaseLocalPosition = cameraPivot.localPosition;
+            CacheCameraLook();
+        }
 
         isInitialized = true;
         return true;
+    }
+
+    private void CacheCameraLook()
+    {
+        cameraLook = cameraPivot != null
+            ? cameraPivot.GetComponent<CameraLook>()
+            : null;
     }
 
     private void ApplyPosture(bool isCrouching, bool snapCamera)

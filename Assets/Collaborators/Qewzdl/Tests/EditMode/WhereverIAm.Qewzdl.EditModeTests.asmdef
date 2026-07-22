@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "WhereverIAm.Qewzdl",
+        "GUID:54758b5a70e54eada55cfe86bf7fd942",
         "WhereverIAm.Shared",
         "WhereverIAm.Player",
         "Unity.Collections",

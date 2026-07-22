@@ -118,6 +118,15 @@ public sealed class TwoClientHidingPlacePlayModeTests
                 server,
                 hidingPlaceId
             );
+        List<HidingTransitionState> observedServerStates = new();
+        List<HidingTransitionState> observedClientBStates = new();
+        List<HidingNoiseCue> observedNoiseCues = new();
+        serverPlace.StateChanged += (_, state) =>
+            observedServerStates.Add(state);
+        placeB.StateChanged += (_, state) =>
+            observedClientBStates.Add(state);
+        serverPlace.ServerNoiseRequested += (cue, _) =>
+            observedNoiseCues.Add(cue);
 
         Assert.That(placeA.TryRequestEnter(playerA), Is.True);
         Assert.That(placeB.TryRequestEnter(playerB), Is.True);
@@ -158,6 +167,14 @@ public sealed class TwoClientHidingPlacePlayModeTests
             winner.HidingPlaceNetworkObjectId,
             Is.EqualTo(hidingPlaceId)
         );
+        Assert.That(
+            winner.HidingPose,
+            Is.EqualTo(serverPlace.Configuration.HidingPose)
+        );
+        Assert.That(
+            winner.CanPeek,
+            Is.EqualTo(serverPlace.Configuration.AllowPeeking)
+        );
 
         Rigidbody winnerBody = winner.GetComponent<Rigidbody>();
         Collider winnerCollider = winner.GetComponent<Collider>();
@@ -177,6 +194,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
         yield return WaitForCondition(
             () => !serverPlace.IsOccupied &&
+                  placeA.State == HidingTransitionState.Available &&
+                  placeB.State == HidingTransitionState.Available &&
                   !GetComponent<PlayerHidingController>(
                       server,
                       winnerId
@@ -192,6 +211,32 @@ public sealed class TwoClientHidingPlacePlayModeTests
         Assert.That(winnerCollider.enabled, Is.True);
         Assert.That(winnerRenderer.enabled, Is.True);
         Assert.That(winnerMovement.IsMovementActive, Is.True);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                HidingTransitionState.Entering,
+                HidingTransitionState.Occupied,
+                HidingTransitionState.Exiting,
+                HidingTransitionState.Available
+            },
+            observedServerStates,
+            "The server did not commit the complete hiding transition sequence."
+        );
+        CollectionAssert.AreEqual(
+            observedServerStates,
+            observedClientBStates,
+            "A remote client did not observe the authoritative transition " +
+            "sequence in the same order."
+        );
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                HidingNoiseCue.Enter,
+                HidingNoiseCue.Exit
+            },
+            observedNoiseCues,
+            "Gameplay noise cues were not emitted exactly once per transition."
+        );
     }
 
     [UnityTest]
@@ -277,8 +322,10 @@ public sealed class TwoClientHidingPlacePlayModeTests
             ).transform.position;
 
         Assert.That(
-            Vector3.Distance(recoveredPosition, Vector3.back),
-            Is.LessThan(0.05f)
+            IsAtKnownSafeExit(recoveredPosition),
+            Is.True,
+            $"Runtime destruction recovered the player at unexpected " +
+            $"position {recoveredPosition}."
         );
     }
 
@@ -338,6 +385,21 @@ public sealed class TwoClientHidingPlacePlayModeTests
         Physics.SyncTransforms();
 
         Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.State ==
+                  HidingTransitionState.Entering,
+            "Server did not expose the entering transition."
+        );
+
+        Assert.That(serverPlace.IsAvailable, Is.False);
+        Assert.That(
+            serverPlace.TryInvestigateServer(
+                serverPlace.EnemyInvestigationPosition
+            ),
+            Is.False,
+            "Enemy check must wait until the entry transition commits."
+        );
 
         yield return WaitForCondition(
             () => serverPlace.OccupantNetworkObjectId == playerId &&
@@ -447,6 +509,209 @@ public sealed class TwoClientHidingPlacePlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator EnemyInvestigation_OpensOccupiedPlace_AndRevealsPlayer()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.State ==
+                  HidingTransitionState.Occupied &&
+                  player.IsHidden,
+            "Player did not become fully hidden before investigation."
+        );
+
+        float investigationDistance =
+            serverPlace.Configuration.EnemyInvestigationDistance;
+
+        Assert.That(
+            serverPlace.TryInvestigateServer(
+                serverPlace.EnemyInvestigationPosition +
+                Vector3.forward * (investigationDistance + 1f)
+            ),
+            Is.False,
+            "An enemy outside the configured investigation distance " +
+            "must not open the hiding place."
+        );
+        Assert.That(
+            serverPlace.State,
+            Is.EqualTo(HidingTransitionState.Occupied)
+        );
+
+        Assert.That(
+            serverPlace.TryInvestigateServer(
+                serverPlace.EnemyInvestigationPosition
+            ),
+            Is.True
+        );
+        Assert.That(
+            serverPlace.State,
+            Is.EqualTo(HidingTransitionState.Exiting)
+        );
+
+        yield return WaitForCondition(
+            () => serverPlace.State ==
+                  HidingTransitionState.Available &&
+                  !serverPlace.IsOccupied &&
+                  !player.IsInHidingSequence,
+            "Enemy investigation did not reveal and release the player."
+        );
+    }
+
+    [UnityTest]
+    public IEnumerator DespawnDuringEntering_RecoversPlayerAndUnlocksMovement()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController clientPlayer =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(clientPlayer), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.State ==
+                  HidingTransitionState.Entering &&
+                  GetComponent<PlayerHidingController>(
+                      server,
+                      playerId
+                  ).IsInHidingSequence &&
+                  clientPlayer.HidingState ==
+                  HidingTransitionState.Entering,
+            "The entering transition did not replicate to the owner."
+        );
+
+        Assert.That(clientPlayer.IsHidden, Is.False);
+        serverPlace.NetworkObject.Despawn(destroy: true);
+
+        yield return WaitForCondition(
+            () => !server.Manager.SpawnManager.SpawnedObjects.ContainsKey(
+                      hidingPlaceId
+                  ) &&
+                  !GetComponent<PlayerHidingController>(
+                      server,
+                      playerId
+                  ).IsInHidingSequence &&
+                  !clientPlayer.IsInHidingSequence,
+            "Runtime destruction during entry did not roll back the " +
+            "player hiding sequence."
+        );
+
+        AssertPlayerRestored(clientPlayer);
+    }
+
+    [UnityTest]
+    public IEnumerator DespawnDuringExiting_RecoversPlayerAndUnlocksMovement()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController clientPlayer =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(clientPlayer), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.State ==
+                  HidingTransitionState.Occupied &&
+                  clientPlayer.IsHidden,
+            "Player did not enter before the exit transition test."
+        );
+
+        clientPlayer.RequestExitHiding();
+
+        yield return WaitForCondition(
+            () => serverPlace.State ==
+                  HidingTransitionState.Exiting &&
+                  clientPlayer.HidingState ==
+                  HidingTransitionState.Exiting,
+            "The exiting transition did not replicate to the owner."
+        );
+
+        Assert.That(clientPlayer.IsHidden, Is.False);
+        serverPlace.NetworkObject.Despawn(destroy: true);
+
+        yield return WaitForCondition(
+            () => !server.Manager.SpawnManager.SpawnedObjects.ContainsKey(
+                      hidingPlaceId
+                  ) &&
+                  !GetComponent<PlayerHidingController>(
+                      server,
+                      playerId
+                  ).IsInHidingSequence &&
+                  !clientPlayer.IsInHidingSequence,
+            "Runtime destruction during exit did not complete safe recovery."
+        );
+
+        AssertPlayerRestored(clientPlayer);
+    }
+
+    [UnityTest]
     public IEnumerator BlockedExit_KeepsPlayerHidden_ThenUsesFallback()
     {
         yield return StartNetwork();
@@ -519,6 +784,29 @@ public sealed class TwoClientHidingPlacePlayModeTests
         );
 
         Object.Destroy(primaryBlocker);
+    }
+
+    private static void AssertPlayerRestored(
+        PlayerHidingController player
+    )
+    {
+        Assert.That(player.IsInHidingSequence, Is.False);
+        Assert.That(
+            player.GetComponent<Rigidbody>().constraints,
+            Is.EqualTo(RigidbodyConstraints.None)
+        );
+        Assert.That(player.GetComponent<Collider>().enabled, Is.True);
+        Assert.That(player.GetComponent<Renderer>().enabled, Is.True);
+        Assert.That(
+            player.GetComponent<PlayerController>().IsMovementActive,
+            Is.True
+        );
+    }
+
+    private static bool IsAtKnownSafeExit(Vector3 position)
+    {
+        return Vector3.Distance(position, Vector3.back) < 0.05f ||
+               Vector3.Distance(position, Vector3.right * 2f) < 0.05f;
     }
 
     private IEnumerator StartNetwork()
@@ -630,6 +918,11 @@ public sealed class TwoClientHidingPlacePlayModeTests
             "Hiding Point",
             Vector3.forward
         );
+        Transform cameraAnchor = CreateChild(
+            hidingPlacePrefab.transform,
+            "Camera Anchor",
+            Vector3.up
+        );
         Transform exitPoint = CreateChild(
             hidingPlacePrefab.transform,
             "Exit Point",
@@ -653,6 +946,11 @@ public sealed class TwoClientHidingPlacePlayModeTests
             hidingPlace,
             "hidingPoint",
             hidingPoint
+        );
+        PlayModeTestReflection.SetField(
+            hidingPlace,
+            "cameraAnchor",
+            cameraAnchor
         );
         PlayModeTestReflection.SetField(
             hidingPlace,

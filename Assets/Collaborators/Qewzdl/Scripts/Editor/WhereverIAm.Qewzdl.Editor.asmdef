@@ -3,6 +3,8 @@
     "rootNamespace": "",
     "references": [
         "WhereverIAm.Qewzdl",
+        "GUID:7d92a5b92446444a8ba1c1ac965f4e66",
+        "GUID:b6914de6b38f4205905c016c3d2396f1",
         "Unity.Netcode.Runtime",
         "Unity.ProBuilder"
     ],

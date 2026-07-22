@@ -94,6 +94,12 @@ public sealed class PlayerAndItemLogicTests
             Is.Not.Null
         );
         Assert.That(
+            hidingObject
+                .FindProperty("cameraLook")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
+        Assert.That(
             interactionObject
                 .FindProperty("playerHidingController")
                 .objectReferenceValue,
@@ -129,6 +135,14 @@ public sealed class PlayerAndItemLogicTests
             hidingPrefab.GetComponent<Unity.Netcode.NetworkObject>(),
             Is.Not.Null
         );
+        Assert.That(
+            hidingPrefab.GetComponent<NetworkHidingGameplayNoiseEmitter>(),
+            Is.Not.Null
+        );
+        Assert.That(
+            hidingPrefab.GetComponent<HidingPlacePresentation>(),
+            Is.Not.Null
+        );
 
         HidingPlaceInteractable hidingPlace =
             hidingPrefab.GetComponent<HidingPlaceInteractable>();
@@ -152,6 +166,12 @@ public sealed class PlayerAndItemLogicTests
         Assert.That(
             hidingPlaceObject
                 .FindProperty("hidingPoint")
+                .objectReferenceValue,
+            Is.Not.Null
+        );
+        Assert.That(
+            hidingPlaceObject
+                .FindProperty("cameraAnchor")
                 .objectReferenceValue,
             Is.Not.Null
         );
@@ -191,6 +211,33 @@ public sealed class PlayerAndItemLogicTests
         Assert.That(
             hidingData.ExitCollisionSkin,
             Is.GreaterThanOrEqualTo(0f)
+        );
+        Assert.That(hidingData.EnterDuration, Is.GreaterThanOrEqualTo(0f));
+        Assert.That(hidingData.ExitDuration, Is.GreaterThanOrEqualTo(0f));
+        Assert.That(
+            hidingData.MinimumCameraYaw,
+            Is.LessThanOrEqualTo(0f)
+        );
+        Assert.That(
+            hidingData.MaximumCameraYaw,
+            Is.GreaterThanOrEqualTo(0f)
+        );
+        Assert.That(
+            hidingData.MinimumCameraPitch,
+            Is.LessThanOrEqualTo(0f)
+        );
+        Assert.That(
+            hidingData.MaximumCameraPitch,
+            Is.GreaterThanOrEqualTo(0f)
+        );
+        Assert.That(hidingData.EnterNoiseRadius, Is.GreaterThan(0f));
+        Assert.That(hidingData.EnterNoiseLoudness, Is.GreaterThan(0f));
+        Assert.That(hidingData.ExitNoiseRadius, Is.GreaterThan(0f));
+        Assert.That(hidingData.ExitNoiseLoudness, Is.GreaterThan(0f));
+        Assert.That(hidingData.EnemiesCanInvestigate, Is.True);
+        Assert.That(
+            hidingData.EnemyInvestigationDistance,
+            Is.GreaterThan(0f)
         );
     }
 
@@ -290,6 +337,77 @@ public sealed class PlayerAndItemLogicTests
         Assert.That(states.IsHiding, Is.True);
         Assert.That(states.IsDragging, Is.False);
         Assert.That(states.IsCarrying, Is.False);
+    }
+
+    [Test]
+    public void CameraLook_HidingView_AnchorsAndRestoresLocalPose()
+    {
+        GameObject player = new("Hiding camera player");
+        GameObject cameraPivot = new("Hiding camera pivot");
+        GameObject anchor = new("Hiding camera anchor");
+        player.SetActive(false);
+
+        try
+        {
+            player.AddComponent<Rigidbody>().useGravity = false;
+            cameraPivot.transform.SetParent(player.transform, false);
+            cameraPivot.transform.localPosition =
+                new Vector3(0f, 1.6f, 0f);
+
+            CameraLook cameraLook =
+                cameraPivot.AddComponent<CameraLook>();
+            SerializedObject cameraLookObject = new(cameraLook);
+            cameraLookObject
+                .FindProperty("playerTransform")
+                .objectReferenceValue = player.transform;
+            cameraLookObject.ApplyModifiedPropertiesWithoutUndo();
+
+            Vector3 returnLocalPosition =
+                cameraPivot.transform.localPosition;
+            anchor.transform.SetPositionAndRotation(
+                new Vector3(4f, 2f, -3f),
+                Quaternion.Euler(0f, 90f, 0f)
+            );
+
+            player.SetActive(true);
+            cameraLook.SetLocalControl(true);
+
+            Assert.That(
+                cameraLook.TrySetHidingView(
+                    anchor.transform,
+                    -40f,
+                    40f,
+                    -25f,
+                    30f,
+                    allowPeeking: true
+                ),
+                Is.True
+            );
+            Assert.That(cameraLook.IsHidingViewActive, Is.True);
+            Assert.That(
+                Vector3.Distance(
+                    cameraPivot.transform.position,
+                    anchor.transform.position
+                ),
+                Is.LessThan(0.001f)
+            );
+
+            cameraLook.ClearHidingView();
+
+            Assert.That(cameraLook.IsHidingViewActive, Is.False);
+            Assert.That(
+                Vector3.Distance(
+                    cameraPivot.transform.localPosition,
+                    returnLocalPosition
+                ),
+                Is.LessThan(0.001f)
+            );
+        }
+        finally
+        {
+            Object.DestroyImmediate(anchor);
+            Object.DestroyImmediate(player);
+        }
     }
 
     [Test]

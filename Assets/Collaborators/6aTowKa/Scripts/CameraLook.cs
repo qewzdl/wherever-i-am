@@ -45,6 +45,18 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
     private bool hasLocalControl;
     private bool lookActive = true;
 
+    private Transform hidingViewAnchor;
+    private Vector3 returnLocalPosition;
+    private Quaternion returnLocalRotation;
+    private float hidingMinimumYaw;
+    private float hidingMaximumYaw;
+    private float hidingMinimumPitch;
+    private float hidingMaximumPitch;
+    private bool hidingAllowsPeeking;
+    private bool hasHidingView;
+
+    public bool IsHidingViewActive => hasHidingView;
+
     private void Awake()
     {
         if (!ValidateReferences())
@@ -116,6 +128,72 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
         Cursor.visible = !locked;
     }
 
+    public bool TrySetHidingView(
+        Transform cameraAnchor,
+        float minimumYaw,
+        float maximumYaw,
+        float minimumPitch,
+        float maximumPitch,
+        bool allowPeeking
+    )
+    {
+        if (!hasLocalControl || cameraAnchor == null)
+        {
+            return false;
+        }
+
+        bool isNewHidingView =
+            !hasHidingView ||
+            hidingViewAnchor != cameraAnchor;
+
+        if (isNewHidingView)
+        {
+            returnLocalPosition = transform.localPosition;
+            returnLocalRotation = transform.localRotation;
+        }
+
+        hidingViewAnchor = cameraAnchor;
+        hasHidingView = true;
+        hidingMinimumYaw = Mathf.Min(0f, minimumYaw);
+        hidingMaximumYaw = Mathf.Max(0f, maximumYaw);
+        hidingMinimumPitch = Mathf.Min(0f, minimumPitch);
+        hidingMaximumPitch = Mathf.Max(0f, maximumPitch);
+        hidingAllowsPeeking = allowPeeking;
+
+        if (!isNewHidingView)
+        {
+            return true;
+        }
+
+        targetYaw = cameraAnchor.eulerAngles.y;
+        currentYaw = targetYaw;
+        targetPitch = 0f;
+        currentPitch = 0f;
+        pitchVelocity = 0f;
+        yawVelocity = 0f;
+        pendingLookDelta = Vector2.zero;
+
+        ApplyCameraRotation();
+        return true;
+    }
+
+    public void ClearHidingView()
+    {
+        if (!hasHidingView)
+        {
+            return;
+        }
+
+        hasHidingView = false;
+        hidingViewAnchor = null;
+        hidingAllowsPeeking = false;
+        pendingLookDelta = Vector2.zero;
+
+        transform.localPosition = returnLocalPosition;
+        transform.localRotation = returnLocalRotation;
+        SyncRotationFromScene();
+    }
+
     public void OnLook(InputAction.CallbackContext context)
     {
         if (!hasLocalControl || !lookActive)
@@ -149,8 +227,12 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private void FixedUpdate()
     {
-        if (!hasLocalControl || playerRigidbody == null)
+        if (!hasLocalControl ||
+            playerRigidbody == null ||
+            hasHidingView)
+        {
             return;
+        }
 
         Quaternion targetRotation = Quaternion.Euler(0f, currentYaw, 0f);
         playerRigidbody.MoveRotation(targetRotation);
@@ -159,6 +241,7 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
     private void OnDisable()
     {
         pendingLookDelta = Vector2.zero;
+        ClearHidingView();
 
         if (hasLocalControl && unlockCursorOnDisable)
             SetCursorLocked(false);
@@ -243,13 +326,35 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private void ApplyLookInput()
     {
-        if (pendingLookDelta.sqrMagnitude <= Mathf.Epsilon)
+        if (pendingLookDelta.sqrMagnitude <= Mathf.Epsilon ||
+            (hasHidingView && !hidingAllowsPeeking))
+        {
             return;
+        }
 
         Vector2 scaledDelta = pendingLookDelta * sensitivity / 500f;
 
         targetYaw += scaledDelta.x * horizontalSensitivityMultiplier;
         targetPitch -= scaledDelta.y * verticalSensitivityMultiplier;
+
+        if (hasHidingView && hidingViewAnchor != null)
+        {
+            float anchorYaw = hidingViewAnchor.eulerAngles.y;
+            float relativeYaw = Mathf.DeltaAngle(anchorYaw, targetYaw);
+            relativeYaw = Mathf.Clamp(
+                relativeYaw,
+                hidingMinimumYaw,
+                hidingMaximumYaw
+            );
+            targetYaw = anchorYaw + relativeYaw;
+            targetPitch = Mathf.Clamp(
+                targetPitch,
+                hidingMinimumPitch,
+                hidingMaximumPitch
+            );
+            return;
+        }
+
         targetPitch = Mathf.Clamp(targetPitch, minPitch, maxPitch);
     }
 
@@ -270,6 +375,28 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private void ApplyCameraRotation()
     {
+        if (hasHidingView && hidingViewAnchor != null)
+        {
+            float anchorYaw = hidingViewAnchor.eulerAngles.y;
+            float relativeYaw = Mathf.Clamp(
+                Mathf.DeltaAngle(anchorYaw, currentYaw),
+                hidingMinimumYaw,
+                hidingMaximumYaw
+            );
+            float constrainedPitch = Mathf.Clamp(
+                currentPitch,
+                hidingMinimumPitch,
+                hidingMaximumPitch
+            );
+
+            transform.SetPositionAndRotation(
+                hidingViewAnchor.position,
+                hidingViewAnchor.rotation *
+                Quaternion.Euler(constrainedPitch, relativeYaw, 0f)
+            );
+            return;
+        }
+
         float yawOffset = Mathf.DeltaAngle(playerTransform.eulerAngles.y, currentYaw);
         transform.localRotation = Quaternion.Euler(currentPitch, yawOffset, 0f);
     }

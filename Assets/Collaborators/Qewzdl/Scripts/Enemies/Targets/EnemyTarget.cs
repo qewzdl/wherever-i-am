@@ -26,6 +26,12 @@ public class EnemyTarget : MonoBehaviour
     public Vector3 AimPosition => AimPoint.position;
     public bool CanBeDetected =>
         canBeDetected && (hidingState == null || !hidingState.IsHidden);
+    public HidingTransitionState HidingState =>
+        hidingState != null
+            ? hidingState.HidingState
+            : HidingTransitionState.Available;
+    public bool IsEnteringHiding =>
+        HidingState == HidingTransitionState.Entering;
 
     public NetworkObject NetworkObject
     {
@@ -338,6 +344,40 @@ public class EnemyTarget : MonoBehaviour
     private void CacheNetworkObject()
     {
         cachedNetworkObject = GetComponentInParent<NetworkObject>();
+    }
+
+    public bool TryGetCurrentHidingPlace(
+        out HidingPlaceInteractable hidingPlace
+    )
+    {
+        hidingPlace = null;
+
+        if (hidingState == null ||
+            !hidingState.IsInHidingSequence ||
+            hidingState.HidingPlaceNetworkObjectId ==
+            HidingPlaceInteractable.NoOccupantNetworkObjectId)
+        {
+            return false;
+        }
+
+        NetworkObject targetNetworkObject = NetworkObject;
+        NetworkManager manager = targetNetworkObject != null
+            ? targetNetworkObject.NetworkManager
+            : null;
+
+        if (manager == null ||
+            manager.SpawnManager == null ||
+            !manager.SpawnManager.SpawnedObjects.TryGetValue(
+                hidingState.HidingPlaceNetworkObjectId,
+                out NetworkObject hidingObject) ||
+            hidingObject == null)
+        {
+            return false;
+        }
+
+        hidingPlace =
+            hidingObject.GetComponent<HidingPlaceInteractable>();
+        return hidingPlace != null;
     }
 
     private void CacheHidingState()

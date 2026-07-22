@@ -11,6 +11,11 @@ public sealed class EnemyInvestigationMemory
     public Vector3 SuspiciousPosition { get; private set; }
     public bool HasSuspiciousPosition { get; private set; }
 
+    public HidingPlaceInteractable ObservedHidingPlace { get; private set; }
+    public bool HasObservedHidingPlace =>
+        ObservedHidingPlace != null &&
+        ObservedHidingPlace.IsSpawned;
+
     public IReadOnlyList<EnemyInvestigationSearchPoint> CurrentInvestigationRoute => currentInvestigationRoute;
 
     public int ActiveSearchRouteIndex { get; private set; } = -1;
@@ -65,6 +70,21 @@ public sealed class EnemyInvestigationMemory
         HasSuspiciousPosition = false;
     }
 
+    public void RememberObservedHidingPlace(
+        HidingPlaceInteractable hidingPlace
+    )
+    {
+        ObservedHidingPlace = hidingPlace != null &&
+                              hidingPlace.IsSpawned
+            ? hidingPlace
+            : null;
+    }
+
+    public void ClearObservedHidingPlace()
+    {
+        ObservedHidingPlace = null;
+    }
+
     public void SetCurrentInvestigationRoute(IReadOnlyList<EnemyInvestigationSearchPoint> route)
     {
         currentInvestigationRoute.Clear();
@@ -102,6 +122,7 @@ public sealed class EnemyInvestigationMemory
     {
         ClearLastKnownTargetPosition();
         ClearSuspiciousPosition();
+        ClearObservedHidingPlace();
         ClearCurrentInvestigationRoute();
     }
 }

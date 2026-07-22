@@ -22,6 +22,22 @@ MonoBehaviour:
   hidePlayerVisuals: 1
   disablePlayerColliders: 1
   alignPlayerRotation: 1
+  hidingPose: 0
+  enterDuration: 0
+  exitDuration: 0
+  allowPeeking: 1
+  minimumCameraYaw: -55
+  maximumCameraYaw: 55
+  minimumCameraPitch: -35
+  maximumCameraPitch: 45
+  enterSound: {fileID: 0}
+  exitSound: {fileID: 0}
+  enterNoiseRadius: 6
+  enterNoiseLoudness: 0.7
+  exitNoiseRadius: 5
+  exitNoiseLoudness: 0.55
+  enemiesCanInvestigate: 1
+  enemyInvestigationDistance: 2.25
   exitObstructionMask:
     serializedVersion: 2
     m_Bits: 4294967295

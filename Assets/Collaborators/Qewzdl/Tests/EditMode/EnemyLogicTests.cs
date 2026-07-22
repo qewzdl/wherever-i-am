@@ -9,9 +9,22 @@ internal sealed class EnemyTargetHidingStateProbe :
     MonoBehaviour,
     IReplicatedPlayerHidingStateService
 {
-    internal bool Hidden { get; set; }
+    internal HidingTransitionState State { get; set; } =
+        HidingTransitionState.Available;
+    internal bool Hidden
+    {
+        get => State == HidingTransitionState.Occupied;
+        set => State = value
+            ? HidingTransitionState.Occupied
+            : HidingTransitionState.Available;
+    }
 
     public bool IsHidden => Hidden;
+    public bool IsInHidingSequence =>
+        State != HidingTransitionState.Available;
+    public HidingTransitionState HidingState => State;
+    public HidingPoseType HidingPose => HidingPoseType.Standing;
+    public bool CanPeek => false;
     public ulong HidingPlaceNetworkObjectId =>
         HidingPlaceInteractable.NoOccupantNetworkObjectId;
 }
@@ -56,9 +69,25 @@ public sealed class EnemyLogicTests
 
             Assert.That(target.CanBeDetected, Is.True);
 
+            hidingState.State = HidingTransitionState.Entering;
+
+            Assert.That(
+                target.CanBeDetected,
+                Is.True,
+                "Entering players must remain visible to enemies."
+            );
+
             hidingState.Hidden = true;
 
             Assert.That(target.CanBeDetected, Is.False);
+
+            hidingState.State = HidingTransitionState.Exiting;
+
+            Assert.That(
+                target.CanBeDetected,
+                Is.True,
+                "Exiting players must be visible through the open hiding place."
+            );
 
             hidingState.Hidden = false;
 

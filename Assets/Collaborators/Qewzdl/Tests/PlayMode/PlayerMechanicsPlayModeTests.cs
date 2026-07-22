@@ -134,6 +134,76 @@ public sealed class PlayerMechanicsPlayModeTests
         Assert.That(posture.HasStandingClearance(), Is.True);
     }
 
+    [Test]
+    public void PlayerPosture_DoesNotOverrideActiveHidingCameraPose()
+    {
+        GameObject player = Track(new GameObject("Hiding camera player"));
+        player.SetActive(false);
+        player.AddComponent<Rigidbody>().useGravity = false;
+        CapsuleCollider capsule = player.AddComponent<CapsuleCollider>();
+        capsule.radius = 0.4f;
+        capsule.height = 2f;
+        capsule.center = Vector3.up;
+
+        GameObject cameraObject = Track(new GameObject("Hiding camera"));
+        cameraObject.transform.SetParent(player.transform, false);
+        CameraLook cameraLook = cameraObject.AddComponent<CameraLook>();
+        PlayModeTestReflection.SetField(
+            cameraLook,
+            "playerTransform",
+            player.transform);
+        PlayModeTestReflection.SetField(
+            cameraLook,
+            "lockCursorOnLocalControl",
+            false);
+
+        PlayerPostureController posture =
+            player.AddComponent<PlayerPostureController>();
+        posture.SetBodyCollider(capsule);
+        posture.SetCameraPivot(cameraObject.transform);
+        PlayModeTestReflection.SetField(
+            posture,
+            "cameraHeightSmoothTime",
+            0f);
+
+        PlayerOrchestrator orchestrator =
+            player.AddComponent<PlayerOrchestrator>();
+        player.SetActive(true);
+        orchestrator.Setup(isMultiplayer: false, isOwner: true);
+        cameraLook.SetLocalControl(true);
+
+        GameObject anchorObject = Track(new GameObject("Hiding anchor"));
+        anchorObject.transform.SetPositionAndRotation(
+            new Vector3(8f, 3f, -4f),
+            Quaternion.Euler(5f, 120f, 0f));
+
+        Assert.That(
+            cameraLook.TrySetHidingView(
+                anchorObject.transform,
+                -55f,
+                55f,
+                -35f,
+                45f,
+                allowPeeking: true),
+            Is.True);
+
+        Vector3 anchorPosition = anchorObject.transform.position;
+        PlayModeTestReflection.Invoke(posture, "LateUpdate");
+
+        Assert.That(
+            Vector3.Distance(cameraObject.transform.position, anchorPosition),
+            Is.LessThan(0.001f),
+            "Posture camera height must not compete with the hiding anchor.");
+
+        cameraLook.ClearHidingView();
+        PlayModeTestReflection.Invoke(posture, "LateUpdate");
+
+        Assert.That(
+            cameraObject.transform.localPosition.y,
+            Is.EqualTo(0.75f).Within(0.001f),
+            "Posture control must resume after leaving the hiding view.");
+    }
+
     [UnityTest]
     public IEnumerator CameraFollow_SnapsAndSwitchesOffsetsForLocalControl()
     {

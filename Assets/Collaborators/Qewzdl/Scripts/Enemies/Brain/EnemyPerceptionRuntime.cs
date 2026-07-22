@@ -196,6 +196,7 @@ public sealed class EnemyPerceptionRuntime
         }
 
         blackboard.InvestigationMemory.RememberSuspiciousPosition(stimulus.Position);
+        RememberObservedHidingPlace(stimulus);
     }
 
     private EnemyPerceptionDecision ApplyConfirmedTargetStimulus(
@@ -217,6 +218,7 @@ public sealed class EnemyPerceptionRuntime
 
         investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
         investigationMemory.ClearSuspiciousPosition();
+        RememberObservedHidingPlace(stimulus);
 
         perceptionMemory.CancelVisualMemory();
 
@@ -264,8 +266,23 @@ public sealed class EnemyPerceptionRuntime
         }
 
         investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
+        RememberObservedHidingPlace(stimulus);
 
         return EnemyPerceptionDecision.SuspiciousPosition();
+    }
+
+    private void RememberObservedHidingPlace(
+        EnemyPerceptionStimulus stimulus
+    )
+    {
+        if (!stimulus.HasHidingPlace)
+        {
+            return;
+        }
+
+        blackboard.InvestigationMemory.RememberObservedHidingPlace(
+            stimulus.HidingPlace
+        );
     }
 
     private bool IsPursuingConfirmedTarget(EnemyState currentState)

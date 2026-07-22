@@ -8,7 +8,8 @@ public readonly struct EnemyPerceptionStimulus
         default,
         0f,
         EnemyPerceptionSource.None,
-        false
+        false,
+        null
     );
 
     public bool HasStimulus { get; }
@@ -17,8 +18,10 @@ public readonly struct EnemyPerceptionStimulus
     public float Score { get; }
     public EnemyPerceptionSource Source { get; }
     public bool IsConfirmedTarget { get; }
+    public HidingPlaceInteractable HidingPlace { get; }
 
     public bool HasTarget => Target != null;
+    public bool HasHidingPlace => HidingPlace != null;
 
     private EnemyPerceptionStimulus(
         bool hasStimulus,
@@ -26,7 +29,8 @@ public readonly struct EnemyPerceptionStimulus
         Vector3 position,
         float score,
         EnemyPerceptionSource source,
-        bool isConfirmedTarget
+        bool isConfirmedTarget,
+        HidingPlaceInteractable hidingPlace
     )
     {
         HasStimulus = hasStimulus;
@@ -35,13 +39,15 @@ public readonly struct EnemyPerceptionStimulus
         Score = score;
         Source = source;
         IsConfirmedTarget = isConfirmedTarget;
+        HidingPlace = hidingPlace;
     }
 
     public static EnemyPerceptionStimulus ForConfirmedTarget(
         EnemyTarget target,
         Vector3 position,
         float score,
-        EnemyPerceptionSource source
+        EnemyPerceptionSource source,
+        HidingPlaceInteractable hidingPlace = null
     )
     {
         if (target == null)
@@ -55,14 +61,16 @@ public readonly struct EnemyPerceptionStimulus
             position,
             score,
             source,
-            true
+            true,
+            hidingPlace
         );
     }
 
     public static EnemyPerceptionStimulus ForSuspiciousPosition(
         Vector3 position,
         float score,
-        EnemyPerceptionSource source
+        EnemyPerceptionSource source,
+        HidingPlaceInteractable hidingPlace = null
     )
     {
         return new EnemyPerceptionStimulus(
@@ -71,7 +79,8 @@ public readonly struct EnemyPerceptionStimulus
             position,
             score,
             source,
-            false
+            false,
+            hidingPlace
         );
     }
 }

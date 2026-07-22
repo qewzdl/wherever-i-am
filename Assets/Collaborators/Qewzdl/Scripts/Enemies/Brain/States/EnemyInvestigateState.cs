@@ -5,6 +5,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private enum InvestigationPhase
     {
         MovingToLastKnownPosition,
+        CheckingHidingPlace,
         FollowingSearchRoute
     }
 
@@ -18,8 +19,10 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private int currentSearchPointIndex;
     private float repathTimer;
+    private float hidingCheckTimer;
 
     private bool hasDestination;
+    private HidingPlaceInteractable checkedHidingPlace;
 
     public EnemyState State => EnemyState.Investigate;
 
@@ -64,6 +67,12 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
+        if (phase == InvestigationPhase.CheckingHidingPlace)
+        {
+            TickCheckingHidingPlace(deltaTime);
+            return;
+        }
+
         TickFollowingSearchRoute();
     }
 
@@ -92,7 +101,100 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
+        if (TryStartHidingPlaceCheck())
+        {
+            return;
+        }
+
         StartHierarchicalSearch();
+    }
+
+    private bool TryStartHidingPlaceCheck()
+    {
+        HidingPlaceInteractable hidingPlace =
+            context.InvestigationMemory.ObservedHidingPlace;
+
+        if (hidingPlace == null ||
+            !hidingPlace.IsSpawned)
+        {
+            context.InvestigationMemory.ClearObservedHidingPlace();
+            return false;
+        }
+
+        if (hidingPlace.State != HidingTransitionState.Entering &&
+            hidingPlace.State != HidingTransitionState.Occupied)
+        {
+            context.InvestigationMemory.ClearObservedHidingPlace();
+            return false;
+        }
+
+        checkedHidingPlace = hidingPlace;
+        HidingPlaceData settings = hidingPlace.Configuration;
+        hidingCheckTimer =
+            (settings != null
+                ? settings.EnterDuration + settings.ExitDuration
+                : 0f) + 0.5f;
+        phase = InvestigationPhase.CheckingHidingPlace;
+
+        context.StopNavigation();
+
+        if (hidingPlace.State == HidingTransitionState.Occupied)
+        {
+            TryOpenCheckedHidingPlace();
+        }
+
+        return true;
+    }
+
+    private void TickCheckingHidingPlace(float deltaTime)
+    {
+        hidingCheckTimer -= Mathf.Max(0f, deltaTime);
+
+        if (checkedHidingPlace == null ||
+            !checkedHidingPlace.IsSpawned ||
+            hidingCheckTimer <= 0f)
+        {
+            context.InvestigationMemory.ClearObservedHidingPlace();
+            checkedHidingPlace = null;
+            StartHierarchicalSearch();
+            return;
+        }
+
+        if (checkedHidingPlace.State ==
+            HidingTransitionState.Entering)
+        {
+            return;
+        }
+
+        if (checkedHidingPlace.State ==
+            HidingTransitionState.Occupied &&
+            TryOpenCheckedHidingPlace())
+        {
+            return;
+        }
+
+        if (checkedHidingPlace.State ==
+            HidingTransitionState.Exiting)
+        {
+            return;
+        }
+
+        context.InvestigationMemory.ClearObservedHidingPlace();
+        checkedHidingPlace = null;
+        StartHierarchicalSearch();
+    }
+
+    private bool TryOpenCheckedHidingPlace()
+    {
+        if (checkedHidingPlace == null ||
+            !checkedHidingPlace.TryInvestigateServer(
+                context.Navigator.Position))
+        {
+            return false;
+        }
+
+        context.InvestigationMemory.ClearObservedHidingPlace();
+        return true;
     }
 
     private void StartHierarchicalSearch()
@@ -204,6 +306,15 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private bool TryResolveInvestigationOrigin(out Vector3 position)
     {
+        HidingPlaceInteractable hidingPlace =
+            context.InvestigationMemory.ObservedHidingPlace;
+
+        if (hidingPlace != null && hidingPlace.IsSpawned)
+        {
+            position = hidingPlace.EnemyInvestigationPosition;
+            return true;
+        }
+
         if (context.InvestigationMemory.TryGetLastKnownTargetPosition(out position))
         {
             return true;
@@ -275,8 +386,10 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
         currentSearchPointIndex = 0;
         repathTimer = 0f;
+        hidingCheckTimer = 0f;
 
         hasDestination = false;
+        checkedHidingPlace = null;
 
         context.Blackboard.ClearCurrentDestination();
         context.Blackboard.ClearCurrentInvestigationRoute();

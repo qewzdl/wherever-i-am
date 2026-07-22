@@ -23,6 +23,7 @@ public sealed class PlayerHidingController :
     [SerializeField] private CapsuleCollider bodyCollider;
     [SerializeField] private PlayerController playerController;
     [SerializeField] private PlayerInteraction playerInteraction;
+    [SerializeField] private CameraLook cameraLook;
 
     private readonly HidingExitPlacementResolver exitPlacementResolver = new();
     private PlayerHidingEffects hidingEffects;
@@ -36,6 +37,13 @@ public sealed class PlayerHidingController :
     private float recoveryCollisionSkin = 0.02f;
 
     public bool IsHidden => hidingState.Value.IsHidden;
+    public bool IsInHidingSequence =>
+        hidingState.Value.IsInHidingSequence;
+    public HidingTransitionState HidingState =>
+        hidingState.Value.State;
+    public HidingPoseType HidingPose =>
+        hidingState.Value.Pose;
+    public bool CanPeek => hidingState.Value.CanPeek;
 
     public ulong HidingPlaceNetworkObjectId =>
         hidingState.Value.HidingPlaceNetworkObjectId;
@@ -55,6 +63,18 @@ public sealed class PlayerHidingController :
     private void Awake()
     {
         ResolveReferences();
+    }
+
+    private void LateUpdate()
+    {
+        if (IsOwner &&
+            HidingState != HidingTransitionState.Entering &&
+            IsInHidingSequence &&
+            cameraLook != null &&
+            !cameraLook.IsHidingViewActive)
+        {
+            ApplyLocalHidingCamera(hidingState.Value);
+        }
     }
 
     protected override void OnPostInit(PlayerOrchestrator orchestrator)
@@ -100,10 +120,8 @@ public sealed class PlayerHidingController :
         RequestExitHidingServerRpc();
     }
 
-    internal bool EnterHidingServer(
+    internal bool BeginEnteringHidingServer(
         HidingPlaceInteractable hidingPlace,
-        Vector3 hidingPosition,
-        Quaternion hidingRotation,
         HidingPlaceData settings
     )
     {
@@ -126,26 +144,75 @@ public sealed class PlayerHidingController :
         recoveryTriggerInteraction = settings.ExitTriggerInteraction;
         recoveryCollisionSkin = settings.ExitCollisionSkin;
 
-        hidingState.Value = new PlayerHidingSnapshot(
-            true,
+        hidingState.Value = CreateSnapshot(
+            HidingTransitionState.Entering,
             hidingPlace.NetworkObjectId,
-            settings.HidePlayerVisuals,
-            settings.DisablePlayerColliders
+            settings
         );
-
-        ApplyServerPose(hidingPosition, hidingRotation);
-        TeleportOwnerRpc(hidingPosition, hidingRotation);
         return true;
     }
 
-    internal bool ExitHidingServer(
+    internal bool CompleteEnteringHidingServer(
+        HidingPlaceInteractable hidingPlace,
+        Vector3 hidingPosition,
+        Quaternion hidingRotation,
+        HidingPlaceData settings
+    )
+    {
+        if (!IsServer ||
+            !IsSpawned ||
+            hidingPlace == null ||
+            settings == null ||
+            HidingState != HidingTransitionState.Entering ||
+            HidingPlaceNetworkObjectId != hidingPlace.NetworkObjectId)
+        {
+            return false;
+        }
+
+        ApplyServerPose(hidingPosition, hidingRotation);
+        TeleportOwnerRpc(hidingPosition, hidingRotation);
+        hidingState.Value = CreateSnapshot(
+            HidingTransitionState.Occupied,
+            hidingPlace.NetworkObjectId,
+            settings
+        );
+        return true;
+    }
+
+    internal bool BeginExitingHidingServer(
+        HidingPlaceInteractable hidingPlace,
+        HidingPlaceData settings
+    )
+    {
+        if (!IsServer ||
+            !IsSpawned ||
+            hidingPlace == null ||
+            settings == null ||
+            HidingState != HidingTransitionState.Occupied ||
+            HidingPlaceNetworkObjectId != hidingPlace.NetworkObjectId)
+        {
+            return false;
+        }
+
+        hidingState.Value = CreateSnapshot(
+            HidingTransitionState.Exiting,
+            hidingPlace.NetworkObjectId,
+            settings
+        );
+        return true;
+    }
+
+    internal bool CompleteExitingHidingServer(
         HidingPlaceInteractable hidingPlace,
         Vector3 exitPosition,
         Quaternion exitRotation,
         bool teleportToExit
     )
     {
-        if (!IsServer || !IsSpawned || !IsHidden || hidingPlace == null)
+        if (!IsServer ||
+            !IsSpawned ||
+            HidingState != HidingTransitionState.Exiting ||
+            hidingPlace == null)
         {
             return false;
         }
@@ -167,6 +234,46 @@ public sealed class PlayerHidingController :
         return true;
     }
 
+    internal bool ForceExitHidingServer(
+        HidingPlaceInteractable hidingPlace,
+        Vector3 exitPosition,
+        Quaternion exitRotation,
+        bool teleportToExit
+    )
+    {
+        if (!IsServer ||
+            !IsSpawned ||
+            !IsInHidingSequence ||
+            hidingPlace == null ||
+            HidingPlaceNetworkObjectId != hidingPlace.NetworkObjectId)
+        {
+            return false;
+        }
+
+        hidingState.Value = PlayerHidingSnapshot.NotHidden;
+
+        if (teleportToExit)
+        {
+            ApplyServerPose(exitPosition, exitRotation);
+            TeleportOwnerRpc(exitPosition, exitRotation);
+        }
+
+        ClearRecoveryPose();
+        return true;
+    }
+
+    internal bool CleanupHidingSequenceServer(
+        HidingPlaceInteractable hidingPlace
+    )
+    {
+        return ForceExitHidingServer(
+            hidingPlace,
+            transform.position,
+            transform.rotation,
+            teleportToExit: false
+        );
+    }
+
     internal bool CanEnterHidingServer()
     {
         ResolveReferences();
@@ -174,7 +281,7 @@ public sealed class PlayerHidingController :
         if (!IsServer ||
             !IsSpawned ||
             !isActiveAndEnabled ||
-            IsHidden ||
+            IsInHidingSequence ||
             bodyCollider == null ||
             playerController == null)
         {
@@ -313,7 +420,7 @@ public sealed class PlayerHidingController :
 
     internal bool RecoverFromMissingHidingPlaceServer()
     {
-        if (!IsServer || !IsSpawned || !IsHidden)
+        if (!IsServer || !IsSpawned || !IsInHidingSequence)
         {
             return false;
         }
@@ -426,7 +533,7 @@ public sealed class PlayerHidingController :
 
     private void ReleaseCurrentHidingPlaceServer()
     {
-        if (!IsHidden)
+        if (!IsInHidingSequence)
         {
             return;
         }
@@ -446,7 +553,7 @@ public sealed class PlayerHidingController :
         ClearRecoveryPose();
     }
 
-    private bool TryGetCurrentHidingPlace(
+    public bool TryGetCurrentHidingPlace(
         out HidingPlaceInteractable hidingPlace
     )
     {
@@ -577,33 +684,37 @@ public sealed class PlayerHidingController :
 
         if (states != null)
         {
-            states.IsHiding = currentState.IsHidden;
+            states.IsHiding = currentState.IsInHidingSequence;
         }
 
         if (playerController != null)
         {
             playerController.SetMovementActive(
                 this,
-                !currentState.IsHidden
+                !currentState.IsInHidingSequence
             );
         }
 
         if (playerInteraction != null)
         {
-            playerInteraction.SetHidingActive(currentState.IsHidden);
+            playerInteraction.SetHidingActive(
+                currentState.IsInHidingSequence
+            );
         }
 
         hidingEffects?.Restore();
 
-        if (!currentState.IsHidden)
+        if (currentState.IsInHidingSequence)
         {
-            return;
+            hidingEffects?.Apply(
+                currentState.IsHidden &&
+                currentState.HidePlayerVisuals,
+                currentState.IsHidden &&
+                currentState.DisablePlayerColliders
+            );
         }
 
-        hidingEffects?.Apply(
-            currentState.HidePlayerVisuals,
-            currentState.DisablePlayerColliders
-        );
+        ApplyLocalHidingCamera(currentState);
     }
 
     private void RestoreLocalHidingState()
@@ -622,6 +733,7 @@ public sealed class PlayerHidingController :
 
         playerInteraction?.SetHidingActive(false);
         hidingEffects?.Restore();
+        cameraLook?.ClearHidingView();
     }
 
     private void ResolveReferences()
@@ -651,6 +763,11 @@ public sealed class PlayerHidingController :
             playerInteraction = GetComponent<PlayerInteraction>();
         }
 
+        if (cameraLook == null)
+        {
+            cameraLook = GetComponentInChildren<CameraLook>(true);
+        }
+
         if (hidingEffects == null && playerBody != null)
         {
             hidingEffects = new PlayerHidingEffects(
@@ -660,6 +777,65 @@ public sealed class PlayerHidingController :
         }
 
         CacheEntryEligibilityProviders();
+    }
+
+    private static PlayerHidingSnapshot CreateSnapshot(
+        HidingTransitionState state,
+        ulong hidingPlaceNetworkObjectId,
+        HidingPlaceData settings
+    )
+    {
+        return new PlayerHidingSnapshot(
+            state,
+            hidingPlaceNetworkObjectId,
+            settings.HidingPose,
+            settings.AllowPeeking,
+            settings.HidePlayerVisuals,
+            settings.DisablePlayerColliders
+        );
+    }
+
+    private void ApplyLocalHidingCamera(PlayerHidingSnapshot snapshot)
+    {
+        if (!IsOwner || cameraLook == null)
+        {
+            return;
+        }
+
+        if (!snapshot.IsInHidingSequence)
+        {
+            cameraLook.ClearHidingView();
+            return;
+        }
+
+        if (snapshot.State == HidingTransitionState.Entering)
+        {
+            cameraLook.ClearHidingView();
+            return;
+        }
+
+        if (!TryGetCurrentHidingPlace(
+                out HidingPlaceInteractable hidingPlace))
+        {
+            return;
+        }
+
+        HidingPlaceData settings = hidingPlace.Configuration;
+
+        if (settings == null || hidingPlace.CameraAnchor == null)
+        {
+            cameraLook.ClearHidingView();
+            return;
+        }
+
+        cameraLook.TrySetHidingView(
+            hidingPlace.CameraAnchor,
+            settings.MinimumCameraYaw,
+            settings.MaximumCameraYaw,
+            settings.MinimumCameraPitch,
+            settings.MaximumCameraPitch,
+            settings.AllowPeeking
+        );
     }
 
 #if UNITY_EDITOR

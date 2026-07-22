@@ -1077,6 +1077,7 @@ MonoBehaviour:
   bodyCollider: {fileID: 7461241867225673140}
   playerController: {fileID: 1852548442045173992}
   playerInteraction: {fileID: 4637864106236086122}
+  cameraLook: {fileID: 439289573477164544}
 --- !u!114 &8546633882858530306
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -14,6 +14,10 @@ public interface IReplicatedPlayerStateService
 public interface IReplicatedPlayerHidingStateService
 {
     bool IsHidden { get; }
+    bool IsInHidingSequence { get; }
+    HidingTransitionState HidingState { get; }
+    HidingPoseType HidingPose { get; }
+    bool CanPeek { get; }
     ulong HidingPlaceNetworkObjectId { get; }
 }
 
