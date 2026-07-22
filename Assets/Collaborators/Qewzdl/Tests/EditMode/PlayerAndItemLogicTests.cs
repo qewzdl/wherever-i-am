@@ -73,11 +73,14 @@ public sealed class PlayerAndItemLogicTests
             playerPrefab.GetComponent<PlayerScopeLifetime>();
         PlayerEnemyAttackReceiver attackReceiver =
             playerPrefab.GetComponent<PlayerEnemyAttackReceiver>();
+        PlayerHidingVignette hidingVignette =
+            playerPrefab.GetComponent<PlayerHidingVignette>();
 
         Assert.That(hidingController, Is.Not.Null);
         Assert.That(interaction, Is.Not.Null);
         Assert.That(scopeLifetime, Is.Not.Null);
         Assert.That(attackReceiver, Is.Not.Null);
+        Assert.That(hidingVignette, Is.Not.Null);
         Assert.That(
             attackReceiver,
             Is.InstanceOf<IHidingEntryEligibility>()
@@ -98,6 +101,12 @@ public sealed class PlayerAndItemLogicTests
                 .FindProperty("cameraLook")
                 .objectReferenceValue,
             Is.Not.Null
+        );
+        Assert.That(
+            hidingObject
+                .FindProperty("hidingVignette")
+                .objectReferenceValue,
+            Is.SameAs(hidingVignette)
         );
         Assert.That(
             interactionObject
@@ -228,6 +237,19 @@ public sealed class PlayerAndItemLogicTests
         );
         Assert.That(
             hidingData.MaximumCameraPitch,
+            Is.GreaterThanOrEqualTo(0f)
+        );
+        Assert.That(hidingData.ShowHidingVignette, Is.True);
+        Assert.That(
+            hidingData.HidingVignetteOpacity,
+            Is.InRange(0f, 1f)
+        );
+        Assert.That(
+            hidingData.HidingVignetteInnerRadius,
+            Is.InRange(0f, 0.95f)
+        );
+        Assert.That(
+            hidingData.HidingVignetteFadeDuration,
             Is.GreaterThanOrEqualTo(0f)
         );
         Assert.That(hidingData.EnterNoiseRadius, Is.GreaterThan(0f));

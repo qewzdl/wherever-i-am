@@ -30,6 +30,13 @@ public sealed class HidingPlaceData : InteractableObjectData
     [SerializeField, Range(-89f, 0f)] private float minimumCameraPitch = -35f;
     [SerializeField, Range(0f, 89f)] private float maximumCameraPitch = 45f;
 
+    [Header("Hiding Feedback")]
+    [SerializeField] private bool showHidingVignette = true;
+    [SerializeField] private Color hidingVignetteColor = Color.black;
+    [SerializeField, Range(0f, 1f)] private float hidingVignetteOpacity = 0.65f;
+    [SerializeField, Range(0f, 0.95f)] private float hidingVignetteInnerRadius = 0.4f;
+    [SerializeField, Min(0f)] private float hidingVignetteFadeDuration = 0.2f;
+
     [Header("Presentation Audio")]
     [SerializeField] private AudioClip enterSound;
     [SerializeField] private AudioClip exitSound;
@@ -67,6 +74,14 @@ public sealed class HidingPlaceData : InteractableObjectData
     public float MaximumCameraYaw => Mathf.Max(0f, maximumCameraYaw);
     public float MinimumCameraPitch => Mathf.Min(0f, minimumCameraPitch);
     public float MaximumCameraPitch => Mathf.Max(0f, maximumCameraPitch);
+    public bool ShowHidingVignette => showHidingVignette;
+    public Color HidingVignetteColor => hidingVignetteColor;
+    public float HidingVignetteOpacity =>
+        Mathf.Clamp01(hidingVignetteOpacity);
+    public float HidingVignetteInnerRadius =>
+        Mathf.Clamp(hidingVignetteInnerRadius, 0f, 0.95f);
+    public float HidingVignetteFadeDuration =>
+        Mathf.Max(0f, hidingVignetteFadeDuration);
     public AudioClip EnterSound => enterSound;
     public AudioClip ExitSound => exitSound;
     public float EnterNoiseRadius => Mathf.Max(0f, enterNoiseRadius);
@@ -91,6 +106,16 @@ public sealed class HidingPlaceData : InteractableObjectData
         maximumCameraYaw = Mathf.Clamp(maximumCameraYaw, 0f, 180f);
         minimumCameraPitch = Mathf.Clamp(minimumCameraPitch, -89f, 0f);
         maximumCameraPitch = Mathf.Clamp(maximumCameraPitch, 0f, 89f);
+        hidingVignetteOpacity = Mathf.Clamp01(hidingVignetteOpacity);
+        hidingVignetteInnerRadius = Mathf.Clamp(
+            hidingVignetteInnerRadius,
+            0f,
+            0.95f
+        );
+        hidingVignetteFadeDuration = Mathf.Max(
+            0f,
+            hidingVignetteFadeDuration
+        );
         enterNoiseRadius = Mathf.Max(0f, enterNoiseRadius);
         enterNoiseLoudness = Mathf.Max(0f, enterNoiseLoudness);
         exitNoiseRadius = Mathf.Max(0f, exitNoiseRadius);

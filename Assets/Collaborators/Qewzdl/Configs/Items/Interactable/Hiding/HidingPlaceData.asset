@@ -30,6 +30,11 @@ MonoBehaviour:
   maximumCameraYaw: 55
   minimumCameraPitch: -35
   maximumCameraPitch: 45
+  showHidingVignette: 1
+  hidingVignetteColor: {r: 0, g: 0, b: 0, a: 1}
+  hidingVignetteOpacity: 0.65
+  hidingVignetteInnerRadius: 0.4
+  hidingVignetteFadeDuration: 0.2
   enterSound: {fileID: 0}
   exitSound: {fileID: 0}
   enterNoiseRadius: 6

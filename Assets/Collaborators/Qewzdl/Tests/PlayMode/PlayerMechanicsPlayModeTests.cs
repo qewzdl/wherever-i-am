@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 [Category("Gameplay")]
 public sealed class PlayerMechanicsPlayModeTests
@@ -202,6 +203,48 @@ public sealed class PlayerMechanicsPlayModeTests
             cameraObject.transform.localPosition.y,
             Is.EqualTo(0.75f).Within(0.001f),
             "Posture control must resume after leaving the hiding view.");
+    }
+
+    [Test]
+    public void HidingVignette_ShowsBehindHudAndNeverBlocksInput()
+    {
+        GameObject player = Track(new GameObject("Vignette player"));
+        PlayerHidingVignette vignette =
+            player.AddComponent<PlayerHidingVignette>();
+        HidingPlaceData settings = Track(
+            ScriptableObject.CreateInstance<HidingPlaceData>());
+        PlayModeTestReflection.SetField(
+            settings,
+            "hidingVignetteOpacity",
+            0.65f);
+        PlayModeTestReflection.SetField(
+            settings,
+            "hidingVignetteFadeDuration",
+            0f);
+
+        vignette.Show(settings);
+
+        Assert.That(vignette.IsVisible, Is.True);
+        Assert.That(vignette.CurrentOpacity, Is.EqualTo(0.65f));
+
+        Canvas canvas = player.GetComponentInChildren<Canvas>(true);
+        CanvasGroup group = player.GetComponentInChildren<CanvasGroup>(true);
+        RawImage image = player.GetComponentInChildren<RawImage>(true);
+
+        Assert.That(canvas, Is.Not.Null);
+        Assert.That(canvas.renderMode, Is.EqualTo(RenderMode.ScreenSpaceOverlay));
+        Assert.That(canvas.overrideSorting, Is.True);
+        Assert.That(canvas.sortingOrder, Is.LessThan(0));
+        Assert.That(group.blocksRaycasts, Is.False);
+        Assert.That(group.interactable, Is.False);
+        Assert.That(image.raycastTarget, Is.False);
+        Assert.That(image.texture, Is.Not.Null);
+
+        vignette.Hide(fadeDuration: 0f);
+
+        Assert.That(vignette.IsVisible, Is.False);
+        Assert.That(vignette.CurrentOpacity, Is.Zero);
+        Assert.That(canvas.enabled, Is.False);
     }
 
     [UnityTest]

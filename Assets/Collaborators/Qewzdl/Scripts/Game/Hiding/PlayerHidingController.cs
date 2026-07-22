@@ -6,6 +6,7 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(NetworkTransform))]
 [RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(PlayerHidingVignette))]
 public sealed class PlayerHidingController :
     PlayerNetworkComponent,
     IPlayerSignalListener,
@@ -24,6 +25,7 @@ public sealed class PlayerHidingController :
     [SerializeField] private PlayerController playerController;
     [SerializeField] private PlayerInteraction playerInteraction;
     [SerializeField] private CameraLook cameraLook;
+    [SerializeField] private PlayerHidingVignette hidingVignette;
 
     private readonly HidingExitPlacementResolver exitPlacementResolver = new();
     private PlayerHidingEffects hidingEffects;
@@ -715,6 +717,7 @@ public sealed class PlayerHidingController :
         }
 
         ApplyLocalHidingCamera(currentState);
+        ApplyLocalHidingVignette(currentState);
     }
 
     private void RestoreLocalHidingState()
@@ -734,6 +737,7 @@ public sealed class PlayerHidingController :
         playerInteraction?.SetHidingActive(false);
         hidingEffects?.Restore();
         cameraLook?.ClearHidingView();
+        hidingVignette?.HideImmediate();
     }
 
     private void ResolveReferences()
@@ -766,6 +770,11 @@ public sealed class PlayerHidingController :
         if (cameraLook == null)
         {
             cameraLook = GetComponentInChildren<CameraLook>(true);
+        }
+
+        if (hidingVignette == null)
+        {
+            hidingVignette = GetComponent<PlayerHidingVignette>();
         }
 
         if (hidingEffects == null && playerBody != null)
@@ -836,6 +845,40 @@ public sealed class PlayerHidingController :
             settings.MaximumCameraPitch,
             settings.AllowPeeking
         );
+    }
+
+    private void ApplyLocalHidingVignette(PlayerHidingSnapshot snapshot)
+    {
+        if (!IsOwner || hidingVignette == null)
+        {
+            return;
+        }
+
+        if (!snapshot.IsInHidingSequence)
+        {
+            hidingVignette.Hide();
+            return;
+        }
+
+        if (!TryGetCurrentHidingPlace(
+                out HidingPlaceInteractable hidingPlace))
+        {
+            hidingVignette.HideImmediate();
+            return;
+        }
+
+        HidingPlaceData settings = hidingPlace.Configuration;
+
+        if (snapshot.State == HidingTransitionState.Entering ||
+            snapshot.State == HidingTransitionState.Occupied)
+        {
+            hidingVignette.Show(settings);
+            return;
+        }
+
+        hidingVignette.Hide(settings != null
+            ? settings.HidingVignetteFadeDuration
+            : 0f);
     }
 
 #if UNITY_EDITOR
