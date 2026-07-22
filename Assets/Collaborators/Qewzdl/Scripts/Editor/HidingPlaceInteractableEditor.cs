@@ -67,7 +67,9 @@ public sealed class HidingPlaceInteractableEditor : Editor
         EditorGUILayout.HelpBox(
             "Anchors are child Transforms of the hiding place. " +
             "Create the missing anchors, then use Edit in Scene to move " +
-            "them with the colored handles.",
+            "them with the colored handles. Exit Point and fallback exits " +
+            "mark the floor below the player; runtime accounts for the " +
+            "player collider height.",
             MessageType.Info
         );
     }

@@ -770,7 +770,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
                   !player.IsHidden &&
                   Vector3.Distance(
                       player.transform.position,
-                      Vector3.right * 2f
+                      GroundedExit(Vector3.right * 2f)
                   ) < 0.05f,
             "Player did not use the first available fallback exit."
         );
@@ -778,12 +778,73 @@ public sealed class TwoClientHidingPlacePlayModeTests
         Assert.That(
             Vector3.Distance(
                 player.transform.position,
-                Vector3.right * 2f
+                GroundedExit(Vector3.right * 2f)
             ),
             Is.LessThan(0.05f)
         );
 
         Object.Destroy(primaryBlocker);
+    }
+
+    [UnityTest]
+    public IEnumerator GroundLevelExitAnchor_PlacesCapsuleAboveFloor()
+    {
+        yield return StartNetwork();
+
+        GameObject floor = Track(new GameObject("Exit validation floor"));
+        floor.transform.position = new Vector3(0f, -0.5f, 0f);
+        BoxCollider floorCollider = floor.AddComponent<BoxCollider>();
+        floorCollider.size = new Vector3(8f, 1f, 8f);
+        PlayModeTestReflection.SetField(
+            hidingPlacePrefab
+                .GetComponent<HidingPlaceInteractable>()
+                .Configuration,
+            "requireEntryLineOfSight",
+            false
+        );
+        Physics.SyncTransforms();
+
+        ulong playerId = SpawnPlayer(
+            clientA.Manager.LocalClientId,
+            new Vector3(0f, 1f, -2f)
+        );
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(playerId, hidingPlaceId);
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(clientA, playerId);
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(clientA, hidingPlaceId);
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(server, hidingPlaceId);
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.IsOccupied && player.IsHidden,
+            "Player did not enter before the grounded exit test."
+        );
+
+        player.RequestExitHiding();
+
+        yield return WaitForCondition(
+            () => !serverPlace.IsOccupied &&
+                  !player.IsHidden &&
+                  Mathf.Abs(player.transform.position.y - 1f) < 0.05f,
+            "A floor-level exit anchor incorrectly blocked hiding exit."
+        );
+
+        CapsuleCollider playerCollider =
+            player.GetComponent<CapsuleCollider>();
+        Assert.That(
+            player.transform.position.y,
+            Is.EqualTo(1f).Within(0.05f)
+        );
+        Assert.That(
+            playerCollider.bounds.min.y,
+            Is.GreaterThanOrEqualTo(-0.01f)
+        );
     }
 
     private static void AssertPlayerRestored(
@@ -805,8 +866,19 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
     private static bool IsAtKnownSafeExit(Vector3 position)
     {
-        return Vector3.Distance(position, Vector3.back) < 0.05f ||
-               Vector3.Distance(position, Vector3.right * 2f) < 0.05f;
+        return Vector3.Distance(
+                   position,
+                   GroundedExit(Vector3.back)
+               ) < 0.05f ||
+               Vector3.Distance(
+                   position,
+                   GroundedExit(Vector3.right * 2f)
+               ) < 0.05f;
+    }
+
+    private static Vector3 GroundedExit(Vector3 groundPosition)
+    {
+        return groundPosition + Vector3.up;
     }
 
     private IEnumerator StartNetwork()

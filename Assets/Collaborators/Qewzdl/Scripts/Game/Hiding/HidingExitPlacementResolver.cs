@@ -242,7 +242,14 @@ internal sealed class HidingExitPlacementResolver
             ? exit.rotation
             : player.transform.rotation;
 
-        Pose candidate = new(exit.position, rotation);
+        Pose groundPose = new(exit.position, rotation);
+
+        if (!player.TryBuildGroundedExitPose(
+                groundPose,
+                out Pose candidate))
+        {
+            return false;
+        }
 
         if (!IsPoseClear(
                 player,

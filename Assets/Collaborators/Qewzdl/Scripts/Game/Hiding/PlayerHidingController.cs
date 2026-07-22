@@ -465,6 +465,32 @@ public sealed class PlayerHidingController :
         return true;
     }
 
+    internal bool TryBuildGroundedExitPose(
+        Pose groundPose,
+        out Pose rootPose
+    )
+    {
+        rootPose = groundPose;
+
+        // Exit anchors describe the floor below the player, while the
+        // NetworkObject root may be located in the centre of its capsule.
+        // Use the real collider so different player sizes stay supported.
+        if (!TryBuildExitCapsule(
+                rootPose,
+                collisionSkin: 0f,
+                out Vector3 pointA,
+                out Vector3 pointB,
+                out float radius))
+        {
+            return false;
+        }
+
+        float capsuleBottom = Mathf.Min(pointA.y, pointB.y) - radius;
+        rootPose.position += Vector3.up *
+                             (groundPose.position.y - capsuleBottom);
+        return true;
+    }
+
     internal bool RecoverFromMissingHidingPlaceServer()
     {
         if (!IsServer || !IsSpawned || !IsInHidingSequence)
