@@ -517,7 +517,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
-    public IEnumerator Navigator_OnPrebuiltNavMesh_PushesGroundedMovableItem()
+    public IEnumerator Navigator_OnPrebuiltNavMesh_RoutesAroundPushableItemWhenPossible()
     {
         yield return StartHost();
 
@@ -538,8 +538,9 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         yield return WaitForCondition(
             () =>
                 itemNavigation.IsBlockingNavigation &&
-                !item.GetComponent<NavMeshObstacle>().carving,
-            "Grounded pushable item did not become a non-carving avoidance obstacle.");
+                item.GetComponent<NavMeshObstacle>().carving,
+            "Grounded pushable item did not carve an alternative route.");
+        yield return new WaitForSecondsRealtime(0.75f);
 
         Assert.That(
             itemBody.position.y,
@@ -588,31 +589,49 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
 
-        yield return WaitForCondition(
-            () => itemNavigation.IsBeingPushedByEnemy,
-            "Enemy did not acquire the movable item in its push probe.");
+        float maxLateralDistance = 0f;
+        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
 
-        Assert.That(
-            itemNavigation.IsBlockingNavigation,
-            Is.False,
-            "The reserved item kept blocking NavMesh contact with the physical enemy body.");
-
-        yield return WaitForCondition(
-            () => itemBody.position.z > 0.4f,
-            "Enemy applied no physical displacement to the item.");
-        yield return WaitForCondition(
-            () => Vector3.Dot(actor.transform.forward, Vector3.forward) > 0.9f,
-            "Physics-driven enemy did not rotate toward its movement direction.");
+        while (actor.transform.position.z < 2f &&
+               Time.realtimeSinceStartup < timeout)
+        {
+            maxLateralDistance = Mathf.Max(
+                maxLateralDistance,
+                Mathf.Abs(actor.transform.position.x));
+            yield return null;
+        }
 
         Assert.That(pusher.enabled, Is.True);
         Assert.That(physicsMotor.IsDrivingServerBody, Is.True);
         Assert.That(enemyBody.isKinematic, Is.False);
         Assert.That(itemBody.isKinematic, Is.False);
-        Assert.That(item.OwnerClientId, Is.EqualTo(NetworkManager.ServerClientId));
+        Assert.That(
+            actor.transform.position.z,
+            Is.GreaterThanOrEqualTo(2f),
+            "Enemy did not continue along the alternative route.");
+        Assert.That(
+            maxLateralDistance,
+            Is.GreaterThan(1f),
+            "Enemy did not route around the pushable item.");
+        Assert.That(pusher.IsPushingAnyItem, Is.False);
+        Assert.That(pusher.HasAuthorizedPush, Is.False);
+        Assert.That(itemNavigation.IsBeingPushedByEnemy, Is.False);
+        Assert.That(
+            new Vector2(itemBody.position.x, itemBody.position.z).magnitude,
+            Is.LessThan(0.1f),
+            "Enemy moved an item even though an alternative route existed.");
         Assert.That(
             item.GetComponent<NavMeshObstacle>().carving,
-            Is.False,
-            "The item continued carving while the enemy moved it.");
+            Is.True,
+            "The unreserved pushable item stopped carving the alternative route.");
+        Assert.That(
+            Vector3.Dot(actor.transform.forward, agent.desiredVelocity.normalized),
+            Is.GreaterThan(0.8f),
+            "Physics-driven enemy did not rotate toward its movement direction.");
+        Assert.That(
+            item.OwnerClientId,
+            Is.EqualTo(NetworkManager.ServerClientId),
+            "Routing around the item unexpectedly changed its ownership.");
     }
 
     [UnityTest]
@@ -645,9 +664,9 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             () =>
                 leftNavigation.IsBlockingNavigation &&
                 rightNavigation.IsBlockingNavigation &&
-                !leftItem.GetComponent<NavMeshObstacle>().carving &&
-                !rightItem.GetComponent<NavMeshObstacle>().carving,
-            "Pushable barricade did not become a non-carving avoidance obstacle.");
+                leftItem.GetComponent<NavMeshObstacle>().carving &&
+                rightItem.GetComponent<NavMeshObstacle>().carving,
+            "Pushable barricade did not carve the blocked route.");
         yield return new WaitForSecondsRealtime(0.75f);
 
         GameObject actor = Track(new GameObject("Barricade pushing enemy"));
@@ -737,8 +756,11 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Physics.SyncTransforms();
 
         yield return WaitForCondition(
-            () => itemNavigation.IsBlockingNavigation,
+            () =>
+                itemNavigation.IsBlockingNavigation &&
+                item.GetComponent<NavMeshObstacle>().carving,
             "Pinned item did not become a navigation obstacle.");
+        yield return new WaitForSecondsRealtime(0.75f);
 
         GameObject actor = Track(new GameObject("Pinned item pushing enemy"));
         actor.SetActive(false);

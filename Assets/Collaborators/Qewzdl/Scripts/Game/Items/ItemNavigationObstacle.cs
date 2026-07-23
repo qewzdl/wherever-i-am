@@ -134,7 +134,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         SetObstacleEnabled(!isReservedForPhysicalPush);
         obstacle.carving =
             !isReservedForPhysicalPush &&
-            !item.CanBePushedByEnemies &&
             !item.IsBeingDragged;
     }
 

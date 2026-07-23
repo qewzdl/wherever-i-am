@@ -32,14 +32,18 @@ public sealed class EnemyItemPusher : MonoBehaviour
     private HashSet<ItemNavigationObstacle> activePushes = new();
     private HashSet<ItemNavigationObstacle> currentPushes = new();
     private IEnemyPushNavigationIntentSource navigationIntentSource;
+    private ItemNavigationObstacle authorizedPushItem;
     private int sourceId;
 
     public bool IsPushingAnyItem => activePushes.Count > 0;
+    public bool HasAuthorizedPush => authorizedPushItem != null;
 
-    public bool HasPushableItemNear(
+    public bool TryFindPushableItemNear(
         Vector3 position,
-        Vector3 routeDirection)
+        Vector3 routeDirection,
+        out ItemNavigationObstacle pushableItem)
     {
+        pushableItem = null;
         routeDirection.y = 0f;
 
         if (routeDirection.sqrMagnitude < MinimumDirectionSqrMagnitude)
@@ -78,11 +82,29 @@ public sealed class EnemyItemPusher : MonoBehaviour
             if (toItem.sqrMagnitude < MinimumDirectionSqrMagnitude ||
                 Vector3.Dot(toItem.normalized, routeDirection) >= minimumForwardDot)
             {
+                pushableItem = itemNavigation;
                 return true;
             }
         }
 
         return false;
+    }
+
+    public void AuthorizePush(ItemNavigationObstacle itemNavigation)
+    {
+        if (itemNavigation == null || itemNavigation == authorizedPushItem)
+        {
+            return;
+        }
+
+        ReleaseAllPushes();
+        authorizedPushItem = itemNavigation;
+    }
+
+    public void CancelAuthorizedPush()
+    {
+        ReleaseAllPushes();
+        authorizedPushItem = null;
     }
 
     private void Awake()
@@ -93,7 +115,8 @@ public sealed class EnemyItemPusher : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!CanRunServerPush() ||
+        if (authorizedPushItem == null ||
+            !CanRunServerPush() ||
             !TryGetMovementDirection(out Vector3 direction))
         {
             ReleaseAllPushes();
@@ -158,6 +181,8 @@ public sealed class EnemyItemPusher : MonoBehaviour
     {
         visitedItems.Clear();
         currentPushes.Clear();
+        bool wasPushingAuthorizedItem =
+            activePushes.Contains(authorizedPushItem);
 
         GetProbeBox(
             direction,
@@ -183,6 +208,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
                 : null;
 
             if (itemNavigation == null ||
+                itemNavigation != authorizedPushItem ||
                 !visitedItems.Add(itemNavigation) ||
                 !IsInFront(candidate, direction) ||
                 !HasClearPushLine(candidate, itemNavigation) ||
@@ -203,6 +229,12 @@ public sealed class EnemyItemPusher : MonoBehaviour
         }
 
         (activePushes, currentPushes) = (currentPushes, activePushes);
+
+        if (wasPushingAuthorizedItem &&
+            !activePushes.Contains(authorizedPushItem))
+        {
+            authorizedPushItem = null;
+        }
     }
 
     private bool IsInFront(Collider candidate, Vector3 direction)
@@ -365,12 +397,12 @@ public sealed class EnemyItemPusher : MonoBehaviour
 
     private void OnDisable()
     {
-        ReleaseAllPushes();
+        CancelAuthorizedPush();
     }
 
     private void OnDestroy()
     {
-        ReleaseAllPushes();
+        CancelAuthorizedPush();
     }
 
 #if UNITY_EDITOR

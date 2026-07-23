@@ -52,6 +52,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         CacheComponents();
 
         hasRequestedNavigation = false;
+        itemPusher?.CancelAuthorizedPush();
         nextStandingRecoveryCheckTime = 0f;
         doorInteractor?.CancelActiveInteraction();
 
@@ -84,6 +85,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         CacheComponents();
 
         hasRequestedNavigation = false;
+        itemPusher?.CancelAuthorizedPush();
         doorInteractor?.CancelActiveInteraction();
 
         if (agent != null)
@@ -177,6 +179,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
     public void Stop()
     {
         hasRequestedNavigation = false;
+        itemPusher?.CancelAuthorizedPush();
         doorInteractor?.CancelActiveInteraction();
 
         if (!TryEnsureOnNavMesh())
@@ -190,6 +193,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
     public void ResetPath()
     {
         hasRequestedNavigation = false;
+        itemPusher?.CancelAuthorizedPush();
         doorInteractor?.CancelActiveInteraction();
 
         if (!TryEnsureOnNavMesh())
@@ -319,6 +323,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
 
     private void StopForDoorInteraction()
     {
+        itemPusher?.CancelAuthorizedPush();
+
         if (agent == null || !agent.enabled || !agent.isOnNavMesh)
         {
             return;
@@ -451,6 +457,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
 
     private void StopForPostureTransition()
     {
+        itemPusher?.CancelAuthorizedPush();
+
         if (!TryEnsureOnNavMesh())
         {
             return;
@@ -519,6 +527,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             return TryMoveToPushableBarrier(destination, speed, pathBuffer);
         }
 
+        CancelPushAuthorizationIfIdle();
         agent.isStopped = false;
         agent.speed = speed;
 
@@ -632,6 +641,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             partialPath == null ||
             partialPath.status != NavMeshPathStatus.PathPartial)
         {
+            CancelPushAuthorizationIfIdle();
             return false;
         }
 
@@ -639,6 +649,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
 
         if (corners == null || corners.Length < 2)
         {
+            CancelPushAuthorizationIfIdle();
             return false;
         }
 
@@ -652,14 +663,34 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             routeDirection.y = 0f;
         }
 
-        if (!itemPusher.HasPushableItemNear(endpoint, routeDirection))
+        if (!itemPusher.TryFindPushableItemNear(
+                endpoint,
+                routeDirection,
+                out ItemNavigationObstacle pushableItem))
         {
+            CancelPushAuthorizationIfIdle();
             return false;
         }
 
         agent.isStopped = false;
         agent.speed = speed;
-        return agent.SetPath(partialPath);
+
+        if (!agent.SetPath(partialPath))
+        {
+            CancelPushAuthorizationIfIdle();
+            return false;
+        }
+
+        itemPusher.AuthorizePush(pushableItem);
+        return true;
+    }
+
+    private void CancelPushAuthorizationIfIdle()
+    {
+        if (itemPusher != null && !itemPusher.IsPushingAnyItem)
+        {
+            itemPusher.CancelAuthorizedPush();
+        }
     }
 
     private float GetDestinationSampleRadiusForPosture(EnemyPosture posture)
