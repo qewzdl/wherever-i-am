@@ -39,6 +39,9 @@ public abstract class DraggableObject : InteractableObject
     public bool BlocksEnemyNavigation =>
         data is DraggableObjectData settings &&
         settings.BlocksEnemyNavigation;
+    public bool CanBePushedByEnemies =>
+        data is DraggableObjectData settings &&
+        settings.CanBePushedByEnemies;
 
     public event Action<bool> DraggingChanged;
 
@@ -65,6 +68,39 @@ public abstract class DraggableObject : InteractableObject
     public float Mass
     {
         get { return originalMass; }
+    }
+
+    internal bool TryBeginEnemyPushServer()
+    {
+        if (!IsSpawned ||
+            !IsServer ||
+            !CanBePushedByEnemies ||
+            IsBeingDragged ||
+            this is PickupItem { IsPickedUp: true } ||
+            rb == null)
+        {
+            return false;
+        }
+
+        NetworkObject itemNetworkObject = NetworkObject;
+
+        if (itemNetworkObject == null)
+        {
+            return false;
+        }
+
+        if (itemNetworkObject.OwnerClientId != NetworkManager.ServerClientId)
+        {
+            itemNetworkObject.ChangeOwnership(NetworkManager.ServerClientId);
+        }
+
+        if (rb.isKinematic)
+        {
+            return false;
+        }
+
+        rb.WakeUp();
+        return true;
     }
 
     private Collider[] itemColliders;

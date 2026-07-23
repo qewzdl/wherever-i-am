@@ -371,7 +371,9 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
 
         NetworkItemTestDraggable item =
-            CreateSpawnedNavigationItem(Vector3.zero);
+            CreateSpawnedNavigationItem(
+                Vector3.zero,
+                canBePushedByEnemies: false);
         ItemNavigationObstacle itemNavigation =
             item.GetComponent<ItemNavigationObstacle>();
         NavMeshObstacle obstacle = item.GetComponent<NavMeshObstacle>();
@@ -512,6 +514,287 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             minimumHidingPlaceDistance,
             Is.GreaterThan(1f),
             "Enemy capsule intersected the hiding place while navigating.");
+    }
+
+    [UnityTest]
+    public IEnumerator Navigator_OnPrebuiltNavMesh_PushesGroundedMovableItem()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            Vector3.zero,
+            makeDynamic: true,
+            useGravity: true);
+        Rigidbody itemBody = item.GetComponent<Rigidbody>();
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                itemNavigation.IsBlockingNavigation &&
+                !item.GetComponent<NavMeshObstacle>().carving,
+            "Grounded pushable item did not become a non-carving avoidance obstacle.");
+
+        Assert.That(
+            itemBody.position.y,
+            Is.EqualTo(0f).Within(0.05f),
+            "The push regression fixture must begin with the item resting on the floor.");
+
+        GameObject actor = Track(new GameObject("Item pushing enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -4f);
+        actor.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        Rigidbody enemyBody = actor.AddComponent<Rigidbody>();
+        EnemyPhysicsMotor physicsMotor =
+            actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(networkObject.IsSpawned, Is.True);
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Item pushing enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+
+        yield return WaitForCondition(
+            () => itemNavigation.IsBeingPushedByEnemy,
+            "Enemy did not acquire the movable item in its push probe.");
+
+        Assert.That(
+            itemNavigation.IsBlockingNavigation,
+            Is.False,
+            "The reserved item kept blocking NavMesh contact with the physical enemy body.");
+
+        yield return WaitForCondition(
+            () => itemBody.position.z > 0.4f,
+            "Enemy applied no physical displacement to the item.");
+        yield return WaitForCondition(
+            () => Vector3.Dot(actor.transform.forward, Vector3.forward) > 0.9f,
+            "Physics-driven enemy did not rotate toward its movement direction.");
+
+        Assert.That(pusher.enabled, Is.True);
+        Assert.That(physicsMotor.IsDrivingServerBody, Is.True);
+        Assert.That(enemyBody.isKinematic, Is.False);
+        Assert.That(itemBody.isKinematic, Is.False);
+        Assert.That(item.OwnerClientId, Is.EqualTo(NetworkManager.ServerClientId));
+        Assert.That(
+            item.GetComponent<NavMeshObstacle>().carving,
+            Is.False,
+            "The item continued carving while the enemy moved it.");
+    }
+
+    [UnityTest]
+    public IEnumerator Navigator_OnPrebuiltNavMesh_PushesBlockingBarricade()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable leftItem = CreateSpawnedNavigationItem(
+            new Vector3(-0.8f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(1.6f, 1.5f, 1.2f));
+        NetworkItemTestDraggable rightItem = CreateSpawnedNavigationItem(
+            new Vector3(0.8f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(1.6f, 1.5f, 1.2f));
+        ItemNavigationObstacle leftNavigation =
+            leftItem.GetComponent<ItemNavigationObstacle>();
+        ItemNavigationObstacle rightNavigation =
+            rightItem.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                leftNavigation.IsBlockingNavigation &&
+                rightNavigation.IsBlockingNavigation &&
+                !leftItem.GetComponent<NavMeshObstacle>().carving &&
+                !rightItem.GetComponent<NavMeshObstacle>().carving,
+            "Pushable barricade did not become a non-carving avoidance obstacle.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Barricade pushing enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -5f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Barricade pushing enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator rejected the partial path ending at a pushable barricade.");
+
+        yield return WaitForCondition(
+            () => pusher.IsPushingAnyItem,
+            "Enemy reached the barricade but did not start pushing it.");
+        yield return WaitForCondition(
+            () =>
+                leftItem.transform.position.z > 0.35f ||
+                rightItem.transform.position.z > 0.35f,
+            "Enemy applied no physical displacement to the barricade.");
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return actor.transform.position.z > 1f;
+            },
+            "Enemy did not rebuild its route after opening the barricade.");
+    }
+
+    [UnityTest]
+    public IEnumerator PhysicsMotor_DoesNotCrossItemPinnedAgainstWall()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            Vector3.zero,
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 1f));
+        Rigidbody itemBody = item.GetComponent<Rigidbody>();
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        CreateGeometry(
+            "Pinned item backstop",
+            new Vector3(0f, 1f, 0.8f),
+            new Vector3(3.6f, 2f, 0.2f));
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => itemNavigation.IsBlockingNavigation,
+            "Pinned item did not become a navigation obstacle.");
+
+        GameObject actor = Track(new GameObject("Pinned item pushing enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        Rigidbody enemyBody = actor.AddComponent<Rigidbody>();
+        EnemyPhysicsMotor physicsMotor =
+            actor.AddComponent<EnemyPhysicsMotor>();
+        actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Pinned-item enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+
+        yield return WaitForCondition(
+            () => itemNavigation.IsBeingPushedByEnemy,
+            "Enemy did not reserve the pinned item for physical contact.");
+        yield return new WaitForSecondsRealtime(2f);
+
+        Assert.That(physicsMotor.IsDrivingServerBody, Is.True);
+        Assert.That(enemyBody.isKinematic, Is.False);
+        Assert.That(
+            itemBody.position.z,
+            Is.LessThan(0.35f),
+            "Pinned item crossed its physical backstop.");
+        Assert.That(
+            actor.transform.position.z,
+            Is.LessThan(-0.55f),
+            "The physics-driven enemy crossed an item that could not yield.");
     }
 
     [UnityTest]
@@ -898,11 +1181,16 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     private NetworkItemTestDraggable CreateSpawnedNavigationItem(
-        Vector3 position)
+        Vector3 position,
+        bool makeDynamic = false,
+        bool useGravity = false,
+        Vector3? colliderSize = null,
+        bool canBePushedByEnemies = true)
     {
         DraggableObjectData itemData =
             Track(ScriptableObject.CreateInstance<DraggableObjectData>());
         itemData.BlocksEnemyNavigation = true;
+        itemData.CanBePushedByEnemies = canBePushedByEnemies;
         itemData.Mass = 5f;
         itemData.MaxFollowSpeed = 15f;
         itemData.FollowSpeedMultiplier = 2f;
@@ -917,10 +1205,15 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         NetworkObject networkObject = itemObject.AddComponent<NetworkObject>();
         Rigidbody body = itemObject.AddComponent<Rigidbody>();
-        body.useGravity = false;
-        body.isKinematic = true;
+        body.useGravity = useGravity;
+        body.isKinematic = !makeDynamic;
+        body.constraints = RigidbodyConstraints.FreezeRotation;
+
+        if (!useGravity)
+            body.constraints |= RigidbodyConstraints.FreezePositionY;
+
         BoxCollider collider = itemObject.AddComponent<BoxCollider>();
-        collider.size = new Vector3(2f, 1.5f, 2f);
+        collider.size = colliderSize ?? new Vector3(2f, 1.5f, 2f);
         collider.center = new Vector3(0f, 0.75f, 0f);
 
         NetworkItemTestDraggable item =
@@ -1024,6 +1317,32 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Arena floor",
             new Vector3(0f, -0.1f, 0f),
             new Vector3(16f, 0.2f, 24f),
+            root.transform);
+        BakeSurfaces(
+            root,
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+    }
+
+    private void BakePushCorridor(
+        int standingAgentTypeId,
+        int crawlingAgentTypeId)
+    {
+        GameObject root = Track(new GameObject("Prebuilt push corridor"));
+        CreateGeometry(
+            "Push corridor floor",
+            new Vector3(0f, -0.1f, 0f),
+            new Vector3(4f, 0.2f, 14f),
+            root.transform);
+        CreateGeometry(
+            "Push corridor left wall",
+            new Vector3(-1.9f, 1f, 0f),
+            new Vector3(0.2f, 2f, 14f),
+            root.transform);
+        CreateGeometry(
+            "Push corridor right wall",
+            new Vector3(1.9f, 1f, 0f),
+            new Vector3(0.2f, 2f, 14f),
             root.transform);
         BakeSurfaces(
             root,

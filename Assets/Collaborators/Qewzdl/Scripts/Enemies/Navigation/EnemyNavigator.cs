@@ -3,7 +3,7 @@ using UnityEngine.AI;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NavMeshAgent))]
-public class EnemyNavigator : MonoBehaviour
+public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
 {
     private const float NavMeshSampleRadius = 2f;
     private const float MinimumStandingWaypointDistance = 0.1f;
@@ -11,6 +11,7 @@ public class EnemyNavigator : MonoBehaviour
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
     [SerializeField] private EnemyDoorInteractor doorInteractor;
+    [SerializeField] private EnemyItemPusher itemPusher;
 
     private NavMeshPath pathBuffer;
     private NavMeshPath posturePathBuffer;
@@ -27,6 +28,12 @@ public class EnemyNavigator : MonoBehaviour
     private float nextStandingRecoveryCheckTime;
 
     public Vector3 Position => transform.position;
+
+    public bool TryGetEnemyPushNavigationIntent(out Vector3 destination)
+    {
+        destination = requestedNavigationDestination;
+        return hasRequestedNavigation;
+    }
 
     private void Awake()
     {
@@ -465,7 +472,17 @@ public class EnemyNavigator : MonoBehaviour
 
         if (!TryBuildCompletePathForPosture(destination, posture, posturePathBuffer))
         {
-            return false;
+            float partialPathSpeed = postureController.GetSpeedForPosture(
+                baseSpeed,
+                posture
+            );
+
+            return postureController.CurrentPosture == posture &&
+                   TryMoveToPushableBarrier(
+                       destination,
+                       partialPathSpeed,
+                       posturePathBuffer
+                   );
         }
 
         EnemyPosture previousPosture = postureController.CurrentPosture;
@@ -499,7 +516,7 @@ public class EnemyNavigator : MonoBehaviour
 
         if (!TryBuildCompletePath(destination, out Vector3 sampledDestination))
         {
-            return false;
+            return TryMoveToPushableBarrier(destination, speed, pathBuffer);
         }
 
         agent.isStopped = false;
@@ -518,6 +535,7 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         pathBuffer ??= new NavMeshPath();
+        pathBuffer.ClearCorners();
 
         if (!TrySamplePositionForCurrentAgent(destination, out NavMeshHit hit))
         {
@@ -562,6 +580,8 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
+        targetPath.ClearCorners();
+
         if (!postureController.CanUsePostureAtCurrentPosition(posture))
         {
             return false;
@@ -600,6 +620,46 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         return targetPath.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private bool TryMoveToPushableBarrier(
+        Vector3 destination,
+        float speed,
+        NavMeshPath partialPath)
+    {
+        if (agent == null ||
+            itemPusher == null ||
+            partialPath == null ||
+            partialPath.status != NavMeshPathStatus.PathPartial)
+        {
+            return false;
+        }
+
+        Vector3[] corners = partialPath.corners;
+
+        if (corners == null || corners.Length < 2)
+        {
+            return false;
+        }
+
+        Vector3 endpoint = corners[^1];
+        Vector3 routeDirection = destination - endpoint;
+        routeDirection.y = 0f;
+
+        if (routeDirection.sqrMagnitude < 0.0001f)
+        {
+            routeDirection = endpoint - corners[^2];
+            routeDirection.y = 0f;
+        }
+
+        if (!itemPusher.HasPushableItemNear(endpoint, routeDirection))
+        {
+            return false;
+        }
+
+        agent.isStopped = false;
+        agent.speed = speed;
+        return agent.SetPath(partialPath);
     }
 
     private float GetDestinationSampleRadiusForPosture(EnemyPosture posture)
@@ -695,6 +755,11 @@ public class EnemyNavigator : MonoBehaviour
         if (doorInteractor == null)
         {
             doorInteractor = GetComponent<EnemyDoorInteractor>();
+        }
+
+        if (itemPusher == null)
+        {
+            itemPusher = GetComponent<EnemyItemPusher>();
         }
     }
 

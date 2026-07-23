@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using Unity.Netcode;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.AI;
 
 internal sealed class PlayerComponentInitializationProbe :
     PlayerComponent,
@@ -50,6 +52,8 @@ public sealed class PlayerAndItemLogicTests
 {
     private const string ProductionPlayerPrefabPath =
         "Assets/Collaborators/6aTowKa/Prefabs/Player.prefab";
+    private const string ProductionEnemyPrefabPath =
+        "Assets/Collaborators/Qewzdl/Prefabs/Entities/Enemy.prefab";
     private const string ProductionHidingPlacePrefabPath =
         "Assets/Collaborators/Qewzdl/Prefabs/Hiding Objects/Test Hiding Box.prefab";
     private const string ProductionHidingPlaceDataPath =
@@ -90,6 +94,87 @@ public sealed class PlayerAndItemLogicTests
             draggablePrefabCount,
             Is.GreaterThan(0),
             "No production draggable prefabs were found.");
+    }
+
+    [Test]
+    public void ProductionEnemy_ContainsServerItemPusher()
+    {
+        GameObject enemyPrefab =
+            AssetDatabase.LoadAssetAtPath<GameObject>(
+                ProductionEnemyPrefabPath
+            );
+
+        Assert.That(enemyPrefab, Is.Not.Null);
+
+        EnemyItemPusher pusher = enemyPrefab.GetComponent<EnemyItemPusher>();
+
+        Assert.That(pusher, Is.Not.Null);
+
+        SerializedObject pusherObject = new(pusher);
+
+        Assert.That(
+            pusherObject.FindProperty("networkObject").objectReferenceValue,
+            Is.SameAs(enemyPrefab.GetComponent<NetworkObject>())
+        );
+        Assert.That(
+            pusherObject.FindProperty("agent").objectReferenceValue,
+            Is.SameAs(enemyPrefab.GetComponent<NavMeshAgent>())
+        );
+        CapsuleCollider bodyCollider =
+            pusherObject.FindProperty("bodyCollider").objectReferenceValue
+                as CapsuleCollider;
+
+        Assert.That(bodyCollider, Is.Not.Null);
+        Assert.That(
+            bodyCollider,
+            Is.SameAs(enemyPrefab.GetComponent<CapsuleCollider>()),
+            "The physical capsule must be on the Rigidbody root."
+        );
+        Assert.That(bodyCollider.transform, Is.SameAs(enemyPrefab.transform));
+        Assert.That(bodyCollider.center, Is.EqualTo(Vector3.up));
+
+        Collider[] solidColliders = enemyPrefab
+            .GetComponentsInChildren<Collider>(true)
+            .Where(collider => !collider.isTrigger)
+            .ToArray();
+
+        Assert.That(
+            solidColliders,
+            Is.EqualTo(new Collider[] { bodyCollider }),
+            "Decorative child colliders must not join the enemy compound Rigidbody."
+        );
+        Assert.That(
+            pusherObject.FindProperty("pushableLayers").intValue,
+            Is.Not.Zero
+        );
+
+        EnemyPhysicsMotor physicsMotor =
+            enemyPrefab.GetComponent<EnemyPhysicsMotor>();
+        Rigidbody body = enemyPrefab.GetComponent<Rigidbody>();
+
+        Assert.That(physicsMotor, Is.Not.Null);
+        Assert.That(body, Is.Not.Null);
+        Assert.That(body.isKinematic, Is.True);
+        Assert.That(body.interpolation, Is.EqualTo(RigidbodyInterpolation.None));
+
+        SerializedObject motorObject = new(physicsMotor);
+
+        Assert.That(
+            motorObject.FindProperty("networkObject").objectReferenceValue,
+            Is.SameAs(enemyPrefab.GetComponent<NetworkObject>())
+        );
+        Assert.That(
+            motorObject.FindProperty("agent").objectReferenceValue,
+            Is.SameAs(enemyPrefab.GetComponent<NavMeshAgent>())
+        );
+        Assert.That(
+            motorObject.FindProperty("body").objectReferenceValue,
+            Is.SameAs(body)
+        );
+        Assert.That(
+            motorObject.FindProperty("mass").floatValue,
+            Is.GreaterThan(0f)
+        );
     }
 
     [Test]

@@ -274,7 +274,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
         yield return WaitForCondition(
             () => serverNavigation.IsBlockingNavigation &&
-                  serverNavigation.GetComponent<NavMeshObstacle>().carving &&
+                  !serverNavigation.GetComponent<NavMeshObstacle>().carving &&
                   !clientNavigation.IsBlockingNavigation,
             "Stationary draggable navigation obstacle was not server-only.");
 
@@ -306,7 +306,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                   !player.Orchestrator.States.IsDragging &&
                   !DraggableObject.ActiveDraggedObjects.Contains(clientItem) &&
                   serverNavigation.IsBlockingNavigation &&
-                  serverNavigation.GetComponent<NavMeshObstacle>().carving,
+                  !serverNavigation.GetComponent<NavMeshObstacle>().carving,
             "Drag release left replicated or local dragging state active.");
 
         Assert.That(player.Controller.GetSpeed(), Is.EqualTo(InitialPlayerSpeed));
@@ -537,6 +537,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private static void ConfigureItemData(DraggableObjectData data)
     {
         data.BlocksEnemyNavigation = true;
+        data.CanBePushedByEnemies = true;
         data.Mass = ItemMass;
         data.MaxFollowSpeed = 15f;
         data.FollowSpeedMultiplier = 2f;
