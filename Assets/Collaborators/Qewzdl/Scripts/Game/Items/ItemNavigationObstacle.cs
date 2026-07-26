@@ -6,9 +6,6 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshObstacle))]
 public sealed class ItemNavigationObstacle : NetworkBehaviour
 {
-    private const float NavigationCarvingPropagationPadding = 0.1f;
-    private const float RotationMovementThreshold = 1f;
-
     [SerializeField] private DraggableObject item;
     [SerializeField] private NavMeshObstacle obstacle;
     [SerializeField, Min(0f)] private float boundsPadding = 0.05f;
@@ -16,25 +13,9 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     [SerializeField, Min(0f)] private float timeToStationary = 0.25f;
 
     private bool subscribed;
-    private bool tracksNavigationSettling;
-    private Vector3 navigationSettlingPosition;
-    private Quaternion navigationSettlingRotation;
-    private float navigationReadyTime = float.PositiveInfinity;
 
     public bool IsBlockingNavigation =>
         obstacle != null && obstacle.enabled;
-
-    public bool IsReadyForNavigationPlanning
-    {
-        get
-        {
-            ResolveReferences();
-            UpdateNavigationReadiness();
-
-            return IsCarvingNavigation &&
-                   Time.time >= navigationReadyTime;
-        }
-    }
 
     public bool CanBePushedByEnemyNow
     {
@@ -56,7 +37,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         ResolveReferences();
         ConfigureObstacle();
         SetObstacleEnabled(false);
-        ClearNavigationReadiness();
     }
 
     private void OnEnable()
@@ -81,7 +61,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     {
         Unsubscribe();
         SetObstacleEnabled(false);
-        ClearNavigationReadiness();
         base.OnNetworkDespawn();
     }
 
@@ -89,12 +68,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     {
         Unsubscribe();
         SetObstacleEnabled(false);
-        ClearNavigationReadiness();
-    }
-
-    private void Update()
-    {
-        UpdateNavigationReadiness();
     }
 
     private void HandleDraggingChanged(bool _)
@@ -110,7 +83,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     private void RefreshObstacleState()
     {
         ResolveReferences();
-        bool wasCarvingNavigation = IsCarvingNavigation;
 
         if (!IsSpawned ||
             !IsServer ||
@@ -124,76 +96,11 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
             }
 
             SetObstacleEnabled(false);
-            ClearNavigationReadiness();
             return;
         }
 
         SetObstacleEnabled(true);
         obstacle.carving = !item.IsBeingDragged;
-
-        if (IsCarvingNavigation)
-        {
-            if (!wasCarvingNavigation)
-            {
-                BeginNavigationSettling();
-            }
-        }
-        else
-        {
-            ClearNavigationReadiness();
-        }
-    }
-
-    private bool IsCarvingNavigation =>
-        obstacle != null &&
-        obstacle.enabled &&
-        obstacle.carving;
-
-    private void UpdateNavigationReadiness()
-    {
-        if (!IsCarvingNavigation)
-        {
-            ClearNavigationReadiness();
-            return;
-        }
-
-        if (!tracksNavigationSettling)
-        {
-            BeginNavigationSettling();
-            return;
-        }
-
-        float movementThreshold = Mathf.Max(0.01f, moveThreshold);
-        bool moved =
-            (transform.position - navigationSettlingPosition).sqrMagnitude >
-            movementThreshold * movementThreshold;
-        bool rotated = Quaternion.Angle(
-            transform.rotation,
-            navigationSettlingRotation) > RotationMovementThreshold;
-
-        if (moved || rotated)
-        {
-            BeginNavigationSettling();
-        }
-    }
-
-    private void BeginNavigationSettling()
-    {
-        tracksNavigationSettling = true;
-        navigationSettlingPosition = transform.position;
-        navigationSettlingRotation = transform.rotation;
-        navigationReadyTime =
-            Time.time +
-            Mathf.Max(0f, timeToStationary) +
-            NavigationCarvingPropagationPadding;
-    }
-
-    private void ClearNavigationReadiness()
-    {
-        tracksNavigationSettling = false;
-        navigationSettlingPosition = default;
-        navigationSettlingRotation = default;
-        navigationReadyTime = float.PositiveInfinity;
     }
 
     private bool CanAcceptEnemyPush()

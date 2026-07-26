@@ -97,6 +97,58 @@ public sealed class EnemyItemPusher : MonoBehaviour
             requirePushable: true);
     }
 
+    public bool HasDirectlyReachablePushableBarrier(
+        Vector3 destination)
+    {
+        Vector3 direction = destination - transform.position;
+        direction.y = 0f;
+        float distance = direction.magnitude;
+
+        if (distance < 0.01f)
+        {
+            return false;
+        }
+
+        direction /= distance;
+        Bounds bodyBounds = GetBodyBounds();
+        Vector3 halfExtents = bodyBounds.extents;
+        halfExtents.x = Mathf.Max(0.05f, halfExtents.x * 0.95f);
+        halfExtents.y = Mathf.Max(0.05f, halfExtents.y - 0.05f);
+        halfExtents.z = Mathf.Max(0.05f, halfExtents.z * 0.95f);
+
+        int count = Physics.BoxCastNonAlloc(
+            bodyBounds.center,
+            halfExtents,
+            direction,
+            lineHits,
+            Quaternion.LookRotation(direction, Vector3.up),
+            distance,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Ignore
+        );
+        float nearestDistance = float.PositiveInfinity;
+        ItemNavigationObstacle nearestItem = null;
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider hitCollider = lineHits[i].collider;
+
+            if (hitCollider == null ||
+                hitCollider.transform.IsChildOf(transform) ||
+                lineHits[i].distance >= nearestDistance)
+            {
+                continue;
+            }
+
+            nearestDistance = lineHits[i].distance;
+            nearestItem = GetItem(hitCollider);
+        }
+
+        return nearestItem != null &&
+               nearestItem.IsBlockingNavigation &&
+               nearestItem.CanBePushedByEnemyNow;
+    }
+
     public bool HasNavigationBlockerOnRoute(Vector3[] routeCorners)
     {
         if (routeCorners == null || routeCorners.Length < 2)
@@ -129,12 +181,10 @@ public sealed class EnemyItemPusher : MonoBehaviour
         return false;
     }
 
-    public bool TryGetPushableNavigationBarrierNear(
+    public bool HasPushableNavigationBarrierNear(
         Vector3 position,
-        Vector3 routeDirection,
-        out bool isReadyForNavigationPlanning)
+        Vector3 routeDirection)
     {
-        isReadyForNavigationPlanning = false;
         routeDirection.y = 0f;
 
         if (routeDirection.sqrMagnitude < MinimumDirectionSqrMagnitude)
@@ -153,8 +203,6 @@ public sealed class EnemyItemPusher : MonoBehaviour
             pushableLayers,
             QueryTriggerInteraction.Ignore
         );
-        bool foundBarrier = false;
-
         for (int i = 0; i < count; i++)
         {
             Collider candidate = detectedColliders[i];
@@ -169,16 +217,10 @@ public sealed class EnemyItemPusher : MonoBehaviour
                 continue;
             }
 
-            foundBarrier = true;
-
-            if (itemNavigation.IsReadyForNavigationPlanning)
-            {
-                isReadyForNavigationPlanning = true;
-                return true;
-            }
+            return true;
         }
 
-        return foundBarrier;
+        return false;
     }
 
     private bool CanRunServerPush()

@@ -735,9 +735,27 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             yield return null;
         }
 
-        yield return WaitForCondition(
-            () => pusher.IsPushingAnyItem,
-            "Enemy reached the barricade but did not start pushing it.");
+        float pushTimeout = Time.realtimeSinceStartup + TimeoutSeconds;
+        int targetReplanIndex = 0;
+
+        while (!pusher.IsPushingAnyItem &&
+               Time.realtimeSinceStartup < pushTimeout)
+        {
+            destination.x = targetReplanIndex++ % 2 == 0
+                ? -0.25f
+                : 0.25f;
+            navigator.TickNavigationGate();
+            Assert.That(
+                navigator.TryMoveTo(destination, 3f),
+                Is.True,
+                "Navigator lost the blocked route while the target moved.");
+            yield return null;
+        }
+
+        Assert.That(
+            pusher.IsPushingAnyItem,
+            Is.True,
+            "Moving target kept resetting the barricade confirmation.");
         yield return WaitForCondition(
             () =>
                 leftItem.transform.position.z > 0.35f ||
@@ -1039,7 +1057,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         GameObject actor = Track(new GameObject("Invalid-path pushing enemy"));
         actor.SetActive(false);
         actor.layer = 6;
-        actor.transform.position = new Vector3(0f, 0f, -2.65f);
+        actor.transform.position = new Vector3(0f, 0f, -6f);
 
         NetworkObject networkObject = actor.AddComponent<NetworkObject>();
         CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();

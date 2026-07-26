@@ -9,7 +9,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private const float MinimumStandingWaypointDistance = 0.1f;
     private const float DirectMovementActivationDistance = 0.2f;
     private const float DirectPathCheckInterval = 0.2f;
-    private const float PushFallbackConfirmationDuration = 0.15f;
+    private const float PushFallbackConfirmationDuration = 0.5f;
 
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
@@ -33,8 +33,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private Vector3 barrierApproachEndpoint;
     private Vector3 barrierApproachDestination;
     private float barrierApproachSpeed;
-    private bool barrierApproachReadyForPush;
     private float barrierApproachPushAllowedTime;
+    private bool barrierApproachUsesDirectCorridor;
 
     private bool directMovementActive;
     private Vector3 directMovementDestination;
@@ -88,16 +88,19 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             return;
         }
 
-        Vector3 toEndpoint =
-            barrierApproachEndpoint - transform.position;
-        toEndpoint.y = 0f;
-
-        float activationDistance = GetDirectMovementActivationDistance();
-
-        if (toEndpoint.sqrMagnitude >
-            activationDistance * activationDistance)
+        if (!barrierApproachUsesDirectCorridor)
         {
-            return;
+            Vector3 toEndpoint =
+                barrierApproachEndpoint - transform.position;
+            toEndpoint.y = 0f;
+
+            float activationDistance = GetDirectMovementActivationDistance();
+
+            if (toEndpoint.sqrMagnitude >
+                activationDistance * activationDistance)
+            {
+                return;
+            }
         }
 
         if (TryResumeCompleteNavMeshRoute(
@@ -107,24 +110,13 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             return;
         }
 
-        Vector3 routeDirection =
-            barrierApproachDestination - barrierApproachEndpoint;
-        routeDirection.y = 0f;
-
-        if (itemPusher == null ||
-            !itemPusher.TryGetPushableNavigationBarrierNear(
-                barrierApproachEndpoint,
-                routeDirection,
-                out bool barrierReady))
+        if (!HasConfirmedPushableBarrier())
         {
             StopBarrierApproach();
             return;
         }
 
-        UpdateBarrierPushReadiness(barrierReady);
-
-        if (!barrierApproachReadyForPush ||
-            Time.time < barrierApproachPushAllowedTime)
+        if (Time.time < barrierApproachPushAllowedTime)
         {
             return;
         }
@@ -617,7 +609,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
             if (IsCompletePathBlockedByNavigationItem(posturePathBuffer))
             {
-                StopForPendingItemRoute(destination);
+                StopForPendingItemRoute();
                 return true;
             }
 
@@ -634,7 +626,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 if (IsCompletePathBlockedByNavigationItem(
                         crawlingRouteBuffer))
                 {
-                    StopForPendingItemRoute(destination);
+                    StopForPendingItemRoute();
                     return true;
                 }
             }
@@ -680,7 +672,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         {
             if (IsCompletePathBlockedByNavigationItem(pathBuffer))
             {
-                StopForPendingItemRoute(destination);
+                StopForPendingItemRoute();
                 return true;
             }
 
@@ -707,14 +699,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         agent.ResetPath();
     }
 
-    private void StopForPendingItemRoute(Vector3 destination)
+    private void StopForPendingItemRoute()
     {
-        if (barrierApproachActive &&
-            (barrierApproachDestination - destination).sqrMagnitude >= 0.01f)
-        {
-            ClearBarrierApproach();
-        }
-
         if (agent == null || !agent.enabled || !agent.isOnNavMesh)
         {
             return;
@@ -854,12 +840,21 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             routeDirection.y = 0f;
         }
 
-        if (!itemPusher.TryGetPushableNavigationBarrierNear(
+        bool usesDirectCorridor = false;
+
+        if (!itemPusher.HasPushableNavigationBarrierNear(
                 endpoint,
-                routeDirection,
-                out bool barrierReady))
+                routeDirection))
         {
-            return false;
+            if (!itemPusher.HasDirectlyReachablePushableBarrier(
+                    destination))
+            {
+                return false;
+            }
+
+            endpoint = transform.position;
+            cornerCount = 0;
+            usesDirectCorridor = true;
         }
 
         agent.speed = speed;
@@ -883,7 +878,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 endpoint,
                 destination,
                 speed,
-                barrierReady);
+                usesDirectCorridor);
         }
         else
         {
@@ -893,7 +888,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 endpoint,
                 destination,
                 speed,
-                barrierReady);
+                usesDirectCorridor);
         }
 
         return true;
@@ -983,44 +978,43 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         Vector3 endpoint,
         Vector3 destination,
         float speed,
-        bool barrierReady)
+        bool usesDirectCorridor)
     {
-        bool continuesSameApproach =
-            barrierApproachActive &&
-            (barrierApproachEndpoint - endpoint).sqrMagnitude < 0.01f &&
-            (barrierApproachDestination - destination).sqrMagnitude < 0.01f;
+        bool startsBarrierConfirmation = !barrierApproachActive;
 
         barrierApproachEndpoint = endpoint;
         barrierApproachDestination = destination;
         barrierApproachSpeed = speed;
+        barrierApproachUsesDirectCorridor = usesDirectCorridor;
         barrierApproachActive = true;
 
-        if (!continuesSameApproach)
+        if (startsBarrierConfirmation)
         {
-            barrierApproachReadyForPush = false;
-            barrierApproachPushAllowedTime = float.PositiveInfinity;
+            barrierApproachPushAllowedTime =
+                Time.time + PushFallbackConfirmationDuration;
         }
-
-        UpdateBarrierPushReadiness(barrierReady);
     }
 
-    private void UpdateBarrierPushReadiness(bool barrierReady)
+    private bool HasConfirmedPushableBarrier()
     {
-        if (!barrierReady)
+        if (itemPusher == null)
         {
-            barrierApproachReadyForPush = false;
-            barrierApproachPushAllowedTime = float.PositiveInfinity;
-            return;
+            return false;
         }
 
-        if (barrierApproachReadyForPush)
+        if (barrierApproachUsesDirectCorridor)
         {
-            return;
+            return itemPusher.HasDirectlyReachablePushableBarrier(
+                barrierApproachDestination);
         }
 
-        barrierApproachReadyForPush = true;
-        barrierApproachPushAllowedTime =
-            Time.time + PushFallbackConfirmationDuration;
+        Vector3 routeDirection =
+            barrierApproachDestination - barrierApproachEndpoint;
+        routeDirection.y = 0f;
+
+        return itemPusher.HasPushableNavigationBarrierNear(
+            barrierApproachEndpoint,
+            routeDirection);
     }
 
     private void StopBarrierApproach()
@@ -1053,8 +1047,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         barrierApproachEndpoint = default;
         barrierApproachDestination = default;
         barrierApproachSpeed = 0f;
-        barrierApproachReadyForPush = false;
         barrierApproachPushAllowedTime = float.PositiveInfinity;
+        barrierApproachUsesDirectCorridor = false;
     }
 
     private void ClearDirectMovementState()
