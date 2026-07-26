@@ -14,6 +14,7 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
     [SerializeField] private NetworkObject networkObject;
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private Rigidbody body;
+    [SerializeField] private EnemyItemPusher itemPusher;
 
     [Header("Physics")]
     [SerializeField, Min(0.01f)] private float mass = 30f;
@@ -113,11 +114,9 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
 
     private void DriveBodyFromNavigation()
     {
-        bool hasMovement = !agent.isStopped && agent.hasPath;
-        Vector3 desiredVelocity = hasMovement
-            ? agent.desiredVelocity
-            : Vector3.zero;
-        desiredVelocity.y = 0f;
+        bool hasMovement = TryGetDesiredHorizontalVelocity(
+            out Vector3 desiredVelocity
+        );
 
         Vector3 currentHorizontalVelocity = Vector3.ProjectOnPlane(
             body.linearVelocity,
@@ -170,6 +169,29 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             );
             body.MoveRotation(nextRotation);
         }
+    }
+
+    private bool TryGetDesiredHorizontalVelocity(
+        out Vector3 desiredVelocity)
+    {
+        bool hasNavigationMovement = !agent.isStopped && agent.hasPath;
+        desiredVelocity = hasNavigationMovement
+            ? agent.desiredVelocity
+            : Vector3.zero;
+        desiredVelocity.y = 0f;
+
+        if (itemPusher == null ||
+            !itemPusher.TryGetActivePushDirection(out Vector3 pushDirection))
+        {
+            return hasNavigationMovement;
+        }
+
+        // Local avoidance can steer away from a physically pushable obstacle.
+        // Once the server has authorized contact, the physics motor must keep
+        // driving into that specific item until the pusher releases it.
+        desiredVelocity =
+            pushDirection * Mathf.Max(0f, agent.speed);
+        return true;
     }
 
     private void StopDriving()
@@ -232,6 +254,11 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
         if (body == null)
         {
             body = GetComponent<Rigidbody>();
+        }
+
+        if (itemPusher == null)
+        {
+            itemPusher = GetComponent<EnemyItemPusher>();
         }
     }
 

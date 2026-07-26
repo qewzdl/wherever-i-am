@@ -554,6 +554,7 @@ MonoBehaviour:
   networkObject: {fileID: 1884952992661217113}
   agent: {fileID: 7505417439924373614}
   body: {fileID: 900000000000000001}
+  itemPusher: {fileID: 900000000000000003}
   mass: 30
   verticalCorrectionSpeed: 6
   maximumDepenetrationSpeed: 4

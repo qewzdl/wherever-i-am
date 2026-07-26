@@ -172,6 +172,10 @@ public sealed class PlayerAndItemLogicTests
             Is.SameAs(body)
         );
         Assert.That(
+            motorObject.FindProperty("itemPusher").objectReferenceValue,
+            Is.SameAs(pusher)
+        );
+        Assert.That(
             motorObject.FindProperty("mass").floatValue,
             Is.GreaterThan(0f)
         );

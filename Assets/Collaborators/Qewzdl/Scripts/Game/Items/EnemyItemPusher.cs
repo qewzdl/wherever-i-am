@@ -38,6 +38,28 @@ public sealed class EnemyItemPusher : MonoBehaviour
     public bool IsPushingAnyItem => activePushes.Count > 0;
     public bool HasAuthorizedPush => authorizedPushItem != null;
 
+    public bool TryGetActivePushDirection(out Vector3 direction)
+    {
+        if (authorizedPushItem == null ||
+            !activePushes.Contains(authorizedPushItem))
+        {
+            direction = default;
+            return false;
+        }
+
+        direction = authorizedPushItem.transform.position - transform.position;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < MinimumDirectionSqrMagnitude)
+        {
+            direction = default;
+            return false;
+        }
+
+        direction.Normalize();
+        return true;
+    }
+
     public bool TryFindPushableItemNear(
         Vector3 position,
         Vector3 routeDirection,
