@@ -48,7 +48,32 @@ public sealed class EnemyChaseState : IEnemyStateHandler
         if (!context.PerceptionMemory.IsUsingVisualMemory &&
             distanceToTarget <= context.Config.attackDistance)
         {
-            context.ChangeState(EnemyState.Attack);
+            if (context.Navigator.IsDirectApproachBlockedByItem(targetPosition))
+            {
+                context.TryMoveTo(targetPosition, context.Config.chaseSpeed);
+                return;
+            }
+
+            if (context.AttackController.TryValidateAttackTarget(
+                    context.TargetMemory.CurrentTarget,
+                    context.Config,
+                    context.Navigator.Position,
+                    context.AttackController,
+                    out EnemyAttackResultType failureType
+                ))
+            {
+                context.ChangeState(EnemyState.Attack);
+                return;
+            }
+
+            if (failureType == EnemyAttackResultType.InvalidTarget)
+            {
+                context.ForgetCurrentTargetButKeepLastKnownPosition();
+                MoveToInvestigationOrReturn();
+                return;
+            }
+
+            context.TryMoveTo(targetPosition, context.Config.chaseSpeed);
             return;
         }
 

@@ -60,6 +60,68 @@ public sealed class EnemyItemPusher : MonoBehaviour
         return true;
     }
 
+    public bool IsDirectApproachBlockedByItem(Vector3 destination)
+    {
+        Vector3 direction = destination - transform.position;
+        direction.y = 0f;
+
+        float distance = direction.magnitude;
+
+        if (distance < 0.01f)
+        {
+            return false;
+        }
+
+        direction /= distance;
+
+        Bounds bounds = bodyCollider != null
+            ? bodyCollider.bounds
+            : new Bounds(
+                transform.position + Vector3.up,
+                new Vector3(1f, 2f, 1f)
+            );
+        float approachRadius = agent != null
+            ? Mathf.Max(0.05f, agent.radius)
+            : Mathf.Max(0.05f, bounds.extents.x);
+        Vector3 center =
+            transform.position +
+            direction * (distance * 0.5f);
+        center.y = bounds.min.y + approachRadius;
+
+        Vector3 halfExtents = new(
+            approachRadius,
+            approachRadius,
+            distance * 0.5f
+        );
+        Quaternion orientation = Quaternion.LookRotation(direction, Vector3.up);
+
+        int count = Physics.OverlapBoxNonAlloc(
+            center,
+            halfExtents,
+            detectedColliders,
+            orientation,
+            pushableLayers,
+            QueryTriggerInteraction.Ignore
+        );
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider candidate = detectedColliders[i];
+            ItemNavigationObstacle itemNavigation = candidate != null
+                ? candidate.GetComponentInParent<ItemNavigationObstacle>()
+                : null;
+
+            if (itemNavigation != null &&
+                (itemNavigation.IsBlockingNavigation ||
+                 itemNavigation.IsBeingPushedByEnemy))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public bool TryFindPushableItemNear(
         Vector3 position,
         Vector3 routeDirection,

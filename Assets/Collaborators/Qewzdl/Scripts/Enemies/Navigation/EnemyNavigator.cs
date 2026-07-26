@@ -35,6 +35,12 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         return hasRequestedNavigation;
     }
 
+    public bool IsDirectApproachBlockedByItem(Vector3 destination)
+    {
+        return itemPusher != null &&
+               itemPusher.IsDirectApproachBlockedByItem(destination);
+    }
+
     private void Awake()
     {
         CacheComponents();
@@ -646,18 +652,17 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         }
 
         Vector3[] corners = partialPath.corners;
+        int cornerCount = corners != null ? corners.Length : 0;
 
-        if (corners == null || corners.Length < 2)
-        {
-            CancelPushAuthorizationIfIdle();
-            return false;
-        }
-
-        Vector3 endpoint = corners[^1];
+        // At a carved boundary Unity can return a partial path containing only
+        // the agent position. The nearby item is still a valid direct push target.
+        Vector3 endpoint = cornerCount > 0
+            ? corners[^1]
+            : transform.position;
         Vector3 routeDirection = destination - endpoint;
         routeDirection.y = 0f;
 
-        if (routeDirection.sqrMagnitude < 0.0001f)
+        if (routeDirection.sqrMagnitude < 0.0001f && cornerCount >= 2)
         {
             routeDirection = endpoint - corners[^2];
             routeDirection.y = 0f;
@@ -675,7 +680,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         agent.isStopped = false;
         agent.speed = speed;
 
-        if (!agent.SetPath(partialPath))
+        if (cornerCount >= 2 && !agent.SetPath(partialPath))
         {
             CancelPushAuthorizationIfIdle();
             return false;

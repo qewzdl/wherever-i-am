@@ -730,6 +730,81 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator ServerEnemy_CloseTargetBehindItemBarricade_PushesThroughIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            Vector3.zero,
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 0.7f, 0.4f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                itemNavigation.IsBlockingNavigation &&
+                item.GetComponent<NavMeshObstacle>().carving,
+            "Close-target barricade did not carve the route.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 0.8f),
+            canBeDetected: true);
+        GameObject aimPoint = Track(new GameObject("Elevated player aim point"));
+        aimPoint.transform.SetParent(target.transform, worldPositionStays: false);
+        aimPoint.transform.localPosition = Vector3.up * 1.2f;
+        PlayModeTestReflection.SetField(target, "aimPoint", aimPoint.transform);
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -0.7f));
+        EnemyServerRuntime runtime =
+            enemy.GetComponent<EnemyServerRuntime>();
+        EnemyItemPusher pusher =
+            enemy.GetComponent<EnemyItemPusher>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && enemy.HasTarget,
+            "Production enemy did not acquire the close target behind the item.");
+        Assert.That(
+            Vector3.Distance(enemy.transform.position, target.transform.position),
+            Is.LessThanOrEqualTo(enemyConfig.attackDistance),
+            "Test setup did not place the blocked target inside attack distance.");
+
+        float pushTimeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (!pusher.IsPushingAnyItem &&
+               Time.realtimeSinceStartup < pushTimeout)
+        {
+            yield return null;
+        }
+
+        Assert.That(
+            pusher.IsPushingAnyItem,
+            Is.True,
+            "Enemy stopped instead of pushing the close-target barricade. " +
+            $"State={enemy.CurrentState}, HasTarget={enemy.HasTarget}, " +
+            $"AuthorizedPush={pusher.HasAuthorizedPush}, " +
+            $"AgentStopped={agent.isStopped}, HasPath={agent.hasPath}, " +
+            $"PathStatus={agent.pathStatus}, " +
+            $"EnemyPosition={enemy.transform.position}, " +
+            $"ItemPosition={item.transform.position}.");
+        yield return WaitForCondition(
+            () => item.transform.position.z > 0.05f,
+            "Enemy authorized the close-target push but did not move the item.");
+    }
+
+    [UnityTest]
     public IEnumerator PhysicsMotor_DoesNotCrossItemPinnedAgainstWall()
     {
         yield return StartHost();
