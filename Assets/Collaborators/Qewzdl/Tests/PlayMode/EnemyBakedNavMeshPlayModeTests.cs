@@ -646,6 +646,90 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_OnPrebuiltNavMesh_IgnoresDraggedItemOverRoute()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            new Vector3(0f, 1f, 0f),
+            makeDynamic: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 1f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+        NavMeshObstacle obstacle = item.GetComponent<NavMeshObstacle>();
+        NetworkVariable<bool> draggingState =
+            PlayModeTestReflection.GetField<NetworkVariable<bool>>(
+                item,
+                "netIsDragging");
+
+        draggingState.Value = true;
+
+        yield return WaitForCondition(
+            () =>
+                item.IsBeingDragged &&
+                !itemNavigation.IsBlockingNavigation &&
+                !obstacle.enabled &&
+                !obstacle.carving,
+            "Dragged item remained an authoritative navigation obstacle.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Dragged-item route enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Dragged-item route enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+        Vector3 destination = new(0f, 0f, 4f);
+
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator rejected a route under a dragged item.");
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return actor.transform.position.z > 2f;
+            },
+            "Enemy stopped because a dragged item hovered over its route.");
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_OnPrebuiltNavMesh_PushesBlockingBarricade()
     {
         yield return StartHost();

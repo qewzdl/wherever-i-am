@@ -288,7 +288,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                   IsDragging(serverItem) &&
                   player.Orchestrator.States.IsDragging &&
                   DraggableObject.ActiveDraggedObjects.Contains(clientItem) &&
-                  serverNavigation.IsBlockingNavigation &&
+                  !serverNavigation.IsBlockingNavigation &&
+                  !serverNavigation.GetComponent<NavMeshObstacle>().enabled &&
                   !serverNavigation.GetComponent<NavMeshObstacle>().carving,
             "Client A did not start the authoritative drag.");
 

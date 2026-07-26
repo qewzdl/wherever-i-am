@@ -15,7 +15,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     private bool subscribed;
 
     public bool IsBlockingNavigation =>
-        obstacle != null && obstacle.enabled;
+        obstacle != null && obstacle.enabled && obstacle.carving;
 
     public bool CanBePushedByEnemyNow
     {
@@ -88,6 +88,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
             !IsServer ||
             item == null ||
             !item.BlocksEnemyNavigation ||
+            item.IsBeingDragged ||
             item is PickupItem { IsPickedUp: true })
         {
             if (obstacle != null)
@@ -99,8 +100,8 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
             return;
         }
 
+        obstacle.carving = true;
         SetObstacleEnabled(true);
-        obstacle.carving = !item.IsBeingDragged;
     }
 
     private bool CanAcceptEnemyPush()
