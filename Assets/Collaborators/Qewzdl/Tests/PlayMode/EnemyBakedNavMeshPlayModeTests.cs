@@ -540,7 +540,6 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 itemNavigation.IsBlockingNavigation &&
                 item.GetComponent<NavMeshObstacle>().carving,
             "Grounded pushable item did not carve an alternative route.");
-        yield return new WaitForSecondsRealtime(0.75f);
 
         Assert.That(
             itemBody.position.y,
@@ -589,6 +588,20 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
 
+        float settlingObservationEnd =
+            Time.realtimeSinceStartup + 0.2f;
+
+        while (Time.realtimeSinceStartup < settlingObservationEnd)
+        {
+            Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+            Assert.That(
+                navigator.TryGetEnemyDirectMovementIntent(out _, out _),
+                Is.False,
+                "Enemy committed to pushing before item carving settled.");
+            Assert.That(pusher.IsPushingAnyItem, Is.False);
+            yield return null;
+        }
+
         float maxLateralDistance = 0f;
         float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
 
@@ -614,8 +627,6 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.GreaterThan(1f),
             "Enemy did not route around the pushable item.");
         Assert.That(pusher.IsPushingAnyItem, Is.False);
-        Assert.That(pusher.HasAuthorizedPush, Is.False);
-        Assert.That(itemNavigation.IsBeingPushedByEnemy, Is.False);
         Assert.That(
             new Vector2(itemBody.position.x, itemBody.position.z).magnitude,
             Is.LessThan(0.1f),
@@ -667,7 +678,6 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 leftItem.GetComponent<NavMeshObstacle>().carving &&
                 rightItem.GetComponent<NavMeshObstacle>().carving,
             "Pushable barricade did not carve the blocked route.");
-        yield return new WaitForSecondsRealtime(0.75f);
 
         GameObject actor = Track(new GameObject("Barricade pushing enemy"));
         actor.SetActive(false);
@@ -711,6 +721,20 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Navigator rejected the partial path ending at a pushable barricade.");
 
+        float settlingObservationEnd =
+            Time.realtimeSinceStartup + 0.2f;
+
+        while (Time.realtimeSinceStartup < settlingObservationEnd)
+        {
+            Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+            Assert.That(
+                navigator.TryGetEnemyDirectMovementIntent(out _, out _),
+                Is.False,
+                "Enemy pushed before the barricade route was confirmed.");
+            Assert.That(pusher.IsPushingAnyItem, Is.False);
+            yield return null;
+        }
+
         yield return WaitForCondition(
             () => pusher.IsPushingAnyItem,
             "Enemy reached the barricade but did not start pushing it.");
@@ -727,6 +751,353 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 return actor.transform.position.z > 1f;
             },
             "Enemy did not rebuild its route after opening the barricade.");
+    }
+
+    [UnityTest]
+    public IEnumerator Navigator_ReplanningSerialBarricade_KeepsReservationStable()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable frontItem = CreateSpawnedNavigationItem(
+            Vector3.zero,
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 0.4f));
+        NetworkItemTestDraggable backItem = CreateSpawnedNavigationItem(
+            new Vector3(0f, 0f, 1.5f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 0.4f));
+        ItemNavigationObstacle frontNavigation =
+            frontItem.GetComponent<ItemNavigationObstacle>();
+        ItemNavigationObstacle backNavigation =
+            backItem.GetComponent<ItemNavigationObstacle>();
+        NavMeshObstacle frontObstacle =
+            frontItem.GetComponent<NavMeshObstacle>();
+        NavMeshObstacle backObstacle =
+            backItem.GetComponent<NavMeshObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                frontNavigation.IsBlockingNavigation &&
+                backNavigation.IsBlockingNavigation &&
+                frontObstacle.carving &&
+                backObstacle.carving,
+            "Serial barricade did not carve both blocked route segments.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Serial barricade enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Serial barricade enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator rejected the serial pushable barricade.");
+        Assert.That(
+            pusher.IsPushingAnyItem,
+            Is.False,
+            "Planning started physical pushing before the partial path ended.");
+        Assert.That(
+            frontObstacle.enabled && frontObstacle.carving &&
+            backObstacle.enabled && backObstacle.carving,
+            Is.True,
+            "Planning changed a barricade obstacle before physical contact.");
+
+        float pushTimeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (!pusher.IsPushingAnyItem &&
+               Time.realtimeSinceStartup < pushTimeout)
+        {
+            navigator.TickNavigationGate();
+            Assert.That(
+                navigator.TryMoveTo(destination, 3f),
+                Is.True,
+                "Navigator rejected repeated serial-barrier planning.");
+            yield return null;
+        }
+
+        Assert.That(
+            pusher.IsPushingAnyItem,
+            Is.True,
+            "Enemy did not commit a physical push at the barricade.");
+        Assert.That(
+            agent.enabled,
+            Is.False,
+            "Enemy kept NavMeshAgent active during physical bulldoze movement.");
+        float stabilityEnd = Time.realtimeSinceStartup + 0.25f;
+
+        while (Time.realtimeSinceStartup < stabilityEnd)
+        {
+            navigator.TickNavigationGate();
+            Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+            Assert.That(pusher.IsPushingAnyItem, Is.True);
+            Assert.That(
+                frontObstacle.enabled && frontObstacle.carving &&
+                backObstacle.enabled && backObstacle.carving,
+                Is.True,
+                "Physical pushing changed a barricade NavMeshObstacle.");
+
+            Assert.That(
+                pusher.TryGetDirectMovementDirection(
+                    out Vector3 pushDirection,
+                    out float directSpeed) &&
+                directSpeed > 0f,
+                Is.True);
+            Vector3 targetDirection = destination - actor.transform.position;
+            targetDirection.y = 0f;
+            Assert.That(
+                Vector3.Dot(pushDirection, targetDirection.normalized),
+                Is.GreaterThan(0.999f),
+                "Direct push steering targeted an item instead of the destination.");
+            yield return null;
+        }
+
+        navigator.Stop();
+        Assert.That(
+            frontObstacle.enabled && frontObstacle.carving &&
+            backObstacle.enabled && backObstacle.carving,
+            Is.True,
+            "Ending the serial push did not restore both NavMesh obstacles.");
+    }
+
+    [UnityTest]
+    public IEnumerator Navigator_AtPartialPathEnd_ApproachesAndPushesBarricade()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            Vector3.zero,
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 0.4f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+        NavMeshObstacle obstacle = item.GetComponent<NavMeshObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                itemNavigation.IsBlockingNavigation &&
+                item.GetComponent<NavMeshObstacle>().carving,
+            "Approach-gap barricade did not carve the blocked route.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Approach-gap enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.1f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        PlayModeTestReflection.SetField(pusher, "probeDistance", 0.25f);
+        PlayModeTestReflection.SetField(pusher, "probeRadius", 1.5f);
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Approach-gap enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator rejected a barricade beyond the physical push probe.");
+        Assert.That(
+            pusher.IsPushingAnyItem,
+            Is.False,
+            "Navigator started pushing before reaching the barrier.");
+        Assert.That(
+            obstacle.enabled && obstacle.carving,
+            Is.True,
+            "Approaching the item changed its NavMeshObstacle prematurely.");
+
+        yield return WaitForCondition(
+            () => pusher.IsPushingAnyItem,
+            "Enemy stopped at the partial path endpoint instead of closing the contact gap.");
+        Assert.That(agent.enabled, Is.False);
+
+        for (int fixedTick = 0; fixedTick < 3; fixedTick++)
+        {
+            Assert.That(
+                pusher.IsPushingAnyItem,
+                Is.True,
+                "Physical direct movement stopped while the item remained ahead.");
+            Assert.That(
+                obstacle.enabled && obstacle.carving,
+                Is.True,
+                "Physical pushing changed the item NavMeshObstacle.");
+            navigator.TryMoveTo(destination, 3f);
+            yield return new WaitForFixedUpdate();
+        }
+
+        float contactedItemZ = item.transform.position.z;
+        yield return WaitForCondition(
+            () => item.transform.position.z > contactedItemZ + 0.05f,
+            "Enemy reached the barricade but did not push it.");
+
+        navigator.Stop();
+        Assert.That(
+            obstacle.enabled && obstacle.carving,
+            Is.True,
+            "Stopping physical movement changed the item NavMeshObstacle.");
+    }
+
+    [UnityTest]
+    public IEnumerator Navigator_WhenBarricadeCoversTargetSample_PushesInvalidPath()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            Vector3.zero,
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 4f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                itemNavigation.IsBlockingNavigation &&
+                item.GetComponent<NavMeshObstacle>().carving,
+            "Invalid-path barricade did not carve the target area.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Invalid-path pushing enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -2.65f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Invalid-path enemy could not be placed on NavMesh.");
+
+        Vector3 destination = Vector3.zero;
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = standingAgentTypeId,
+            areaMask = agent.areaMask
+        };
+        Assert.That(
+            NavMesh.SamplePosition(destination, out _, 2f, filter),
+            Is.False,
+            "Test target unexpectedly remained sampleable through the barricade.");
+
+        navigator.Configure(enemyConfig);
+
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator treated an invalid path ending at a pushable item as a wall.");
+        Assert.That(
+            pusher.IsPushingAnyItem,
+            Is.False,
+            "Invalid-path planning changed the obstacle before physical contact.");
+
+        yield return WaitForCondition(
+            () => pusher.IsPushingAnyItem,
+            "Enemy did not start pushing the invalid-path barricade.");
+        yield return WaitForCondition(
+            () => item.transform.position.z > 0.05f,
+            "Enemy authorized the invalid-path barricade but did not move it.");
     }
 
     [UnityTest]
@@ -794,9 +1165,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Enemy stopped instead of pushing the close-target barricade. " +
             $"State={enemy.CurrentState}, HasTarget={enemy.HasTarget}, " +
-            $"AuthorizedPush={pusher.HasAuthorizedPush}, " +
-            $"AgentStopped={agent.isStopped}, HasPath={agent.hasPath}, " +
-            $"PathStatus={agent.pathStatus}, " +
+            $"Pushing={pusher.IsPushingAnyItem}, " +
+            $"AgentEnabled={agent.enabled}, " +
             $"EnemyPosition={enemy.transform.position}, " +
             $"ItemPosition={item.transform.position}.");
         yield return WaitForCondition(
@@ -823,6 +1193,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Rigidbody itemBody = item.GetComponent<Rigidbody>();
         ItemNavigationObstacle itemNavigation =
             item.GetComponent<ItemNavigationObstacle>();
+        NavMeshObstacle itemObstacle = item.GetComponent<NavMeshObstacle>();
 
         CreateGeometry(
             "Pinned item backstop",
@@ -857,7 +1228,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Rigidbody enemyBody = actor.AddComponent<Rigidbody>();
         EnemyPhysicsMotor physicsMotor =
             actor.AddComponent<EnemyPhysicsMotor>();
-        actor.AddComponent<EnemyItemPusher>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
         EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
         actor.SetActive(true);
 
@@ -878,9 +1249,36 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
 
         yield return WaitForCondition(
-            () => itemNavigation.IsBeingPushedByEnemy,
-            "Enemy did not reserve the pinned item for physical contact.");
-        yield return new WaitForSecondsRealtime(2f);
+            () => pusher.IsPushingAnyItem,
+            "Enemy did not enter physical movement at the pinned item.");
+        float stabilityObservationEnd = Time.realtimeSinceStartup + 0.75f;
+
+        while (Time.realtimeSinceStartup < stabilityObservationEnd)
+        {
+            navigator.TickNavigationGate();
+            Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+            yield return null;
+
+            Assert.That(
+                pusher.IsPushingAnyItem &&
+                itemObstacle.enabled &&
+                itemObstacle.carving,
+                Is.True,
+                "Physical movement changed the pinned item obstacle.");
+
+            Assert.That(
+                pusher.TryGetDirectMovementDirection(
+                    out Vector3 pushDirection,
+                    out float directSpeed) &&
+                directSpeed > 0f,
+                Is.True);
+            Vector3 targetDirection = destination - actor.transform.position;
+            targetDirection.y = 0f;
+            Assert.That(
+                Vector3.Dot(pushDirection, targetDirection.normalized),
+                Is.GreaterThan(0.999f),
+                "Pinned contact changed steering from the target to the item.");
+        }
 
         Assert.That(physicsMotor.IsDrivingServerBody, Is.True);
         Assert.That(enemyBody.isKinematic, Is.False);

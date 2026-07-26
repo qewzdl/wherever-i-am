@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
@@ -7,6 +6,9 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshObstacle))]
 public sealed class ItemNavigationObstacle : NetworkBehaviour
 {
+    private const float NavigationCarvingPropagationPadding = 0.1f;
+    private const float RotationMovementThreshold = 1f;
+
     [SerializeField] private DraggableObject item;
     [SerializeField] private NavMeshObstacle obstacle;
     [SerializeField, Min(0f)] private float boundsPadding = 0.05f;
@@ -14,12 +16,25 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     [SerializeField, Min(0f)] private float timeToStationary = 0.25f;
 
     private bool subscribed;
-    private readonly HashSet<int> enemyPushSources = new();
+    private bool tracksNavigationSettling;
+    private Vector3 navigationSettlingPosition;
+    private Quaternion navigationSettlingRotation;
+    private float navigationReadyTime = float.PositiveInfinity;
 
     public bool IsBlockingNavigation =>
         obstacle != null && obstacle.enabled;
 
-    public bool IsBeingPushedByEnemy => enemyPushSources.Count > 0;
+    public bool IsReadyForNavigationPlanning
+    {
+        get
+        {
+            ResolveReferences();
+            UpdateNavigationReadiness();
+
+            return IsCarvingNavigation &&
+                   Time.time >= navigationReadyTime;
+        }
+    }
 
     public bool CanBePushedByEnemyNow
     {
@@ -30,35 +45,10 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         }
     }
 
-    internal bool TryBeginEnemyPushServer(int sourceId)
+    internal bool TryBeginPhysicalEnemyPushServer()
     {
         ResolveReferences();
-
-        if (!CanAcceptEnemyPush())
-        {
-            ReleaseEnemyPushServer(sourceId);
-            return false;
-        }
-
-        enemyPushSources.Add(sourceId);
-        RefreshObstacleState();
-
-        if (item.TryBeginEnemyPushServer())
-        {
-            return true;
-        }
-
-        enemyPushSources.Remove(sourceId);
-        RefreshObstacleState();
-        return false;
-    }
-
-    internal void ReleaseEnemyPushServer(int sourceId)
-    {
-        if (enemyPushSources.Remove(sourceId))
-        {
-            RefreshObstacleState();
-        }
+        return CanAcceptEnemyPush() && item.TryBeginEnemyPushServer();
     }
 
     private void Awake()
@@ -66,6 +56,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         ResolveReferences();
         ConfigureObstacle();
         SetObstacleEnabled(false);
+        ClearNavigationReadiness();
     }
 
     private void OnEnable()
@@ -88,17 +79,22 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        enemyPushSources.Clear();
         Unsubscribe();
         SetObstacleEnabled(false);
+        ClearNavigationReadiness();
         base.OnNetworkDespawn();
     }
 
     private void OnDisable()
     {
-        enemyPushSources.Clear();
         Unsubscribe();
         SetObstacleEnabled(false);
+        ClearNavigationReadiness();
+    }
+
+    private void Update()
+    {
+        UpdateNavigationReadiness();
     }
 
     private void HandleDraggingChanged(bool _)
@@ -114,6 +110,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     private void RefreshObstacleState()
     {
         ResolveReferences();
+        bool wasCarvingNavigation = IsCarvingNavigation;
 
         if (!IsSpawned ||
             !IsServer ||
@@ -127,14 +124,76 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
             }
 
             SetObstacleEnabled(false);
+            ClearNavigationReadiness();
             return;
         }
 
-        bool isReservedForPhysicalPush = enemyPushSources.Count > 0;
-        SetObstacleEnabled(!isReservedForPhysicalPush);
-        obstacle.carving =
-            !isReservedForPhysicalPush &&
-            !item.IsBeingDragged;
+        SetObstacleEnabled(true);
+        obstacle.carving = !item.IsBeingDragged;
+
+        if (IsCarvingNavigation)
+        {
+            if (!wasCarvingNavigation)
+            {
+                BeginNavigationSettling();
+            }
+        }
+        else
+        {
+            ClearNavigationReadiness();
+        }
+    }
+
+    private bool IsCarvingNavigation =>
+        obstacle != null &&
+        obstacle.enabled &&
+        obstacle.carving;
+
+    private void UpdateNavigationReadiness()
+    {
+        if (!IsCarvingNavigation)
+        {
+            ClearNavigationReadiness();
+            return;
+        }
+
+        if (!tracksNavigationSettling)
+        {
+            BeginNavigationSettling();
+            return;
+        }
+
+        float movementThreshold = Mathf.Max(0.01f, moveThreshold);
+        bool moved =
+            (transform.position - navigationSettlingPosition).sqrMagnitude >
+            movementThreshold * movementThreshold;
+        bool rotated = Quaternion.Angle(
+            transform.rotation,
+            navigationSettlingRotation) > RotationMovementThreshold;
+
+        if (moved || rotated)
+        {
+            BeginNavigationSettling();
+        }
+    }
+
+    private void BeginNavigationSettling()
+    {
+        tracksNavigationSettling = true;
+        navigationSettlingPosition = transform.position;
+        navigationSettlingRotation = transform.rotation;
+        navigationReadyTime =
+            Time.time +
+            Mathf.Max(0f, timeToStationary) +
+            NavigationCarvingPropagationPadding;
+    }
+
+    private void ClearNavigationReadiness()
+    {
+        tracksNavigationSettling = false;
+        navigationSettlingPosition = default;
+        navigationSettlingRotation = default;
+        navigationReadyTime = float.PositiveInfinity;
     }
 
     private bool CanAcceptEnemyPush()

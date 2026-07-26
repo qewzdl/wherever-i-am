@@ -14,13 +14,13 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
     [SerializeField] private NetworkObject networkObject;
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private Rigidbody body;
-    [SerializeField] private EnemyItemPusher itemPusher;
 
     [Header("Physics")]
     [SerializeField, Min(0.01f)] private float mass = 30f;
     [SerializeField, Min(0f)] private float verticalCorrectionSpeed = 6f;
     [SerializeField, Min(0f)] private float maximumDepenetrationSpeed = 4f;
 
+    private IEnemyDirectMovementIntentSource directMovementIntentSource;
     private bool controlsAgentMotion;
     private bool previousUpdatePosition;
     private bool previousUpdateRotation;
@@ -42,12 +42,13 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
         }
 
         StartDriving();
-        DriveBodyFromNavigation();
+        DriveBody();
     }
 
     private void LateUpdate()
     {
         if (!controlsAgentMotion ||
+            IsDirectMovementActive() ||
             agent == null ||
             !agent.enabled ||
             !agent.isOnNavMesh ||
@@ -56,9 +57,6 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             return;
         }
 
-        // Keep the navigation simulation attached to the collision-resolved body.
-        // Preserve the agent's vertical NavMesh coordinate so slopes still produce
-        // a vertical correction during the next physics tick.
         Vector3 nextPosition = agent.nextPosition;
         nextPosition.x = body.position.x;
         nextPosition.z = body.position.z;
@@ -70,15 +68,18 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
         NetworkManager manager = networkObject != null
             ? networkObject.NetworkManager
             : null;
+        bool hasDirectMovement = IsDirectMovementActive();
+        bool hasNavMeshMovement =
+            agent != null &&
+            agent.enabled &&
+            agent.isOnNavMesh;
 
         return networkObject != null &&
                networkObject.IsSpawned &&
                manager != null &&
                manager.IsServer &&
-               agent != null &&
-               agent.enabled &&
-               agent.isOnNavMesh &&
-               body != null;
+               body != null &&
+               (hasDirectMovement || hasNavMeshMovement);
     }
 
     private void StartDriving()
@@ -92,7 +93,11 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
         previousUpdateRotation = agent.updateRotation;
         agent.updatePosition = false;
         agent.updateRotation = false;
-        agent.nextPosition = body.position;
+
+        if (agent.enabled && agent.isOnNavMesh)
+        {
+            agent.nextPosition = body.position;
+        }
 
         body.mass = Mathf.Max(0.01f, mass);
         body.useGravity = false;
@@ -112,17 +117,19 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
         controlsAgentMotion = true;
     }
 
-    private void DriveBodyFromNavigation()
+    private void DriveBody()
     {
         bool hasMovement = TryGetDesiredHorizontalVelocity(
-            out Vector3 desiredVelocity
+            out Vector3 desiredVelocity,
+            out bool usesDirectMovement
         );
-
         Vector3 currentHorizontalVelocity = Vector3.ProjectOnPlane(
             body.linearVelocity,
             Vector3.up
         );
-        float acceleration = Mathf.Max(0f, agent.acceleration);
+        float acceleration = agent != null
+            ? Mathf.Max(0f, agent.acceleration)
+            : 0f;
         Vector3 horizontalVelocity = hasMovement
             ? Vector3.MoveTowards(
                 currentHorizontalVelocity,
@@ -130,10 +137,13 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
                 acceleration * Time.fixedDeltaTime
             )
             : Vector3.zero;
-
         float verticalVelocity = 0f;
 
-        if (verticalCorrectionSpeed > 0f)
+        if (!usesDirectMovement &&
+            verticalCorrectionSpeed > 0f &&
+            agent != null &&
+            agent.enabled &&
+            agent.isOnNavMesh)
         {
             verticalVelocity = Mathf.Clamp(
                 (agent.nextPosition.y - body.position.y) /
@@ -148,50 +158,97 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             verticalVelocity,
             horizontalVelocity.z
         );
-
         body.angularVelocity = Vector3.zero;
 
-        Vector3 facingDirection = horizontalVelocity.sqrMagnitude >=
-                                  MinimumDirectionSqrMagnitude
-            ? horizontalVelocity
-            : desiredVelocity;
+        Vector3 facingDirection = usesDirectMovement
+            ? desiredVelocity
+            : horizontalVelocity.sqrMagnitude >= MinimumDirectionSqrMagnitude
+                ? horizontalVelocity
+                : desiredVelocity;
 
-        if (facingDirection.sqrMagnitude >= MinimumDirectionSqrMagnitude)
+        if (facingDirection.sqrMagnitude < MinimumDirectionSqrMagnitude)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(
-                facingDirection,
-                Vector3.up
-            );
-            Quaternion nextRotation = Quaternion.RotateTowards(
-                body.rotation,
-                targetRotation,
-                Mathf.Max(0f, agent.angularSpeed) * Time.fixedDeltaTime
-            );
-            body.MoveRotation(nextRotation);
+            return;
         }
+
+        Quaternion targetRotation = Quaternion.LookRotation(
+            facingDirection,
+            Vector3.up
+        );
+        float angularSpeed = agent != null
+            ? Mathf.Max(0f, agent.angularSpeed)
+            : 0f;
+        Quaternion nextRotation = Quaternion.RotateTowards(
+            body.rotation,
+            targetRotation,
+            angularSpeed * Time.fixedDeltaTime
+        );
+        body.MoveRotation(nextRotation);
     }
 
     private bool TryGetDesiredHorizontalVelocity(
-        out Vector3 desiredVelocity)
+        out Vector3 desiredVelocity,
+        out bool usesDirectMovement)
     {
-        bool hasNavigationMovement = !agent.isStopped && agent.hasPath;
-        desiredVelocity = hasNavigationMovement
+        if (TryGetDirectMovementIntent(
+                out Vector3 destination,
+                out float speed))
+        {
+            desiredVelocity = destination - transform.position;
+            desiredVelocity.y = 0f;
+            usesDirectMovement = true;
+
+            if (desiredVelocity.sqrMagnitude <
+                MinimumDirectionSqrMagnitude)
+            {
+                desiredVelocity = Vector3.zero;
+                return false;
+            }
+
+            desiredVelocity.Normalize();
+            desiredVelocity *= Mathf.Max(0f, speed);
+            return true;
+        }
+
+        usesDirectMovement = false;
+        bool hasNavigationPath =
+            agent != null &&
+            agent.enabled &&
+            agent.isOnNavMesh &&
+            !agent.isStopped &&
+            agent.hasPath;
+        desiredVelocity = hasNavigationPath
             ? agent.desiredVelocity
             : Vector3.zero;
         desiredVelocity.y = 0f;
+        return hasNavigationPath;
+    }
 
-        if (itemPusher == null ||
-            !itemPusher.TryGetActivePushDirection(out Vector3 pushDirection))
+    private bool IsDirectMovementActive()
+    {
+        return TryGetDirectMovementIntent(out _, out _);
+    }
+
+    private bool TryGetDirectMovementIntent(
+        out Vector3 destination,
+        out float speed)
+    {
+        if (directMovementIntentSource == null)
         {
-            return hasNavigationMovement;
+            CacheDirectMovementIntentSource();
         }
 
-        // Local avoidance can steer away from a physically pushable obstacle.
-        // Once the server has authorized contact, the physics motor must keep
-        // driving into that specific item until the pusher releases it.
-        desiredVelocity =
-            pushDirection * Mathf.Max(0f, agent.speed);
-        return true;
+        if (directMovementIntentSource != null &&
+            directMovementIntentSource.TryGetEnemyDirectMovementIntent(
+                out destination,
+                out speed))
+        {
+            return true;
+        }
+
+        destination = default;
+        speed = 0f;
+        return false;
     }
 
     private void StopDriving()
@@ -256,10 +313,23 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             body = GetComponent<Rigidbody>();
         }
 
-        if (itemPusher == null)
+        CacheDirectMovementIntentSource();
+    }
+
+    private void CacheDirectMovementIntentSource()
+    {
+        MonoBehaviour[] components = GetComponents<MonoBehaviour>();
+
+        for (int i = 0; i < components.Length; i++)
         {
-            itemPusher = GetComponent<EnemyItemPusher>();
+            if (components[i] is IEnemyDirectMovementIntentSource source)
+            {
+                directMovementIntentSource = source;
+                return;
+            }
         }
+
+        directMovementIntentSource = null;
     }
 
     private void OnDisable()

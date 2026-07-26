@@ -116,10 +116,6 @@ public sealed class PlayerAndItemLogicTests
             pusherObject.FindProperty("networkObject").objectReferenceValue,
             Is.SameAs(enemyPrefab.GetComponent<NetworkObject>())
         );
-        Assert.That(
-            pusherObject.FindProperty("agent").objectReferenceValue,
-            Is.SameAs(enemyPrefab.GetComponent<NavMeshAgent>())
-        );
         CapsuleCollider bodyCollider =
             pusherObject.FindProperty("bodyCollider").objectReferenceValue
                 as CapsuleCollider;
@@ -170,10 +166,6 @@ public sealed class PlayerAndItemLogicTests
         Assert.That(
             motorObject.FindProperty("body").objectReferenceValue,
             Is.SameAs(body)
-        );
-        Assert.That(
-            motorObject.FindProperty("itemPusher").objectReferenceValue,
-            Is.SameAs(pusher)
         );
         Assert.That(
             motorObject.FindProperty("mass").floatValue,

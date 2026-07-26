@@ -3,10 +3,13 @@ using UnityEngine.AI;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NavMeshAgent))]
-public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
+public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 {
     private const float NavMeshSampleRadius = 2f;
     private const float MinimumStandingWaypointDistance = 0.1f;
+    private const float DirectMovementActivationDistance = 0.2f;
+    private const float DirectPathCheckInterval = 0.2f;
+    private const float PushFallbackConfirmationDuration = 0.15f;
 
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
@@ -17,6 +20,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
     private NavMeshPath posturePathBuffer;
     private NavMeshPath crawlingRouteBuffer;
     private NavMeshPath standingCandidatePathBuffer;
+    private NavMeshPath directRecoveryPathBuffer;
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
@@ -25,14 +29,31 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
 
+    private bool barrierApproachActive;
+    private Vector3 barrierApproachEndpoint;
+    private Vector3 barrierApproachDestination;
+    private float barrierApproachSpeed;
+    private bool barrierApproachReadyForPush;
+    private float barrierApproachPushAllowedTime;
+
+    private bool directMovementActive;
+    private Vector3 directMovementDestination;
+    private float directMovementSpeed;
+    private int directMovementAgentTypeId;
+    private int directMovementAreaMask;
+    private float nextDirectPathCheckTime;
+
     private float nextStandingRecoveryCheckTime;
 
     public Vector3 Position => transform.position;
 
-    public bool TryGetEnemyPushNavigationIntent(out Vector3 destination)
+    public bool TryGetEnemyDirectMovementIntent(
+        out Vector3 destination,
+        out float speed)
     {
-        destination = requestedNavigationDestination;
-        return hasRequestedNavigation;
+        destination = directMovementDestination;
+        speed = directMovementSpeed;
+        return directMovementActive;
     }
 
     public bool IsDirectApproachBlockedByItem(Vector3 destination)
@@ -49,6 +70,68 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         posturePathBuffer = new NavMeshPath();
         crawlingRouteBuffer = new NavMeshPath();
         standingCandidatePathBuffer = new NavMeshPath();
+        directRecoveryPathBuffer = new NavMeshPath();
+    }
+
+    private void Update()
+    {
+        if (!barrierApproachActive || directMovementActive)
+        {
+            return;
+        }
+
+        if (agent == null ||
+            !agent.enabled ||
+            !agent.isOnNavMesh ||
+            agent.pathPending)
+        {
+            return;
+        }
+
+        Vector3 toEndpoint =
+            barrierApproachEndpoint - transform.position;
+        toEndpoint.y = 0f;
+
+        float activationDistance = GetDirectMovementActivationDistance();
+
+        if (toEndpoint.sqrMagnitude >
+            activationDistance * activationDistance)
+        {
+            return;
+        }
+
+        if (TryResumeCompleteNavMeshRoute(
+                barrierApproachDestination,
+                barrierApproachSpeed))
+        {
+            return;
+        }
+
+        Vector3 routeDirection =
+            barrierApproachDestination - barrierApproachEndpoint;
+        routeDirection.y = 0f;
+
+        if (itemPusher == null ||
+            !itemPusher.TryGetPushableNavigationBarrierNear(
+                barrierApproachEndpoint,
+                routeDirection,
+                out bool barrierReady))
+        {
+            StopBarrierApproach();
+            return;
+        }
+
+        UpdateBarrierPushReadiness(barrierReady);
+
+        if (!barrierApproachReadyForPush ||
+            Time.time < barrierApproachPushAllowedTime)
+        {
+            return;
+        }
+
+        ActivateDirectMovement(
+            barrierApproachDestination,
+            barrierApproachSpeed);
     }
 
     public void Configure(EnemyConfig config)
@@ -58,7 +141,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         CacheComponents();
 
         hasRequestedNavigation = false;
-        itemPusher?.CancelAuthorizedPush();
+        CancelBarrierTraversal(restoreAgent: true);
         nextStandingRecoveryCheckTime = 0f;
         doorInteractor?.CancelActiveInteraction();
 
@@ -91,7 +174,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         CacheComponents();
 
         hasRequestedNavigation = false;
-        itemPusher?.CancelAuthorizedPush();
+        CancelBarrierTraversal(restoreAgent: false);
         doorInteractor?.CancelActiveInteraction();
 
         if (agent != null)
@@ -174,18 +257,39 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             return false;
         }
 
-        if (config != null && config.crawlingEnabled && postureController != null)
+        if (directMovementActive &&
+            ContinueDirectMovement(destination, speed))
         {
-            return TryMoveWithPosturePriority(destination, speed);
+            return true;
         }
 
-        return TryMoveToWithCurrentPosture(destination, speed);
+        if (config != null && config.crawlingEnabled && postureController != null)
+        {
+            bool moved = TryMoveWithPosturePriority(destination, speed);
+
+            if (!moved && !postureController.IsPostureTransitionInProgress)
+            {
+                StopAtBlockedRoute();
+            }
+
+            return moved;
+        }
+
+        bool movedWithCurrentPosture =
+            TryMoveToWithCurrentPosture(destination, speed);
+
+        if (!movedWithCurrentPosture)
+        {
+            StopAtBlockedRoute();
+        }
+
+        return movedWithCurrentPosture;
     }
 
     public void Stop()
     {
         hasRequestedNavigation = false;
-        itemPusher?.CancelAuthorizedPush();
+        CancelBarrierTraversal(restoreAgent: true);
         doorInteractor?.CancelActiveInteraction();
 
         if (!TryEnsureOnNavMesh())
@@ -199,7 +303,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
     public void ResetPath()
     {
         hasRequestedNavigation = false;
-        itemPusher?.CancelAuthorizedPush();
+        CancelBarrierTraversal(restoreAgent: true);
         doorInteractor?.CancelActiveInteraction();
 
         if (!TryEnsureOnNavMesh())
@@ -217,6 +321,13 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             return false;
         }
 
+        if (directMovementActive)
+        {
+            Vector3 delta = directMovementDestination - transform.position;
+            delta.y = 0f;
+            return delta.sqrMagnitude <= reachDistance * reachDistance;
+        }
+
         if (!TryEnsureOnNavMesh())
         {
             return false;
@@ -229,9 +340,22 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
     {
         CacheComponents();
 
-        if (agent == null || !agent.enabled || !agent.gameObject.activeInHierarchy)
+        if (agent == null || !agent.gameObject.activeInHierarchy)
         {
             return false;
+        }
+
+        if (!agent.enabled)
+        {
+            if (directMovementActive)
+            {
+                // The brain uses this method as a locomotion readiness gate.
+                // Direct physics movement is valid even though the agent is
+                // intentionally detached from NavMesh.
+                return true;
+            }
+
+            agent.enabled = true;
         }
 
         if (agent.isOnNavMesh)
@@ -329,7 +453,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
 
     private void StopForDoorInteraction()
     {
-        itemPusher?.CancelAuthorizedPush();
+        CancelBarrierTraversal(restoreAgent: true);
 
         if (agent == null || !agent.enabled || !agent.isOnNavMesh)
         {
@@ -463,7 +587,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
 
     private void StopForPostureTransition()
     {
-        itemPusher?.CancelAuthorizedPush();
+        CancelBarrierTraversal(restoreAgent: true);
 
         if (!TryEnsureOnNavMesh())
         {
@@ -490,6 +614,30 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
                 baseSpeed,
                 posture
             );
+
+            if (IsCompletePathBlockedByNavigationItem(posturePathBuffer))
+            {
+                StopForPendingItemRoute(destination);
+                return true;
+            }
+
+            if (posture == EnemyPosture.Standing)
+            {
+                if (TryBuildCompletePathForPosture(
+                        destination,
+                        EnemyPosture.Crawling,
+                        crawlingRouteBuffer))
+                {
+                    return false;
+                }
+
+                if (IsCompletePathBlockedByNavigationItem(
+                        crawlingRouteBuffer))
+                {
+                    StopForPendingItemRoute(destination);
+                    return true;
+                }
+            }
 
             return postureController.CurrentPosture == posture &&
                    TryMoveToPushableBarrier(
@@ -530,14 +678,50 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
 
         if (!TryBuildCompletePath(destination, out Vector3 sampledDestination))
         {
+            if (IsCompletePathBlockedByNavigationItem(pathBuffer))
+            {
+                StopForPendingItemRoute(destination);
+                return true;
+            }
+
             return TryMoveToPushableBarrier(destination, speed, pathBuffer);
         }
 
-        CancelPushAuthorizationIfIdle();
+        ClearBarrierApproach();
         agent.isStopped = false;
         agent.speed = speed;
 
         return agent.SetDestination(sampledDestination);
+    }
+
+    private void StopAtBlockedRoute()
+    {
+        CancelBarrierTraversal(restoreAgent: true);
+
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+        agent.isStopped = true;
+        agent.ResetPath();
+    }
+
+    private void StopForPendingItemRoute(Vector3 destination)
+    {
+        if (barrierApproachActive &&
+            (barrierApproachDestination - destination).sqrMagnitude >= 0.01f)
+        {
+            ClearBarrierApproach();
+        }
+
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+        agent.isStopped = true;
+        agent.ResetPath();
     }
 
     private bool TryBuildCompletePath(Vector3 destination, out Vector3 sampledDestination)
@@ -564,7 +748,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             return false;
         }
 
-        return pathBuffer.status == NavMeshPathStatus.PathComplete;
+        return pathBuffer.status == NavMeshPathStatus.PathComplete &&
+               !HasNavigationBlockerOnPath(pathBuffer);
     }
 
     private bool TrySamplePositionForCurrentAgent(Vector3 sourcePosition, out NavMeshHit hit)
@@ -634,7 +819,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             return false;
         }
 
-        return targetPath.status == NavMeshPathStatus.PathComplete;
+        return targetPath.status == NavMeshPathStatus.PathComplete &&
+               !HasNavigationBlockerOnPath(targetPath);
     }
 
     private bool TryMoveToPushableBarrier(
@@ -645,9 +831,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         if (agent == null ||
             itemPusher == null ||
             partialPath == null ||
-            partialPath.status != NavMeshPathStatus.PathPartial)
+            !CanUsePushFallback(partialPath.status))
         {
-            CancelPushAuthorizationIfIdle();
             return false;
         }
 
@@ -655,7 +840,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
         int cornerCount = corners != null ? corners.Length : 0;
 
         // At a carved boundary Unity can return a partial path containing only
-        // the agent position. The nearby item is still a valid direct push target.
+        // the agent position. A nearby pushable item validates this fallback,
+        // while the gameplay destination remains the movement target.
         Vector3 endpoint = cornerCount > 0
             ? corners[^1]
             : transform.position;
@@ -668,34 +854,311 @@ public class EnemyNavigator : MonoBehaviour, IEnemyPushNavigationIntentSource
             routeDirection.y = 0f;
         }
 
-        if (!itemPusher.TryFindPushableItemNear(
+        if (!itemPusher.TryGetPushableNavigationBarrierNear(
                 endpoint,
                 routeDirection,
-                out ItemNavigationObstacle pushableItem))
+                out bool barrierReady))
         {
-            CancelPushAuthorizationIfIdle();
             return false;
         }
 
-        agent.isStopped = false;
         agent.speed = speed;
 
-        if (cornerCount >= 2 && !agent.SetPath(partialPath))
+        Vector3 toEndpoint = endpoint - transform.position;
+        toEndpoint.y = 0f;
+        float activationDistance = GetDirectMovementActivationDistance();
+
+        if (cornerCount >= 2 &&
+            toEndpoint.sqrMagnitude >
+            activationDistance * activationDistance)
         {
-            CancelPushAuthorizationIfIdle();
-            return false;
+            agent.isStopped = false;
+
+            if (!agent.SetPath(partialPath))
+            {
+                return false;
+            }
+
+            BeginBarrierApproach(
+                endpoint,
+                destination,
+                speed,
+                barrierReady);
+        }
+        else
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+            BeginBarrierApproach(
+                endpoint,
+                destination,
+                speed,
+                barrierReady);
         }
 
-        itemPusher.AuthorizePush(pushableItem);
         return true;
     }
 
-    private void CancelPushAuthorizationIfIdle()
+    private bool ContinueDirectMovement(Vector3 destination, float speed)
     {
-        if (itemPusher != null && !itemPusher.IsPushingAnyItem)
+        directMovementDestination = destination;
+        directMovementSpeed = speed;
+
+        if (itemPusher != null && itemPusher.IsPushingAnyItem)
         {
-            itemPusher.CancelAuthorizedPush();
+            return true;
         }
+
+        if (Time.time < nextDirectPathCheckTime)
+        {
+            return true;
+        }
+
+        nextDirectPathCheckTime =
+            Time.time + DirectPathCheckInterval;
+
+        if (!TryBuildCompleteDirectRecoveryPath(
+                destination,
+                out Vector3 sampledSource))
+        {
+            return true;
+        }
+
+        if (!TryRestoreAgentAt(sampledSource))
+        {
+            return true;
+        }
+
+        ClearDirectMovementState();
+        return false;
+    }
+
+    private void ActivateDirectMovement(Vector3 destination, float speed)
+    {
+        if (agent == null)
+        {
+            return;
+        }
+
+        ClearBarrierApproach();
+        directMovementDestination = destination;
+        directMovementSpeed = speed;
+        directMovementAgentTypeId = agent.agentTypeID;
+        directMovementAreaMask = agent.areaMask;
+        nextDirectPathCheckTime =
+            Time.time + DirectPathCheckInterval;
+        directMovementActive = true;
+
+        if (!agent.enabled)
+        {
+            return;
+        }
+
+        if (agent.isOnNavMesh)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+        }
+
+        agent.enabled = false;
+    }
+
+    private void CancelBarrierTraversal(bool restoreAgent)
+    {
+        bool agentNeedsRestore =
+            directMovementActive &&
+            agent != null &&
+            !agent.enabled;
+
+        ClearBarrierApproach();
+        ClearDirectMovementState();
+
+        if (restoreAgent && agentNeedsRestore)
+        {
+            TryEnsureOnNavMesh();
+        }
+    }
+
+    private void BeginBarrierApproach(
+        Vector3 endpoint,
+        Vector3 destination,
+        float speed,
+        bool barrierReady)
+    {
+        bool continuesSameApproach =
+            barrierApproachActive &&
+            (barrierApproachEndpoint - endpoint).sqrMagnitude < 0.01f &&
+            (barrierApproachDestination - destination).sqrMagnitude < 0.01f;
+
+        barrierApproachEndpoint = endpoint;
+        barrierApproachDestination = destination;
+        barrierApproachSpeed = speed;
+        barrierApproachActive = true;
+
+        if (!continuesSameApproach)
+        {
+            barrierApproachReadyForPush = false;
+            barrierApproachPushAllowedTime = float.PositiveInfinity;
+        }
+
+        UpdateBarrierPushReadiness(barrierReady);
+    }
+
+    private void UpdateBarrierPushReadiness(bool barrierReady)
+    {
+        if (!barrierReady)
+        {
+            barrierApproachReadyForPush = false;
+            barrierApproachPushAllowedTime = float.PositiveInfinity;
+            return;
+        }
+
+        if (barrierApproachReadyForPush)
+        {
+            return;
+        }
+
+        barrierApproachReadyForPush = true;
+        barrierApproachPushAllowedTime =
+            Time.time + PushFallbackConfirmationDuration;
+    }
+
+    private void StopBarrierApproach()
+    {
+        ClearBarrierApproach();
+
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+        agent.isStopped = true;
+        agent.ResetPath();
+    }
+
+    private float GetDirectMovementActivationDistance()
+    {
+        float stoppingDistance = agent != null
+            ? Mathf.Max(0f, agent.stoppingDistance)
+            : 0f;
+
+        return Mathf.Max(
+            DirectMovementActivationDistance,
+            stoppingDistance + 0.05f);
+    }
+
+    private void ClearBarrierApproach()
+    {
+        barrierApproachActive = false;
+        barrierApproachEndpoint = default;
+        barrierApproachDestination = default;
+        barrierApproachSpeed = 0f;
+        barrierApproachReadyForPush = false;
+        barrierApproachPushAllowedTime = float.PositiveInfinity;
+    }
+
+    private void ClearDirectMovementState()
+    {
+        directMovementActive = false;
+        directMovementDestination = default;
+        directMovementSpeed = 0f;
+        nextDirectPathCheckTime = 0f;
+    }
+
+    private bool TryBuildCompleteDirectRecoveryPath(
+        Vector3 destination,
+        out Vector3 sampledSource)
+    {
+        sampledSource = transform.position;
+        directRecoveryPathBuffer ??= new NavMeshPath();
+        directRecoveryPathBuffer.ClearCorners();
+
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = directMovementAgentTypeId,
+            areaMask = directMovementAreaMask
+        };
+
+        if (!NavMesh.SamplePosition(
+                transform.position,
+                out NavMeshHit sourceHit,
+                NavMeshSampleRadius,
+                filter) ||
+            !NavMesh.SamplePosition(
+                destination,
+                out NavMeshHit destinationHit,
+                NavMeshSampleRadius,
+                filter) ||
+            !NavMesh.CalculatePath(
+                sourceHit.position,
+                destinationHit.position,
+                filter,
+                directRecoveryPathBuffer) ||
+            directRecoveryPathBuffer.status !=
+            NavMeshPathStatus.PathComplete ||
+            HasNavigationBlockerOnPath(directRecoveryPathBuffer))
+        {
+            return false;
+        }
+
+        sampledSource = sourceHit.position;
+        return true;
+    }
+
+    private bool TryRestoreAgentAt(Vector3 position)
+    {
+        if (agent == null)
+        {
+            return false;
+        }
+
+        agent.enabled = true;
+
+        if (!agent.Warp(position))
+        {
+            agent.enabled = false;
+            return false;
+        }
+
+        warnedAboutMissingNavMesh = false;
+        return true;
+    }
+
+    private bool TryResumeCompleteNavMeshRoute(
+        Vector3 destination,
+        float speed)
+    {
+        if (!TryBuildCompletePath(
+                destination,
+                out Vector3 sampledDestination))
+        {
+            return false;
+        }
+
+        ClearBarrierApproach();
+        agent.isStopped = false;
+        agent.speed = speed;
+        return agent.SetDestination(sampledDestination);
+    }
+
+    private bool HasNavigationBlockerOnPath(NavMeshPath path)
+    {
+        return itemPusher != null &&
+               path != null &&
+               itemPusher.HasNavigationBlockerOnRoute(path.corners);
+    }
+
+    private bool IsCompletePathBlockedByNavigationItem(NavMeshPath path)
+    {
+        return path != null &&
+               path.status == NavMeshPathStatus.PathComplete &&
+               HasNavigationBlockerOnPath(path);
+    }
+
+    private static bool CanUsePushFallback(NavMeshPathStatus pathStatus)
+    {
+        return pathStatus == NavMeshPathStatus.PathPartial ||
+               pathStatus == NavMeshPathStatus.PathInvalid;
     }
 
     private float GetDestinationSampleRadiusForPosture(EnemyPosture posture)
