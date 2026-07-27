@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
@@ -6,6 +7,9 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshObstacle))]
 public sealed class ItemNavigationObstacle : NetworkBehaviour
 {
+    private static readonly HashSet<ItemNavigationObstacle>
+        activeServerBarriers = new();
+
     [SerializeField] private DraggableObject item;
     [SerializeField] private NavMeshObstacle obstacle;
     [SerializeField, Min(0f)] private float boundsPadding = 0.05f;
@@ -41,6 +45,53 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         return CanAcceptEnemyPush() && item.TryBeginEnemyPushServer();
     }
 
+    public bool TryGetBarrierGeometry(
+        out Vector3 center,
+        out Vector3 axisX,
+        out Vector3 axisZ,
+        out Vector3 halfAxisX,
+        out Vector3 halfAxisY,
+        out Vector3 halfAxisZ)
+    {
+        ResolveReferences();
+
+        if (!IsBlockingNavigation || obstacle.shape != NavMeshObstacleShape.Box)
+        {
+            center = default;
+            axisX = default;
+            axisZ = default;
+            halfAxisX = default;
+            halfAxisY = default;
+            halfAxisZ = default;
+            return false;
+        }
+
+        center = transform.TransformPoint(obstacle.center);
+        Vector3 halfSize = obstacle.size * 0.5f;
+        halfAxisX = transform.TransformVector(Vector3.right * halfSize.x);
+        halfAxisY = transform.TransformVector(Vector3.up * halfSize.y);
+        halfAxisZ = transform.TransformVector(Vector3.forward * halfSize.z);
+        axisX = Vector3.ProjectOnPlane(halfAxisX, Vector3.up).normalized;
+        axisZ = Vector3.ProjectOnPlane(halfAxisZ, Vector3.up).normalized;
+        return true;
+    }
+
+    public static void CopyActiveServerBarriersTo(
+        List<ItemNavigationObstacle> target)
+    {
+        target.Clear();
+
+        foreach (ItemNavigationObstacle barrier in activeServerBarriers)
+        {
+            if (barrier != null &&
+                barrier.IsBlockingNavigation &&
+                barrier.CanBePushedByEnemyNow)
+            {
+                target.Add(barrier);
+            }
+        }
+    }
+
     private void Awake()
     {
         ResolveReferences();
@@ -68,6 +119,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        activeServerBarriers.Remove(this);
         Unsubscribe();
         SetObstacleEnabled(false);
         base.OnNetworkDespawn();
@@ -75,6 +127,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     private void OnDisable()
     {
+        activeServerBarriers.Remove(this);
         Unsubscribe();
         SetObstacleEnabled(false);
     }
@@ -111,6 +164,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
         obstacle.carving = true;
         SetObstacleEnabled(true);
+        RefreshBarrierRegistration();
     }
 
     private bool CanAcceptEnemyPush()
@@ -195,6 +249,31 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         {
             obstacle.enabled = value;
         }
+
+        if (!value)
+        {
+            activeServerBarriers.Remove(this);
+        }
+    }
+
+    private void RefreshBarrierRegistration()
+    {
+        if (IsSpawned &&
+            IsServer &&
+            IsBlockingNavigation &&
+            CanAcceptEnemyPush())
+        {
+            activeServerBarriers.Add(this);
+            return;
+        }
+
+        activeServerBarriers.Remove(this);
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetBarrierRegistry()
+    {
+        activeServerBarriers.Clear();
     }
 
 #if UNITY_EDITOR

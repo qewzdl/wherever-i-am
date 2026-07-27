@@ -1217,6 +1217,92 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_TargetInsideSealedRoom_ApproachesReachableBarricade()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeBarricadedRoom(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            new Vector3(3f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(2f, 1.5f, 0.6f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                itemNavigation.IsBlockingNavigation &&
+                item.GetComponent<NavMeshObstacle>().carving,
+            "Room barricade did not seal the only NavMesh entrance.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Sealed-room enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(-3f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Sealed-room enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+        Vector3 destination = new(-2f, 0f, 4f);
+
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator rejected the sealed target instead of selecting the reachable barricade.");
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return pusher.IsPushingAnyItem;
+            },
+            "Enemy waited for an open target path instead of approaching the room barricade.");
+
+        Assert.That(
+            actor.transform.position.x,
+            Is.GreaterThan(1f),
+            "Enemy did not route around the wall to the reachable barricade.");
+        yield return WaitForCondition(
+            () => item.transform.position.z > 0.05f,
+            "Enemy reached the room barricade but did not push it.");
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_WhenBarricadeCoversTargetSample_PushesInvalidPath()
     {
         yield return StartHost();
@@ -2094,6 +2180,32 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Push corridor right wall",
             new Vector3(1.9f, 1f, 0f),
             new Vector3(0.2f, 2f, 14f),
+            root.transform);
+        BakeSurfaces(
+            root,
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+    }
+
+    private void BakeBarricadedRoom(
+        int standingAgentTypeId,
+        int crawlingAgentTypeId)
+    {
+        GameObject root = Track(new GameObject("Prebuilt barricaded room"));
+        CreateGeometry(
+            "Barricaded room floor",
+            new Vector3(0f, -0.1f, 0f),
+            new Vector3(12f, 0.2f, 14f),
+            root.transform);
+        CreateGeometry(
+            "Barricaded room left divider",
+            new Vector3(-2f, 1f, 0f),
+            new Vector3(8f, 2f, 0.2f),
+            root.transform);
+        CreateGeometry(
+            "Barricaded room right divider",
+            new Vector3(5f, 1f, 0f),
+            new Vector3(2f, 2f, 0.2f),
             root.transform);
         BakeSurfaces(
             root,

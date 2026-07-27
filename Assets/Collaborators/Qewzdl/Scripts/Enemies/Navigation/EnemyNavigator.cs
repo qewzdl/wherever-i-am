@@ -10,6 +10,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private const float DirectMovementActivationDistance = 0.2f;
     private const float DirectPathCheckInterval = 0.2f;
     private const float PushFallbackConfirmationDuration = 0.5f;
+    private const float BlockedRoutePlanInterval = 0.25f;
 
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
@@ -21,6 +22,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private NavMeshPath crawlingRouteBuffer;
     private NavMeshPath standingCandidatePathBuffer;
     private NavMeshPath directRecoveryPathBuffer;
+    private NavMeshPath blockedRoutePathBuffer;
+    private EnemyBlockedRoutePlanner blockedRoutePlanner;
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
@@ -35,6 +38,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private float barrierApproachSpeed;
     private float barrierApproachPushAllowedTime;
     private bool barrierApproachUsesDirectCorridor;
+    private Vector3 barrierApproachPushDestination;
+    private ItemNavigationObstacle barrierApproachBarrier;
 
     private bool directMovementActive;
     private Vector3 directMovementDestination;
@@ -42,8 +47,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private int directMovementAgentTypeId;
     private int directMovementAreaMask;
     private float nextDirectPathCheckTime;
+    private bool directMovementTracksNavigationDestination;
 
     private float nextStandingRecoveryCheckTime;
+    private float nextBlockedRoutePlanTime;
 
     public Vector3 Position => transform.position;
 
@@ -71,6 +78,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         crawlingRouteBuffer = new NavMeshPath();
         standingCandidatePathBuffer = new NavMeshPath();
         directRecoveryPathBuffer = new NavMeshPath();
+        blockedRoutePathBuffer = new NavMeshPath();
+        blockedRoutePlanner = new EnemyBlockedRoutePlanner();
     }
 
     private void Update()
@@ -122,7 +131,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         }
 
         ActivateDirectMovement(
-            barrierApproachDestination,
+            barrierApproachPushDestination,
+            barrierApproachBarrier == null,
             barrierApproachSpeed);
     }
 
@@ -135,6 +145,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         hasRequestedNavigation = false;
         CancelBarrierTraversal(restoreAgent: true);
         nextStandingRecoveryCheckTime = 0f;
+        nextBlockedRoutePlanTime = 0f;
         doorInteractor?.CancelActiveInteraction();
 
         if (config == null)
@@ -609,6 +620,13 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
             if (IsCompletePathBlockedByNavigationItem(posturePathBuffer))
             {
+                if (TryMoveToReachablePushBarrier(
+                        destination,
+                        partialPathSpeed))
+                {
+                    return true;
+                }
+
                 StopForPendingItemRoute();
                 return true;
             }
@@ -626,6 +644,13 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 if (IsCompletePathBlockedByNavigationItem(
                         crawlingRouteBuffer))
                 {
+                    if (TryMoveToReachablePushBarrier(
+                            destination,
+                            partialPathSpeed))
+                    {
+                        return true;
+                    }
+
                     StopForPendingItemRoute();
                     return true;
                 }
@@ -672,6 +697,11 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         {
             if (IsCompletePathBlockedByNavigationItem(pathBuffer))
             {
+                if (TryMoveToReachablePushBarrier(destination, speed))
+                {
+                    return true;
+                }
+
                 StopForPendingItemRoute();
                 return true;
             }
@@ -822,6 +852,19 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             return false;
         }
 
+        if (barrierApproachActive)
+        {
+            barrierApproachDestination = destination;
+            barrierApproachSpeed = speed;
+
+            if (barrierApproachBarrier == null)
+            {
+                barrierApproachPushDestination = destination;
+            }
+
+            return true;
+        }
+
         Vector3[] corners = partialPath.corners;
         int cornerCount = corners != null ? corners.Length : 0;
 
@@ -849,7 +892,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             if (!itemPusher.HasDirectlyReachablePushableBarrier(
                     destination))
             {
-                return false;
+                return TryMoveToReachablePushBarrier(destination, speed);
             }
 
             endpoint = transform.position;
@@ -877,8 +920,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             BeginBarrierApproach(
                 endpoint,
                 destination,
+                destination,
                 speed,
-                usesDirectCorridor);
+                usesDirectCorridor,
+                null);
         }
         else
         {
@@ -887,16 +932,85 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             BeginBarrierApproach(
                 endpoint,
                 destination,
+                destination,
                 speed,
-                usesDirectCorridor);
+                usesDirectCorridor,
+                null);
         }
 
         return true;
     }
 
+    private bool TryMoveToReachablePushBarrier(
+        Vector3 destination,
+        float speed)
+    {
+        if (barrierApproachActive)
+        {
+            barrierApproachDestination = destination;
+            barrierApproachSpeed = speed;
+            return true;
+        }
+
+        if (!TryEnsureOnNavMesh() || itemPusher == null)
+        {
+            return false;
+        }
+
+        if (Time.time < nextBlockedRoutePlanTime)
+        {
+            return false;
+        }
+
+        nextBlockedRoutePlanTime =
+            Time.time + BlockedRoutePlanInterval;
+
+        blockedRoutePlanner ??= new EnemyBlockedRoutePlanner();
+        blockedRoutePathBuffer ??= new NavMeshPath();
+
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = agent.agentTypeID,
+            areaMask = agent.areaMask
+        };
+
+        if (!blockedRoutePlanner.TryBuildPlan(
+                transform.position,
+                destination,
+                filter,
+                agent.radius,
+                itemPusher,
+                blockedRoutePathBuffer,
+                out EnemyBlockedRoutePlan plan))
+        {
+            return false;
+        }
+
+        agent.speed = speed;
+        agent.isStopped = false;
+
+        if (!agent.SetPath(blockedRoutePathBuffer))
+        {
+            return false;
+        }
+
+        BeginBarrierApproach(
+            plan.ApproachEndpoint,
+            destination,
+            plan.PushDestination,
+            speed,
+            usesDirectCorridor: false,
+            barrier: plan.Barrier);
+        return true;
+    }
+
     private bool ContinueDirectMovement(Vector3 destination, float speed)
     {
-        directMovementDestination = destination;
+        if (directMovementTracksNavigationDestination)
+        {
+            directMovementDestination = destination;
+        }
+
         directMovementSpeed = speed;
 
         if (itemPusher != null && itemPusher.IsPushingAnyItem)
@@ -916,6 +1030,14 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 destination,
                 out Vector3 sampledSource))
         {
+            if (!directMovementTracksNavigationDestination &&
+                HasReachedDirectMovementDestination() &&
+                TryRestoreAgentNearCurrentPosition())
+            {
+                ClearDirectMovementState();
+                return false;
+            }
+
             return true;
         }
 
@@ -928,7 +1050,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         return false;
     }
 
-    private void ActivateDirectMovement(Vector3 destination, float speed)
+    private void ActivateDirectMovement(
+        Vector3 movementDestination,
+        bool tracksNavigationDestination,
+        float speed)
     {
         if (agent == null)
         {
@@ -936,8 +1061,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         }
 
         ClearBarrierApproach();
-        directMovementDestination = destination;
+        directMovementDestination = movementDestination;
         directMovementSpeed = speed;
+        directMovementTracksNavigationDestination =
+            tracksNavigationDestination;
         directMovementAgentTypeId = agent.agentTypeID;
         directMovementAreaMask = agent.areaMask;
         nextDirectPathCheckTime =
@@ -956,6 +1083,30 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         }
 
         agent.enabled = false;
+    }
+
+    private bool HasReachedDirectMovementDestination()
+    {
+        Vector3 delta = directMovementDestination - transform.position;
+        delta.y = 0f;
+        float reachDistance = GetDirectMovementActivationDistance();
+        return delta.sqrMagnitude <= reachDistance * reachDistance;
+    }
+
+    private bool TryRestoreAgentNearCurrentPosition()
+    {
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = directMovementAgentTypeId,
+            areaMask = directMovementAreaMask
+        };
+
+        return NavMesh.SamplePosition(
+                   transform.position,
+                   out NavMeshHit sourceHit,
+                   NavMeshSampleRadius,
+                   filter) &&
+               TryRestoreAgentAt(sourceHit.position);
     }
 
     private void CancelBarrierTraversal(bool restoreAgent)
@@ -977,15 +1128,19 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private void BeginBarrierApproach(
         Vector3 endpoint,
         Vector3 destination,
+        Vector3 pushDestination,
         float speed,
-        bool usesDirectCorridor)
+        bool usesDirectCorridor,
+        ItemNavigationObstacle barrier)
     {
         bool startsBarrierConfirmation = !barrierApproachActive;
 
         barrierApproachEndpoint = endpoint;
         barrierApproachDestination = destination;
+        barrierApproachPushDestination = pushDestination;
         barrierApproachSpeed = speed;
         barrierApproachUsesDirectCorridor = usesDirectCorridor;
+        barrierApproachBarrier = barrier;
         barrierApproachActive = true;
 
         if (startsBarrierConfirmation)
@@ -1000,6 +1155,13 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         if (itemPusher == null)
         {
             return false;
+        }
+
+        if (barrierApproachBarrier != null)
+        {
+            return itemPusher.HasDirectlyReachablePushableBarrier(
+                barrierApproachBarrier,
+                barrierApproachPushDestination);
         }
 
         if (barrierApproachUsesDirectCorridor)
@@ -1046,9 +1208,11 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         barrierApproachActive = false;
         barrierApproachEndpoint = default;
         barrierApproachDestination = default;
+        barrierApproachPushDestination = default;
         barrierApproachSpeed = 0f;
         barrierApproachPushAllowedTime = float.PositiveInfinity;
         barrierApproachUsesDirectCorridor = false;
+        barrierApproachBarrier = null;
     }
 
     private void ClearDirectMovementState()
@@ -1057,6 +1221,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         directMovementDestination = default;
         directMovementSpeed = 0f;
         nextDirectPathCheckTime = 0f;
+        directMovementTracksNavigationDestination = false;
     }
 
     private bool TryBuildCompleteDirectRecoveryPath(

@@ -103,6 +103,31 @@ public sealed class EnemyItemPusher : MonoBehaviour
     public bool HasDirectlyReachablePushableBarrier(
         Vector3 destination)
     {
+        return TryGetNearestItemInBodyCorridor(
+                   destination,
+                   out ItemNavigationObstacle nearestItem) &&
+               nearestItem.IsBlockingNavigation &&
+               nearestItem.CanBePushedByEnemyNow;
+    }
+
+    public bool HasDirectlyReachablePushableBarrier(
+        ItemNavigationObstacle expectedBarrier,
+        Vector3 destination)
+    {
+        return expectedBarrier != null &&
+               TryGetNearestItemInBodyCorridor(
+                   destination,
+                   out ItemNavigationObstacle nearestItem) &&
+               nearestItem == expectedBarrier &&
+               nearestItem.IsBlockingNavigation &&
+               nearestItem.CanBePushedByEnemyNow;
+    }
+
+    private bool TryGetNearestItemInBodyCorridor(
+        Vector3 destination,
+        out ItemNavigationObstacle nearestItem)
+    {
+        nearestItem = null;
         Vector3 direction = destination - transform.position;
         direction.y = 0f;
         float distance = direction.magnitude;
@@ -130,7 +155,6 @@ public sealed class EnemyItemPusher : MonoBehaviour
             QueryTriggerInteraction.Ignore
         );
         float nearestDistance = float.PositiveInfinity;
-        ItemNavigationObstacle nearestItem = null;
 
         for (int i = 0; i < count; i++)
         {
@@ -147,9 +171,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
             nearestItem = GetItem(hitCollider);
         }
 
-        return nearestItem != null &&
-               nearestItem.IsBlockingNavigation &&
-               nearestItem.CanBePushedByEnemyNow;
+        return nearestItem != null;
     }
 
     public bool HasNavigationBlockerOnRoute(Vector3[] routeCorners)
