@@ -14,11 +14,18 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
     [SerializeField] private NetworkObject networkObject;
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private Rigidbody body;
+    [SerializeField] private EnemyItemPusher itemPusher;
 
     [Header("Physics")]
     [SerializeField, Min(0.01f)] private float mass = 30f;
     [SerializeField, Min(0f)] private float verticalCorrectionSpeed = 6f;
     [SerializeField, Min(0f)] private float maximumDepenetrationSpeed = 4f;
+
+    [Header("Item Pushing")]
+    [SerializeField, Min(0.01f)]
+    private float pushResistanceCapacity = 10f;
+    [SerializeField, Range(0.05f, 1f)]
+    private float minimumPushSpeedMultiplier = 0.25f;
 
     private IEnemyDirectMovementIntentSource directMovementIntentSource;
     private bool controlsAgentMotion;
@@ -26,6 +33,7 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
     private bool previousUpdateRotation;
 
     public bool IsDrivingServerBody => controlsAgentMotion;
+    public float CurrentPushSpeedMultiplier { get; private set; } = 1f;
 
     private void Awake()
     {
@@ -127,9 +135,14 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             body.linearVelocity,
             Vector3.up
         );
+        CurrentPushSpeedMultiplier = usesDirectMovement
+            ? GetPushSpeedMultiplier()
+            : 1f;
+        desiredVelocity *= CurrentPushSpeedMultiplier;
         float acceleration = agent != null
             ? Mathf.Max(0f, agent.acceleration)
             : 0f;
+        acceleration *= CurrentPushSpeedMultiplier;
         Vector3 horizontalVelocity = hasMovement
             ? Vector3.MoveTowards(
                 currentHorizontalVelocity,
@@ -272,6 +285,7 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
         }
 
         controlsAgentMotion = false;
+        CurrentPushSpeedMultiplier = 1f;
     }
 
     private void ConfigurePassiveBody()
@@ -313,7 +327,38 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             body = GetComponent<Rigidbody>();
         }
 
+        if (itemPusher == null)
+        {
+            itemPusher = GetComponent<EnemyItemPusher>();
+        }
+
         CacheDirectMovementIntentSource();
+    }
+
+    private float GetPushSpeedMultiplier()
+    {
+        float resistance = itemPusher != null
+            ? itemPusher.CurrentPushResistance
+            : 0f;
+
+        return CalculatePushSpeedMultiplier(
+            resistance,
+            pushResistanceCapacity,
+            minimumPushSpeedMultiplier);
+    }
+
+    internal static float CalculatePushSpeedMultiplier(
+        float resistance,
+        float capacity,
+        float minimumMultiplier)
+    {
+        float safeResistance = Mathf.Max(0f, resistance);
+        float safeCapacity = Mathf.Max(0.01f, capacity);
+        float safeMinimum = Mathf.Clamp(minimumMultiplier, 0.05f, 1f);
+        float multiplier =
+            safeCapacity / (safeCapacity + safeResistance);
+
+        return Mathf.Clamp(multiplier, safeMinimum, 1f);
     }
 
     private void CacheDirectMovementIntentSource()
@@ -357,6 +402,13 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             0f,
             maximumDepenetrationSpeed
         );
+        pushResistanceCapacity = Mathf.Max(
+            0.01f,
+            pushResistanceCapacity);
+        minimumPushSpeedMultiplier = Mathf.Clamp(
+            minimumPushSpeedMultiplier,
+            0.05f,
+            1f);
         CacheComponents();
     }
 #endif

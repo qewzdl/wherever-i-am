@@ -42,6 +42,11 @@ public abstract class DraggableObject : InteractableObject
     public bool CanBePushedByEnemies =>
         data is DraggableObjectData settings &&
         settings.CanBePushedByEnemies;
+    public float EnemyPushResistance =>
+        data is DraggableObjectData settings
+            ? Mathf.Max(0.01f, Mass) *
+              Mathf.Max(0f, settings.EnemyPushResistanceMultiplier)
+            : 0f;
 
     public event Action<bool> DraggingChanged;
 

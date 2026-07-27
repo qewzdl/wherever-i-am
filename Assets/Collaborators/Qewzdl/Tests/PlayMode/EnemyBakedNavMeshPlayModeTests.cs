@@ -25,6 +25,29 @@ internal sealed class BakedNavMeshAttackEffectProbe : IEnemyAttackEffect
     }
 }
 
+internal sealed class BakedNavMeshDirectMovementIntent :
+    MonoBehaviour,
+    IEnemyDirectMovementIntentSource
+{
+    private Vector3 destination;
+    private float speed;
+
+    internal void Configure(Vector3 nextDestination, float nextSpeed)
+    {
+        destination = nextDestination;
+        speed = nextSpeed;
+    }
+
+    public bool TryGetEnemyDirectMovementIntent(
+        out Vector3 nextDestination,
+        out float nextSpeed)
+    {
+        nextDestination = destination;
+        nextSpeed = speed;
+        return enabled && speed > 0f;
+    }
+}
+
 [Category("Gameplay")]
 public sealed class EnemyBakedNavMeshPlayModeTests
 {
@@ -727,6 +750,87 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 return actor.transform.position.z > 2f;
             },
             "Enemy stopped because a dragged item hovered over its route.");
+    }
+
+    [UnityTest]
+    public IEnumerator PhysicsMotor_PushesLightItemFasterThanHeavyItem()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable lightItem = CreateSpawnedNavigationItem(
+            new Vector3(-3f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(1.5f, 1.5f, 1f),
+            mass: 1f);
+        NetworkItemTestDraggable heavyItem = CreateSpawnedNavigationItem(
+            new Vector3(3f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(1.5f, 1.5f, 1f),
+            mass: 5f);
+
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        (GameObject lightActor,
+            EnemyItemPusher lightPusher,
+            EnemyPhysicsMotor lightMotor) = CreateDirectPushEnemy(
+                new Vector3(-3f, 0f, -2f),
+                new Vector3(-3f, 0f, 5f),
+                standingAgentTypeId);
+        (GameObject heavyActor,
+            EnemyItemPusher heavyPusher,
+            EnemyPhysicsMotor heavyMotor) = CreateDirectPushEnemy(
+                new Vector3(3f, 0f, -2f),
+                new Vector3(3f, 0f, 5f),
+                standingAgentTypeId);
+
+        yield return WaitForCondition(
+            () =>
+                lightPusher.IsPushingAnyItem &&
+                heavyPusher.IsPushingAnyItem &&
+                lightMotor.CurrentPushSpeedMultiplier < 1f &&
+                heavyMotor.CurrentPushSpeedMultiplier < 1f,
+            "Direct push enemies did not register their item resistance.");
+
+        Assert.That(
+            lightPusher.CurrentPushResistance,
+            Is.EqualTo(1f).Within(0.05f));
+        Assert.That(
+            heavyPusher.CurrentPushResistance,
+            Is.EqualTo(5f).Within(0.05f));
+        Assert.That(
+            lightMotor.CurrentPushSpeedMultiplier,
+            Is.GreaterThan(heavyMotor.CurrentPushSpeedMultiplier),
+            "Item mass did not reduce the enemy push speed.");
+
+        float lightStartZ = lightItem.transform.position.z;
+        float heavyStartZ = heavyItem.transform.position.z;
+        float pushEndTime = Time.realtimeSinceStartup + 1.5f;
+
+        while (Time.realtimeSinceStartup < pushEndTime)
+        {
+            yield return new WaitForFixedUpdate();
+        }
+
+        float lightDisplacement =
+            lightItem.transform.position.z - lightStartZ;
+        float heavyDisplacement =
+            heavyItem.transform.position.z - heavyStartZ;
+
+        Assert.That(lightActor, Is.Not.Null);
+        Assert.That(heavyActor, Is.Not.Null);
+        Assert.That(
+            lightDisplacement,
+            Is.GreaterThan(heavyDisplacement + 0.2f),
+            "Light and heavy items were pushed at effectively the same rate. " +
+            $"Light={lightDisplacement:F3}, Heavy={heavyDisplacement:F3}.");
     }
 
     [UnityTest]
@@ -1782,13 +1886,17 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         bool makeDynamic = false,
         bool useGravity = false,
         Vector3? colliderSize = null,
-        bool canBePushedByEnemies = true)
+        bool canBePushedByEnemies = true,
+        float mass = 5f,
+        float enemyPushResistanceMultiplier = 1f)
     {
         DraggableObjectData itemData =
             Track(ScriptableObject.CreateInstance<DraggableObjectData>());
         itemData.BlocksEnemyNavigation = true;
         itemData.CanBePushedByEnemies = canBePushedByEnemies;
-        itemData.Mass = 5f;
+        itemData.EnemyPushResistanceMultiplier =
+            enemyPushResistanceMultiplier;
+        itemData.Mass = mass;
         itemData.MaxFollowSpeed = 15f;
         itemData.FollowSpeedMultiplier = 2f;
         itemData.MaxDragDistance = 6f;
@@ -1830,6 +1938,52 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.Not.Null,
             "DraggableObject did not compose its navigation adapter.");
         return item;
+    }
+
+    private (GameObject Actor,
+        EnemyItemPusher Pusher,
+        EnemyPhysicsMotor Motor) CreateDirectPushEnemy(
+            Vector3 position,
+            Vector3 destination,
+            int agentTypeId)
+    {
+        GameObject actor = Track(new GameObject("Direct push enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = position;
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = agentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 8f;
+
+        actor.AddComponent<Rigidbody>();
+        BakedNavMeshDirectMovementIntent movementIntent =
+            actor.AddComponent<BakedNavMeshDirectMovementIntent>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyPhysicsMotor motor = actor.AddComponent<EnemyPhysicsMotor>();
+        movementIntent.Configure(destination, 3f);
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, position),
+            Is.True,
+            "Direct push enemy could not be placed on NavMesh.");
+
+        return (actor, pusher, motor);
     }
 
     private HidingPlaceNavigationObstacle

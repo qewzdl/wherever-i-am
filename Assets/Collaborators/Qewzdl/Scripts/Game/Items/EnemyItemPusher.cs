@@ -4,6 +4,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
+[DefaultExecutionOrder(-100)]
 public sealed class EnemyItemPusher : MonoBehaviour
 {
     private const int MaximumDetectedColliders = 32;
@@ -29,6 +30,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
     private IEnemyDirectMovementIntentSource directMovementIntentSource;
 
     public bool IsPushingAnyItem { get; private set; }
+    public float CurrentPushResistance { get; private set; }
 
     private void Awake()
     {
@@ -41,6 +43,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
             !TryGetDirectMovementDirection(out Vector3 direction, out _))
         {
             IsPushingAnyItem = false;
+            CurrentPushResistance = 0f;
             return;
         }
 
@@ -254,6 +257,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
             QueryTriggerInteraction.Ignore
         );
         bool foundPushableItem = false;
+        float pushResistance = 0f;
 
         for (int i = 0; i < count; i++)
         {
@@ -271,8 +275,10 @@ public sealed class EnemyItemPusher : MonoBehaviour
             }
 
             foundPushableItem = true;
+            pushResistance += itemNavigation.EnemyPushResistance;
         }
 
+        CurrentPushResistance = pushResistance;
         return foundPushableItem;
     }
 
@@ -501,6 +507,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
     private void OnDisable()
     {
         IsPushingAnyItem = false;
+        CurrentPushResistance = 0f;
     }
 
 #if UNITY_EDITOR

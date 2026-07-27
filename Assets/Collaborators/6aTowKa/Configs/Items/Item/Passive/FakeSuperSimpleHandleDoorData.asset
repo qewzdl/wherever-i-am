@@ -15,6 +15,7 @@ MonoBehaviour:
   InteractionSprite: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
   BlocksEnemyNavigation: 0
   CanBePushedByEnemies: 1
+  EnemyPushResistanceMultiplier: 1
   Mass: 0.5
   FollowSpeed: 15
   MaxDragDistance: 6

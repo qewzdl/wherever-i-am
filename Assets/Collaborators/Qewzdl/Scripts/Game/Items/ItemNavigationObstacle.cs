@@ -26,6 +26,15 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         }
     }
 
+    public float EnemyPushResistance
+    {
+        get
+        {
+            ResolveReferences();
+            return item != null ? item.EnemyPushResistance : 0f;
+        }
+    }
+
     internal bool TryBeginPhysicalEnemyPushServer()
     {
         ResolveReferences();
