@@ -1,0 +1,353 @@
+.runtime-ui-root {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    color: rgb(32, 32, 32);
+}
+
+.menu-launcher {
+    position: absolute;
+    width: 320px;
+    height: 30px;
+    font-size: 18px;
+    color: rgb(32, 32, 32);
+    background-color: rgb(255, 255, 255);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(128, 128, 128);
+    border-right-color: rgb(128, 128, 128);
+    border-top-color: rgb(128, 128, 128);
+    border-bottom-color: rgb(128, 128, 128);
+    border-radius: 2px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.menu-launcher:hover {
+    background-color: rgb(245, 245, 245);
+}
+
+.menu-launcher:active {
+    background-color: rgb(200, 200, 200);
+}
+
+.main-menu-launcher {
+    right: 16px;
+    bottom: 105px;
+}
+
+.pause-menu-launcher {
+    left: 50%;
+    top: 50%;
+    width: 160px;
+    margin-left: -80px;
+    margin-top: 45px;
+}
+
+.settings-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.45);
+}
+
+.settings-window {
+    width: 900px;
+    max-width: 94%;
+    height: 650px;
+    max-height: 92%;
+    background-color: rgb(240, 240, 240);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(92, 92, 92);
+    border-right-color: rgb(92, 92, 92);
+    border-top-color: rgb(92, 92, 92);
+    border-bottom-color: rgb(92, 92, 92);
+    border-radius: 3px;
+}
+
+.window-header {
+    height: 76px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 28px;
+    padding-right: 20px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(175, 175, 175);
+}
+
+.window-title {
+    flex-grow: 1;
+    font-size: 28px;
+    -unity-font-style: bold;
+    color: rgb(25, 25, 25);
+}
+
+.window-subtitle {
+    font-size: 13px;
+    color: rgb(82, 82, 82);
+}
+
+.close-button {
+    width: 42px;
+    height: 42px;
+    font-size: 20px;
+    color: rgb(25, 25, 25);
+    background-color: rgb(255, 255, 255);
+    border-radius: 2px;
+}
+
+.settings-body {
+    flex-grow: 1;
+    flex-direction: row;
+}
+
+.category-list {
+    width: 210px;
+    padding-top: 20px;
+    padding-left: 16px;
+    padding-right: 16px;
+    background-color: rgb(225, 225, 225);
+    border-right-width: 1px;
+    border-right-color: rgb(175, 175, 175);
+}
+
+.category-button {
+    height: 44px;
+    margin-bottom: 8px;
+    font-size: 16px;
+    -unity-text-align: middle-left;
+    padding-left: 15px;
+    color: rgb(35, 35, 35);
+    background-color: rgb(255, 255, 255);
+    border-left-width: 1px;
+    border-left-color: rgb(150, 150, 150);
+    border-radius: 2px;
+}
+
+.category-button-active {
+    color: rgb(20, 20, 20);
+    background-color: rgb(205, 225, 248);
+    border-left-color: rgb(70, 125, 190);
+}
+
+.settings-scroll {
+    flex-grow: 1;
+    padding-left: 30px;
+    padding-right: 30px;
+    padding-top: 22px;
+    padding-bottom: 22px;
+}
+
+.section-title {
+    margin-top: 8px;
+    margin-bottom: 12px;
+    font-size: 20px;
+    -unity-font-style: bold;
+    color: rgb(28, 28, 28);
+}
+
+.section-description {
+    margin-bottom: 16px;
+    font-size: 13px;
+    white-space: normal;
+    color: rgb(82, 82, 82);
+}
+
+.setting-control {
+    min-height: 45px;
+    margin-bottom: 10px;
+    font-size: 15px;
+}
+
+.setting-control > .unity-base-field__label {
+    min-width: 230px;
+    color: rgb(40, 40, 40);
+}
+
+.setting-control .unity-base-field__input {
+    background-color: rgb(255, 255, 255);
+    color: rgb(25, 25, 25);
+    border-radius: 2px;
+}
+
+.section-divider {
+    height: 1px;
+    margin-top: 18px;
+    margin-bottom: 18px;
+    background-color: rgb(175, 175, 175);
+}
+
+.window-footer {
+    height: 68px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 24px;
+    padding-right: 24px;
+    border-top-width: 1px;
+    border-top-color: rgb(175, 175, 175);
+}
+
+.save-state {
+    flex-grow: 1;
+    font-size: 13px;
+    color: rgb(70, 70, 70);
+}
+
+.secondary-button {
+    min-width: 190px;
+    height: 40px;
+    color: rgb(30, 30, 30);
+    background-color: rgb(255, 255, 255);
+    border-radius: 2px;
+}
+
+.primary-button {
+    min-width: 130px;
+    height: 40px;
+    margin-left: 10px;
+    color: rgb(20, 20, 20);
+    background-color: rgb(205, 225, 248);
+    border-radius: 2px;
+}
+
+.settings-confirmation-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.52);
+}
+
+.settings-confirmation-panel {
+    width: 480px;
+    max-width: 90%;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 22px;
+    padding-bottom: 20px;
+    background-color: rgb(240, 240, 240);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(92, 92, 92);
+    border-right-color: rgb(92, 92, 92);
+    border-top-color: rgb(92, 92, 92);
+    border-bottom-color: rgb(92, 92, 92);
+    border-radius: 3px;
+}
+
+.confirmation-title {
+    margin-bottom: 12px;
+    font-size: 21px;
+    -unity-font-style: bold;
+    color: rgb(25, 25, 25);
+}
+
+.confirmation-description {
+    margin-bottom: 20px;
+    font-size: 14px;
+    white-space: normal;
+    color: rgb(55, 55, 55);
+}
+
+.confirmation-buttons {
+    flex-direction: row;
+    justify-content: flex-end;
+}
+
+.debug-layer {
+    position: absolute;
+    left: 18px;
+    top: 18px;
+    width: 590px;
+    max-height: 94%;
+    padding-left: 18px;
+    padding-right: 18px;
+    padding-top: 14px;
+    padding-bottom: 16px;
+    background-color: rgba(8, 11, 15, 0.94);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(63, 77, 94);
+    border-right-color: rgb(63, 77, 94);
+    border-top-color: rgb(63, 77, 94);
+    border-bottom-color: rgb(63, 77, 94);
+    border-radius: 6px;
+}
+
+.debug-scroll {
+    flex-grow: 1;
+}
+
+.debug-title {
+    font-size: 23px;
+    -unity-font-style: bold;
+    color: rgb(244, 246, 249);
+}
+
+.debug-hint {
+    margin-bottom: 10px;
+    color: rgb(127, 142, 159);
+}
+
+.debug-section {
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top-width: 1px;
+    border-top-color: rgb(42, 51, 62);
+}
+
+.debug-section-title {
+    margin-bottom: 5px;
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: rgb(105, 170, 255);
+}
+
+.debug-line {
+    font-size: 14px;
+    white-space: normal;
+    color: rgb(211, 218, 227);
+}
+
+.quick-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.quick-button {
+    min-width: 245px;
+    height: 38px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    color: rgb(232, 237, 243);
+    background-color: rgb(31, 40, 51);
+    border-radius: 4px;
+}
+
+.danger-button {
+    color: rgb(255, 218, 207);
+    background-color: rgb(83, 39, 36);
+}
+
+.debug-toggle {
+    min-height: 30px;
+    font-size: 14px;
+}

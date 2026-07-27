@@ -20,6 +20,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private NetworkConnectionService connectionService;
     [SerializeField] private NetworkConnectionApprovalService connectionApprovalService;
     [SerializeField] private UiErrorManager uiErrorManager;
+    [SerializeField] private SettingsService settingsService;
     [SerializeField] private AudioManager audioManager;
     [SerializeField] private GameplayNoiseWorldService gameplayNoiseWorldService;
     [SerializeField] private GameMapService gameMapService;
@@ -364,6 +365,7 @@ public sealed class ProjectContext : MonoBehaviour
         valid &= ValidateRequiredReference(connectionService, nameof(connectionService), logErrors);
         valid &= ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService), logErrors);
         valid &= ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager), logErrors);
+        valid &= ValidateRequiredReference(settingsService, nameof(settingsService), logErrors);
         valid &= ValidateRequiredReference(audioManager, nameof(audioManager), logErrors);
         valid &= ValidateRequiredReference(gameplayNoiseWorldService, nameof(gameplayNoiseWorldService), logErrors);
         valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService), logErrors);
@@ -405,6 +407,9 @@ public sealed class ProjectContext : MonoBehaviour
 
     private bool InitializeProjectServices()
     {
+        if (settingsService == null || !settingsService.Initialize())
+            return false;
+
         if (audioManager == null || !audioManager.Construct(sceneRegistry))
             return false;
 
@@ -548,6 +553,7 @@ public sealed class ProjectContext : MonoBehaviour
         globalServiceScope.Register<IProjectSceneFlowService>(projectSceneFlowService);
         globalServiceScope.Register<INetworkSessionService>(sessionOrchestrator);
         globalServiceScope.Register<IUiErrorService>(uiErrorManager);
+        globalServiceScope.Register<ISettingsService>(settingsService);
         globalServiceScope.Register<IAudioService>(audioManager);
         globalServiceScope.Register<IGameMapCatalog>(mapCatalog);
         return true;

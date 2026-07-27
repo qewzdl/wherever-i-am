@@ -1,0 +1,19 @@
+{
+    "name": "WhereverIAm.6aTowKa.Settings.Editor",
+    "rootNamespace": "",
+    "references": [
+        "WhereverIAm.Player",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

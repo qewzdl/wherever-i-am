@@ -157,6 +157,7 @@ GameObject:
   - component: {fileID: 481143003}
   - component: {fileID: 481143005}
   - component: {fileID: 481143007}
+  - component: {fileID: 481143008}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -203,7 +204,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c7e9e285ac228a24996fe9455c5797a1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  projectContext: {fileID: 0}
 --- !u!114 &481142980
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -232,7 +232,7 @@ MonoBehaviour:
   networkManager: {fileID: 481142982}
   transport: {fileID: 481142983}
   connectionConfig: {fileID: 11400000, guid: beb199e8898ed1a4c98f5c4cc163236d, type: 2}
-  shutdownWarningTimeoutSeconds: 15
+  shutdownTimeoutSeconds: 15
 --- !u!114 &481142982
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -342,6 +342,7 @@ MonoBehaviour:
   connectionService: {fileID: 481142981}
   connectionApprovalService: {fileID: 481142991}
   uiErrorManager: {fileID: 1020719287}
+  settingsService: {fileID: 481143008}
   audioManager: {fileID: 1269671436}
   gameplayNoiseWorldService: {fileID: 481143003}
   gameMapService: {fileID: 481143005}
@@ -359,6 +360,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   loadStartupScene: 1
   context: {fileID: 481142986}
+  clientReadinessTimeoutSeconds: 15
 --- !u!114 &481142988
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -532,20 +534,6 @@ MonoBehaviour:
   - {fileID: 481143007}
   - {fileID: 481142984}
   - {fileID: 481142990}
---- !u!114 &481143007
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 481142975}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4d5b8c3a7e2499fc2b3d4e5f6071829, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  networkManager: {fileID: 481142982}
-  phaseServicePrefab: {fileID: 7100000000000000004, guid: a1b2c3d4e5f6478899aabbccddeeff01, type: 3}
 --- !u!114 &481142999
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -608,24 +596,6 @@ MonoBehaviour:
   shutdownCoordinator: {fileID: 481143006}
   errorManager: {fileID: 1020719287}
   gameMapService: {fileID: 481143005}
---- !u!114 &481143006
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 481142975}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e4147914c86a4e74b46e3830488f7b6c, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  stateMachine: {fileID: 481142978}
-  sessionStateMachine: {fileID: 481143004}
-  connectionService: {fileID: 481142981}
-  sceneFlowService: {fileID: 481142992}
-  disconnectHandler: {fileID: 481143001}
-  errorManager: {fileID: 1020719287}
 --- !u!114 &481143003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -670,6 +640,55 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   catalog: {fileID: 11400000, guid: 2582fe9c6f7445d3a79d8f6fb8491304, type: 2}
+--- !u!114 &481143006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4147914c86a4e74b46e3830488f7b6c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  stateMachine: {fileID: 481142978}
+  sessionStateMachine: {fileID: 481143004}
+  connectionService: {fileID: 481142981}
+  sceneFlowService: {fileID: 481142992}
+  disconnectHandler: {fileID: 481143001}
+  errorManager: {fileID: 1020719287}
+  shutdownTimeoutRecoveryAttempts: 1
+  mainMenuLoadTimeoutSeconds: 15
+  readinessHealthCheckIntervalSeconds: 0.25
+--- !u!114 &481143007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4d5b8c3a7e2499fc2b3d4e5f6071829, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  networkManager: {fileID: 481142982}
+  phaseServicePrefab: {fileID: 7100000000000000004, guid: a1b2c3d4e5f6478899aabbccddeeff01, type: 3}
+--- !u!114 &481143008
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62e8de108ef36a64d8bde01798f1b83d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  saveDelaySeconds: 0.3
+  displayConfirmationSeconds: 15
 --- !u!1 &542830336
 GameObject:
   m_ObjectHideFlags: 0

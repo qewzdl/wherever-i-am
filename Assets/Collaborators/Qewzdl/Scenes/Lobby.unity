@@ -299,13 +299,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e37cd7a3fb1e417f95d27af86a8ba1af, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   sceneKind: 3
-  installOnAwake: 1
   features:
   - {fileID: 96767720}
-  - {fileID: 213095891524083776}
 --- !u!114 &96767720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -316,8 +314,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3ca352e1975c454a9b54c97f1483727b, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   lobbyState: {fileID: 707815387}
   lobbyController: {fileID: 707815386}
   lobbyService: {fileID: 707815385}
@@ -699,6 +697,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &896598414
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 896598415}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa495c745fcb2e94f99a86e2c6eeeaba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lobbyUI: {fileID: 896598416}
+  readServiceSource: {fileID: 707815385}
+  commandServiceSource: {fileID: 707815385}
 --- !u!1 &896598415
 GameObject:
   m_ObjectHideFlags: 0
@@ -739,21 +752,6 @@ MonoBehaviour:
   leaveButton: {fileID: 916248616}
   readyActionText: Ready
   notReadyActionText: Not ready
---- !u!114 &896598414
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 896598415}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa495c745fcb2e94f99a86e2c6eeeaba, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  lobbyUI: {fileID: 896598416}
-  readServiceSource: {fileID: 707815385}
-  commandServiceSource: {fileID: 707815385}
 --- !u!114 &896598417
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -783,12 +781,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_UiScaleMode: 0
+  m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
+  m_ReferenceResolution: {x: 2400, y: 600}
   m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0
+  m_MatchWidthOrHeight: 0.5
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96

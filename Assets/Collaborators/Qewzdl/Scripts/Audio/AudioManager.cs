@@ -43,6 +43,7 @@ public class AudioManager : MonoBehaviour, IAudioService
         }
 
         director.Construct(this, sceneRegistry);
+        music?.BindSettings();
         return music != null && ui != null && gameplay != null;
     }
 

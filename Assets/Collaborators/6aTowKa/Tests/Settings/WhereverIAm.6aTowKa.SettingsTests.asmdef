@@ -1,0 +1,21 @@
+{
+    "name": "WhereverIAm.6aTowKa.SettingsTests",
+    "rootNamespace": "",
+    "references": [
+        "WhereverIAm.Player"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

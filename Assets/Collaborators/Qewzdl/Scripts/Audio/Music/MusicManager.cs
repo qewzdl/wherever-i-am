@@ -21,6 +21,9 @@ public class MusicManager : MonoBehaviour, IMusicService
     private Coroutine cueRoutine;
 
     private MusicSelectionState cueState;
+    private ISettingsService settingsService;
+    private float currentSourceBaseVolume;
+    private float nextSourceBaseVolume;
 
     public MusicTrack CurrentTrack => currentTrack;
     public MusicCue CurrentCue => currentCue;
@@ -30,6 +33,23 @@ public class MusicManager : MonoBehaviour, IMusicService
     {
         currentSource = CreateAudioSource("Current Music Source");
         nextSource = CreateAudioSource("Next Music Source");
+    }
+
+    private void OnDestroy()
+    {
+        UnbindSettings();
+    }
+
+    public void BindSettings()
+    {
+        UnbindSettings();
+
+        if (!SettingsService.TryGet(out ISettingsService service))
+            return;
+
+        settingsService = service;
+        settingsService.MusicGainChanged += HandleMusicGainChanged;
+        SetMasterVolume(settingsService.Current.masterVolume * settingsService.Current.musicVolume);
     }
 
     public void PlayCue(MusicCue cue, bool restartIfSameCue = false)
@@ -119,11 +139,7 @@ public class MusicManager : MonoBehaviour, IMusicService
     public void SetMasterVolume(float volume)
     {
         masterVolume = Mathf.Clamp01(volume);
-
-        if (currentTrack != null && currentSource != null)
-        {
-            currentSource.volume = currentTrack.Volume * masterVolume;
-        }
+        RefreshSourceVolumes();
     }
 
     private IEnumerator PlayCueRoutine(MusicCue cue)
@@ -242,7 +258,8 @@ public class MusicManager : MonoBehaviour, IMusicService
         incomingSource.Stop();
         incomingSource.clip = newTrack.Clip;
         incomingSource.loop = false;
-        incomingSource.volume = 0f;
+        nextSourceBaseVolume = 0f;
+        RefreshSourceVolumes();
         incomingSource.Play();
 
         float fadeInTime = newTrack.FadeInTime;
@@ -250,8 +267,8 @@ public class MusicManager : MonoBehaviour, IMusicService
 
         float duration = Mathf.Max(fadeInTime, fadeOutTime);
 
-        float outgoingStartVolume = outgoingSource.volume;
-        float incomingTargetVolume = newTrack.Volume * masterVolume;
+        float outgoingStartBaseVolume = currentSourceBaseVolume;
+        float incomingTargetBaseVolume = newTrack.Volume;
 
         float timer = 0f;
 
@@ -262,34 +279,35 @@ public class MusicManager : MonoBehaviour, IMusicService
             if (fadeOutTime > 0f)
             {
                 float outT = Mathf.Clamp01(timer / fadeOutTime);
-                outgoingSource.volume = Mathf.Lerp(outgoingStartVolume, 0f, outT);
+                currentSourceBaseVolume = Mathf.Lerp(outgoingStartBaseVolume, 0f, outT);
             }
             else
             {
-                outgoingSource.volume = 0f;
+                currentSourceBaseVolume = 0f;
             }
 
             if (fadeInTime > 0f)
             {
                 float inT = Mathf.Clamp01(timer / fadeInTime);
-                incomingSource.volume = Mathf.Lerp(0f, incomingTargetVolume, inT);
+                nextSourceBaseVolume = Mathf.Lerp(0f, incomingTargetBaseVolume, inT);
             }
             else
             {
-                incomingSource.volume = incomingTargetVolume;
+                nextSourceBaseVolume = incomingTargetBaseVolume;
             }
+
+            RefreshSourceVolumes();
 
             yield return null;
         }
 
         outgoingSource.Stop();
         outgoingSource.clip = null;
-        outgoingSource.volume = 0f;
-
-        incomingSource.volume = incomingTargetVolume;
-
         currentSource = incomingSource;
         nextSource = outgoingSource;
+        currentSourceBaseVolume = incomingTargetBaseVolume;
+        nextSourceBaseVolume = 0f;
+        RefreshSourceVolumes();
         currentTrack = newTrack;
 
         transitionCoroutine = null;
@@ -297,8 +315,8 @@ public class MusicManager : MonoBehaviour, IMusicService
 
     private IEnumerator FadeOutAndStop(float fadeOutTime)
     {
-        float currentStartVolume = currentSource != null ? currentSource.volume : 0f;
-        float nextStartVolume = nextSource != null ? nextSource.volume : 0f;
+        float currentStartBaseVolume = currentSourceBaseVolume;
+        float nextStartBaseVolume = nextSourceBaseVolume;
 
         float timer = 0f;
 
@@ -310,13 +328,15 @@ public class MusicManager : MonoBehaviour, IMusicService
 
             if (currentSource != null)
             {
-                currentSource.volume = Mathf.Lerp(currentStartVolume, 0f, t);
+                currentSourceBaseVolume = Mathf.Lerp(currentStartBaseVolume, 0f, t);
             }
 
             if (nextSource != null)
             {
-                nextSource.volume = Mathf.Lerp(nextStartVolume, 0f, t);
+                nextSourceBaseVolume = Mathf.Lerp(nextStartBaseVolume, 0f, t);
             }
+
+            RefreshSourceVolumes();
 
             yield return null;
         }
@@ -325,14 +345,14 @@ public class MusicManager : MonoBehaviour, IMusicService
         {
             currentSource.Stop();
             currentSource.clip = null;
-            currentSource.volume = 0f;
+            currentSourceBaseVolume = 0f;
         }
 
         if (nextSource != null)
         {
             nextSource.Stop();
             nextSource.clip = null;
-            nextSource.volume = 0f;
+            nextSourceBaseVolume = 0f;
         }
 
         currentTrack = null;
@@ -347,14 +367,14 @@ public class MusicManager : MonoBehaviour, IMusicService
         {
             currentSource.Stop();
             currentSource.clip = null;
-            currentSource.volume = 0f;
+            currentSourceBaseVolume = 0f;
         }
 
         if (nextSource != null)
         {
             nextSource.Stop();
             nextSource.clip = null;
-            nextSource.volume = 0f;
+            nextSourceBaseVolume = 0f;
         }
 
         currentTrack = null;
@@ -383,5 +403,27 @@ public class MusicManager : MonoBehaviour, IMusicService
     private float GetDeltaTime()
     {
         return useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+    }
+
+    private void HandleMusicGainChanged(float gain)
+    {
+        SetMasterVolume(gain);
+    }
+
+    private void UnbindSettings()
+    {
+        if (settingsService != null)
+            settingsService.MusicGainChanged -= HandleMusicGainChanged;
+
+        settingsService = null;
+    }
+
+    private void RefreshSourceVolumes()
+    {
+        if (currentSource != null)
+            currentSource.volume = currentSourceBaseVolume * masterVolume;
+
+        if (nextSource != null)
+            nextSource.volume = nextSourceBaseVolume * masterVolume;
     }
 }

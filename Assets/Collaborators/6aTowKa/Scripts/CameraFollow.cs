@@ -17,6 +17,16 @@ public class CameraFollow : MonoBehaviour
     private Vector3 offsetVelocity;
 
     private bool hasLocalControl;
+    private int appliedSettingsRevision = -1;
+
+    public void ApplyUserSmoothing(bool smoothingEnabled, float smoothingIntensity)
+    {
+        positionSmoothTime = smoothingEnabled
+            ? Mathf.Lerp(0.01f, 0.2f, Mathf.Clamp01(smoothingIntensity))
+            : 0f;
+
+        offsetVelocity = Vector3.zero;
+    }
 
     private void Awake()
     {
@@ -30,6 +40,8 @@ public class CameraFollow : MonoBehaviour
         }
 
         SnapToTarget();
+
+        ApplySettingsIfChanged();
     }
 
     public void SetLocalControl(bool value)
@@ -76,6 +88,8 @@ public class CameraFollow : MonoBehaviour
 
     private void LateUpdate()
     {
+        ApplySettingsIfChanged();
+
         if (!hasLocalControl)
             return;
 
@@ -120,5 +134,18 @@ public class CameraFollow : MonoBehaviour
         }
 
         return true;
+    }
+
+    private void ApplySettingsIfChanged()
+    {
+        if (!SettingsService.TryGet(out ISettingsService settings) ||
+            settings.Revision == appliedSettingsRevision)
+        {
+            return;
+        }
+
+        GameSettingsData values = settings.Current;
+        ApplyUserSmoothing(values.cameraSmoothing, values.cameraSmoothingIntensity);
+        appliedSettingsRevision = settings.Revision;
     }
 }

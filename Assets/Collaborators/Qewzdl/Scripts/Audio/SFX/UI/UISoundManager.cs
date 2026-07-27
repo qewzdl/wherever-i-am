@@ -114,7 +114,7 @@ public class UiSoundManager : MonoBehaviour, IUiSoundService
         }
 
         source.pitch = sound.GetPitch();
-        source.PlayOneShot(clip, sound.GetVolume() * masterVolume);
+        source.PlayOneShot(clip, sound.GetVolume() * GetEffectiveVolume());
         return true;
     }
 
@@ -135,5 +135,16 @@ public class UiSoundManager : MonoBehaviour, IUiSoundService
         audioSource.outputAudioMixerGroup = uiMixerGroup;
 
         return audioSource;
+    }
+
+    private float GetEffectiveVolume()
+    {
+        if (SettingsService.TryGet(out ISettingsService settings))
+        {
+            GameSettingsData current = settings.Current;
+            return Mathf.Clamp01(current.masterVolume) * Mathf.Clamp01(current.interfaceVolume);
+        }
+
+        return masterVolume;
     }
 }

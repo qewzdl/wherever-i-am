@@ -237,7 +237,7 @@ NavMeshObstacle:
   m_Enabled: 0
   serializedVersion: 3
   m_Shape: 1
-  m_Extents: {x: 0.55, y: 0.55, z: 0.55}
+  m_Extents: {x: 0.05, y: 0.05, z: 0.05}
   m_MoveThreshold: 0.1
   m_Carve: 1
   m_CarveOnlyStationary: 1
@@ -253,8 +253,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f15ab75e36ea4676bb14b3ce9824635f, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   obstacle: {fileID: 864100000000000005}
   boundsPadding: 0.05
   moveThreshold: 0.1

@@ -4,7 +4,8 @@
     "references": [
         "WhereverIAm.Shared",
         "Unity.InputSystem",
-        "Unity.Netcode.Runtime"
+        "Unity.Netcode.Runtime",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

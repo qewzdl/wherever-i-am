@@ -72,7 +72,7 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService
         source.transform.position = position;
 
         source.clip = clip;
-        source.volume = sound.GetVolume() * masterVolume;
+        source.volume = sound.GetVolume() * GetEffectiveVolume();
         source.pitch = sound.GetPitch();
         source.spatialBlend = spatialBlend;
         source.minDistance = sound.MinDistance;
@@ -129,5 +129,16 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService
         }
 
         return null;
+    }
+
+    private float GetEffectiveVolume()
+    {
+        if (SettingsService.TryGet(out ISettingsService settings))
+        {
+            GameSettingsData current = settings.Current;
+            return Mathf.Clamp01(current.masterVolume) * Mathf.Clamp01(current.effectsVolume);
+        }
+
+        return masterVolume;
     }
 }

@@ -14,6 +14,7 @@ internal static class ServiceContractCatalog
         typeof(IProjectSceneFlowService),
         typeof(INetworkSessionService),
         typeof(IUiErrorService),
+        typeof(ISettingsService),
         typeof(IAudioService),
         typeof(IGameMapCatalog)
     };

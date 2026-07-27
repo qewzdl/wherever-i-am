@@ -44,6 +44,8 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private bool hasLocalControl;
     private bool lookActive = true;
+    private float verticalSensitivitySign = 1f;
+    private int appliedSettingsRevision = -1;
 
     private Transform hidingViewAnchor;
     private Vector3 returnLocalPosition;
@@ -66,6 +68,42 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
         }
 
         SyncRotationFromScene();
+
+        ApplySettingsIfChanged();
+    }
+
+    private void OnEnable()
+    {
+        if (SettingsService.TryGet(out ISettingsService settings))
+            settings.FovChanged += OnFovChanged;
+    }
+
+    private void OnFovChanged(float fieldOfView)
+    {
+        Camera attachedCamera = GetComponentInChildren<Camera>(true);
+        if (attachedCamera != null)
+            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
+    }
+
+    public void ApplyUserSettings(
+        float mouseSensitivity,
+        bool invertVerticalLook,
+        bool smoothingEnabled,
+        float smoothingIntensity,
+        float fieldOfView)
+    {
+        sensitivity = Mathf.Clamp(mouseSensitivity, 10f, 300f);
+        verticalSensitivitySign = invertVerticalLook ? -1f : 1f;
+        smoothingTime = smoothingEnabled
+            ? Mathf.Lerp(0.005f, 0.12f, Mathf.Clamp01(smoothingIntensity))
+            : 0f;
+
+        Camera attachedCamera = GetComponentInChildren<Camera>(true);
+
+        if (attachedCamera != null)
+        {
+            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
+        }
     }
 
     public void Construct(IPauseService pauseService)
@@ -210,6 +248,8 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private void Update()
     {
+        ApplySettingsIfChanged();
+
         if (CanReadLookInput())
             ApplyLookInput();
 
@@ -240,6 +280,9 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private void OnDisable()
     {
+        if (SettingsService.TryGet(out ISettingsService settings))
+            settings.FovChanged -= OnFovChanged;
+
         pendingLookDelta = Vector2.zero;
         ClearHidingView();
 
@@ -332,10 +375,13 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
             return;
         }
 
+        if (SettingsService.TryGet(out ISettingsService settings))
+            sensitivity = Mathf.Clamp(settings.Current.mouseSensitivity, 10f, 300f);
+
         Vector2 scaledDelta = pendingLookDelta * sensitivity / 500f;
 
         targetYaw += scaledDelta.x * horizontalSensitivityMultiplier;
-        targetPitch -= scaledDelta.y * verticalSensitivityMultiplier;
+        targetPitch -= scaledDelta.y * verticalSensitivityMultiplier * verticalSensitivitySign;
 
         if (hasHidingView && hidingViewAnchor != null)
         {
@@ -399,5 +445,23 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
         float yawOffset = Mathf.DeltaAngle(playerTransform.eulerAngles.y, currentYaw);
         transform.localRotation = Quaternion.Euler(currentPitch, yawOffset, 0f);
+    }
+
+    private void ApplySettingsIfChanged()
+    {
+        if (!SettingsService.TryGet(out ISettingsService settings) ||
+            settings.Revision == appliedSettingsRevision)
+        {
+            return;
+        }
+
+        GameSettingsData values = settings.Current;
+        ApplyUserSettings(
+            values.mouseSensitivity,
+            values.invertVerticalLook,
+            values.cameraSmoothing,
+            values.cameraSmoothingIntensity,
+            values.fieldOfView);
+        appliedSettingsRevision = settings.Revision;
     }
 }
