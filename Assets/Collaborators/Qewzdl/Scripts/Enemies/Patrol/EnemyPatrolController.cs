@@ -133,7 +133,8 @@ public sealed class EnemyPatrolController
 
         hasActiveWanderDestination = navigator.TryMoveTo(
             wanderPoint,
-            config.patrolStopWanderSpeed
+            config.patrolStopWanderSpeed,
+            allowBarrierPushThrough: false
         );
 
         if (hasActiveWanderDestination)
@@ -217,7 +218,10 @@ public sealed class EnemyPatrolController
 
             Vector3 destination = plannedRoutePoints[nextPlannedRoutePointIndex];
 
-            if (navigator.TryMoveTo(destination, config.patrolSpeed))
+            if (navigator.TryMoveTo(
+                    destination,
+                    config.patrolSpeed,
+                    allowBarrierPushThrough: false))
             {
                 nextPlannedRoutePointIndex++;
                 blackboard?.SetCurrentDestination(destination);

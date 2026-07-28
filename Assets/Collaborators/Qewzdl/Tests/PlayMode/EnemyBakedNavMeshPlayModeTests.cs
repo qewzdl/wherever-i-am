@@ -960,6 +960,111 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_WithPushThroughDisallowed_NeverPushesBlockingBarricade()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable leftItem = CreateSpawnedNavigationItem(
+            new Vector3(-0.8f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(1.6f, 1.5f, 1.2f));
+        NetworkItemTestDraggable rightItem = CreateSpawnedNavigationItem(
+            new Vector3(0.8f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(1.6f, 1.5f, 1.2f));
+        ItemNavigationObstacle leftNavigation =
+            leftItem.GetComponent<ItemNavigationObstacle>();
+        ItemNavigationObstacle rightNavigation =
+            rightItem.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                leftNavigation.IsBlockingNavigation &&
+                rightNavigation.IsBlockingNavigation &&
+                leftItem.GetComponent<NavMeshObstacle>().carving &&
+                rightItem.GetComponent<NavMeshObstacle>().carving,
+            "Barricade did not carve the blocked route.");
+
+        GameObject actor = Track(new GameObject("Non-pushing search enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -5f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Vector3 leftStart = leftItem.transform.position;
+        Vector3 rightStart = rightItem.transform.position;
+
+        // Mirrors how Investigate/Patrol call TryMoveTo for a waypoint
+        // that merely might be worth visiting — a blocked route there
+        // should just fail cleanly, never escalate to shoving furniture.
+        float observationEnd = Time.realtimeSinceStartup + 1f;
+
+        while (Time.realtimeSinceStartup < observationEnd)
+        {
+            navigator.TickNavigationGate();
+            navigator.TryMoveTo(
+                destination,
+                3f,
+                allowBarrierPushThrough: false);
+            Assert.That(
+                navigator.TryGetEnemyDirectMovementIntent(out _, out _),
+                Is.False,
+                "Enemy entered direct movement despite push-through " +
+                "being disallowed.");
+            Assert.That(pusher.IsPushingAnyItem, Is.False);
+            yield return null;
+        }
+
+        Assert.That(
+            Vector3.Distance(leftItem.transform.position, leftStart),
+            Is.LessThan(0.05f),
+            "Barricade item moved despite push-through being disallowed.");
+        Assert.That(
+            Vector3.Distance(rightItem.transform.position, rightStart),
+            Is.LessThan(0.05f),
+            "Barricade item moved despite push-through being disallowed.");
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_ReplanningSerialBarricade_KeepsReservationStable()
     {
         yield return StartHost();

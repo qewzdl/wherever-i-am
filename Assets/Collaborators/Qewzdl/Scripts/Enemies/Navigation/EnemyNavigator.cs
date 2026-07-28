@@ -25,6 +25,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private bool hasRequestedNavigation;
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
+    private bool requestedAllowBarrierPushThrough;
 
     public Vector3 Position => transform.position;
     public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
@@ -144,9 +145,19 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         }
     }
 
-    public bool TryMoveTo(Vector3 destination, float speed)
+    // allowBarrierPushThrough gates whether a blocked route may fall back to
+    // shoving a pushable barricade aside. That's the right call for a
+    // player being chased through a real doorway, but investigation and
+    // patrol waypoints are just candidates to visit — if one happens to be
+    // unreachable, the correct response is to skip it, not to start
+    // pushing furniture out of the way to force a path to an arbitrary
+    // search point.
+    public bool TryMoveTo(
+        Vector3 destination,
+        float speed,
+        bool allowBarrierPushThrough = true)
     {
-        RememberRequestedNavigation(destination, speed);
+        RememberRequestedNavigation(destination, speed, allowBarrierPushThrough);
 
         if (TryResolveDoorNavigation(
                 destination,
@@ -165,7 +176,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             }
         }
 
-        return TryMoveAfterDoorNavigation(destination, speed);
+        return TryMoveAfterDoorNavigation(
+            destination,
+            speed,
+            allowBarrierPushThrough);
     }
 
     public void TickNavigationGate()
@@ -200,6 +214,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             TryMoveAfterDoorNavigation(
                 doorResult.OverrideDestination,
                 requestedNavigationSpeed,
+                requestedAllowBarrierPushThrough,
                 forceRepath: true
             );
 
@@ -211,6 +226,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             TryMoveAfterDoorNavigation(
                 requestedNavigationDestination,
                 requestedNavigationSpeed,
+                requestedAllowBarrierPushThrough,
                 forceRepath: true
             );
         }
@@ -219,6 +235,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private bool TryMoveAfterDoorNavigation(
         Vector3 destination,
         float speed,
+        bool allowBarrierPushThrough,
         bool forceRepath = false)
     {
         if (postureController != null && postureController.IsPostureTransitionInProgress)
@@ -268,7 +285,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (config != null && config.crawlingEnabled && postureController != null)
         {
-            bool moved = TryMoveWithPosturePriority(destination, speed);
+            bool moved = TryMoveWithPosturePriority(
+                destination,
+                speed,
+                allowBarrierPushThrough);
 
             if (!moved && !postureController.IsPostureTransitionInProgress)
             {
@@ -278,8 +298,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             return moved;
         }
 
-        bool movedWithCurrentPosture =
-            TryMoveToWithCurrentPosture(destination, speed);
+        bool movedWithCurrentPosture = TryMoveToWithCurrentPosture(
+            destination,
+            speed,
+            allowBarrierPushThrough);
 
         if (!movedWithCurrentPosture)
         {
@@ -451,10 +473,14 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         return true;
     }
 
-    private void RememberRequestedNavigation(Vector3 destination, float speed)
+    private void RememberRequestedNavigation(
+        Vector3 destination,
+        float speed,
+        bool allowBarrierPushThrough)
     {
         requestedNavigationDestination = destination;
         requestedNavigationSpeed = speed;
+        requestedAllowBarrierPushThrough = allowBarrierPushThrough;
         hasRequestedNavigation = true;
     }
 
@@ -536,7 +562,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         agent.isStopped = true;
     }
 
-    private bool TryMoveWithPosturePriority(Vector3 destination, float speed)
+    private bool TryMoveWithPosturePriority(
+        Vector3 destination,
+        float speed,
+        bool allowBarrierPushThrough)
     {
         if (postureTraversal == null ||
             !postureTraversal.TryBuildPlan(
@@ -552,7 +581,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (plan.IsBlockedByItem)
         {
-            return TryPushThroughToTarget(destination, postureSpeed);
+            return allowBarrierPushThrough &&
+                   TryPushThroughToTarget(destination, postureSpeed);
         }
 
         if (!plan.IsComplete)
@@ -562,7 +592,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 return false;
             }
 
-            return TryPushThroughToTarget(destination, postureSpeed);
+            return allowBarrierPushThrough &&
+                   TryPushThroughToTarget(destination, postureSpeed);
         }
 
         EnemyPosture previousPosture = postureController.CurrentPosture;
@@ -603,7 +634,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         agent.isStopped = true;
     }
 
-    private bool TryMoveToWithCurrentPosture(Vector3 destination, float speed)
+    private bool TryMoveToWithCurrentPosture(
+        Vector3 destination,
+        float speed,
+        bool allowBarrierPushThrough)
     {
         if (!TryEnsureOnNavMesh())
         {
@@ -612,7 +646,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (!TryBuildCompletePath(destination, out _))
         {
-            return TryPushThroughToTarget(destination, speed);
+            return allowBarrierPushThrough &&
+                   TryPushThroughToTarget(destination, speed);
         }
 
         CancelBarrierTraversal(restoreAgent: true);
