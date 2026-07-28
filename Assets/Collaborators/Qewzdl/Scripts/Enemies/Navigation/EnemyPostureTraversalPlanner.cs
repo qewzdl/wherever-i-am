@@ -296,9 +296,15 @@ internal sealed class EnemyPostureTraversalPlanner : IEnemyTraversalHandler
             return false;
         }
 
-        float destinationSampleRadius = posture == EnemyPosture.Standing
-            ? Mathf.Max(0.05f, config.postureSwitchSampleRadius)
-            : Mathf.Max(0.1f, config.postureNavMeshSampleRadius);
+        // postureSwitchSampleRadius is a tight tolerance meant for checking
+        // whether the enemy itself can physically change posture at its own
+        // feet. The destination here is the chase target's live, constantly
+        // moving position — sampling it with that same tight radius misses
+        // intermittently near any obstacle-carved NavMesh boundary, which
+        // wrongly convinced the planner standing was impossible and forced
+        // a real (multi-second) crawl transition on every miss.
+        float destinationSampleRadius =
+            Mathf.Max(0.1f, config.postureNavMeshSampleRadius);
 
         if (!postureController.TryGetUsablePosturePosition(
                 posture,

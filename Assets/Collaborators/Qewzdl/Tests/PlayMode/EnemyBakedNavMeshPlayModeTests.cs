@@ -2084,6 +2084,104 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         }
     }
 
+    [UnityTest]
+    public IEnumerator Navigator_ChasingMovingTargetNearClutter_DoesNotHaltOutsideOfAttack()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        // Scattered, non-sealing clutter along the chase area — close to
+        // a real room. None of these fully block any route; they just
+        // sit in the way sometimes, which is what exposed the posture
+        // planner sampling a moving destination with too tight a radius
+        // and periodically misjudging that standing was impossible.
+        Vector3[] clutterPositions =
+        {
+            new Vector3(2f, 0f, 3f),
+            new Vector3(-2.5f, 0f, -1f),
+            new Vector3(1f, 0f, -4f),
+            new Vector3(-1.5f, 0f, 6f),
+        };
+
+        foreach (Vector3 clutterPos in clutterPositions)
+        {
+            NetworkItemTestDraggable clutterItem = CreateSpawnedNavigationItem(
+                clutterPos,
+                makeDynamic: true,
+                useGravity: true,
+                colliderSize: new Vector3(1.2f, 1f, 1.2f));
+            ItemNavigationObstacle clutterNav =
+                clutterItem.GetComponent<ItemNavigationObstacle>();
+
+            yield return WaitForCondition(
+                () => clutterNav.IsBlockingNavigation &&
+                      clutterItem.GetComponent<NavMeshObstacle>().carving,
+                "Clutter item did not carve.");
+        }
+
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 5f),
+            canBeDetected: true);
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -5f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Enemy did not start on the prebuilt NavMesh.");
+
+        yield return WaitForCondition(
+            () => enemy.HasTarget &&
+                  (enemy.CurrentState == EnemyState.Chase ||
+                   enemy.CurrentState == EnemyState.Attack),
+            "Enemy did not acquire the moving target.");
+
+        // A continuously shifting destination, unlike a fixed
+        // back-and-forth point, mirrors a real player being chased.
+        float endTime = Time.realtimeSinceStartup + 20f;
+        bool wasMoving = false;
+        int nonAttackStopEvents = 0;
+
+        while (Time.realtimeSinceStartup < endTime)
+        {
+            float t = Time.time;
+            target.transform.position = new Vector3(
+                Mathf.Sin(t * 0.5f) * 6f,
+                0f,
+                2f + Mathf.Cos(t * 0.35f) * 8f);
+            Physics.SyncTransforms();
+
+            float speed = agent.enabled ? agent.velocity.magnitude : 0f;
+            bool isMoving = speed > 0.15f;
+
+            if (wasMoving && !isMoving && enemy.CurrentState != EnemyState.Attack)
+            {
+                nonAttackStopEvents++;
+            }
+
+            wasMoving = isMoving;
+
+            yield return null;
+        }
+
+        Assert.That(
+            nonAttackStopEvents,
+            Is.Zero,
+            "Enemy fully halted mid-chase outside of an attack.");
+    }
+
     private IEnumerator StartHost()
     {
         GameObject root = Track(new GameObject("Enemy NavMesh host"));
