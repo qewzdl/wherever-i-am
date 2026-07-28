@@ -1497,6 +1497,117 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_PushingBarrier_StaysCommittedToSameBarrierInstance()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            new Vector3(0f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 1f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () => itemNavigation.IsBlockingNavigation &&
+                  item.GetComponent<NavMeshObstacle>().carving,
+            "Item did not carve.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Committed-push enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -5f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+        Vector3 destination = new(0f, 0f, 5f);
+
+        Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return pusher.IsPushingAnyItem;
+            },
+            "Enemy did not start pushing the barrier.");
+
+        object barrierTraversal =
+            PlayModeTestReflection.GetField<object>(navigator, "barrierTraversal");
+        ItemNavigationObstacle committedBarrier =
+            PlayModeTestReflection.GetField<ItemNavigationObstacle>(
+                barrierTraversal,
+                "currentBarrier");
+
+        Assert.That(
+            committedBarrier,
+            Is.SameAs(itemNavigation),
+            "Enemy committed to a different barrier than the one it's " +
+            "actually pushing.");
+
+        // Once committed, the barrier shouldn't be re-selected from
+        // scratch every tick while it's still valid — a distance-only
+        // re-scan on every tick is exactly what let a merely-nearer,
+        // unrelated barrier (e.g. furniture behind a wall) hijack the
+        // enemy's aim mid-push in the reported bug.
+        float endTime = Time.realtimeSinceStartup + 2f;
+
+        while (Time.realtimeSinceStartup < endTime)
+        {
+            navigator.TickNavigationGate();
+            navigator.TryMoveTo(destination, 3f);
+
+            ItemNavigationObstacle currentCommittedBarrier =
+                PlayModeTestReflection.GetField<ItemNavigationObstacle>(
+                    barrierTraversal,
+                    "currentBarrier");
+            Assert.That(
+                currentCommittedBarrier,
+                Is.SameAs(itemNavigation),
+                "Enemy's committed barrier changed mid-push.");
+
+            yield return null;
+        }
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_AfterClearingBarricade_RoutesAroundUnrelatedWallInsteadOfRammingIt()
     {
         yield return StartHost();

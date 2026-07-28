@@ -30,10 +30,10 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
     // The real requested destination can sit on the far side of a wall
     // that has nothing to do with the barrier being pushed — walking
     // straight at it would ram that wall once the barrier stops being
-    // in the way. Physical movement instead aims at whichever active
-    // barrier is nearest the enemy right now, refreshed every tick;
-    // directMovementDestination stays the true goal for HasReached and
-    // for the periodic normal-path recovery check.
+    // in the way. Physical movement instead aims at the committed
+    // barrier's own (possibly-displaced) position; directMovementDestination
+    // stays the true goal for HasReached and the periodic normal-path
+    // recovery check.
     private Vector3 directMovementAimPoint;
     private ItemNavigationObstacle currentBarrier;
     private float directMovementSpeed;
@@ -59,6 +59,7 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
     private Vector3 pendingPushEndpoint;
     private Vector3 pendingPushDestination;
     private float pendingPushSpeed;
+    private ItemNavigationObstacle pendingPushBarrier;
 
     public EnemyTraversalKind Kind => EnemyTraversalKind.PushableBarrier;
     public bool IsActive => directMovementActive;
@@ -124,16 +125,18 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         if (directMovementActive)
         {
             directMovementDestination = destination;
-            directMovementAimPoint = TryGetNearestActiveBarrier(
-                out currentBarrier,
-                out Vector3 nearestBarrierPosition)
-                ? nearestBarrierPosition
+            directMovementAimPoint = TryGetBarrierAimPosition(
+                out Vector3 aimPosition)
+                ? aimPosition
                 : destination;
             directMovementSpeed = speed;
             return true;
         }
 
-        if (!TryFindBarrierRoute(destination, out NavMeshPath barrierRoute))
+        if (!TryFindBarrierRoute(
+                destination,
+                out ItemNavigationObstacle bestBarrier,
+                out NavMeshPath barrierRoute))
         {
             return false;
         }
@@ -148,31 +151,50 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             pendingPushEndpoint = endpoint;
             pendingPushDestination = destination;
             pendingPushSpeed = speed;
+            pendingPushBarrier = bestBarrier;
             return true;
         }
 
         hasPendingPushEndpoint = false;
-        ActivateDirectMovement(destination, speed);
+        ActivateDirectMovement(bestBarrier, destination, speed);
         return true;
     }
 
-    // Nearest to the enemy itself, not to a far-off destination — this is
-    // what the physical push direction should aim at right now, so it
-    // never drifts off toward unrelated geometry once a barrier clears.
-    private bool TryGetNearestActiveBarrier(
-        out ItemNavigationObstacle barrier,
-        out Vector3 barrierPosition)
+    // Sticks with whatever barrier is already committed to (its current,
+    // possibly-displaced position) as long as it's still valid, instead
+    // of re-scanning every tick. A distance-only re-scan can pick a
+    // barrier that's spatially nearer but on the other side of a wall —
+    // that's how the enemy ends up walking into a wall with furniture
+    // sitting behind it. Only re-scans (with the same caveat, but now
+    // rare) once the committed barrier is actually gone.
+    private bool TryGetBarrierAimPosition(out Vector3 aimPosition)
     {
-        barrier = FindBestActiveBarrier(ownerTransform.position);
-
-        if (barrier == null)
+        if (IsBarrierStillValid(currentBarrier))
         {
-            barrierPosition = default;
+            aimPosition = currentBarrier.transform.position;
+            return true;
+        }
+
+        currentBarrier = FindBestActiveBarrier(ownerTransform.position);
+
+        if (currentBarrier == null)
+        {
+            aimPosition = default;
             return false;
         }
 
-        barrierPosition = barrier.transform.position;
+        aimPosition = currentBarrier.transform.position;
         return true;
+    }
+
+    private bool IsBarrierStillValid(ItemNavigationObstacle barrier)
+    {
+        return barrier != null &&
+               barrier.IsBlockingNavigation &&
+               barrier.CanBePushedByEnemyNow &&
+               itemPusher != null &&
+               !barrier.IsReservedByOtherEnemy(itemPusher.ReservationOwnerId) &&
+               !IsInFailureCooldown(barrier);
     }
 
     private ItemNavigationObstacle FindBestActiveBarrier(Vector3 referencePosition)
@@ -224,16 +246,20 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             : 4f;
     }
 
-    private bool TryFindBarrierRoute(Vector3 destination, out NavMeshPath barrierRoute)
+    private bool TryFindBarrierRoute(
+        Vector3 destination,
+        out ItemNavigationObstacle bestBarrier,
+        out NavMeshPath barrierRoute)
     {
         barrierRoute = null;
+        bestBarrier = null;
 
         if (agent == null)
         {
             return false;
         }
 
-        ItemNavigationObstacle bestBarrier = FindBestActiveBarrier(destination);
+        bestBarrier = FindBestActiveBarrier(destination);
 
         if (bestBarrier == null)
         {
@@ -291,7 +317,10 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         }
 
         hasPendingPushEndpoint = false;
-        ActivateDirectMovement(pendingPushDestination, pendingPushSpeed);
+        ActivateDirectMovement(
+            pendingPushBarrier,
+            pendingPushDestination,
+            pendingPushSpeed);
     }
 
     private static bool TryGetRouteEndpoint(
@@ -343,10 +372,8 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         }
 
         directMovementDestination = destination;
-        directMovementAimPoint = TryGetNearestActiveBarrier(
-            out currentBarrier,
-            out Vector3 nearestBarrierPosition)
-            ? nearestBarrierPosition
+        directMovementAimPoint = TryGetBarrierAimPosition(out Vector3 aimPosition)
+            ? aimPosition
             : destination;
         directMovementSpeed = speed;
 
@@ -418,13 +445,15 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
                itemPusher.HasNavigationBlockerOnRoute(path.corners);
     }
 
-    private void ActivateDirectMovement(Vector3 destination, float speed)
+    private void ActivateDirectMovement(
+        ItemNavigationObstacle barrier,
+        Vector3 destination,
+        float speed)
     {
+        currentBarrier = barrier;
         directMovementDestination = destination;
-        directMovementAimPoint = TryGetNearestActiveBarrier(
-            out currentBarrier,
-            out Vector3 nearestBarrierPosition)
-            ? nearestBarrierPosition
+        directMovementAimPoint = barrier != null
+            ? barrier.transform.position
             : destination;
         directMovementSpeed = speed;
         directMovementAgentTypeId = agent.agentTypeID;
@@ -479,6 +508,7 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         directMovementSpeed = 0f;
         nextPathCheckTime = 0f;
         hasPendingPushEndpoint = false;
+        pendingPushBarrier = null;
         recoveryController?.Reset();
     }
 
