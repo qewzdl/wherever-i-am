@@ -1,17 +1,26 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
-// No complete NavMesh route exists to the destination. If — and only if
-// — a real, reachable ItemNavigationObstacle is registered somewhere in
-// the level, this walks toward it normally by NavMesh and drops to
-// direct physical movement for the final stretch, where EnemyItemPusher's
-// per-tick physical push (FixedUpdate) pushes whatever is actually in
-// front of it — one item or a whole stack of them. Every
+// No complete NavMesh route exists to the destination. The only thing
+// that can turn that into a push is a pushable item confirmed to
+// actually be reachable — a real NavMesh route whose end genuinely
+// arrives near it, not merely the nearest registered barrier to the
+// destination in a straight line. That distinction is the whole point:
+// accepting "nearest in a straight line" as good enough is what let
+// unrelated furniture sitting somewhere else in the level hijack
+// push-through in the past, sending the enemy off toward — and into —
+// geometry that had nothing to do with the actual blockage.
+//
+// Once a blocking item is found, this walks toward it normally by
+// NavMesh so the enemy still steers around walls instead of cutting a
+// straight line, and only drops to direct physical movement for the
+// final stretch, where EnemyItemPusher's per-tick physical push
+// (FixedUpdate) pushes whatever is actually in front of it. Every
 // GetDirectPathCheckInterval seconds it retries a full NavMesh path and
-// hands back to normal pathing the moment one opens up. When no such
-// item exists, the route is simply unreachable (walls, an isolated
-// island, ...) and this refuses to engage — the caller stops instead of
-// walking the enemy into a wall.
+// hands back to normal pathing the moment one opens up. When no
+// registered barrier is genuinely reachable, this refuses to engage —
+// the caller stops instead of walking the enemy into a wall.
 internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
 {
     private const float DirectMovementActivationDistance = 0.2f;
@@ -23,6 +32,7 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
     private readonly EnemyNavigationRecoveryController recoveryController;
     private readonly NavMeshPath recoveryPath = new();
     private readonly NavMeshPath barrierRoutePath = new();
+    private readonly List<ItemNavigationObstacle> candidateBuffer = new();
     // Walking toward a partial route's endpoint uses plain NavMeshAgent
     // steering, which EnemyNavigator's own stuck-recovery treats as
     // "arrived, nothing to track" the moment remainingDistance gets
@@ -51,10 +61,11 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
 
     // A barrier that just timed out stuck-recovery isn't actually
     // pushable in practice (wedged against something else, most often)
-    // — without this, FindBestActiveBarrier immediately re-selects the
-    // very same barrier next tick and the enemy presses into it forever
-    // in a tight retry loop. Excluding it briefly gives another barrier
-    // (or a genuine stop, if none exists) a chance instead.
+    // — without this, the very next route-local search would just find
+    // the same barrier again (it's still sitting right there on the
+    // route) and the enemy would press into it forever in a tight retry
+    // loop. Excluding it briefly gives the route a chance to be
+    // re-evaluated as genuinely blocked instead.
     private ItemNavigationObstacle failedBarrier;
     private float failedBarrierCooldownUntil;
 
@@ -114,15 +125,14 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         return delta.sqrMagnitude <= reachDistance * reachDistance;
     }
 
-    // Only ever pushes toward a confirmed, reachable ItemNavigationObstacle
-    // — never just because a complete path couldn't be found. A route can
-    // be incomplete for reasons that have nothing to do with a pushable
-    // item (permanent walls, an unreachable target island, geometry the
-    // NavMesh was never baked to cross), and ramming those is not a
-    // traversal strategy. Walks the barrier route normally by NavMesh so
-    // the enemy still steers around walls instead of cutting a straight
-    // line, and only drops to direct physical movement once at its end,
-    // where EnemyItemPusher takes over pushing.
+    // Only ever pushes toward a pushable item confirmed to actually be
+    // reachable — never just because a complete path couldn't be found
+    // for some unrelated reason (permanent walls, an unreachable target
+    // island, geometry the NavMesh was never baked to cross). Walks
+    // toward it normally by NavMesh so the enemy still steers around
+    // walls instead of cutting a straight line, and only drops to
+    // direct physical movement once at its end, where EnemyItemPusher
+    // takes over pushing.
     public bool TryPushThroughToTarget(Vector3 destination, float speed)
     {
         if (agent == null)
@@ -132,16 +142,24 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
 
         if (directMovementActive)
         {
+            if (!TryGetBarrierAimPosition(out Vector3 aimPosition))
+            {
+                // The committed barrier is gone — destroyed, picked up,
+                // or reserved by another enemy. There's nothing left to
+                // aim at; cancel and let the next normal move
+                // re-evaluate from scratch against whatever route is
+                // blocked then, rather than guessing here.
+                Cancel(restoreAgent: true);
+                return false;
+            }
+
             directMovementDestination = destination;
-            directMovementAimPoint = TryGetBarrierAimPosition(
-                out Vector3 aimPosition)
-                ? aimPosition
-                : destination;
+            directMovementAimPoint = aimPosition;
             directMovementSpeed = speed;
             return true;
         }
 
-        if (!TryFindBarrierRoute(
+        if (!TryFindBlockingBarrierRoute(
                 destination,
                 out ItemNavigationObstacle bestBarrier,
                 out NavMeshPath barrierRoute))
@@ -173,24 +191,12 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         return true;
     }
 
-    // Sticks with whatever barrier is already committed to (its current,
-    // possibly-displaced position) as long as it's still valid, instead
-    // of re-scanning every tick. A distance-only re-scan can pick a
-    // barrier that's spatially nearer but on the other side of a wall —
-    // that's how the enemy ends up walking into a wall with furniture
-    // sitting behind it. Only re-scans (with the same caveat, but now
-    // rare) once the committed barrier is actually gone.
+    // Sticks with whatever barrier is already committed to — its
+    // current, possibly-displaced position — for as long as it stays
+    // valid, instead of re-evaluating every tick.
     private bool TryGetBarrierAimPosition(out Vector3 aimPosition)
     {
-        if (IsBarrierStillValid(currentBarrier))
-        {
-            aimPosition = currentBarrier.GetClosestSurfacePoint(ownerTransform.position);
-            return true;
-        }
-
-        currentBarrier = FindBestActiveBarrier(ownerTransform.position);
-
-        if (currentBarrier == null)
+        if (!IsBarrierStillValid(currentBarrier))
         {
             aimPosition = default;
             return false;
@@ -210,43 +216,6 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
                !IsInFailureCooldown(barrier);
     }
 
-    private ItemNavigationObstacle FindBestActiveBarrier(Vector3 referencePosition)
-    {
-        if (itemPusher == null)
-        {
-            return null;
-        }
-
-        ItemNavigationObstacle best = null;
-        float bestSqrDistance = float.PositiveInfinity;
-
-        foreach (ItemNavigationObstacle barrier in
-                 ItemNavigationObstacle.ActiveServerBarriers)
-        {
-            if (barrier == null ||
-                !barrier.IsBlockingNavigation ||
-                !barrier.CanBePushedByEnemyNow ||
-                barrier.IsReservedByOtherEnemy(itemPusher.ReservationOwnerId) ||
-                IsInFailureCooldown(barrier))
-            {
-                continue;
-            }
-
-            float sqrDistance =
-                (barrier.transform.position - referencePosition).sqrMagnitude;
-
-            if (sqrDistance >= bestSqrDistance)
-            {
-                continue;
-            }
-
-            bestSqrDistance = sqrDistance;
-            best = barrier;
-        }
-
-        return best;
-    }
-
     private bool IsInFailureCooldown(ItemNavigationObstacle barrier)
     {
         return barrier == failedBarrier && Time.time < failedBarrierCooldownUntil;
@@ -259,65 +228,95 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             : 4f;
     }
 
-    private bool TryFindBarrierRoute(
+    // Considers every registered pushable barrier, nearest to the
+    // destination first (a real barricade genuinely blocking the way is
+    // typically closer to the destination than unrelated clutter), but
+    // only ever accepts one whose route actually arrives near it. A
+    // barrier stuck behind unrelated geometry produces a route that
+    // gives up wherever the enemy's own reachable area happens to end —
+    // which usually is NOT anywhere near that barrier — so the distance
+    // check between the route's endpoint and the barrier itself is what
+    // rejects it, no matter how close it looked in a straight line to
+    // the destination. This is what keeps furniture elsewhere in the
+    // level from ever being selected, which is the bug this replaced.
+    private bool TryFindBlockingBarrierRoute(
         Vector3 destination,
-        out ItemNavigationObstacle bestBarrier,
+        out ItemNavigationObstacle blockingBarrier,
         out NavMeshPath barrierRoute)
     {
         barrierRoute = null;
-        bestBarrier = null;
+        blockingBarrier = null;
 
-        if (agent == null)
+        if (agent == null || itemPusher == null)
         {
             return false;
         }
 
-        bestBarrier = FindBestActiveBarrier(destination);
+        candidateBuffer.Clear();
 
-        if (bestBarrier == null)
+        foreach (ItemNavigationObstacle candidate in
+                 ItemNavigationObstacle.ActiveServerBarriers)
+        {
+            if (IsBarrierStillValid(candidate))
+            {
+                candidateBuffer.Add(candidate);
+            }
+        }
+
+        if (candidateBuffer.Count == 0)
         {
             return false;
         }
+
+        candidateBuffer.Sort((a, b) =>
+            (a.transform.position - destination).sqrMagnitude.CompareTo(
+                (b.transform.position - destination).sqrMagnitude));
 
         NavMeshQueryFilter filter = new()
         {
             agentTypeID = agent.agentTypeID,
             areaMask = agent.areaMask
         };
-        // The item's own centre sits inside the hole it carves — the
-        // sample has to reach past the item's footprint to find any
-        // NavMesh at all, or it always fails for anything bigger than
-        // the generic navigation sample radius.
-        float approachSampleRadius = GetNavigationSampleRadius() +
-            bestBarrier.ApproachRadius +
-            Mathf.Max(0f, agent.radius);
 
-        // A Partial status is expected and fine when the barrier's own
-        // carve is what's truncating the route (that's exactly the
-        // "walk up to what's blocking the way" case). It's also what a
-        // barrier that's genuinely unreachable behind unrelated
-        // geometry looks like — the two aren't distinguishable from
-        // status alone, so PathInvalid is the only outright rejection
-        // here; ProgressMonitor in Tick() below is what actually
-        // catches the "walked to a partial dead end and can get no
-        // closer" case once it's had a fair chance to arrive.
-        if (!queryService.TrySamplePosition(
-                bestBarrier.transform.position,
-                approachSampleRadius,
-                filter,
-                out NavMeshHit barrierHit) ||
-            !queryService.TryCalculatePath(
-                ownerTransform.position,
-                barrierHit.position,
-                filter,
-                barrierRoutePath) ||
-            barrierRoutePath.status == NavMeshPathStatus.PathInvalid)
+        for (int i = 0; i < candidateBuffer.Count; i++)
         {
-            return false;
+            ItemNavigationObstacle candidate = candidateBuffer[i];
+            // The item's own centre sits inside the hole it carves —
+            // the sample has to reach past the item's footprint to find
+            // any NavMesh at all, or it always fails for anything
+            // bigger than the generic navigation sample radius.
+            float approachSampleRadius = GetNavigationSampleRadius() +
+                candidate.ApproachRadius +
+                Mathf.Max(0f, agent.radius);
+
+            // A Partial status is expected and fine when the barrier's
+            // own carve is what's truncating the route (that's exactly
+            // the "walk up to what's blocking the way" case) —
+            // PathInvalid is an outright rejection.
+            if (!queryService.TrySamplePosition(
+                    candidate.transform.position,
+                    approachSampleRadius,
+                    filter,
+                    out NavMeshHit barrierHit) ||
+                !queryService.TryCalculatePath(
+                    ownerTransform.position,
+                    barrierHit.position,
+                    filter,
+                    barrierRoutePath) ||
+                barrierRoutePath.status == NavMeshPathStatus.PathInvalid ||
+                !TryGetRouteEndpoint(barrierRoutePath, out Vector3 endpoint) ||
+                (endpoint - candidate.transform.position).sqrMagnitude >
+                approachSampleRadius * approachSampleRadius)
+            {
+                continue;
+            }
+
+            blockingBarrier = candidate;
+            barrierRoute = barrierRoutePath;
+            return true;
         }
 
-        barrierRoute = barrierRoutePath;
-        return true;
+        return false;
     }
 
     // Called every frame regardless of the repath cadence: closing the
@@ -415,10 +414,17 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             return false;
         }
 
+        if (!TryGetBarrierAimPosition(out Vector3 aimPosition))
+        {
+            // The committed barrier is gone — nothing left to push.
+            // Cancel and let the next normal move re-evaluate against
+            // whatever route is blocked then.
+            Cancel(restoreAgent: true);
+            return false;
+        }
+
         directMovementDestination = destination;
-        directMovementAimPoint = TryGetBarrierAimPosition(out Vector3 aimPosition)
-            ? aimPosition
-            : destination;
+        directMovementAimPoint = aimPosition;
         directMovementSpeed = speed;
 
         if (recoveryController != null &&

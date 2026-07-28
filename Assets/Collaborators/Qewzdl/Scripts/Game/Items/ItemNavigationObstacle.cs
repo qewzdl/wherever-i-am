@@ -14,9 +14,11 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     private static readonly HashSet<ItemNavigationObstacle> activeServerBarriers = new();
 
-    // Used only as a last-resort search when the enemy's normal route
-    // toward its destination doesn't lead anywhere near a barrier (e.g.
-    // a sealed room reachable only by pushing a specific distant item).
+    // Candidate pool for push-through. Enumerating this is safe: a
+    // candidate only ever gets used once EnemyBarrierTraversalHandler
+    // confirms a real NavMesh route reaches its actual vicinity (not
+    // just that it's the nearest one in a straight line), so an
+    // unrelated item elsewhere in the level never qualifies.
     public static IReadOnlyCollection<ItemNavigationObstacle> ActiveServerBarriers =>
         activeServerBarriers;
 

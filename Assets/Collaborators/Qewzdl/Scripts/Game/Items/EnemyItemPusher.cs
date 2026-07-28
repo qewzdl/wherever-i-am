@@ -96,34 +96,57 @@ public sealed class EnemyItemPusher : MonoBehaviour
 
     public bool HasNavigationBlockerOnRoute(Vector3[] routeCorners)
     {
+        return TryGetItemAlongRoute(
+            routeCorners,
+            GetCorridorRadius(),
+            requireNavigationBlocker: true,
+            requirePushable: false,
+            out _);
+    }
+
+    private bool TryGetItemAlongRoute(
+        Vector3[] routeCorners,
+        float corridorRadius,
+        bool requireNavigationBlocker,
+        bool requirePushable,
+        out ItemNavigationObstacle blockingItem)
+    {
+        blockingItem = null;
+
         if (routeCorners == null || routeCorners.Length < 2)
         {
             return false;
         }
 
         Bounds bodyBounds = GetBodyBounds();
-        float bodyRadius = Mathf.Max(
-            0.05f,
-            Mathf.Max(bodyBounds.extents.x, bodyBounds.extents.z));
         float bodyCenterOffset =
             bodyBounds.center.y - transform.position.y;
 
         for (int i = 0; i < routeCorners.Length - 1; i++)
         {
-            if (HasItemAlongSegment(
+            if (TryGetItemAlongSegment(
                     routeCorners[i],
                     routeCorners[i + 1],
-                    bodyRadius,
+                    corridorRadius,
                     bodyBounds.extents.y,
                     bodyCenterOffset,
-                    requireNavigationBlocker: true,
-                    requirePushable: false))
+                    requireNavigationBlocker,
+                    requirePushable,
+                    out blockingItem))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private float GetCorridorRadius()
+    {
+        Bounds bodyBounds = GetBodyBounds();
+        return Mathf.Max(
+            0.05f,
+            Mathf.Max(bodyBounds.extents.x, bodyBounds.extents.z));
     }
 
     private bool CanRunServerPush()
@@ -193,25 +216,28 @@ public sealed class EnemyItemPusher : MonoBehaviour
             0.05f,
             Mathf.Max(bodyBounds.extents.x, bodyBounds.extents.z));
 
-        return HasItemAlongSegment(
+        return TryGetItemAlongSegment(
             transform.position,
             destination,
             bodyRadius + 0.05f,
             bodyBounds.extents.y,
             bodyBounds.center.y - transform.position.y,
             requireNavigationBlocker,
-            requirePushable);
+            requirePushable,
+            out _);
     }
 
-    private bool HasItemAlongSegment(
+    private bool TryGetItemAlongSegment(
         Vector3 start,
         Vector3 end,
         float corridorRadius,
         float halfHeight,
         float bodyCenterOffset,
         bool requireNavigationBlocker,
-        bool requirePushable)
+        bool requirePushable,
+        out ItemNavigationObstacle blockingItem)
     {
+        blockingItem = null;
         Vector3 direction = end - start;
         direction.y = 0f;
         float distance = direction.magnitude;
@@ -255,6 +281,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
                 continue;
             }
 
+            blockingItem = itemNavigation;
             return true;
         }
 

@@ -1519,6 +1519,112 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_UnreachableDecoyNearerToTarget_StillSelectsRealBarricade()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeBarricadedRoom(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            new Vector3(3f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(2f, 1.5f, 0.6f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        // Sitting right next to the destination — nearer to it in a
+        // straight line than the real barricade by a wide margin — but
+        // inside the still-sealed room, so genuinely unreachable from
+        // where the enemy starts. This is exactly the shape of the
+        // reported bug: furniture that looks like the closest barrier
+        // to the goal but has no real route to it at all.
+        Vector3 decoyStart = new(-2f, 0f, 3.5f);
+        NetworkItemTestDraggable decoyItem = CreateSpawnedNavigationItem(
+            decoyStart,
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(0.8f, 1.5f, 0.8f));
+        ItemNavigationObstacle decoyNavigation =
+            decoyItem.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                itemNavigation.IsBlockingNavigation &&
+                decoyNavigation.IsBlockingNavigation &&
+                item.GetComponent<NavMeshObstacle>().carving,
+            "Room barricade did not seal the only NavMesh entrance.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Nearer-decoy enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(-3f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+        Vector3 destination = new(-2f, 0f, 4f);
+
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator rejected the sealed target instead of selecting the reachable barricade.");
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return pusher.IsPushingAnyItem;
+            },
+            "Enemy waited for an open target path instead of approaching the room barricade.");
+
+        yield return WaitForCondition(
+            () => item.transform.position.z > 0.05f,
+            "Enemy reached the room barricade but did not push it.");
+
+        Vector3 decoyDelta = decoyItem.transform.position - decoyStart;
+        decoyDelta.y = 0f;
+        Assert.That(
+            decoyDelta.magnitude,
+            Is.LessThan(0.05f),
+            "Enemy selected the decoy nearer to the destination instead " +
+            "of the real, reachable barricade.");
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_WhenBarricadeCoversTargetSample_PushesInvalidPath()
     {
         yield return StartHost();
