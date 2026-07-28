@@ -13,6 +13,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     [SerializeField] private RuntimeNavMeshBuildMode buildMode = RuntimeNavMeshBuildMode.ServerOnly;
     [SerializeField] private float serverWaitTimeout = 5f;
     [SerializeField] private bool waitForGameMap = true;
+    [SerializeField] private bool buildOverMultipleFrames = true;
 
     [Header("Surface")]
     [SerializeField] private NavMeshSurface surface;
@@ -22,6 +23,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     private NavMeshSurface[] surfaces;
     private bool hasBuilt;
     private Coroutine buildWhenServerReadyCoroutine;
+    private Coroutine buildCoroutine;
     private IGameMapSessionService gameMapService;
     private NetworkManager networkManager;
     private bool subscribedToGameMap;
@@ -65,7 +67,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     {
         if (ShouldBuildImmediately())
         {
-            BuildNavMesh();
+            StartAllowedBuild();
             return;
         }
 
@@ -124,7 +126,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
             return false;
         }
 
-        return BuildNavMesh();
+        return StartAllowedBuild();
     }
 
     public void AddBuiltListener(System.Action<RuntimeNavMeshBuilder> listener, bool notifyImmediatelyIfBuilt = true)
@@ -192,7 +194,7 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         {
             if (IsServerReady())
             {
-                BuildNavMesh();
+                StartAllowedBuild();
                 buildWhenServerReadyCoroutine = null;
                 yield break;
             }
@@ -237,6 +239,61 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         Built?.Invoke(this);
 
         return true;
+    }
+
+    private bool StartAllowedBuild()
+    {
+        if (hasBuilt)
+        {
+            return true;
+        }
+
+        if (!buildOverMultipleFrames)
+        {
+            return BuildNavMesh();
+        }
+
+        if (buildCoroutine == null)
+        {
+            buildCoroutine = StartCoroutine(BuildNavMeshOverMultipleFrames());
+        }
+
+        return false;
+    }
+
+    private IEnumerator BuildNavMeshOverMultipleFrames()
+    {
+        if (!TryGetSurfaces(out NavMeshSurface[] navMeshSurfaces))
+        {
+            buildCoroutine = null;
+            yield break;
+        }
+
+        for (int i = 0; i < navMeshSurfaces.Length; i++)
+        {
+            NavMeshSurface navMeshSurface = navMeshSurfaces[i];
+            ConfigureSurface(navMeshSurface);
+
+            if (navMeshSurface.navMeshData != null)
+            {
+                AsyncOperation updateOperation =
+                    navMeshSurface.UpdateNavMesh(navMeshSurface.navMeshData);
+                yield return updateOperation;
+            }
+            else
+            {
+                navMeshSurface.BuildNavMesh();
+            }
+
+            if (i + 1 < navMeshSurfaces.Length)
+            {
+                yield return null;
+            }
+        }
+
+        hasBuilt = true;
+        buildCoroutine = null;
+        Built?.Invoke(this);
     }
 
     private void ConfigureSurface(NavMeshSurface navMeshSurface)
@@ -312,6 +369,12 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         {
             StopCoroutine(buildWhenServerReadyCoroutine);
             buildWhenServerReadyCoroutine = null;
+        }
+
+        if (buildCoroutine != null)
+        {
+            StopCoroutine(buildCoroutine);
+            buildCoroutine = null;
         }
     }
 

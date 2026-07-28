@@ -54,6 +54,7 @@ public sealed class ProductionPatrolRoutePlayModeTests
                 "buildMode",
                 RuntimeNavMeshBuildMode.Always);
             PlayModeTestReflection.SetField(builder, "waitForGameMap", false);
+            PlayModeTestReflection.SetField(builder, "buildOverMultipleFrames", false);
             Assert.That(builder.BuildIfAllowed(), Is.True);
 
             surfaces.AddRange(builder.GetComponents<NavMeshSurface>());

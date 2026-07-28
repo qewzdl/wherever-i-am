@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86a5250ef9534c64a92b442b144c4e48, type: 3}
+  m_Name: EnemyNavigationConfig
+  m_EditorClassIdentifier:
+  repathInterval: 0.2
+  destinationRepathDistance: 0.3
+  navMeshSampleRadius: 2
+  maximumPathQueriesPerRepath: 24
+  directPathCheckInterval: 0.2
+  blockedRoutePlanInterval: 0.25
+  pushFallbackConfirmationDuration: 0.5
+  barrierReservationDuration: 1
+  progressSampleInterval: 0.25
+  minimumProgressDistance: 0.05
+  stuckTimeout: 1.5
+  directMovementTimeout: 4

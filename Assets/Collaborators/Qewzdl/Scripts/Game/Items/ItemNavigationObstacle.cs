@@ -7,8 +7,18 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshObstacle))]
 public sealed class ItemNavigationObstacle : NetworkBehaviour
 {
-    private static readonly HashSet<ItemNavigationObstacle>
-        activeServerBarriers = new();
+    // ponytail: physical-contact reservation is renewed every FixedUpdate
+    // tick while an enemy is actually touching the item, so this only
+    // needs to bridge single-frame gaps, not a multi-second approach walk.
+    private const float PushReservationDuration = 0.5f;
+
+    private static readonly HashSet<ItemNavigationObstacle> activeServerBarriers = new();
+
+    // Used only as a last-resort search when the enemy's normal route
+    // toward its destination doesn't lead anywhere near a barrier (e.g.
+    // a sealed room reachable only by pushing a specific distant item).
+    public static IReadOnlyCollection<ItemNavigationObstacle> ActiveServerBarriers =>
+        activeServerBarriers;
 
     [SerializeField] private DraggableObject item;
     [SerializeField] private NavMeshObstacle obstacle;
@@ -17,6 +27,8 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     [SerializeField, Min(0f)] private float timeToStationary = 0.25f;
 
     private bool subscribed;
+    private int enemyReservationOwnerId;
+    private float enemyReservationExpiresAt;
 
     public bool IsBlockingNavigation =>
         obstacle != null && obstacle.enabled && obstacle.carving;
@@ -39,57 +51,49 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         }
     }
 
-    internal bool TryBeginPhysicalEnemyPushServer()
-    {
-        ResolveReferences();
-        return CanAcceptEnemyPush() && item.TryBeginEnemyPushServer();
-    }
-
-    public bool TryGetBarrierGeometry(
-        out Vector3 center,
-        out Vector3 axisX,
-        out Vector3 axisZ,
-        out Vector3 halfAxisX,
-        out Vector3 halfAxisY,
-        out Vector3 halfAxisZ)
+    internal bool TryBeginPhysicalEnemyPushServer(int reservationOwnerId)
     {
         ResolveReferences();
 
-        if (!IsBlockingNavigation || obstacle.shape != NavMeshObstacleShape.Box)
+        if (!CanAcceptEnemyPush() ||
+            IsReservedByOtherEnemy(reservationOwnerId) ||
+            !item.TryBeginEnemyPushServer())
         {
-            center = default;
-            axisX = default;
-            axisZ = default;
-            halfAxisX = default;
-            halfAxisY = default;
-            halfAxisZ = default;
             return false;
         }
 
-        center = transform.TransformPoint(obstacle.center);
-        Vector3 halfSize = obstacle.size * 0.5f;
-        halfAxisX = transform.TransformVector(Vector3.right * halfSize.x);
-        halfAxisY = transform.TransformVector(Vector3.up * halfSize.y);
-        halfAxisZ = transform.TransformVector(Vector3.forward * halfSize.z);
-        axisX = Vector3.ProjectOnPlane(halfAxisX, Vector3.up).normalized;
-        axisZ = Vector3.ProjectOnPlane(halfAxisZ, Vector3.up).normalized;
+        TryReserveForEnemy(reservationOwnerId, PushReservationDuration);
         return true;
     }
 
-    public static void CopyActiveServerBarriersTo(
-        List<ItemNavigationObstacle> target)
+    public bool TryReserveForEnemy(int ownerId, float duration)
     {
-        target.Clear();
-
-        foreach (ItemNavigationObstacle barrier in activeServerBarriers)
+        if (ownerId == 0 ||
+            !CanAcceptEnemyPush() ||
+            IsReservedByOtherEnemy(ownerId))
         {
-            if (barrier != null &&
-                barrier.IsBlockingNavigation &&
-                barrier.CanBePushedByEnemyNow)
-            {
-                target.Add(barrier);
-            }
+            return false;
         }
+
+        enemyReservationOwnerId = ownerId;
+        enemyReservationExpiresAt =
+            Time.time + Mathf.Max(0.05f, duration);
+        return true;
+    }
+
+    public void ReleaseEnemyReservation(int ownerId)
+    {
+        if (ownerId != 0 && enemyReservationOwnerId == ownerId)
+        {
+            ClearEnemyReservation();
+        }
+    }
+
+    public bool IsReservedByOtherEnemy(int ownerId)
+    {
+        ExpireEnemyReservationIfNeeded();
+        return enemyReservationOwnerId != 0 &&
+               enemyReservationOwnerId != ownerId;
     }
 
     private void Awake()
@@ -119,6 +123,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        ClearEnemyReservation();
         activeServerBarriers.Remove(this);
         Unsubscribe();
         SetObstacleEnabled(false);
@@ -127,6 +132,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     private void OnDisable()
     {
+        ClearEnemyReservation();
         activeServerBarriers.Remove(this);
         Unsubscribe();
         SetObstacleEnabled(false);
@@ -165,6 +171,17 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         obstacle.carving = true;
         SetObstacleEnabled(true);
         RefreshBarrierRegistration();
+    }
+
+    private void RefreshBarrierRegistration()
+    {
+        if (IsSpawned && IsServer && IsBlockingNavigation && CanAcceptEnemyPush())
+        {
+            activeServerBarriers.Add(this);
+            return;
+        }
+
+        activeServerBarriers.Remove(this);
     }
 
     private bool CanAcceptEnemyPush()
@@ -248,6 +265,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         if (obstacle != null && obstacle.enabled != value)
         {
             obstacle.enabled = value;
+            EnemyNavigationTopology.MarkChanged();
         }
 
         if (!value)
@@ -256,18 +274,19 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         }
     }
 
-    private void RefreshBarrierRegistration()
+    private void ExpireEnemyReservationIfNeeded()
     {
-        if (IsSpawned &&
-            IsServer &&
-            IsBlockingNavigation &&
-            CanAcceptEnemyPush())
+        if (enemyReservationOwnerId != 0 &&
+            Time.time >= enemyReservationExpiresAt)
         {
-            activeServerBarriers.Add(this);
-            return;
+            ClearEnemyReservation();
         }
+    }
 
-        activeServerBarriers.Remove(this);
+    private void ClearEnemyReservation()
+    {
+        enemyReservationOwnerId = 0;
+        enemyReservationExpiresAt = 0f;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

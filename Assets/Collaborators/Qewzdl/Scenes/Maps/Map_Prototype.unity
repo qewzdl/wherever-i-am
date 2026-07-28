@@ -441,6 +441,7 @@ MonoBehaviour:
   buildMode: 2
   serverWaitTimeout: 5
   waitForGameMap: 1
+  buildOverMultipleFrames: 1
   surface: {fileID: 314159268}
   includedLayers:
     serializedVersion: 2

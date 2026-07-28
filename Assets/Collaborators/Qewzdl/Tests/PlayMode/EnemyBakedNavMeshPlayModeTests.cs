@@ -1234,10 +1234,20 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             colliderSize: new Vector3(2f, 1.5f, 0.6f));
         ItemNavigationObstacle itemNavigation =
             item.GetComponent<ItemNavigationObstacle>();
+        Vector3 unrelatedStart = new(-5f, 0f, -4f);
+        NetworkItemTestDraggable unrelatedItem =
+            CreateSpawnedNavigationItem(
+                unrelatedStart,
+                makeDynamic: true,
+                useGravity: true,
+                colliderSize: new Vector3(0.8f, 1.5f, 0.8f));
+        ItemNavigationObstacle unrelatedNavigation =
+            unrelatedItem.GetComponent<ItemNavigationObstacle>();
 
         yield return WaitForCondition(
             () =>
                 itemNavigation.IsBlockingNavigation &&
+                unrelatedNavigation.IsBlockingNavigation &&
                 item.GetComponent<NavMeshObstacle>().carving,
             "Room barricade did not seal the only NavMesh entrance.");
         yield return new WaitForSecondsRealtime(0.75f);
@@ -1300,6 +1310,13 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         yield return WaitForCondition(
             () => item.transform.position.z > 0.05f,
             "Enemy reached the room barricade but did not push it.");
+        Vector3 unrelatedDelta =
+            unrelatedItem.transform.position - unrelatedStart;
+        unrelatedDelta.y = 0f;
+        Assert.That(
+            unrelatedDelta.magnitude,
+            Is.LessThan(0.05f),
+            "Enemy selected an unrelated reachable item instead of the barrier that bridges the target route.");
     }
 
     [UnityTest]
@@ -1434,6 +1451,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             enemy.GetComponent<EnemyServerRuntime>();
         EnemyItemPusher pusher =
             enemy.GetComponent<EnemyItemPusher>();
+        EnemyNavigator navigator =
+            enemy.GetComponent<EnemyNavigator>();
         NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
 
         yield return WaitForCondition(
@@ -1459,6 +1478,17 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             $"State={enemy.CurrentState}, HasTarget={enemy.HasTarget}, " +
             $"Pushing={pusher.IsPushingAnyItem}, " +
             $"AgentEnabled={agent.enabled}, " +
+            $"AgentHasPath={agent.enabled && agent.isOnNavMesh && agent.hasPath}, " +
+            $"AgentPathStatus={(agent.enabled && agent.isOnNavMesh ? agent.pathStatus : NavMeshPathStatus.PathInvalid)}, " +
+            $"RemainingDistance={(agent.enabled && agent.isOnNavMesh ? agent.remainingDistance : -1f):0.###}, " +
+            $"DirectIntent={navigator.TryGetEnemyDirectMovementIntent(out Vector3 directDestination, out float directSpeed)}, " +
+            $"DirectDestination={directDestination}, " +
+            $"DirectSpeed={directSpeed:0.###}, " +
+            $"DirectBlocked={navigator.IsDirectApproachBlockedByItem(target.transform.position)}, " +
+            $"Queries={navigator.QueryTelemetry.PathQueries}, " +
+            $"Applied={navigator.QueryTelemetry.AppliedPaths}, " +
+            $"Reused={navigator.QueryTelemetry.ReusedPaths}, " +
+            $"BudgetRejected={navigator.QueryTelemetry.BudgetRejections}, " +
             $"EnemyPosition={enemy.transform.position}, " +
             $"ItemPosition={item.transform.position}.");
         yield return WaitForCondition(
@@ -1535,7 +1565,12 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Pinned-item enemy could not be placed on NavMesh.");
 
-        navigator.Configure(enemyConfig);
+        EnemyConfig navigationConfig = CloneNavigationConfig(enemyConfig);
+        navigationConfig.NavigationProfile.directMovementTimeout = 0.5f;
+        navigationConfig.NavigationProfile.stuckTimeout = 0.3f;
+        navigationConfig.NavigationProfile.progressSampleInterval = 0.05f;
+        navigationConfig.NavigationProfile.minimumProgressDistance = 0.02f;
+        navigator.Configure(navigationConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -1543,34 +1578,19 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         yield return WaitForCondition(
             () => pusher.IsPushingAnyItem,
             "Enemy did not enter physical movement at the pinned item.");
-        float stabilityObservationEnd = Time.realtimeSinceStartup + 0.75f;
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return navigator.QueryTelemetry.StuckRecoveries > 0;
+            },
+            "Pinned barrier traversal did not time out and enter recovery.");
 
-        while (Time.realtimeSinceStartup < stabilityObservationEnd)
-        {
-            navigator.TickNavigationGate();
-            Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
-            yield return null;
-
-            Assert.That(
-                pusher.IsPushingAnyItem &&
-                itemObstacle.enabled &&
-                itemObstacle.carving,
-                Is.True,
-                "Physical movement changed the pinned item obstacle.");
-
-            Assert.That(
-                pusher.TryGetDirectMovementDirection(
-                    out Vector3 pushDirection,
-                    out float directSpeed) &&
-                directSpeed > 0f,
-                Is.True);
-            Vector3 targetDirection = destination - actor.transform.position;
-            targetDirection.y = 0f;
-            Assert.That(
-                Vector3.Dot(pushDirection, targetDirection.normalized),
-                Is.GreaterThan(0.999f),
-                "Pinned contact changed steering from the target to the item.");
-        }
+        Assert.That(
+            itemObstacle.enabled && itemObstacle.carving,
+            Is.True,
+            "Traversal recovery changed the pinned item obstacle.");
 
         Assert.That(physicsMotor.IsDrivingServerBody, Is.True);
         Assert.That(enemyBody.isKinematic, Is.False);
@@ -1863,6 +1883,207 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Assert.That(agent.isOnNavMesh, Is.True);
     }
 
+    [UnityTest]
+    public IEnumerator DoorTraversal_OnLShapedRoute_IgnoresDoorOutsideCalculatedCorridor()
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeLCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyDoorInteractionConfig doorConfig =
+            Track(ScriptableObject.CreateInstance<EnemyDoorInteractionConfig>());
+        PlayModeTestReflection.SetField(doorConfig, "detectionRadius", 20f);
+        PlayModeTestReflection.SetField(doorConfig, "pathHalfWidth", 0.5f);
+        PlayModeTestReflection.SetField(
+            doorConfig,
+            "interactionDistance",
+            0.5f);
+        PlayModeTestReflection.SetField(
+            doorConfig,
+            "usePhysicsOverlapFallback",
+            false);
+
+        CreateEnemyDoor(
+            new Vector3(0f, 0f, 2f),
+            out EnemyDoorInteractionZone routeDoor);
+        CreateEnemyDoor(
+            new Vector3(3f, 0f, 2f),
+            out EnemyDoorInteractionZone chordDoor);
+
+        GameObject actor = Track(new GameObject("L-route door evaluator"));
+        EnemyDoorInteractor interactor =
+            actor.AddComponent<EnemyDoorInteractor>();
+        PlayModeTestReflection.SetField(interactor, "config", doorConfig);
+        Vector3 current = Vector3.zero;
+        Vector3 destination = new(5f, 0f, 5f);
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = standingAgentTypeId,
+            areaMask = NavMesh.AllAreas
+        };
+        NavMeshPath route = new();
+
+        Assert.That(
+            NavMesh.CalculatePath(current, destination, filter, route),
+            Is.True);
+        Assert.That(route.status, Is.EqualTo(NavMeshPathStatus.PathComplete));
+        Assert.That(
+            route.corners.Length,
+            Is.GreaterThanOrEqualTo(3),
+            "Test setup did not produce an L-shaped NavMesh route.");
+
+        EnemyDoorNavigationResult directChordResult =
+            interactor.EvaluateNavigation(current, destination);
+        Assert.That(directChordResult.HasOverrideDestination, Is.True);
+        Assert.That(
+            Vector3.Distance(
+                directChordResult.OverrideDestination,
+                chordDoor.GetInteractionPointFor(current)),
+            Is.LessThan(
+                Vector3.Distance(
+                    directChordResult.OverrideDestination,
+                    routeDoor.GetInteractionPointFor(current))),
+            "Test setup did not place the decoy door on the direct chord.");
+
+        EnemyDoorNavigationResult result = interactor.EvaluateNavigation(
+            current,
+            destination,
+            route.corners);
+
+        Assert.That(result.HasOverrideDestination, Is.True);
+        Vector3 routeDoorPoint = routeDoor.GetInteractionPointFor(current);
+        Vector3 chordDoorPoint = chordDoor.GetInteractionPointFor(current);
+        Assert.That(
+            Vector3.Distance(result.OverrideDestination, routeDoorPoint),
+            Is.LessThan(
+                Vector3.Distance(
+                    result.OverrideDestination,
+                    chordDoorPoint)),
+            "Door traversal selected a door on the direct chord instead of the calculated L-shaped route.");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator PushBarrierReservation_MultipleEnemiesAllowOnlyOneOwnerAtATime()
+    {
+        yield return StartHost();
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            Vector3.zero,
+            makeDynamic: true,
+            useGravity: false);
+        ItemNavigationObstacle barrier =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () => barrier.IsBlockingNavigation,
+            "Reservation test barrier did not become active.");
+
+        const int contenderCount = 8;
+        int[] ownerIds = new int[contenderCount];
+
+        for (int i = 0; i < contenderCount; i++)
+        {
+            GameObject enemy = Track(
+                new GameObject($"Barrier reservation contender {i}"));
+            ownerIds[i] = enemy.AddComponent<EnemyItemPusher>()
+                .ReservationOwnerId;
+        }
+
+        Assert.That(barrier.TryReserveForEnemy(ownerIds[0], 1f), Is.True);
+
+        for (int i = 1; i < contenderCount; i++)
+        {
+            Assert.That(
+                barrier.TryReserveForEnemy(ownerIds[i], 1f),
+                Is.False,
+                $"Contender {i} acquired an already leased barrier.");
+        }
+
+        Assert.That(
+            barrier.TryReserveForEnemy(ownerIds[0], 1f),
+            Is.True,
+            "The current owner could not renew its barrier lease.");
+        barrier.ReleaseEnemyReservation(ownerIds[0]);
+        Assert.That(
+            barrier.TryReserveForEnemy(ownerIds[1], 0.05f),
+            Is.True,
+            "Barrier reservation was not transferable after release.");
+        yield return new WaitForSecondsRealtime(0.075f);
+        Assert.That(
+            barrier.TryReserveForEnemy(ownerIds[2], 1f),
+            Is.True,
+            "An expired barrier lease remained pinned to its previous owner.");
+    }
+
+    [UnityTest]
+    public IEnumerator RepathScheduler_MultipleEnemies_StayWithinPathQueryBudget()
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyConfig config = CloneNavigationConfig(enemyConfig);
+        config.NavigationProfile.repathInterval = 0.2f;
+        config.NavigationProfile.destinationRepathDistance = 0.3f;
+        config.NavigationProfile.maximumPathQueriesPerRepath = 4;
+        const int enemyCount = 8;
+        List<EnemyNavigator> navigators = new(enemyCount);
+
+        for (int i = 0; i < enemyCount; i++)
+        {
+            float x = -3.5f + i;
+            GameObject actor = Track(new GameObject($"Query budget enemy {i}"));
+            actor.transform.position = new Vector3(x, 0f, -5f);
+            NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+            agent.agentTypeID = standingAgentTypeId;
+            agent.speed = 3f;
+            agent.acceleration = 20f;
+            EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+
+            Assert.That(
+                TryPlaceAgent(agent, actor.transform.position),
+                Is.True,
+                $"Query budget enemy {i} could not be placed on NavMesh.");
+            navigator.Configure(config);
+            navigators.Add(navigator);
+        }
+
+        for (int frame = 0; frame < 45; frame++)
+        {
+            float jitter = Mathf.Sin(frame * 0.25f) * 0.05f;
+
+            for (int i = 0; i < navigators.Count; i++)
+            {
+                Vector3 destination = new(
+                    -3.5f + i + jitter,
+                    0f,
+                    5f);
+                Assert.That(
+                    navigators[i].TryMoveTo(destination, 3f),
+                    Is.True);
+            }
+
+            yield return null;
+        }
+
+        for (int i = 0; i < navigators.Count; i++)
+        {
+            EnemyNavigationQueryTelemetrySnapshot telemetry =
+                navigators[i].QueryTelemetry;
+            Assert.That(
+                telemetry.PathQueries,
+                Is.LessThanOrEqualTo(2),
+                $"Enemy {i} exceeded the repath query budget while its target stayed inside the destination threshold.");
+            Assert.That(telemetry.BudgetRejections, Is.Zero);
+            Assert.That(telemetry.ReusedPaths, Is.GreaterThan(0));
+        }
+    }
+
     private IEnumerator StartHost()
     {
         GameObject root = Track(new GameObject("Enemy NavMesh host"));
@@ -2129,6 +2350,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         EnemyConfig clone = Track(UnityEngine.Object.Instantiate(source));
         EnemyMovementConfig movement =
             Track(UnityEngine.Object.Instantiate(source.MovementProfile));
+        EnemyNavigationConfig navigation =
+            Track(UnityEngine.Object.Instantiate(source.NavigationProfile));
         EnemyPostureConfig posture =
             Track(UnityEngine.Object.Instantiate(source.PostureProfile));
 
@@ -2138,6 +2361,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             clone,
             "movementProfile",
             movement);
+        PlayModeTestReflection.SetField(
+            clone,
+            "navigationProfile",
+            navigation);
         PlayModeTestReflection.SetField(
             clone,
             "postureProfile",
@@ -2180,6 +2407,27 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Push corridor right wall",
             new Vector3(1.9f, 1f, 0f),
             new Vector3(0.2f, 2f, 14f),
+            root.transform);
+        BakeSurfaces(
+            root,
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+    }
+
+    private void BakeLCorridor(
+        int standingAgentTypeId,
+        int crawlingAgentTypeId)
+    {
+        GameObject root = Track(new GameObject("Prebuilt L corridor"));
+        CreateGeometry(
+            "L corridor first leg",
+            new Vector3(0f, -0.1f, 2.5f),
+            new Vector3(2f, 0.2f, 7f),
+            root.transform);
+        CreateGeometry(
+            "L corridor second leg",
+            new Vector3(2.5f, -0.1f, 5f),
+            new Vector3(7f, 0.2f, 2f),
             root.transform);
         BakeSurfaces(
             root,

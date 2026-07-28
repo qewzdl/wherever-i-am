@@ -34,6 +34,18 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
         Vector3 requestedDestination
     )
     {
+        return EvaluateNavigation(
+            currentPosition,
+            requestedDestination,
+            null);
+    }
+
+    public EnemyDoorNavigationResult EvaluateNavigation(
+        Vector3 currentPosition,
+        Vector3 requestedDestination,
+        IReadOnlyList<Vector3> routeCorners
+    )
+    {
         if (config == null)
         {
             return EnemyDoorNavigationResult.None;
@@ -47,6 +59,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
         if (!TryFindBlockingDoor(
                 currentPosition,
                 requestedDestination,
+                routeCorners,
                 out EnemyDoorInteractionZone door
             ))
         {
@@ -254,6 +267,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
     private bool TryFindBlockingDoor(
         Vector3 currentPosition,
         Vector3 requestedDestination,
+        IReadOnlyList<Vector3> routeCorners,
         out EnemyDoorInteractionZone bestDoor
     )
     {
@@ -285,6 +299,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
                     currentPosition,
                     routeDirection,
                     destinationDistance,
+                    routeCorners,
                     ref bestDoor,
                     ref bestSqrDistance
                 );
@@ -317,6 +332,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
                     currentPosition,
                     routeDirection,
                     destinationDistance,
+                    routeCorners,
                     ref bestDoor,
                     ref bestSqrDistance
                 );
@@ -332,6 +348,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
         Vector3 currentPosition,
         Vector3 routeDirection,
         float destinationDistance,
+        IReadOnlyList<Vector3> routeCorners,
         ref EnemyDoorInteractionZone bestDoor,
         ref float bestSqrDistance
     )
@@ -362,6 +379,7 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
                 currentPosition,
                 routeDirection,
                 destinationDistance,
+                routeCorners,
                 door
             ))
         {
@@ -429,9 +447,18 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
         Vector3 currentPosition,
         Vector3 routeDirection,
         float destinationDistance,
+        IReadOnlyList<Vector3> routeCorners,
         EnemyDoorInteractionZone door
     )
     {
+        if (routeCorners != null && routeCorners.Count >= 2)
+        {
+            return IsDoorOnPathSegments(
+                currentPosition,
+                routeCorners,
+                door);
+        }
+
         Vector3 flatDoorDelta = door.GetInteractionPointFor(currentPosition) - currentPosition;
         flatDoorDelta.y = 0f;
 
@@ -468,6 +495,58 @@ public sealed class EnemyDoorInteractor : MonoBehaviour
         float pathHalfWidth = config.PathHalfWidth;
 
         return perpendicularSqrDistance <= pathHalfWidth * pathHalfWidth;
+    }
+
+    private bool IsDoorOnPathSegments(
+        Vector3 currentPosition,
+        IReadOnlyList<Vector3> routeCorners,
+        EnemyDoorInteractionZone door)
+    {
+        Vector3 doorPosition = door.GetInteractionPointFor(currentPosition);
+        Vector3 segmentStart = currentPosition;
+        float traversedDistance = 0f;
+
+        for (int i = 0; i < routeCorners.Count; i++)
+        {
+            Vector3 segmentEnd = routeCorners[i];
+            Vector3 segment = segmentEnd - segmentStart;
+            segment.y = 0f;
+            float segmentLength = segment.magnitude;
+
+            if (segmentLength <= 0.01f)
+            {
+                segmentStart = segmentEnd;
+                continue;
+            }
+
+            if (traversedDistance > config.DetectionRadius)
+            {
+                return false;
+            }
+
+            Vector3 direction = segment / segmentLength;
+            Vector3 doorDelta = doorPosition - segmentStart;
+            doorDelta.y = 0f;
+            float projection = Mathf.Clamp(
+                Vector3.Dot(doorDelta, direction),
+                0f,
+                segmentLength);
+            Vector3 closestPoint = segmentStart + direction * projection;
+            Vector3 perpendicular = doorPosition - closestPoint;
+            perpendicular.y = 0f;
+
+            if (traversedDistance + projection <= config.DetectionRadius &&
+                perpendicular.sqrMagnitude <=
+                config.PathHalfWidth * config.PathHalfWidth)
+            {
+                return true;
+            }
+
+            traversedDistance += segmentLength;
+            segmentStart = segmentEnd;
+        }
+
+        return false;
     }
 
     private bool IsInsideInteractionDistance(Vector3 currentPosition, EnemyDoorInteractionZone door)

@@ -9,6 +9,7 @@ public class EnemyConfig : ScriptableObject
 
     [Header("Profiles")]
     [SerializeField] private EnemyMovementConfig movementProfile;
+    [SerializeField] private EnemyNavigationConfig navigationProfile;
     [SerializeField] private EnemyVisionConfig visionProfile;
     [SerializeField] private EnemyHearingConfig hearingProfile;
     [SerializeField] private EnemyInvestigationConfig investigationProfile;
@@ -22,6 +23,7 @@ public class EnemyConfig : ScriptableObject
     public bool RequiresTargetDetector => !IsPatrolOnlyEnemy;
 
     public EnemyMovementConfig MovementProfile => movementProfile;
+    public EnemyNavigationConfig NavigationProfile => navigationProfile;
     public EnemyVisionConfig VisionProfile => visionProfile;
     public EnemyHearingConfig HearingProfile => hearingProfile;
     public EnemyInvestigationConfig InvestigationProfile => investigationProfile;
@@ -32,6 +34,7 @@ public class EnemyConfig : ScriptableObject
 
     public bool HasAllProfiles =>
         movementProfile != null &&
+        navigationProfile != null &&
         visionProfile != null &&
         hearingProfile != null &&
         investigationProfile != null &&
@@ -42,6 +45,7 @@ public class EnemyConfig : ScriptableObject
 
     public bool HasRequiredProfiles =>
         movementProfile != null &&
+        navigationProfile != null &&
         patrolProfile != null &&
         postureProfile != null &&
         (
@@ -60,6 +64,21 @@ public class EnemyConfig : ScriptableObject
     public float acceleration => movementProfile.acceleration;
     public float angularSpeed => movementProfile.angularSpeed;
     public float stoppingDistance => movementProfile.stoppingDistance;
+    public float navigationRepathInterval => navigationProfile.repathInterval;
+    public float navigationDestinationRepathDistance =>
+        navigationProfile.destinationRepathDistance;
+    public float navigationNavMeshSampleRadius => navigationProfile.navMeshSampleRadius;
+    public int navigationMaximumPathQueriesPerRepath =>
+        navigationProfile.maximumPathQueriesPerRepath;
+    public float navigationDirectPathCheckInterval =>
+        navigationProfile.directPathCheckInterval;
+    public float navigationProgressSampleInterval =>
+        navigationProfile.progressSampleInterval;
+    public float navigationMinimumProgressDistance =>
+        navigationProfile.minimumProgressDistance;
+    public float navigationStuckTimeout => navigationProfile.stuckTimeout;
+    public float navigationDirectMovementTimeout =>
+        navigationProfile.directMovementTimeout;
 
     public float detectionRadius => visionProfile.detectionRadius;
     public float horizontalViewAngle => visionProfile.horizontalViewAngle;
@@ -178,6 +197,7 @@ public class EnemyConfig : ScriptableObject
         );
 
         AppendMissingProfile(builder, movementProfile, nameof(movementProfile));
+        AppendMissingProfile(builder, navigationProfile, nameof(navigationProfile));
         AppendMissingProfile(builder, patrolProfile, nameof(patrolProfile));
         AppendMissingProfile(builder, postureProfile, nameof(postureProfile));
 
@@ -197,6 +217,7 @@ public class EnemyConfig : ScriptableObject
     public void ValidateProfiles()
     {
         movementProfile?.Validate();
+        navigationProfile?.Validate();
         visionProfile?.Validate();
         hearingProfile?.Validate();
         investigationProfile?.Validate(stoppingDistance);

@@ -12,6 +12,7 @@ public sealed class EnemyPatrolStopWanderPlanner
         float radius,
         float minDistanceFromEnemy,
         int attempts,
+        NavMeshQueryFilter filter,
         out Vector3 point
     )
     {
@@ -35,7 +36,11 @@ public sealed class EnemyPatrolStopWanderPlanner
                 center.z + randomCircle.y
             );
 
-            if (!NavMesh.SamplePosition(rawPoint, out NavMeshHit hit, sampleRadius, NavMesh.AllAreas))
+            if (!NavMesh.SamplePosition(
+                    rawPoint,
+                    out NavMeshHit hit,
+                    sampleRadius,
+                    filter))
             {
                 continue;
             }

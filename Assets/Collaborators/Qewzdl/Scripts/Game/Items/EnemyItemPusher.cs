@@ -29,6 +29,8 @@ public sealed class EnemyItemPusher : MonoBehaviour
 
     private IEnemyDirectMovementIntentSource directMovementIntentSource;
 
+    public int ReservationOwnerId => gameObject.GetInstanceID();
+
     public bool IsPushingAnyItem { get; private set; }
     public float CurrentPushResistance { get; private set; }
 
@@ -92,88 +94,6 @@ public sealed class EnemyItemPusher : MonoBehaviour
             requirePushable: false);
     }
 
-    public bool HasPushableItemOnDirectRoute(Vector3 destination)
-    {
-        return HasItemInDirectCorridor(
-            destination,
-            requireNavigationBlocker: false,
-            requirePushable: true);
-    }
-
-    public bool HasDirectlyReachablePushableBarrier(
-        Vector3 destination)
-    {
-        return TryGetNearestItemInBodyCorridor(
-                   destination,
-                   out ItemNavigationObstacle nearestItem) &&
-               nearestItem.IsBlockingNavigation &&
-               nearestItem.CanBePushedByEnemyNow;
-    }
-
-    public bool HasDirectlyReachablePushableBarrier(
-        ItemNavigationObstacle expectedBarrier,
-        Vector3 destination)
-    {
-        return expectedBarrier != null &&
-               TryGetNearestItemInBodyCorridor(
-                   destination,
-                   out ItemNavigationObstacle nearestItem) &&
-               nearestItem == expectedBarrier &&
-               nearestItem.IsBlockingNavigation &&
-               nearestItem.CanBePushedByEnemyNow;
-    }
-
-    private bool TryGetNearestItemInBodyCorridor(
-        Vector3 destination,
-        out ItemNavigationObstacle nearestItem)
-    {
-        nearestItem = null;
-        Vector3 direction = destination - transform.position;
-        direction.y = 0f;
-        float distance = direction.magnitude;
-
-        if (distance < 0.01f)
-        {
-            return false;
-        }
-
-        direction /= distance;
-        Bounds bodyBounds = GetBodyBounds();
-        Vector3 halfExtents = bodyBounds.extents;
-        halfExtents.x = Mathf.Max(0.05f, halfExtents.x * 0.95f);
-        halfExtents.y = Mathf.Max(0.05f, halfExtents.y - 0.05f);
-        halfExtents.z = Mathf.Max(0.05f, halfExtents.z * 0.95f);
-
-        int count = Physics.BoxCastNonAlloc(
-            bodyBounds.center,
-            halfExtents,
-            direction,
-            lineHits,
-            Quaternion.LookRotation(direction, Vector3.up),
-            distance,
-            Physics.DefaultRaycastLayers,
-            QueryTriggerInteraction.Ignore
-        );
-        float nearestDistance = float.PositiveInfinity;
-
-        for (int i = 0; i < count; i++)
-        {
-            Collider hitCollider = lineHits[i].collider;
-
-            if (hitCollider == null ||
-                hitCollider.transform.IsChildOf(transform) ||
-                lineHits[i].distance >= nearestDistance)
-            {
-                continue;
-            }
-
-            nearestDistance = lineHits[i].distance;
-            nearestItem = GetItem(hitCollider);
-        }
-
-        return nearestItem != null;
-    }
-
     public bool HasNavigationBlockerOnRoute(Vector3[] routeCorners)
     {
         if (routeCorners == null || routeCorners.Length < 2)
@@ -201,48 +121,6 @@ public sealed class EnemyItemPusher : MonoBehaviour
             {
                 return true;
             }
-        }
-
-        return false;
-    }
-
-    public bool HasPushableNavigationBarrierNear(
-        Vector3 position,
-        Vector3 routeDirection)
-    {
-        routeDirection.y = 0f;
-
-        if (routeDirection.sqrMagnitude < MinimumDirectionSqrMagnitude)
-        {
-            return false;
-        }
-
-        routeDirection.Normalize();
-        visitedItems.Clear();
-
-        float radius = Mathf.Max(0.1f, probeDistance + probeRadius);
-        int count = Physics.OverlapSphereNonAlloc(
-            position,
-            radius,
-            detectedColliders,
-            pushableLayers,
-            QueryTriggerInteraction.Ignore
-        );
-        for (int i = 0; i < count; i++)
-        {
-            Collider candidate = detectedColliders[i];
-            ItemNavigationObstacle itemNavigation = GetItem(candidate);
-
-            if (itemNavigation == null ||
-                !visitedItems.Add(itemNavigation) ||
-                !itemNavigation.IsBlockingNavigation ||
-                !itemNavigation.CanBePushedByEnemyNow ||
-                !IsForwardFrom(position, candidate, routeDirection))
-            {
-                continue;
-            }
-
-            return true;
         }
 
         return false;
@@ -291,7 +169,8 @@ public sealed class EnemyItemPusher : MonoBehaviour
                 !itemNavigation.CanBePushedByEnemyNow ||
                 !IsForwardFrom(transform.position, candidate, direction) ||
                 !HasClearPushChainLine(candidate) ||
-                !itemNavigation.TryBeginPhysicalEnemyPushServer())
+                !itemNavigation.TryBeginPhysicalEnemyPushServer(
+                    ReservationOwnerId))
             {
                 continue;
             }

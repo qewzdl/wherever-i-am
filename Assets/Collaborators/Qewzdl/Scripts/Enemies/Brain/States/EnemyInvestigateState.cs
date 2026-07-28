@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 public sealed class EnemyInvestigateState : IEnemyStateHandler
 {
@@ -210,7 +211,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             context.Config.investigationBranchRadius,
             context.Config.investigationBranchPointCount,
             context.Config.investigationLeafRadius,
-            context.Config.investigationLeafPointCountPerBranch
+            context.Config.investigationLeafPointCountPerBranch,
+            GetNavigationQueryFilter()
         );
 
         context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
@@ -286,7 +288,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
                     context.Config.investigationBranchRadius,
                     context.Config.investigationBranchPointCount,
                     context.Config.investigationLeafRadius,
-                    context.Config.investigationLeafPointCountPerBranch
+                    context.Config.investigationLeafPointCountPerBranch,
+                    GetNavigationQueryFilter()
                 );
 
                 context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
@@ -345,6 +348,27 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         }
 
         return hasDestination;
+    }
+
+    private NavMeshQueryFilter GetNavigationQueryFilter()
+    {
+        EnemyPosture posture = context.PostureController != null
+            ? context.PostureController.CurrentPosture
+            : EnemyPosture.Standing;
+
+        if (context.Navigator.TryGetNavigationQueryFilter(
+                posture,
+                out NavMeshQueryFilter filter))
+        {
+            return filter;
+        }
+
+        NavMeshBuildSettings settings = NavMesh.GetSettingsByIndex(0);
+        return new NavMeshQueryFilter
+        {
+            agentTypeID = settings.agentTypeID,
+            areaMask = NavMesh.AllAreas
+        };
     }
 
     private void RepathToCurrentDestination(float speed)
