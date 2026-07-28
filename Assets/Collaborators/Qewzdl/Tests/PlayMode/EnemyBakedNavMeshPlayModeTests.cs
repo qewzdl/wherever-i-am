@@ -960,6 +960,100 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_PushingBarrier_AimsAtNearSurfaceNotPivotBehindIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakePushCorridor(standingAgentTypeId, crawlingAgentTypeId);
+
+        // Furniture whose transform pivot sits at the back — flush
+        // against whatever it's backed up against, a wall for anything
+        // placed that way — while the actual collider (what the enemy
+        // can physically reach and push) extends toward the approaching
+        // enemy. Aiming at the raw pivot would steer straight through
+        // that gap into the wall behind it.
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            new Vector3(0f, 0f, 2f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(3.4f, 1.5f, 1f),
+            colliderCenter: new Vector3(0f, 0.75f, -1.5f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () => itemNavigation.IsBlockingNavigation &&
+                  item.GetComponent<NavMeshObstacle>().carving,
+            "Item did not carve.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Surface-aiming enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -5f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+        Vector3 destination = new(0f, 0f, 5f);
+
+        Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return navigator.TryGetEnemyDirectMovementIntent(
+                    out _,
+                    out _);
+            },
+            "Enemy did not engage direct movement toward the barricade.");
+
+        navigator.TryGetEnemyDirectMovementIntent(
+            out Vector3 aimDestination,
+            out _);
+
+        Assert.That(
+            aimDestination.z,
+            Is.LessThan(item.transform.position.z),
+            "Enemy aimed at the item's pivot instead of its near " +
+            "surface, which would steer it toward whatever the pivot " +
+            "sits flush against.");
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_WithPushThroughDisallowed_NeverPushesBlockingBarricade()
     {
         yield return StartHost();
@@ -2640,7 +2734,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Vector3? colliderSize = null,
         bool canBePushedByEnemies = true,
         float mass = 5f,
-        float enemyPushResistanceMultiplier = 1f)
+        float enemyPushResistanceMultiplier = 1f,
+        Vector3? colliderCenter = null)
     {
         DraggableObjectData itemData =
             Track(ScriptableObject.CreateInstance<DraggableObjectData>());
@@ -2671,7 +2766,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         BoxCollider collider = itemObject.AddComponent<BoxCollider>();
         collider.size = colliderSize ?? new Vector3(2f, 1.5f, 2f);
-        collider.center = new Vector3(0f, 0.75f, 0f);
+        collider.center = colliderCenter ?? new Vector3(0f, 0.75f, 0f);
 
         NetworkItemTestDraggable item =
             itemObject.AddComponent<NetworkItemTestDraggable>();

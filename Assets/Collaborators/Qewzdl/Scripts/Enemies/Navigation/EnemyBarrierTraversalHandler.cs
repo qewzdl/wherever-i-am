@@ -184,7 +184,7 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
     {
         if (IsBarrierStillValid(currentBarrier))
         {
-            aimPosition = currentBarrier.transform.position;
+            aimPosition = currentBarrier.GetClosestSurfacePoint(ownerTransform.position);
             return true;
         }
 
@@ -196,7 +196,7 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             return false;
         }
 
-        aimPosition = currentBarrier.transform.position;
+        aimPosition = currentBarrier.GetClosestSurfacePoint(ownerTransform.position);
         return true;
     }
 
@@ -497,7 +497,7 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         currentBarrier = barrier;
         directMovementDestination = destination;
         directMovementAimPoint = barrier != null
-            ? barrier.transform.position
+            ? barrier.GetClosestSurfacePoint(ownerTransform.position)
             : destination;
         directMovementSpeed = speed;
         directMovementAgentTypeId = agent.agentTypeID;

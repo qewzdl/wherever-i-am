@@ -70,6 +70,46 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         }
     }
 
+    // The closest point on the item's actual physical surface to the
+    // given position — never behind the item's own pivot, which can sit
+    // flush against whatever the item is backed up against (a wall, for
+    // furniture placed that way, which is the common case). Aiming
+    // physical push movement at the raw transform position has no such
+    // guarantee and can steer an enemy straight into that wall.
+    public Vector3 GetClosestSurfacePoint(Vector3 fromPosition)
+    {
+        ResolveReferences();
+
+        if (item == null || item.Colliders == null)
+        {
+            return transform.position;
+        }
+
+        Vector3 closest = transform.position;
+        float bestSqrDistance = float.PositiveInfinity;
+
+        foreach (Collider itemCollider in item.Colliders)
+        {
+            if (itemCollider == null || !itemCollider.enabled)
+            {
+                continue;
+            }
+
+            Vector3 point = itemCollider.ClosestPoint(fromPosition);
+            float sqrDistance = (point - fromPosition).sqrMagnitude;
+
+            if (sqrDistance >= bestSqrDistance)
+            {
+                continue;
+            }
+
+            bestSqrDistance = sqrDistance;
+            closest = point;
+        }
+
+        return closest;
+    }
+
     internal bool TryBeginPhysicalEnemyPushServer(int reservationOwnerId)
     {
         ResolveReferences();
