@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -24,6 +25,9 @@ public class EnemyNavigator : MonoBehaviour
     private bool hasRequestedNavigation;
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
+    private bool requestedAllowPushThrough;
+
+    private readonly HashSet<ItemNavigationObstacle> pushThroughHolds = new();
 
     public Vector3 Position => transform.position;
     public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
@@ -106,6 +110,7 @@ public class EnemyNavigator : MonoBehaviour
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
         doorTraversal?.Cancel();
+        ReleaseAllPushThroughHolds();
 
         if (agent != null)
         {
@@ -113,9 +118,14 @@ public class EnemyNavigator : MonoBehaviour
         }
     }
 
-    public bool TryMoveTo(Vector3 destination, float speed)
+    private void OnDisable()
     {
-        RememberRequestedNavigation(destination, speed);
+        ReleaseAllPushThroughHolds();
+    }
+
+    public bool TryMoveTo(Vector3 destination, float speed, bool allowPushThrough = false)
+    {
+        RememberRequestedNavigation(destination, speed, allowPushThrough);
 
         if (TryResolveDoorNavigation(
                 destination,
@@ -228,6 +238,11 @@ public class EnemyNavigator : MonoBehaviour
                 ? navigationConfig.maximumPathQueriesPerRepath
                 : 24);
 
+        if (!requestedAllowPushThrough)
+        {
+            ReleaseAllPushThroughHolds();
+        }
+
         if (config != null && config.crawlingEnabled && postureController != null)
         {
             bool moved = TryMoveWithPosturePriority(destination, speed);
@@ -290,6 +305,7 @@ public class EnemyNavigator : MonoBehaviour
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
+        ReleaseAllPushThroughHolds();
 
         if (!TryEnsureOnNavMesh())
         {
@@ -305,6 +321,7 @@ public class EnemyNavigator : MonoBehaviour
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
+        ReleaseAllPushThroughHolds();
 
         if (!TryEnsureOnNavMesh())
         {
@@ -395,10 +412,12 @@ public class EnemyNavigator : MonoBehaviour
 
     private void RememberRequestedNavigation(
         Vector3 destination,
-        float speed)
+        float speed,
+        bool allowPushThrough)
     {
         requestedNavigationDestination = destination;
         requestedNavigationSpeed = speed;
+        requestedAllowPushThrough = allowPushThrough;
         hasRequestedNavigation = true;
     }
 
@@ -482,22 +501,37 @@ public class EnemyNavigator : MonoBehaviour
         Vector3 destination,
         float speed)
     {
-        if (postureTraversal == null ||
-            !postureTraversal.TryBuildPlan(
-                destination,
-                out EnemyPostureTraversalPlan plan))
+        if (postureTraversal == null)
         {
             return false;
         }
 
+        if (postureTraversal.TryBuildPlan(destination, out EnemyPostureTraversalPlan plan) &&
+            plan.IsComplete)
+        {
+            return ApplyPosturePlan(plan, speed);
+        }
+
+        if (!requestedAllowPushThrough)
+        {
+            return false;
+        }
+
+        // Same barricade fallback as the standing-only path below, just
+        // re-asking the posture planner (which may route standing or
+        // crawling) once the blocking item's carving has been requested off.
+        RequestPushThroughOnBlockingItem(destination);
+
+        return postureTraversal.TryBuildPlan(destination, out EnemyPostureTraversalPlan retryPlan) &&
+               retryPlan.IsComplete &&
+               ApplyPosturePlan(retryPlan, speed);
+    }
+
+    private bool ApplyPosturePlan(EnemyPostureTraversalPlan plan, float speed)
+    {
         float postureSpeed = postureController.GetSpeedForPosture(
             speed,
             plan.Posture);
-
-        if (!plan.IsComplete)
-        {
-            return false;
-        }
 
         EnemyPosture previousPosture = postureController.CurrentPosture;
 
@@ -543,12 +577,53 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
-        if (!TryBuildCompletePath(destination, out _))
+        if (TryBuildCompletePath(destination, out _))
         {
-            return false;
+            return queryService.TryApplyPath(agent, pathBuffer, speed);
         }
 
-        return queryService.TryApplyPath(agent, pathBuffer, speed);
+        return requestedAllowPushThrough && TryPushThrough(destination, speed);
+    }
+
+    // ponytail: no candidate scoring, no direct-movement mode - just lift
+    // the blocking item's obstacle carving so the normal path rebuild can
+    // route straight through it, and let the enemy's existing rigidbody
+    // physically shove it aside on the way. Falls back to a stopped tick
+    // while carving catches up; the repath scheduler retries on its own.
+    private bool TryPushThrough(Vector3 destination, float speed)
+    {
+        RequestPushThroughOnBlockingItem(destination);
+
+        return TryBuildCompletePath(destination, out _) &&
+               queryService.TryApplyPath(agent, pathBuffer, speed);
+    }
+
+    private void RequestPushThroughOnBlockingItem(Vector3 destination)
+    {
+        if (itemPusher != null &&
+            itemPusher.TryGetBlockingItem(destination, out ItemNavigationObstacle blockingItem) &&
+            pushThroughHolds.Add(blockingItem))
+        {
+            blockingItem.RequestPushThrough();
+        }
+    }
+
+    private void ReleaseAllPushThroughHolds()
+    {
+        if (pushThroughHolds.Count == 0)
+        {
+            return;
+        }
+
+        foreach (ItemNavigationObstacle held in pushThroughHolds)
+        {
+            if (held != null)
+            {
+                held.ReleasePushThrough();
+            }
+        }
+
+        pushThroughHolds.Clear();
     }
 
     private void StopAtBlockedRoute()

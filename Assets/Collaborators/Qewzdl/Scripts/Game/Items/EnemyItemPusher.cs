@@ -23,12 +23,21 @@ public sealed class EnemyItemPusher : MonoBehaviour
 
     public bool IsDirectApproachBlockedByItem(Vector3 destination)
     {
-        return HasItemInDirectCorridor(destination);
+        return HasItemInDirectCorridor(destination, out _);
     }
 
     public bool HasNavigationBlockerOnRoute(Vector3[] routeCorners)
     {
         return TryGetItemAlongRoute(routeCorners, GetCorridorRadius(), out _);
+    }
+
+    // ponytail: straight line to the target, not the actual (possibly
+    // partial) route - misses an item blocking a route that requires a
+    // turn. Upgrade to scanning the last computed path's corners if that
+    // shows up as a real case.
+    public bool TryGetBlockingItem(Vector3 destination, out ItemNavigationObstacle blockingItem)
+    {
+        return HasItemInDirectCorridor(destination, out blockingItem);
     }
 
     private bool TryGetItemAlongRoute(
@@ -72,7 +81,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
             Mathf.Max(bodyBounds.extents.x, bodyBounds.extents.z));
     }
 
-    private bool HasItemInDirectCorridor(Vector3 destination)
+    private bool HasItemInDirectCorridor(Vector3 destination, out ItemNavigationObstacle blockingItem)
     {
         Bounds bodyBounds = GetBodyBounds();
         float bodyRadius = Mathf.Max(
@@ -85,7 +94,7 @@ public sealed class EnemyItemPusher : MonoBehaviour
             bodyRadius + 0.05f,
             bodyBounds.extents.y,
             bodyBounds.center.y - transform.position.y,
-            out _);
+            out blockingItem);
     }
 
     private bool TryGetItemAlongSegment(

@@ -13,9 +13,29 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     [SerializeField, Min(0f)] private float timeToStationary = 0.25f;
 
     private bool subscribed;
+    private int pushThroughRequests;
 
     public bool IsBlockingNavigation =>
         obstacle != null && obstacle.enabled && obstacle.carving;
+
+    // ponytail: a request counter, not a queue - lets more than one enemy
+    // push through the same barricade without one's release re-blocking
+    // it for the other.
+    public void RequestPushThrough()
+    {
+        pushThroughRequests++;
+        RefreshObstacleState();
+    }
+
+    public void ReleasePushThrough()
+    {
+        if (pushThroughRequests > 0)
+        {
+            pushThroughRequests--;
+        }
+
+        RefreshObstacleState();
+    }
 
     private void Awake()
     {
@@ -74,7 +94,8 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
             item == null ||
             !item.BlocksEnemyNavigation ||
             item.IsBeingDragged ||
-            item is PickupItem { IsPickedUp: true })
+            item is PickupItem { IsPickedUp: true } ||
+            pushThroughRequests > 0)
         {
             if (obstacle != null)
             {

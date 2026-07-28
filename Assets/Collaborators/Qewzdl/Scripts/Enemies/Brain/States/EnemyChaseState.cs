@@ -50,7 +50,7 @@ public sealed class EnemyChaseState : IEnemyStateHandler
         {
             if (context.Navigator.IsDirectApproachBlockedByItem(targetPosition))
             {
-                context.TryMoveTo(targetPosition, context.Config.chaseSpeed);
+                context.TryMoveTo(targetPosition, context.Config.chaseSpeed, allowPushThrough: true);
                 return;
             }
 
@@ -73,11 +73,11 @@ public sealed class EnemyChaseState : IEnemyStateHandler
                 return;
             }
 
-            context.TryMoveTo(targetPosition, context.Config.chaseSpeed);
+            context.TryMoveTo(targetPosition, context.Config.chaseSpeed, allowPushThrough: true);
             return;
         }
 
-        context.TryMoveTo(targetPosition, context.Config.chaseSpeed);
+        context.TryMoveTo(targetPosition, context.Config.chaseSpeed, allowPushThrough: true);
     }
 
     public void Exit()
