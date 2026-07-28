@@ -628,6 +628,21 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             return;
         }
 
+        // A single failed rebuild against a live, moving destination
+        // (chasing a player) isn't proof the route is actually gone —
+        // NavMesh sampling near a shifting target routinely misses by a
+        // hair for one cycle. Only actually halt when there's no path
+        // left to coast on; otherwise keep following the last
+        // known-good path and let the next repath cycle try again.
+        // Resetting on every transient miss caused a full stop-and-go
+        // every few seconds during chase.
+        if (agent.hasPath &&
+            !agent.isPathStale &&
+            agent.pathStatus != NavMeshPathStatus.PathInvalid)
+        {
+            return;
+        }
+
         agent.isStopped = true;
         agent.ResetPath();
     }
