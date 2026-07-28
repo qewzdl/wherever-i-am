@@ -1704,6 +1704,20 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             },
             "Pinned barrier traversal did not time out and enter recovery.");
 
+        // A barrier that just proved unmovable shouldn't be immediately
+        // re-selected — that was the tight stuck-and-retry loop that
+        // looked like the enemy endlessly pressing into the wall behind
+        // it. It should back off instead of resuming the same push.
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return !pusher.IsPushingAnyItem;
+            },
+            "Enemy immediately re-engaged the same unmovable barrier " +
+            "instead of backing off.");
+
         Assert.That(
             itemObstacle.enabled && itemObstacle.carving,
             Is.True,
