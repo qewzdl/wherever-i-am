@@ -23,6 +23,14 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
     private readonly EnemyNavigationRecoveryController recoveryController;
     private readonly NavMeshPath recoveryPath = new();
     private readonly NavMeshPath barrierRoutePath = new();
+    // Walking toward a partial route's endpoint uses plain NavMeshAgent
+    // steering, which EnemyNavigator's own stuck-recovery treats as
+    // "arrived, nothing to track" the moment remainingDistance gets
+    // small — exactly the state a barrier that's genuinely unreachable
+    // behind unrelated geometry gets stuck in a few tens of centimetres
+    // short of its endpoint, forever. This tracks progress toward that
+    // endpoint independently so that specific gap actually gets caught.
+    private readonly EnemyNavigationProgressMonitor pendingEndpointProgress = new();
 
     private EnemyConfig config;
     private bool directMovementActive;
@@ -147,6 +155,11 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             agent.isOnNavMesh &&
             queryService.TryApplyPath(agent, barrierRoute, speed))
         {
+            if (!hasPendingPushEndpoint || pendingPushBarrier != bestBarrier)
+            {
+                pendingEndpointProgress.Begin(ownerTransform.position);
+            }
+
             hasPendingPushEndpoint = true;
             pendingPushEndpoint = endpoint;
             pendingPushDestination = destination;
@@ -279,6 +292,15 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             bestBarrier.ApproachRadius +
             Mathf.Max(0f, agent.radius);
 
+        // A Partial status is expected and fine when the barrier's own
+        // carve is what's truncating the route (that's exactly the
+        // "walk up to what's blocking the way" case). It's also what a
+        // barrier that's genuinely unreachable behind unrelated
+        // geometry looks like — the two aren't distinguishable from
+        // status alone, so PathInvalid is the only outright rejection
+        // here; ProgressMonitor in Tick() below is what actually
+        // catches the "walked to a partial dead end and can get no
+        // closer" case once it's had a fair chance to arrive.
         if (!queryService.TrySamplePosition(
                 bestBarrier.transform.position,
                 approachSampleRadius,
@@ -311,16 +333,38 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             return;
         }
 
-        if (!IsWithinActivationDistance(pendingPushEndpoint))
+        if (IsWithinActivationDistance(pendingPushEndpoint))
         {
+            hasPendingPushEndpoint = false;
+            pendingEndpointProgress.Reset();
+            ActivateDirectMovement(
+                pendingPushBarrier,
+                pendingPushDestination,
+                pendingPushSpeed);
             return;
         }
 
-        hasPendingPushEndpoint = false;
-        ActivateDirectMovement(
-            pendingPushBarrier,
-            pendingPushDestination,
-            pendingPushSpeed);
+        // A partial route's endpoint can be a dead end the enemy will
+        // never actually close the last stretch to (the barrier it was
+        // aiming for is behind unrelated geometry, not just past the
+        // one carving this exact spot). Ordinary stuck-recovery doesn't
+        // catch this: EnemyNavigator's own check backs off the moment
+        // remainingDistance looks small, treating "close" as "arrived".
+        if (pendingEndpointProgress.IsStuck(
+                ownerTransform.position,
+                config != null ? config.NavigationProfile : null,
+                useDirectMovementTimeout: false))
+        {
+            if (pendingPushBarrier != null)
+            {
+                failedBarrier = pendingPushBarrier;
+                failedBarrierCooldownUntil =
+                    Time.time + GetFailedBarrierCooldownDuration();
+            }
+
+            hasPendingPushEndpoint = false;
+            pendingEndpointProgress.Reset();
+        }
     }
 
     private static bool TryGetRouteEndpoint(
@@ -509,6 +553,7 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         nextPathCheckTime = 0f;
         hasPendingPushEndpoint = false;
         pendingPushBarrier = null;
+        pendingEndpointProgress.Reset();
         recoveryController?.Reset();
     }
 
