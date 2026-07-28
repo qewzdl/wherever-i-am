@@ -1,14 +1,17 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-// No complete NavMesh route exists to the destination (an item is
-// carving a hole across every path, or the route is otherwise blocked).
-// Rather than pre-planning which single item to push and where, this
-// just walks the enemy directly at the destination and lets
-// EnemyItemPusher's per-tick physical push (FixedUpdate) push whatever
-// is actually in front of it — one item or a whole stack of them. Every
+// No complete NavMesh route exists to the destination. If — and only if
+// — a real, reachable ItemNavigationObstacle is registered somewhere in
+// the level, this walks toward it normally by NavMesh and drops to
+// direct physical movement for the final stretch, where EnemyItemPusher's
+// per-tick physical push (FixedUpdate) pushes whatever is actually in
+// front of it — one item or a whole stack of them. Every
 // GetDirectPathCheckInterval seconds it retries a full NavMesh path and
-// hands back to normal pathing the moment one opens up.
+// hands back to normal pathing the moment one opens up. When no such
+// item exists, the route is simply unreachable (walls, an isolated
+// island, ...) and this refuses to engage — the caller stops instead of
+// walking the enemy into a wall.
 internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
 {
     private const float DirectMovementActivationDistance = 0.2f;
@@ -84,16 +87,16 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
         return delta.sqrMagnitude <= reachDistance * reachDistance;
     }
 
-    // routeSoFar is whatever NavMesh could build toward the destination
-    // (partial, or complete-but-physically-blocked) — walk it normally
-    // for as long as it makes progress, so the enemy still steers around
-    // walls and other geometry instead of cutting straight lines. Only
-    // once it can't get any closer that way does this drop to direct
-    // physical movement, where EnemyItemPusher takes over pushing.
-    public bool TryPushThroughToTarget(
-        Vector3 destination,
-        float speed,
-        NavMeshPath routeSoFar)
+    // Only ever pushes toward a confirmed, reachable ItemNavigationObstacle
+    // — never just because a complete path couldn't be found. A route can
+    // be incomplete for reasons that have nothing to do with a pushable
+    // item (permanent walls, an unreachable target island, geometry the
+    // NavMesh was never baked to cross), and ramming those is not a
+    // traversal strategy. Walks the barrier route normally by NavMesh so
+    // the enemy still steers around walls instead of cutting a straight
+    // line, and only drops to direct physical movement once at its end,
+    // where EnemyItemPusher takes over pushing.
+    public bool TryPushThroughToTarget(Vector3 destination, float speed)
     {
         if (agent == null)
         {
@@ -107,22 +110,16 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             return true;
         }
 
-        // Walking to wherever the plain route happens to end works when
-        // that endpoint is next to the blocker. It isn't always: in a
-        // sealed room the closest reachable point to the destination can
-        // be a dead end on the wrong side of the wall, nowhere near the
-        // one item that actually bridges the route. Prefer heading for
-        // the nearest reachable barrier when one exists.
-        NavMeshPath effectiveRoute =
-            TryFindBarrierRoute(destination, out NavMeshPath barrierRoute)
-                ? barrierRoute
-                : routeSoFar;
+        if (!TryFindBarrierRoute(destination, out NavMeshPath barrierRoute))
+        {
+            return false;
+        }
 
-        if (TryGetRouteEndpoint(effectiveRoute, out Vector3 endpoint) &&
+        if (TryGetRouteEndpoint(barrierRoute, out Vector3 endpoint) &&
             !IsWithinActivationDistance(endpoint) &&
             agent.enabled &&
             agent.isOnNavMesh &&
-            queryService.TryApplyPath(agent, effectiveRoute, speed))
+            queryService.TryApplyPath(agent, barrierRoute, speed))
         {
             hasPendingPushEndpoint = true;
             pendingPushEndpoint = endpoint;
@@ -181,10 +178,17 @@ internal sealed class EnemyBarrierTraversalHandler : IEnemyTraversalHandler
             agentTypeID = agent.agentTypeID,
             areaMask = agent.areaMask
         };
+        // The item's own centre sits inside the hole it carves — the
+        // sample has to reach past the item's footprint to find any
+        // NavMesh at all, or it always fails for anything bigger than
+        // the generic navigation sample radius.
+        float approachSampleRadius = GetNavigationSampleRadius() +
+            bestBarrier.ApproachRadius +
+            Mathf.Max(0f, agent.radius);
 
         if (!queryService.TrySamplePosition(
                 bestBarrier.transform.position,
-                GetNavigationSampleRadius(),
+                approachSampleRadius,
                 filter,
                 out NavMeshHit barrierHit) ||
             !queryService.TryCalculatePath(

@@ -33,6 +33,25 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     public bool IsBlockingNavigation =>
         obstacle != null && obstacle.enabled && obstacle.carving;
 
+    // Planar half-diagonal of the carved footprint: how far from this
+    // item's centre a NavMesh sample must reach to have any chance of
+    // landing outside the hole the item itself carves.
+    public float ApproachRadius
+    {
+        get
+        {
+            ResolveReferences();
+
+            if (obstacle == null)
+            {
+                return 0.5f;
+            }
+
+            Vector3 halfSize = obstacle.size * 0.5f;
+            return new Vector2(halfSize.x, halfSize.z).magnitude;
+        }
+    }
+
     public bool CanBePushedByEnemyNow
     {
         get

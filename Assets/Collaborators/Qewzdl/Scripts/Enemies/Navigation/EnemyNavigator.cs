@@ -552,7 +552,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (plan.IsBlockedByItem)
         {
-            return TryPushThroughToTarget(destination, postureSpeed, plan.Path);
+            return TryPushThroughToTarget(destination, postureSpeed);
         }
 
         if (!plan.IsComplete)
@@ -562,7 +562,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 return false;
             }
 
-            return TryPushThroughToTarget(destination, postureSpeed, plan.Path);
+            return TryPushThroughToTarget(destination, postureSpeed);
         }
 
         EnemyPosture previousPosture = postureController.CurrentPosture;
@@ -612,7 +612,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (!TryBuildCompletePath(destination, out _))
         {
-            return TryPushThroughToTarget(destination, speed, pathBuffer);
+            return TryPushThroughToTarget(destination, speed);
         }
 
         CancelBarrierTraversal(restoreAgent: true);
@@ -704,16 +704,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             out hit);
     }
 
-    private bool TryPushThroughToTarget(
-        Vector3 destination,
-        float speed,
-        NavMeshPath routeSoFar)
+    private bool TryPushThroughToTarget(Vector3 destination, float speed)
     {
         return barrierTraversal != null &&
-               barrierTraversal.TryPushThroughToTarget(
-                   destination,
-                   speed,
-                   routeSoFar);
+               barrierTraversal.TryPushThroughToTarget(destination, speed);
     }
 
     private void CancelBarrierTraversal(bool restoreAgent)
