@@ -1497,6 +1497,123 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_AfterClearingBarricade_RoutesAroundUnrelatedWallInsteadOfRammingIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+
+        GameObject root = Track(new GameObject("Wall-after-barricade room"));
+        CreateGeometry(
+            "Wall room floor",
+            new Vector3(0f, -0.1f, 0f),
+            new Vector3(20f, 0.2f, 20f),
+            root.transform);
+        // A wall separating west (enemy) from east (destination), with a
+        // two-metre doorway plugged by a pushable barricade.
+        CreateGeometry(
+            "Wall room south divider",
+            new Vector3(0f, 1f, -5f),
+            new Vector3(0.2f, 2f, 8f),
+            root.transform);
+        CreateGeometry(
+            "Wall room north divider",
+            new Vector3(0f, 1f, 5f),
+            new Vector3(0.2f, 2f, 8f),
+            root.transform);
+        // An unrelated dead-end wall stub on the east side, with nothing
+        // to push through it — it has to be routed around, not aimed at.
+        // A straight line from the doorway to the destination crosses it;
+        // the real route goes around its open east end (x > 6).
+        CreateGeometry(
+            "Wall room dead-end stub",
+            new Vector3(3f, 1f, 5f),
+            new Vector3(6f, 2f, 0.2f),
+            root.transform);
+        BakeSurfaces(root, standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable item = CreateSpawnedNavigationItem(
+            new Vector3(0f, 0f, 0f),
+            makeDynamic: true,
+            useGravity: true,
+            colliderSize: new Vector3(1f, 1.5f, 2f));
+        ItemNavigationObstacle itemNavigation =
+            item.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () => itemNavigation.IsBlockingNavigation &&
+                  item.GetComponent<NavMeshObstacle>().carving,
+            "Doorway barricade did not seal the only entrance.");
+        yield return new WaitForSecondsRealtime(0.75f);
+
+        GameObject actor = Track(new GameObject("Wall-after-barricade enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(-5f, 0f, 0f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+
+        actor.AddComponent<Rigidbody>();
+        actor.AddComponent<EnemyPhysicsMotor>();
+        EnemyItemPusher pusher = actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+        // Behind the dead-end wall stub, only reachable by going around
+        // its open east end once the doorway is cleared.
+        Vector3 destination = new(3f, 0f, 8f);
+
+        Assert.That(
+            navigator.TryMoveTo(destination, 3f),
+            Is.True,
+            "Navigator rejected the sealed target instead of approaching the doorway barricade.");
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return pusher.IsPushingAnyItem;
+            },
+            "Enemy did not approach and push the doorway barricade.");
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TickNavigationGate();
+                navigator.TryMoveTo(destination, 3f);
+                return Vector3.Distance(actor.transform.position, destination) < 1.5f;
+            },
+            "Enemy got stuck ramming the unrelated dead-end wall instead of " +
+            "routing around it after clearing the barricade.");
+    }
+
+    [UnityTest]
     public IEnumerator PhysicsMotor_DoesNotCrossItemPinnedAgainstWall()
     {
         yield return StartHost();
