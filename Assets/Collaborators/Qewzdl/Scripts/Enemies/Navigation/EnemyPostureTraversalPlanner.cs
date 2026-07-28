@@ -8,20 +8,17 @@ internal readonly struct EnemyPostureTraversalPlan
     public Vector3 Destination { get; }
     public NavMeshPath Path { get; }
     public bool IsComplete { get; }
-    public bool IsBlockedByItem { get; }
 
     public EnemyPostureTraversalPlan(
         EnemyPosture posture,
         Vector3 destination,
         NavMeshPath path,
-        bool isComplete,
-        bool isBlockedByItem)
+        bool isComplete)
     {
         Posture = posture;
         Destination = destination;
         Path = path;
         IsComplete = isComplete;
-        IsBlockedByItem = isBlockedByItem;
     }
 }
 
@@ -94,7 +91,7 @@ internal sealed class EnemyPostureTraversalPlanner : IEnemyTraversalHandler
                 standingPath,
                 out EnemyPostureTraversalPlan standingPlan);
 
-            if (standingPlan.IsComplete || standingPlan.IsBlockedByItem)
+            if (standingPlan.IsComplete)
             {
                 plan = standingPlan;
                 LastPlannedPath = plan.Path;
@@ -119,7 +116,6 @@ internal sealed class EnemyPostureTraversalPlanner : IEnemyTraversalHandler
             out plan);
 
         if (!plan.IsComplete &&
-            !plan.IsBlockedByItem &&
             hasStandingFallback &&
             postureController.CurrentPosture == EnemyPosture.Standing)
         {
@@ -169,7 +165,6 @@ internal sealed class EnemyPostureTraversalPlanner : IEnemyTraversalHandler
                 posture,
                 destination,
                 path,
-                false,
                 false);
             return;
         }
@@ -180,8 +175,7 @@ internal sealed class EnemyPostureTraversalPlanner : IEnemyTraversalHandler
             posture,
             destination,
             path,
-            path.status == NavMeshPathStatus.PathComplete && !blocked,
-            path.status == NavMeshPathStatus.PathComplete && blocked);
+            path.status == NavMeshPathStatus.PathComplete && !blocked);
     }
 
     private bool TryBuildStandingWaypointPlan(
@@ -257,8 +251,7 @@ internal sealed class EnemyPostureTraversalPlanner : IEnemyTraversalHandler
                     EnemyPosture.Standing,
                     candidate,
                     standingCandidatePath,
-                    true,
-                    false);
+                    true);
                 return true;
             }
         }

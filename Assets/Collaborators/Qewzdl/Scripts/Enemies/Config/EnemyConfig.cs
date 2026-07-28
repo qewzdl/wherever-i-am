@@ -70,15 +70,11 @@ public class EnemyConfig : ScriptableObject
     public float navigationNavMeshSampleRadius => navigationProfile.navMeshSampleRadius;
     public int navigationMaximumPathQueriesPerRepath =>
         navigationProfile.maximumPathQueriesPerRepath;
-    public float navigationDirectPathCheckInterval =>
-        navigationProfile.directPathCheckInterval;
     public float navigationProgressSampleInterval =>
         navigationProfile.progressSampleInterval;
     public float navigationMinimumProgressDistance =>
         navigationProfile.minimumProgressDistance;
     public float navigationStuckTimeout => navigationProfile.stuckTimeout;
-    public float navigationDirectMovementTimeout =>
-        navigationProfile.directMovementTimeout;
 
     public float detectionRadius => visionProfile.detectionRadius;
     public float horizontalViewAngle => visionProfile.horizontalViewAngle;

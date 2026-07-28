@@ -9,7 +9,6 @@ internal sealed class EnemyNavigationRecoveryController
 
     private EnemyNavigationConfig config;
     private bool isTracking;
-    private bool usesDirectMovementTimeout;
 
     public EnemyNavigationRecoveryController(
         Action navigationInvalidated,
@@ -27,35 +26,25 @@ internal sealed class EnemyNavigationRecoveryController
         Reset();
     }
 
-    public void EnsureTracking(
-        Vector3 position,
-        bool useDirectMovementTimeout)
+    public void EnsureTracking(Vector3 position)
     {
-        if (isTracking &&
-            usesDirectMovementTimeout == useDirectMovementTimeout)
+        if (isTracking)
         {
             return;
         }
 
-        Begin(position, useDirectMovementTimeout);
+        Begin(position);
     }
 
-    public void Begin(
-        Vector3 position,
-        bool useDirectMovementTimeout)
+    public void Begin(Vector3 position)
     {
         isTracking = true;
-        usesDirectMovementTimeout = useDirectMovementTimeout;
         progressMonitor.Begin(position);
     }
 
     public bool TryRecover(Vector3 position)
     {
-        if (!isTracking ||
-            !progressMonitor.IsStuck(
-                position,
-                config,
-                usesDirectMovementTimeout))
+        if (!isTracking || !progressMonitor.IsStuck(position, config))
         {
             return false;
         }
@@ -69,7 +58,6 @@ internal sealed class EnemyNavigationRecoveryController
     public void Reset()
     {
         isTracking = false;
-        usesDirectMovementTimeout = false;
         progressMonitor.Reset();
     }
 }

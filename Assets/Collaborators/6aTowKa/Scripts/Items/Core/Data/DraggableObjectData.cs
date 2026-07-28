@@ -5,8 +5,6 @@ public class DraggableObjectData : InteractableObjectData
 {
     [Header("Enemy Interaction")]
     public bool BlocksEnemyNavigation = true;
-    public bool CanBePushedByEnemies = true;
-    [Min(0f)] public float EnemyPushResistanceMultiplier = 1f;
 
     [Header("Dragging")]
     public float Mass = 1f;

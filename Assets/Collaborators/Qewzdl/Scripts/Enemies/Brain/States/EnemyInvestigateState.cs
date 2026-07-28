@@ -335,13 +335,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private bool TrySetDestination(Vector3 destination, float speed)
     {
         currentDestination = destination;
-        // A search waypoint that turns out unreachable should just be
-        // skipped in favour of the next one, not force the enemy to push
-        // furniture aside to reach an arbitrary point in its search plan.
-        hasDestination = context.TryMoveTo(
-            destination,
-            speed,
-            allowBarrierPushThrough: false);
+        hasDestination = context.TryMoveTo(destination, speed);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
         if (hasDestination)
@@ -384,10 +378,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        hasDestination = context.TryMoveTo(
-            currentDestination,
-            speed,
-            allowBarrierPushThrough: false);
+        hasDestination = context.TryMoveTo(currentDestination, speed);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
         if (hasDestination)

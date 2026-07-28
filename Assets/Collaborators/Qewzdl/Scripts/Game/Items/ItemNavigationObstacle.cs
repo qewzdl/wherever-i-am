@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
@@ -7,21 +6,6 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshObstacle))]
 public sealed class ItemNavigationObstacle : NetworkBehaviour
 {
-    // ponytail: physical-contact reservation is renewed every FixedUpdate
-    // tick while an enemy is actually touching the item, so this only
-    // needs to bridge single-frame gaps, not a multi-second approach walk.
-    private const float PushReservationDuration = 0.5f;
-
-    private static readonly HashSet<ItemNavigationObstacle> activeServerBarriers = new();
-
-    // Candidate pool for push-through. Enumerating this is safe: a
-    // candidate only ever gets used once EnemyBarrierTraversalHandler
-    // confirms a real NavMesh route reaches its actual vicinity (not
-    // just that it's the nearest one in a straight line), so an
-    // unrelated item elsewhere in the level never qualifies.
-    public static IReadOnlyCollection<ItemNavigationObstacle> ActiveServerBarriers =>
-        activeServerBarriers;
-
     [SerializeField] private DraggableObject item;
     [SerializeField] private NavMeshObstacle obstacle;
     [SerializeField, Min(0f)] private float boundsPadding = 0.05f;
@@ -29,133 +13,9 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     [SerializeField, Min(0f)] private float timeToStationary = 0.25f;
 
     private bool subscribed;
-    private int enemyReservationOwnerId;
-    private float enemyReservationExpiresAt;
 
     public bool IsBlockingNavigation =>
         obstacle != null && obstacle.enabled && obstacle.carving;
-
-    // Planar half-diagonal of the carved footprint: how far from this
-    // item's centre a NavMesh sample must reach to have any chance of
-    // landing outside the hole the item itself carves.
-    public float ApproachRadius
-    {
-        get
-        {
-            ResolveReferences();
-
-            if (obstacle == null)
-            {
-                return 0.5f;
-            }
-
-            Vector3 halfSize = obstacle.size * 0.5f;
-            return new Vector2(halfSize.x, halfSize.z).magnitude;
-        }
-    }
-
-    public bool CanBePushedByEnemyNow
-    {
-        get
-        {
-            ResolveReferences();
-            return CanAcceptEnemyPush();
-        }
-    }
-
-    public float EnemyPushResistance
-    {
-        get
-        {
-            ResolveReferences();
-            return item != null ? item.EnemyPushResistance : 0f;
-        }
-    }
-
-    // The closest point on the item's actual physical surface to the
-    // given position — never behind the item's own pivot, which can sit
-    // flush against whatever the item is backed up against (a wall, for
-    // furniture placed that way, which is the common case). Aiming
-    // physical push movement at the raw transform position has no such
-    // guarantee and can steer an enemy straight into that wall.
-    public Vector3 GetClosestSurfacePoint(Vector3 fromPosition)
-    {
-        ResolveReferences();
-
-        if (item == null || item.Colliders == null)
-        {
-            return transform.position;
-        }
-
-        Vector3 closest = transform.position;
-        float bestSqrDistance = float.PositiveInfinity;
-
-        foreach (Collider itemCollider in item.Colliders)
-        {
-            if (itemCollider == null || !itemCollider.enabled)
-            {
-                continue;
-            }
-
-            Vector3 point = itemCollider.ClosestPoint(fromPosition);
-            float sqrDistance = (point - fromPosition).sqrMagnitude;
-
-            if (sqrDistance >= bestSqrDistance)
-            {
-                continue;
-            }
-
-            bestSqrDistance = sqrDistance;
-            closest = point;
-        }
-
-        return closest;
-    }
-
-    internal bool TryBeginPhysicalEnemyPushServer(int reservationOwnerId)
-    {
-        ResolveReferences();
-
-        if (!CanAcceptEnemyPush() ||
-            IsReservedByOtherEnemy(reservationOwnerId) ||
-            !item.TryBeginEnemyPushServer())
-        {
-            return false;
-        }
-
-        TryReserveForEnemy(reservationOwnerId, PushReservationDuration);
-        return true;
-    }
-
-    public bool TryReserveForEnemy(int ownerId, float duration)
-    {
-        if (ownerId == 0 ||
-            !CanAcceptEnemyPush() ||
-            IsReservedByOtherEnemy(ownerId))
-        {
-            return false;
-        }
-
-        enemyReservationOwnerId = ownerId;
-        enemyReservationExpiresAt =
-            Time.time + Mathf.Max(0.05f, duration);
-        return true;
-    }
-
-    public void ReleaseEnemyReservation(int ownerId)
-    {
-        if (ownerId != 0 && enemyReservationOwnerId == ownerId)
-        {
-            ClearEnemyReservation();
-        }
-    }
-
-    public bool IsReservedByOtherEnemy(int ownerId)
-    {
-        ExpireEnemyReservationIfNeeded();
-        return enemyReservationOwnerId != 0 &&
-               enemyReservationOwnerId != ownerId;
-    }
 
     private void Awake()
     {
@@ -184,8 +44,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        ClearEnemyReservation();
-        activeServerBarriers.Remove(this);
         Unsubscribe();
         SetObstacleEnabled(false);
         base.OnNetworkDespawn();
@@ -193,8 +51,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     private void OnDisable()
     {
-        ClearEnemyReservation();
-        activeServerBarriers.Remove(this);
         Unsubscribe();
         SetObstacleEnabled(false);
     }
@@ -231,37 +87,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
         obstacle.carving = true;
         SetObstacleEnabled(true);
-        RefreshBarrierRegistration();
-    }
-
-    private void RefreshBarrierRegistration()
-    {
-        if (IsSpawned && IsServer && IsBlockingNavigation && CanAcceptEnemyPush())
-        {
-            activeServerBarriers.Add(this);
-            return;
-        }
-
-        activeServerBarriers.Remove(this);
-    }
-
-    private bool CanAcceptEnemyPush()
-    {
-        if (!IsSpawned ||
-            !IsServer ||
-            item == null ||
-            !item.CanBePushedByEnemies ||
-            item.IsBeingDragged)
-        {
-            return false;
-        }
-
-        if (item is PickupItem pickup)
-        {
-            return !pickup.IsPickedUp;
-        }
-
-        return true;
     }
 
     private void Subscribe()
@@ -328,32 +153,6 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
             obstacle.enabled = value;
             EnemyNavigationTopology.MarkChanged();
         }
-
-        if (!value)
-        {
-            activeServerBarriers.Remove(this);
-        }
-    }
-
-    private void ExpireEnemyReservationIfNeeded()
-    {
-        if (enemyReservationOwnerId != 0 &&
-            Time.time >= enemyReservationExpiresAt)
-        {
-            ClearEnemyReservation();
-        }
-    }
-
-    private void ClearEnemyReservation()
-    {
-        enemyReservationOwnerId = 0;
-        enemyReservationExpiresAt = 0f;
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetBarrierRegistry()
-    {
-        activeServerBarriers.Clear();
     }
 
 #if UNITY_EDITOR

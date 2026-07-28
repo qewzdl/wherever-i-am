@@ -3,8 +3,7 @@ using UnityEngine;
 internal enum EnemyTraversalKind
 {
     Door = 0,
-    Posture = 1,
-    PushableBarrier = 2
+    Posture = 1
 }
 
 internal enum EnemyTraversalStatus

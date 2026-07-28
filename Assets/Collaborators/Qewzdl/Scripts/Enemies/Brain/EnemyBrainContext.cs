@@ -58,10 +58,7 @@ public sealed class EnemyBrainContext
         syncTarget?.Invoke();
     }
 
-    public bool TryMoveTo(
-        Vector3 destination,
-        float speed,
-        bool allowBarrierPushThrough = true)
+    public bool TryMoveTo(Vector3 destination, float speed)
     {
         if (Navigator == null)
         {
@@ -69,10 +66,7 @@ public sealed class EnemyBrainContext
             return false;
         }
 
-        bool moved = Navigator.TryMoveTo(
-            destination,
-            speed,
-            allowBarrierPushThrough);
+        bool moved = Navigator.TryMoveTo(destination, speed);
 
         if (moved)
         {

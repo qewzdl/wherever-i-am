@@ -538,7 +538,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private static void ConfigureItemData(DraggableObjectData data)
     {
         data.BlocksEnemyNavigation = true;
-        data.CanBePushedByEnemies = true;
         data.Mass = ItemMass;
         data.MaxFollowSpeed = 15f;
         data.FollowSpeedMultiplier = 2f;

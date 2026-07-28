@@ -3,7 +3,7 @@ using UnityEngine.AI;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NavMeshAgent))]
-public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
+public class EnemyNavigator : MonoBehaviour
 {
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
@@ -17,7 +17,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private EnemyNavigationRecoveryController recoveryController;
     private EnemyDoorTraversalHandler doorTraversal;
     private EnemyPostureTraversalPlanner postureTraversal;
-    private EnemyBarrierTraversalHandler barrierTraversal;
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
@@ -25,29 +24,12 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private bool hasRequestedNavigation;
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
-    private bool requestedAllowBarrierPushThrough;
 
     public Vector3 Position => transform.position;
     public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
         queryTelemetry != null
             ? queryTelemetry.Snapshot
             : default;
-
-    public bool TryGetEnemyDirectMovementIntent(
-        out Vector3 destination,
-        out float speed)
-    {
-        if (barrierTraversal != null)
-        {
-            return barrierTraversal.TryGetDirectMovementIntent(
-                out destination,
-                out speed);
-        }
-
-        destination = default;
-        speed = 0f;
-        return false;
-    }
 
     public bool IsDirectApproachBlockedByItem(Vector3 destination)
     {
@@ -72,19 +54,8 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             postureController,
             queryService,
             HasNavigationBlockerOnPath);
-        barrierTraversal = new EnemyBarrierTraversalHandler(
-            transform,
-            agent,
-            itemPusher,
-            queryService,
-            recoveryController);
 
         pathBuffer = new NavMeshPath();
-    }
-
-    private void Update()
-    {
-        barrierTraversal?.Tick();
     }
 
     public void Configure(EnemyConfig config)
@@ -94,7 +65,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         CacheComponents();
 
         hasRequestedNavigation = false;
-        CancelBarrierTraversal(restoreAgent: true);
         repathScheduler?.Invalidate();
         recoveryController?.Configure(config);
         queryTelemetry?.Reset();
@@ -107,7 +77,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         postureController?.Configure(config);
         postureTraversal?.Configure(config);
-        barrierTraversal?.Configure(config);
 
         if (agent == null)
         {
@@ -136,7 +105,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         hasRequestedNavigation = false;
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
-        CancelBarrierTraversal(restoreAgent: false);
         doorTraversal?.Cancel();
 
         if (agent != null)
@@ -145,19 +113,9 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         }
     }
 
-    // allowBarrierPushThrough gates whether a blocked route may fall back to
-    // shoving a pushable barricade aside. That's the right call for a
-    // player being chased through a real doorway, but investigation and
-    // patrol waypoints are just candidates to visit — if one happens to be
-    // unreachable, the correct response is to skip it, not to start
-    // pushing furniture out of the way to force a path to an arbitrary
-    // search point.
-    public bool TryMoveTo(
-        Vector3 destination,
-        float speed,
-        bool allowBarrierPushThrough = true)
+    public bool TryMoveTo(Vector3 destination, float speed)
     {
-        RememberRequestedNavigation(destination, speed, allowBarrierPushThrough);
+        RememberRequestedNavigation(destination, speed);
 
         if (TryResolveDoorNavigation(
                 destination,
@@ -176,10 +134,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             }
         }
 
-        return TryMoveAfterDoorNavigation(
-            destination,
-            speed,
-            allowBarrierPushThrough);
+        return TryMoveAfterDoorNavigation(destination, speed);
     }
 
     public void TickNavigationGate()
@@ -214,7 +169,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             TryMoveAfterDoorNavigation(
                 doorResult.OverrideDestination,
                 requestedNavigationSpeed,
-                requestedAllowBarrierPushThrough,
                 forceRepath: true
             );
 
@@ -226,7 +180,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             TryMoveAfterDoorNavigation(
                 requestedNavigationDestination,
                 requestedNavigationSpeed,
-                requestedAllowBarrierPushThrough,
                 forceRepath: true
             );
         }
@@ -235,20 +188,12 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     private bool TryMoveAfterDoorNavigation(
         Vector3 destination,
         float speed,
-        bool allowBarrierPushThrough,
         bool forceRepath = false)
     {
         if (postureController != null && postureController.IsPostureTransitionInProgress)
         {
             StopForPostureTransition();
             return false;
-        }
-
-        if (barrierTraversal != null &&
-            barrierTraversal.IsDirectMovementActive &&
-            barrierTraversal.ContinueDirectMovement(destination, speed))
-        {
-            return true;
         }
 
         forceRepath |= TryRecoverStalledNavigation();
@@ -285,10 +230,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (config != null && config.crawlingEnabled && postureController != null)
         {
-            bool moved = TryMoveWithPosturePriority(
-                destination,
-                speed,
-                allowBarrierPushThrough);
+            bool moved = TryMoveWithPosturePriority(destination, speed);
 
             if (!moved && !postureController.IsPostureTransitionInProgress)
             {
@@ -300,8 +242,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         bool movedWithCurrentPosture = TryMoveToWithCurrentPosture(
             destination,
-            speed,
-            allowBarrierPushThrough);
+            speed);
 
         if (!movedWithCurrentPosture)
         {
@@ -327,16 +268,12 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             return false;
         }
 
-        recoveryController.EnsureTracking(
-            transform.position,
-            useDirectMovementTimeout: false);
+        recoveryController.EnsureTracking(transform.position);
 
         if (!recoveryController.TryRecover(transform.position))
         {
             return false;
         }
-
-        CancelBarrierTraversal(restoreAgent: true);
 
         if (agent.enabled && agent.isOnNavMesh)
         {
@@ -350,7 +287,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     public void Stop()
     {
         hasRequestedNavigation = false;
-        CancelBarrierTraversal(restoreAgent: true);
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
@@ -366,7 +302,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
     public void ResetPath()
     {
         hasRequestedNavigation = false;
-        CancelBarrierTraversal(restoreAgent: true);
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
@@ -384,12 +319,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
         if (doorTraversal != null && doorTraversal.IsActive)
         {
             return false;
-        }
-
-        if (barrierTraversal != null &&
-            barrierTraversal.IsDirectMovementActive)
-        {
-            return barrierTraversal.HasReached(reachDistance);
         }
 
         if (!TryEnsureOnNavMesh())
@@ -411,15 +340,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (!agent.enabled)
         {
-            if (barrierTraversal != null &&
-                barrierTraversal.IsDirectMovementActive)
-            {
-                // The brain uses this method as a locomotion readiness gate.
-                // Direct physics movement is valid even though the agent is
-                // intentionally detached from NavMesh.
-                return true;
-            }
-
             agent.enabled = true;
         }
 
@@ -475,12 +395,10 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
     private void RememberRequestedNavigation(
         Vector3 destination,
-        float speed,
-        bool allowBarrierPushThrough)
+        float speed)
     {
         requestedNavigationDestination = destination;
         requestedNavigationSpeed = speed;
-        requestedAllowBarrierPushThrough = allowBarrierPushThrough;
         hasRequestedNavigation = true;
     }
 
@@ -552,8 +470,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
     private void StopForDoorInteraction()
     {
-        CancelBarrierTraversal(restoreAgent: true);
-
         if (agent == null || !agent.enabled || !agent.isOnNavMesh)
         {
             return;
@@ -564,8 +480,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
     private bool TryMoveWithPosturePriority(
         Vector3 destination,
-        float speed,
-        bool allowBarrierPushThrough)
+        float speed)
     {
         if (postureTraversal == null ||
             !postureTraversal.TryBuildPlan(
@@ -579,21 +494,9 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             speed,
             plan.Posture);
 
-        if (plan.IsBlockedByItem)
-        {
-            return allowBarrierPushThrough &&
-                   TryPushThroughToTarget(destination, postureSpeed);
-        }
-
         if (!plan.IsComplete)
         {
-            if (postureController.CurrentPosture != plan.Posture)
-            {
-                return false;
-            }
-
-            return allowBarrierPushThrough &&
-                   TryPushThroughToTarget(destination, postureSpeed);
+            return false;
         }
 
         EnemyPosture previousPosture = postureController.CurrentPosture;
@@ -615,7 +518,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
                 postureController.CurrentPosture);
         }
 
-        CancelBarrierTraversal(restoreAgent: true);
         return queryService.TryApplyPath(
             agent,
             plan.Path,
@@ -624,8 +526,6 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
     private void StopForPostureTransition()
     {
-        CancelBarrierTraversal(restoreAgent: true);
-
         if (!TryEnsureOnNavMesh())
         {
             return;
@@ -636,8 +536,7 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
     private bool TryMoveToWithCurrentPosture(
         Vector3 destination,
-        float speed,
-        bool allowBarrierPushThrough)
+        float speed)
     {
         if (!TryEnsureOnNavMesh())
         {
@@ -646,18 +545,14 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
 
         if (!TryBuildCompletePath(destination, out _))
         {
-            return allowBarrierPushThrough &&
-                   TryPushThroughToTarget(destination, speed);
+            return false;
         }
 
-        CancelBarrierTraversal(restoreAgent: true);
         return queryService.TryApplyPath(agent, pathBuffer, speed);
     }
 
     private void StopAtBlockedRoute()
     {
-        CancelBarrierTraversal(restoreAgent: true);
-
         if (agent == null || !agent.enabled || !agent.isOnNavMesh)
         {
             return;
@@ -754,21 +649,11 @@ public class EnemyNavigator : MonoBehaviour, IEnemyDirectMovementIntentSource
             out hit);
     }
 
-    private bool TryPushThroughToTarget(Vector3 destination, float speed)
-    {
-        return barrierTraversal != null &&
-               barrierTraversal.TryPushThroughToTarget(destination, speed);
-    }
-
-    private void CancelBarrierTraversal(bool restoreAgent)
-    {
-        barrierTraversal?.Cancel(restoreAgent);
-    }
-
     private bool HasNavigationBlockerOnPath(NavMeshPath path)
     {
-        return barrierTraversal != null &&
-               barrierTraversal.HasNavigationBlockerOnPath(path);
+        return itemPusher != null &&
+               path != null &&
+               itemPusher.HasNavigationBlockerOnRoute(path.corners);
     }
 
     private float GetNavigationSampleRadius()

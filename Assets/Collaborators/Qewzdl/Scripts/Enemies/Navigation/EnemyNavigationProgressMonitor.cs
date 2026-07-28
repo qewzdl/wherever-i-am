@@ -6,21 +6,16 @@ internal sealed class EnemyNavigationProgressMonitor
     private Vector3 samplePosition;
     private float nextSampleTime;
     private float lastProgressTime;
-    private float startedTime;
 
     public void Begin(Vector3 position)
     {
         isTracking = true;
         samplePosition = position;
-        startedTime = Time.time;
         lastProgressTime = Time.time;
         nextSampleTime = Time.time;
     }
 
-    public bool IsStuck(
-        Vector3 position,
-        EnemyNavigationConfig config,
-        bool useDirectMovementTimeout)
+    public bool IsStuck(Vector3 position, EnemyNavigationConfig config)
     {
         if (!isTracking)
         {
@@ -29,14 +24,6 @@ internal sealed class EnemyNavigationProgressMonitor
         }
 
         float now = Time.time;
-        float maximumDuration = config != null
-            ? Mathf.Max(0.1f, config.directMovementTimeout)
-            : 4f;
-
-        if (useDirectMovementTimeout && now - startedTime >= maximumDuration)
-        {
-            return true;
-        }
 
         if (now < nextSampleTime)
         {
@@ -73,6 +60,5 @@ internal sealed class EnemyNavigationProgressMonitor
         samplePosition = default;
         nextSampleTime = 0f;
         lastProgressTime = 0f;
-        startedTime = 0f;
     }
 }

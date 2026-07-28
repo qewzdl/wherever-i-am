@@ -112,10 +112,6 @@ public sealed class PlayerAndItemLogicTests
 
         SerializedObject pusherObject = new(pusher);
 
-        Assert.That(
-            pusherObject.FindProperty("networkObject").objectReferenceValue,
-            Is.SameAs(enemyPrefab.GetComponent<NetworkObject>())
-        );
         CapsuleCollider bodyCollider =
             pusherObject.FindProperty("bodyCollider").objectReferenceValue
                 as CapsuleCollider;
@@ -168,39 +164,9 @@ public sealed class PlayerAndItemLogicTests
             Is.SameAs(body)
         );
         Assert.That(
-            motorObject.FindProperty("itemPusher").objectReferenceValue,
-            Is.SameAs(pusher)
-        );
-        Assert.That(
             motorObject.FindProperty("mass").floatValue,
             Is.GreaterThan(0f)
         );
-        Assert.That(
-            motorObject.FindProperty("pushResistanceCapacity").floatValue,
-            Is.GreaterThan(0f)
-        );
-        Assert.That(
-            motorObject.FindProperty("minimumPushSpeedMultiplier").floatValue,
-            Is.InRange(0.05f, 1f)
-        );
-    }
-
-    [TestCase(0f, 1f)]
-    [TestCase(1f, 0.9091f)]
-    [TestCase(5f, 0.6667f)]
-    [TestCase(100f, 0.25f)]
-    public void EnemyPushSpeedMultiplier_ScalesWithResistance(
-        float resistance,
-        float expectedMultiplier)
-    {
-        float multiplier = EnemyPhysicsMotor.CalculatePushSpeedMultiplier(
-            resistance,
-            capacity: 10f,
-            minimumMultiplier: 0.25f);
-
-        Assert.That(
-            multiplier,
-            Is.EqualTo(expectedMultiplier).Within(0.0001f));
     }
 
     [Test]
