@@ -17,6 +17,11 @@ public sealed class EnemyNavigationConfig : ScriptableObject
     [Min(0.001f)] public float minimumProgressDistance = 0.05f;
     [Min(0.1f)] public float stuckTimeout = 1.5f;
 
+    [Header("Barricade Shove")]
+    [Range(0f, 1f)] public float barricadeShoveChance = 0f;
+    [Min(0f)] public float barricadeShoveForce = 8f;
+    [Min(0f)] public float barricadeShoveStopDuration = 0.4f;
+
     public void Validate()
     {
         repathInterval = Mathf.Max(0.05f, repathInterval);
@@ -26,6 +31,9 @@ public sealed class EnemyNavigationConfig : ScriptableObject
         progressSampleInterval = Mathf.Max(0.05f, progressSampleInterval);
         minimumProgressDistance = Mathf.Max(0.001f, minimumProgressDistance);
         stuckTimeout = Mathf.Max(0.1f, stuckTimeout);
+        barricadeShoveChance = Mathf.Clamp01(barricadeShoveChance);
+        barricadeShoveForce = Mathf.Max(0f, barricadeShoveForce);
+        barricadeShoveStopDuration = Mathf.Max(0f, barricadeShoveStopDuration);
     }
 
     private void OnValidate()

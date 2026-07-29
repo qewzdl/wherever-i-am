@@ -11,16 +11,14 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 86a5250ef9534c64a92b442b144c4e48, type: 3}
   m_Name: EnemyNavigationConfig
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   repathInterval: 0.2
   destinationRepathDistance: 0.3
   navMeshSampleRadius: 2
   maximumPathQueriesPerRepath: 24
-  directPathCheckInterval: 0.2
-  blockedRoutePlanInterval: 0.25
-  pushFallbackConfirmationDuration: 0.5
-  barrierReservationDuration: 1
   progressSampleInterval: 0.25
   minimumProgressDistance: 0.05
   stuckTimeout: 1.5
-  directMovementTimeout: 4
+  barricadeShoveChance: 1
+  barricadeShoveForce: 8
+  barricadeShoveStopDuration: 0.4

@@ -75,6 +75,9 @@ public class EnemyConfig : ScriptableObject
     public float navigationMinimumProgressDistance =>
         navigationProfile.minimumProgressDistance;
     public float navigationStuckTimeout => navigationProfile.stuckTimeout;
+    public float barricadeShoveChance => navigationProfile.barricadeShoveChance;
+    public float barricadeShoveForce => navigationProfile.barricadeShoveForce;
+    public float barricadeShoveStopDuration => navigationProfile.barricadeShoveStopDuration;
 
     public float detectionRadius => visionProfile.detectionRadius;
     public float horizontalViewAngle => visionProfile.horizontalViewAngle;

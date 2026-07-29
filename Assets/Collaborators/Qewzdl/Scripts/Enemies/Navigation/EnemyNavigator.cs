@@ -26,6 +26,7 @@ public class EnemyNavigator : MonoBehaviour
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
     private bool requestedAllowPushThrough;
+    private float forcefulPushStopUntil = -1f;
 
     private readonly HashSet<ItemNavigationObstacle> pushThroughHolds = new();
 
@@ -111,6 +112,7 @@ public class EnemyNavigator : MonoBehaviour
         recoveryController?.Reset();
         doorTraversal?.Cancel();
         ReleaseAllPushThroughHolds();
+        forcefulPushStopUntil = -1f;
 
         if (agent != null)
         {
@@ -126,6 +128,12 @@ public class EnemyNavigator : MonoBehaviour
     public bool TryMoveTo(Vector3 destination, float speed, bool allowPushThrough = false)
     {
         RememberRequestedNavigation(destination, speed, allowPushThrough);
+
+        if (Time.time < forcefulPushStopUntil)
+        {
+            StopForForcefulPush();
+            return true;
+        }
 
         if (TryResolveDoorNavigation(
                 destination,
@@ -605,7 +613,34 @@ public class EnemyNavigator : MonoBehaviour
             pushThroughHolds.Add(blockingItem))
         {
             blockingItem.RequestPushThrough();
+            TryRollForcefulPush(blockingItem);
         }
+    }
+
+    // Occasional alternative to just walking through the barricade: stop
+    // dead and shove it out of the way instead.
+    private void TryRollForcefulPush(ItemNavigationObstacle blockingItem)
+    {
+        float chance = config != null ? config.barricadeShoveChance : 0f;
+
+        if (chance <= 0f || Random.value > chance)
+        {
+            return;
+        }
+
+        blockingItem.ApplyForcefulPush(transform.position, config.barricadeShoveForce);
+        forcefulPushStopUntil = Time.time + config.barricadeShoveStopDuration;
+        StopForForcefulPush();
+    }
+
+    private void StopForForcefulPush()
+    {
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+        agent.isStopped = true;
     }
 
     private void ReleaseAllPushThroughHolds()

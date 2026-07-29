@@ -24,6 +24,7 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     public void RequestPushThrough()
     {
         pushThroughRequests++;
+        ReclaimServerOwnershipForPush();
         RefreshObstacleState();
     }
 
@@ -35,6 +36,49 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
         }
 
         RefreshObstacleState();
+    }
+
+    // Server-only forceful shove: an occasional alternative to just walking
+    // through the item on the way past it.
+    public void ApplyForcefulPush(Vector3 origin, float force)
+    {
+        if (!IsServer || item == null || force <= 0f)
+        {
+            return;
+        }
+
+        Vector3 direction = transform.position - origin;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.0001f)
+        {
+            direction = transform.forward;
+        }
+
+        item.ApplyImpulse(direction.normalized * force);
+    }
+
+    // A dropped item keeps whatever client last dragged it as its network
+    // owner (never reverts on its own), and NetworkRigidbody makes the
+    // rigidbody kinematic on every non-owner instance - including the
+    // server, where the enemy's physics run. Without reclaiming ownership
+    // here, a previously-dragged item is an immovable kinematic wall to
+    // the enemy no matter its mass; only untouched, still-server-owned
+    // items were ever actually pushable.
+    private void ReclaimServerOwnershipForPush()
+    {
+        if (!IsServer || item == null)
+        {
+            return;
+        }
+
+        NetworkObject itemNetworkObject = item.NetworkObject;
+
+        if (itemNetworkObject != null &&
+            itemNetworkObject.OwnerClientId != NetworkManager.ServerClientId)
+        {
+            itemNetworkObject.ChangeOwnership(NetworkManager.ServerClientId);
+        }
     }
 
     private void Awake()
