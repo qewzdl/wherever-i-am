@@ -29,6 +29,7 @@ public class EnemyNavigator : MonoBehaviour
     private float forcefulPushStopUntil = -1f;
 
     private readonly HashSet<ItemNavigationObstacle> pushThroughHolds = new();
+    private readonly List<ItemNavigationObstacle> pushThroughCandidates = new();
 
     public Vector3 Position => transform.position;
     public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
@@ -230,6 +231,14 @@ public class EnemyNavigator : MonoBehaviour
             if (agent != null && agent.enabled && agent.isOnNavMesh)
             {
                 agent.speed = Mathf.Max(0f, speed);
+
+                // Every halt above (door interaction, posture transition,
+                // barricade shove) latches agent.isStopped, and only a
+                // successful repath ever cleared it. Reusing a still-valid
+                // path skips the repath, so an enemy that stopped for a door
+                // stayed frozen until the destination moved far enough to
+                // force one - a barricaded, standing-still player never did.
+                agent.isStopped = false;
             }
 
             queryTelemetry.RecordDeferredRepath();
@@ -527,8 +536,8 @@ public class EnemyNavigator : MonoBehaviour
 
         // Same barricade fallback as the standing-only path below, just
         // re-asking the posture planner (which may route standing or
-        // crawling) once the blocking item's carving has been requested off.
-        RequestPushThroughOnBlockingItem(destination);
+        // crawling) once the blocking items' carving has been requested off.
+        RequestPushThroughOnBlockingItems();
 
         return postureTraversal.TryBuildPlan(destination, out EnemyPostureTraversalPlan retryPlan) &&
                retryPlan.IsComplete &&
@@ -594,26 +603,42 @@ public class EnemyNavigator : MonoBehaviour
     }
 
     // ponytail: no candidate scoring, no direct-movement mode - just lift
-    // the blocking item's obstacle carving so the normal path rebuild can
-    // route straight through it, and let the enemy's existing rigidbody
-    // physically shove it aside on the way. Falls back to a stopped tick
+    // the blocking items' obstacle carving so the normal path rebuild can
+    // route straight through them, and let the enemy's existing rigidbody
+    // physically shove them aside on the way. Falls back to a stopped tick
     // while carving catches up; the repath scheduler retries on its own.
     private bool TryPushThrough(Vector3 destination, float speed)
     {
-        RequestPushThroughOnBlockingItem(destination);
+        RequestPushThroughOnBlockingItems();
 
         return TryBuildCompletePath(destination, out _) &&
                queryService.TryApplyPath(agent, pathBuffer, speed);
     }
 
-    private void RequestPushThroughOnBlockingItem(Vector3 destination)
+    // Reaching here means every item-respecting route already failed, so the
+    // rule is "path as if the items weren't there": lift carving on all of
+    // them, not just one guessed from a straight line to the target. A
+    // barricade off the sight line (a doorway needing a turn) was never
+    // found by that scan, which left the enemy standing still forever.
+    private void RequestPushThroughOnBlockingItems()
     {
-        if (itemPusher != null &&
-            itemPusher.TryGetBlockingItem(destination, out ItemNavigationObstacle blockingItem) &&
-            pushThroughHolds.Add(blockingItem))
+        // Snapshot: RequestPushThrough mutates the live registry.
+        pushThroughCandidates.Clear();
+        pushThroughCandidates.AddRange(ItemNavigationObstacle.BlockingInstances);
+
+        foreach (ItemNavigationObstacle blockingItem in pushThroughCandidates)
         {
+            if (blockingItem == null || !pushThroughHolds.Add(blockingItem))
+            {
+                continue;
+            }
+
             blockingItem.RequestPushThrough();
-            TryRollForcefulPush(blockingItem);
+
+            if (Time.time >= forcefulPushStopUntil)
+            {
+                TryRollForcefulPush(blockingItem);
+            }
         }
     }
 

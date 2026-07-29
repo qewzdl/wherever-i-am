@@ -332,10 +332,18 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         return false;
     }
 
+    // Investigation pushes through barricades like Chase does. Losing sight of
+    // the target for a moment (the barricade itself blocks line of sight up
+    // close) drops the enemy out of Chase, and without this the navigator
+    // released its push-through holds, the items carved the route shut again,
+    // and the enemy froze outside a sealed room until the target reappeared.
     private bool TrySetDestination(Vector3 destination, float speed)
     {
         currentDestination = destination;
-        hasDestination = context.TryMoveTo(destination, speed);
+        hasDestination = context.TryMoveTo(
+            destination,
+            speed,
+            allowPushThrough: true);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
         if (hasDestination)
@@ -378,7 +386,10 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        hasDestination = context.TryMoveTo(currentDestination, speed);
+        hasDestination = context.TryMoveTo(
+            currentDestination,
+            speed,
+            allowPushThrough: true);
         repathTimer = Mathf.Max(0.05f, context.Config.investigationRepathInterval);
 
         if (hasDestination)

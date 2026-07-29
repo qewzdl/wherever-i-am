@@ -360,6 +360,59 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     }
 
     [UnityTest]
+    public IEnumerator Navigator_OnPrebuiltNavMesh_ResumesHaltedAgentWithoutDestinationChange()
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameObject actor = Track(new GameObject("Halted navigation enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(0f, 0f, -5f);
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.speed = 3f;
+        agent.acceleration = 20f;
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Halted navigation enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        Vector3 destination = new(0f, 0f, 5f);
+        Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
+
+        yield return WaitForCondition(
+            () => agent.hasPath && !agent.pathPending,
+            "Navigator never applied the initial path.");
+
+        // Whatever halted the agent - a door interaction is the common one -
+        // leaves a perfectly valid path behind, so the repath scheduler keeps
+        // deferring. The destination never moves because the player is
+        // barricaded and standing still.
+        agent.isStopped = true;
+        float haltPosition = actor.transform.position.z;
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TryMoveTo(destination, 3f);
+                return actor.transform.position.z > haltPosition + 0.5f;
+            },
+            "Enemy stayed halted while re-requesting an unchanged destination.");
+
+        Assert.That(agent.isStopped, Is.False);
+    }
+
+    [UnityTest]
     public IEnumerator Navigator_OnPrebuiltNavMesh_RoutesAroundSpawnedItem()
     {
         yield return StartHost();
@@ -719,6 +772,96 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 return actor.transform.position.z > 2f;
             },
             "Enemy stopped because a dragged item hovered over its route.");
+    }
+
+    [UnityTest]
+    public IEnumerator Navigator_OnPrebuiltNavMesh_RoutesThroughBarricadeOffTheSightLine()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeBarricadedRoom(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable firstCrate =
+            CreateSpawnedNavigationItem(new Vector3(2f, 0f, 0f));
+        NetworkItemTestDraggable secondCrate =
+            CreateSpawnedNavigationItem(new Vector3(4f, 0f, 0f));
+        ItemNavigationObstacle firstNavigation =
+            firstCrate.GetComponent<ItemNavigationObstacle>();
+        ItemNavigationObstacle secondNavigation =
+            secondCrate.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                firstNavigation.IsBlockingNavigation &&
+                secondNavigation.IsBlockingNavigation,
+            "Crates did not barricade the only doorway.");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        GameObject actor = Track(new GameObject("Barricaded room enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(-3f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 4f;
+        agent.acceleration = 30f;
+
+        actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Barricaded room enemy could not be placed on NavMesh.");
+
+        navigator.Configure(enemyConfig);
+
+        // The player barricades the doorway, then is spotted over a low wall:
+        // the straight line to them never touches the crates.
+        Vector3 destination = new(-3f, 0f, 4f);
+        NavMeshPath blockedPath = new();
+
+        Assert.That(
+            agent.CalculatePath(destination, blockedPath) &&
+            blockedPath.status == NavMeshPathStatus.PathComplete,
+            Is.False,
+            "Barricade fixture must seal the room before the enemy repaths.");
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TryMoveTo(destination, 4f, allowPushThrough: true);
+                return actor.transform.position.z > 1f;
+            },
+            "Enemy stood still instead of pathing through the barricade.");
+
+        Assert.That(
+            firstNavigation.IsBlockingNavigation,
+            Is.False,
+            "First crate kept carving the barricaded doorway.");
+        Assert.That(
+            secondNavigation.IsBlockingNavigation,
+            Is.False,
+            "Second crate kept carving the barricaded doorway.");
     }
 
     [UnityTest]
@@ -1517,6 +1660,34 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Push corridor right wall",
             new Vector3(1.9f, 1f, 0f),
             new Vector3(0.2f, 2f, 14f),
+            root.transform);
+        BakeSurfaces(
+            root,
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+    }
+
+    // One room, one doorway at x 1..5, reachable only by turning: a straight
+    // line from the enemy to a target inside the room misses the doorway.
+    private void BakeBarricadedRoom(
+        int standingAgentTypeId,
+        int crawlingAgentTypeId)
+    {
+        GameObject root = Track(new GameObject("Prebuilt barricaded room"));
+        CreateGeometry(
+            "Room floor",
+            new Vector3(0f, -0.1f, 0f),
+            new Vector3(20f, 0.2f, 20f),
+            root.transform);
+        CreateGeometry(
+            "Room wall left of doorway",
+            new Vector3(-4.5f, 1f, 0f),
+            new Vector3(11f, 2f, 0.4f),
+            root.transform);
+        CreateGeometry(
+            "Room wall right of doorway",
+            new Vector3(7.5f, 1f, 0f),
+            new Vector3(5f, 2f, 0.4f),
             root.transform);
         BakeSurfaces(
             root,

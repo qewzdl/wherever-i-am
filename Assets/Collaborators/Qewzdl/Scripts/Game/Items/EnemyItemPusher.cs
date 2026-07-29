@@ -31,15 +31,6 @@ public sealed class EnemyItemPusher : MonoBehaviour
         return TryGetItemAlongRoute(routeCorners, GetCorridorRadius(), out _);
     }
 
-    // ponytail: straight line to the target, not the actual (possibly
-    // partial) route - misses an item blocking a route that requires a
-    // turn. Upgrade to scanning the last computed path's corners if that
-    // shows up as a real case.
-    public bool TryGetBlockingItem(Vector3 destination, out ItemNavigationObstacle blockingItem)
-    {
-        return HasItemInDirectCorridor(destination, out blockingItem);
-    }
-
     private bool TryGetItemAlongRoute(
         Vector3[] routeCorners,
         float corridorRadius,

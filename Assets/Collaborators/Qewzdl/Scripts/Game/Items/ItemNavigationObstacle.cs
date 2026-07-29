@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
@@ -12,11 +13,18 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
     [SerializeField, Min(0.01f)] private float moveThreshold = 0.1f;
     [SerializeField, Min(0f)] private float timeToStationary = 0.25f;
 
+    private static readonly HashSet<ItemNavigationObstacle> blockingInstances = new();
+
     private bool subscribed;
     private int pushThroughRequests;
 
     public bool IsBlockingNavigation =>
         obstacle != null && obstacle.enabled && obstacle.carving;
+
+    // Every item currently carving the NavMesh. Lets a blocked enemy lift all
+    // of them at once instead of guessing which one barricades the route.
+    public static IReadOnlyCollection<ItemNavigationObstacle> BlockingInstances =>
+        blockingInstances;
 
     // ponytail: a request counter, not a queue - lets more than one enemy
     // push through the same barricade without one's release re-blocking
@@ -213,6 +221,15 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
 
     private void SetObstacleEnabled(bool value)
     {
+        if (value)
+        {
+            blockingInstances.Add(this);
+        }
+        else
+        {
+            blockingInstances.Remove(this);
+        }
+
         if (obstacle != null && obstacle.enabled != value)
         {
             obstacle.enabled = value;
