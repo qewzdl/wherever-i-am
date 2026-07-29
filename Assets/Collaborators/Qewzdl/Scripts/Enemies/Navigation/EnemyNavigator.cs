@@ -623,7 +623,20 @@ public class EnemyNavigator : MonoBehaviour
     {
         float chance = config != null ? config.barricadeShoveChance : 0f;
 
-        if (chance <= 0f || Random.value > chance)
+        if (chance <= 0f)
+        {
+            return;
+        }
+
+        // The blocking item is found by scanning the full corridor toward
+        // the (possibly distant) destination, not just the enemy's
+        // immediate surroundings - without this, a chasing enemy could
+        // shove a barricade from clear across the level.
+        float distanceToItem = Vector3.Distance(
+            transform.position,
+            blockingItem.transform.position);
+
+        if (distanceToItem > config.barricadeShoveReach || Random.value > chance)
         {
             return;
         }

@@ -21,6 +21,7 @@ public sealed class EnemyNavigationConfig : ScriptableObject
     [Range(0f, 1f)] public float barricadeShoveChance = 0f;
     [Min(0f)] public float barricadeShoveForce = 8f;
     [Min(0f)] public float barricadeShoveStopDuration = 0.4f;
+    [Min(0.1f)] public float barricadeShoveReach = 2.5f;
 
     public void Validate()
     {
@@ -34,6 +35,7 @@ public sealed class EnemyNavigationConfig : ScriptableObject
         barricadeShoveChance = Mathf.Clamp01(barricadeShoveChance);
         barricadeShoveForce = Mathf.Max(0f, barricadeShoveForce);
         barricadeShoveStopDuration = Mathf.Max(0f, barricadeShoveStopDuration);
+        barricadeShoveReach = Mathf.Max(0.1f, barricadeShoveReach);
     }
 
     private void OnValidate()
