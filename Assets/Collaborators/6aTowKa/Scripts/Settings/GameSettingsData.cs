@@ -10,6 +10,9 @@ public sealed class GameSettingsData
     public const float MinMouseSensitivity = 10f;
     public const float MaxMouseSensitivity = 100f;
 
+    /// <summary>Допустимые значения лимита кадров в порядке отображения; -1 — без лимита.</summary>
+    public static readonly int[] FrameRateLimits = { 30, 60, 90, 120, 144, 165, 240, -1 };
+
     public int version = CurrentVersion;
 
     public int resolutionWidth = 1920;
@@ -88,6 +91,30 @@ public sealed class GameSettingsData
         fullScreenMode = source.fullScreenMode;
     }
 
+    /// <summary>
+    /// Приводит значение к ближайшему пункту <see cref="FrameRateLimits"/>, чтобы Dropdown
+    /// всегда находил свой индекс — в том числе для настроек, сохранённых старым слайдером.
+    /// </summary>
+    public static int NearestFrameRateLimit(int value)
+    {
+        if (value <= 0)
+        {
+            return -1;
+        }
+
+        int nearest = FrameRateLimits[0];
+
+        foreach (int limit in FrameRateLimits)
+        {
+            if (limit > 0 && Mathf.Abs(limit - value) < Mathf.Abs(nearest - value))
+            {
+                nearest = limit;
+            }
+        }
+
+        return nearest;
+    }
+
     public void Sanitize(int qualityLevelCount)
     {
         version = CurrentVersion;
@@ -101,7 +128,7 @@ public sealed class GameSettingsData
         }
 
         qualityLevel = Mathf.Clamp(qualityLevel, 0, Mathf.Max(0, qualityLevelCount - 1));
-        frameRateLimit = frameRateLimit <= 0 ? -1 : Mathf.Clamp(frameRateLimit, 30, 1000);
+        frameRateLimit = NearestFrameRateLimit(frameRateLimit);
 
         masterVolume = Mathf.Clamp01(masterVolume);
         musicVolume = Mathf.Clamp01(musicVolume);

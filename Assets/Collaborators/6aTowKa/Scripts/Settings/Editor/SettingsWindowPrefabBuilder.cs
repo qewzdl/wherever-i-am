@@ -56,8 +56,7 @@ public static class SettingsWindowPrefabBuilder
         ActionRow(graphics.transform, "Режим окна", styleSource, out TMP_Text displayMode, out Button displayModeButton);
         ChoiceRow(graphics.transform, "Качество", styleSource, out TMP_Text quality, out Button previousQuality, out Button nextQuality);
         ActionRow(graphics.transform, "VSync", styleSource, out TMP_Text vsync, out Button vsyncButton);
-        Slider frameRateSlider = SliderRow(graphics.transform, "Лимит кадров", 30f, 1001f, out TMP_Text frameRate);
-        frameRateSlider.wholeNumbers = true;
+        TMP_Dropdown frameRateDropdown = DropdownRow(graphics.transform, "Лимит кадров");
         Section(graphics.transform, "Кино");
         Slider fov = SliderRow(graphics.transform, "FOV", 50f, 110f);
         ActionRow(graphics.transform, "Сглаживание камеры", styleSource, out TMP_Text smoothing, out Button smoothingButton);
@@ -94,7 +93,7 @@ public static class SettingsWindowPrefabBuilder
             overlayRect.gameObject, confirmation, confirmationText, close, apply, defaults, confirm, cancel,
             tabButtons.ToArray(), pages.ToArray(), ids.ToArray(),
             previousResolution, nextResolution, resolution, displayModeButton, displayMode,
-            previousQuality, nextQuality, quality, vsyncButton, vsync, frameRateSlider, frameRate,
+            previousQuality, nextQuality, quality, vsyncButton, vsync, frameRateDropdown,
             fov, smoothingButton, smoothing, smoothingIntensity, master, music, effects,
             sensitivity, invertButton, invert, interfaceVolume, interfaceOpacity, crosshairSize);
 
@@ -161,6 +160,20 @@ public static class SettingsWindowPrefabBuilder
     private static Slider SliderRow(Transform parent, string title, float min, float max)
     {
         return SliderRow(parent, title, min, max, out _);
+    }
+
+    /// <summary>Пункты списка наполняет SettingsWindow из GameSettingsData, здесь только сам контрол.</summary>
+    private static TMP_Dropdown DropdownRow(Transform parent, string title)
+    {
+        HorizontalLayoutGroup row = Row(parent, 38f);
+        TMP_Text label = CreateText(title, row.transform, 18f, TextAlignmentOptions.Left);
+        label.gameObject.AddComponent<LayoutElement>().preferredWidth = 280f;
+
+        GameObject dropdownObject = TMP_DefaultControls.CreateDropdown(new TMP_DefaultControls.Resources());
+        dropdownObject.name = title + " Dropdown";
+        dropdownObject.transform.SetParent(row.transform, false);
+        dropdownObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        return dropdownObject.GetComponent<TMP_Dropdown>();
     }
 
     private static Slider SliderRow(Transform parent, string title, float min, float max, out TMP_Text label)

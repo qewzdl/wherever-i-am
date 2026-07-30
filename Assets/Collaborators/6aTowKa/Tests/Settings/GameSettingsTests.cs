@@ -35,6 +35,21 @@ public sealed class GameSettingsTests
     }
 
     [Test]
+    public void FrameRateLimit_SnapsToDropdownOptions()
+    {
+        // Старый слайдер мог сохранить любое число из 30..1000 — Dropdown обязан найти свой индекс.
+        Assert.That(GameSettingsData.NearestFrameRateLimit(75), Is.EqualTo(60));
+        Assert.That(GameSettingsData.NearestFrameRateLimit(130), Is.EqualTo(120));
+        Assert.That(GameSettingsData.NearestFrameRateLimit(1000), Is.EqualTo(240));
+        Assert.That(GameSettingsData.NearestFrameRateLimit(0), Is.EqualTo(-1));
+        Assert.That(GameSettingsData.NearestFrameRateLimit(-1), Is.EqualTo(-1));
+
+        GameSettingsData defaults = GameSettingsData.CreateDefaults(1920, 1080, 0);
+        defaults.Sanitize(3);
+        Assert.That(GameSettingsData.FrameRateLimits, Contains.Item(defaults.frameRateLimit));
+    }
+
+    [Test]
     public void TryDeserialize_PreservesDefaultsForMissingFields()
     {
         GameSettingsData defaults = GameSettingsData.CreateDefaults(2560, 1440, 2);

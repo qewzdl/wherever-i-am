@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -35,8 +36,7 @@ public sealed class SettingsWindow : MonoBehaviour
     [SerializeField] private TMP_Text qualityText;
     [SerializeField] private Button vsyncButton;
     [SerializeField] private TMP_Text vsyncText;
-    [SerializeField] private Slider frameRateSlider;
-    [SerializeField] private TMP_Text frameRateText;
+    [SerializeField] private TMP_Dropdown frameRateDropdown;
     [SerializeField] private Slider fovSlider;
     [SerializeField] private Button smoothingButton;
     [SerializeField] private TMP_Text smoothingText;
@@ -74,6 +74,16 @@ public sealed class SettingsWindow : MonoBehaviour
         {
             sensitivitySlider.minValue = GameSettingsData.MinMouseSensitivity;
             sensitivitySlider.maxValue = GameSettingsData.MaxMouseSensitivity;
+        }
+
+        if (frameRateDropdown != null)
+        {
+            List<string> labels = new(GameSettingsData.FrameRateLimits.Length);
+            foreach (int limit in GameSettingsData.FrameRateLimits)
+                labels.Add(limit < 0 ? "Без лимита" : $"{limit} FPS");
+
+            frameRateDropdown.ClearOptions();
+            frameRateDropdown.AddOptions(labels);
         }
     }
 
@@ -263,14 +273,12 @@ public sealed class SettingsWindow : MonoBehaviour
         RefreshFromDraft();
     }
 
-    private void SetFrameRate(float value)
+    private void SetFrameRate(int optionIndex)
     {
-        if (session == null)
+        if (session == null || optionIndex < 0 || optionIndex >= GameSettingsData.FrameRateLimits.Length)
             return;
 
-        int valueAsInt = Mathf.RoundToInt(value);
-        session.Draft.frameRateLimit = valueAsInt >= 1001 ? -1 : valueAsInt;
-        RefreshFromDraft();
+        session.Draft.frameRateLimit = GameSettingsData.FrameRateLimits[optionIndex];
     }
 
     private void ToggleSmoothing()
@@ -301,7 +309,8 @@ public sealed class SettingsWindow : MonoBehaviour
         interfaceOpacitySlider?.SetValueWithoutNotify(draft.interfaceOpacity);
         crosshairSizeSlider?.SetValueWithoutNotify(draft.crosshairSize);
         sensitivitySlider?.SetValueWithoutNotify(draft.mouseSensitivity);
-        frameRateSlider?.SetValueWithoutNotify(draft.frameRateLimit < 0 ? 1001f : draft.frameRateLimit);
+        frameRateDropdown?.SetValueWithoutNotify(
+            Mathf.Max(0, Array.IndexOf(GameSettingsData.FrameRateLimits, draft.frameRateLimit)));
         fovSlider?.SetValueWithoutNotify(draft.fieldOfView);
         smoothingIntensitySlider?.SetValueWithoutNotify(draft.cameraSmoothingIntensity);
 
@@ -322,7 +331,6 @@ public sealed class SettingsWindow : MonoBehaviour
             qualityText.text = names.Length == 0 ? "Нет уровней" : names[Mathf.Clamp(draft.qualityLevel, 0, names.Length - 1)];
         }
         if (vsyncText != null) vsyncText.text = draft.verticalSync ? "Вкл." : "Выкл.";
-        if (frameRateText != null) frameRateText.text = draft.frameRateLimit < 0 ? "Лимит кадров: Без лимита" : $"Лимит кадров: {draft.frameRateLimit} FPS";
         if (smoothingText != null) smoothingText.text = draft.cameraSmoothing ? "Вкл." : "Выкл.";
         if (invertText != null) invertText.text = draft.invertVerticalLook ? "Вкл." : "Выкл.";
     }
@@ -364,7 +372,7 @@ public sealed class SettingsWindow : MonoBehaviour
         crosshairSizeSlider?.onValueChanged.AddListener(value => service?.SetCrosshairSize(value));
         sensitivitySlider?.onValueChanged.AddListener(value => service?.SetMouseSensitivity(value));
         fovSlider?.onValueChanged.AddListener(value => service?.SetFieldOfView(value));
-        frameRateSlider?.onValueChanged.AddListener(SetFrameRate);
+        frameRateDropdown?.onValueChanged.AddListener(SetFrameRate);
         smoothingIntensitySlider?.onValueChanged.AddListener(value => { if (session != null) session.Draft.cameraSmoothingIntensity = value; });
     }
 
@@ -378,7 +386,8 @@ public sealed class SettingsWindow : MonoBehaviour
         // Prefab is scene-owned; removing all listeners also clears the lambdas above.
         ClearButtonListeners(tabButtons);
         ClearButtonListeners(new[] { previousResolutionButton, nextResolutionButton, displayModeButton, previousQualityButton, nextQualityButton, vsyncButton, smoothingButton, invertButton });
-        ClearSliderListeners(new[] { masterSlider, musicSlider, effectsSlider, interfaceSlider, interfaceOpacitySlider, crosshairSizeSlider, sensitivitySlider, frameRateSlider, fovSlider, smoothingIntensitySlider });
+        ClearSliderListeners(new[] { masterSlider, musicSlider, effectsSlider, interfaceSlider, interfaceOpacitySlider, crosshairSizeSlider, sensitivitySlider, fovSlider, smoothingIntensitySlider });
+        frameRateDropdown?.onValueChanged.RemoveAllListeners();
     }
 
     private static void ClearButtonListeners(Button[] buttons)
@@ -420,8 +429,7 @@ public sealed class SettingsWindow : MonoBehaviour
         TMP_Text qualityText,
         Button vsyncButton,
         TMP_Text vsyncText,
-        Slider frameRateSlider,
-        TMP_Text frameRateText,
+        TMP_Dropdown frameRateDropdown,
         Slider fovSlider,
         Button smoothingButton,
         TMP_Text smoothingText,
@@ -457,8 +465,7 @@ public sealed class SettingsWindow : MonoBehaviour
         this.qualityText = qualityText;
         this.vsyncButton = vsyncButton;
         this.vsyncText = vsyncText;
-        this.frameRateSlider = frameRateSlider;
-        this.frameRateText = frameRateText;
+        this.frameRateDropdown = frameRateDropdown;
         this.fovSlider = fovSlider;
         this.smoothingButton = smoothingButton;
         this.smoothingText = smoothingText;
