@@ -132,7 +132,19 @@ public sealed class PlayerAndItemLogicTests
 
         Assert.That(
             solidColliders,
-            Is.EqualTo(new Collider[] { bodyCollider }),
+            Does.Contain(bodyCollider),
+            "The body capsule must be part of the compound Rigidbody."
+        );
+
+        // Deliberate root colliders are allowed - the shin box is what lets the
+        // enemy push floor-level items. The invariant is about where colliders
+        // live, not how many: anything on a child moves independently of the
+        // Rigidbody root and corrupts the compound collider.
+        Assert.That(
+            solidColliders
+                .Where(collider => collider.transform != enemyPrefab.transform)
+                .ToArray(),
+            Is.Empty,
             "Decorative child colliders must not join the enemy compound Rigidbody."
         );
         Assert.That(
