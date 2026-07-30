@@ -83,7 +83,7 @@ public sealed class SettingsWindow : MonoBehaviour
         {
             List<string> labels = new(GameSettingsData.FrameRateLimits.Length);
             foreach (int limit in GameSettingsData.FrameRateLimits)
-                labels.Add(limit < 0 ? "Без лимита" : $"{limit} FPS");
+                labels.Add(limit < 0 ? "Unlimited" : $"{limit} FPS");
 
             frameRateDropdown.ClearOptions();
             frameRateDropdown.AddOptions(labels);
@@ -157,7 +157,7 @@ public sealed class SettingsWindow : MonoBehaviour
         if (service != null && service.IsDisplayConfirmationPending && !showingDefaultsConfirmation)
         {
             confirmationPanel.SetActive(true);
-            confirmationText.text = $"Сохранить новое разрешение? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} с";
+            confirmationText.text = $"Keep the new resolution? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} s";
         }
     }
 
@@ -208,7 +208,7 @@ public sealed class SettingsWindow : MonoBehaviour
         if (service.IsDisplayConfirmationPending)
         {
             showingDefaultsConfirmation = false;
-            confirmationText.text = $"Сохранить новое разрешение? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} с";
+            confirmationText.text = $"Keep the new resolution? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} s";
             confirmationPanel.SetActive(true);
         }
     }
@@ -216,7 +216,7 @@ public sealed class SettingsWindow : MonoBehaviour
     private void AskForDefaults()
     {
         showingDefaultsConfirmation = true;
-        confirmationText.text = "Вернуть настройки по умолчанию?";
+        confirmationText.text = "Reset all settings to defaults?";
         confirmationPanel.SetActive(true);
     }
 
@@ -364,20 +364,20 @@ public sealed class SettingsWindow : MonoBehaviour
         {
             displayModeText.text = draft.fullScreenMode switch
             {
-                (int)FullScreenMode.Windowed => "Оконный",
-                (int)FullScreenMode.FullScreenWindow => "Полноэкранный без рамки",
-                (int)FullScreenMode.ExclusiveFullScreen => "Полный экран",
-                _ => "Оконный"
+                (int)FullScreenMode.Windowed => "Windowed",
+                (int)FullScreenMode.FullScreenWindow => "Borderless",
+                (int)FullScreenMode.ExclusiveFullScreen => "Fullscreen",
+                _ => "Windowed"
             };
         }
         if (qualityText != null)
         {
             string[] names = QualitySettings.names;
-            qualityText.text = names.Length == 0 ? "Нет уровней" : names[Mathf.Clamp(draft.qualityLevel, 0, names.Length - 1)];
+            qualityText.text = names.Length == 0 ? "No levels" : names[Mathf.Clamp(draft.qualityLevel, 0, names.Length - 1)];
         }
-        if (vsyncText != null) vsyncText.text = draft.verticalSync ? "Вкл." : "Выкл.";
-        if (smoothingText != null) smoothingText.text = draft.cameraSmoothing ? "Вкл." : "Выкл.";
-        if (invertText != null) invertText.text = draft.invertVerticalLook ? "Вкл." : "Выкл.";
+        if (vsyncText != null) vsyncText.text = draft.verticalSync ? "On" : "Off";
+        if (smoothingText != null) smoothingText.text = draft.cameraSmoothing ? "On" : "Off";
+        if (invertText != null) invertText.text = draft.invertVerticalLook ? "On" : "Off";
 
         // SetValueWithoutNotify выше не поднимает onValueChanged, поэтому подписи обновляем вручную.
         UpdateSliderValues();
