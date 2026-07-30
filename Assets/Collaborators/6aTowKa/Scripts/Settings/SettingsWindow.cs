@@ -62,6 +62,9 @@ public sealed class SettingsWindow : MonoBehaviour
     private string selectedTab = "Graphics";
     private bool showingDefaultsConfirmation;
 
+    /// <summary>Подпись строки служит и заголовком, и индикатором: «Музыка: 75%».</summary>
+    private readonly List<(Slider slider, TMP_Text label, string title, Func<float, string> format)> sliderValues = new();
+
     private void Awake()
     {
         if (overlay == null || tabPages == null || tabPages.Length == 0)
@@ -84,6 +87,48 @@ public sealed class SettingsWindow : MonoBehaviour
 
             frameRateDropdown.ClearOptions();
             frameRateDropdown.AddOptions(labels);
+        }
+
+        BindSliderValue(masterSlider, Percent);
+        BindSliderValue(musicSlider, Percent);
+        BindSliderValue(effectsSlider, Percent);
+        BindSliderValue(interfaceSlider, Percent);
+        BindSliderValue(interfaceOpacitySlider, Percent);
+        BindSliderValue(smoothingIntensitySlider, Percent);
+        BindSliderValue(sensitivitySlider, Whole);
+        BindSliderValue(fovSlider, Whole);
+        BindSliderValue(crosshairSizeSlider, Multiplier);
+        UpdateSliderValues();
+    }
+
+    private static string Percent(float value) => $"{Mathf.RoundToInt(value * 100f)}%";
+
+    private static string Whole(float value) => Mathf.RoundToInt(value).ToString();
+
+    private static string Multiplier(float value) => $"×{value:0.0}";
+
+    /// <summary>
+    /// Заголовок запоминается один раз: если перечитывать его после дописывания значения,
+    /// подпись начнёт наращивать «Музыка: 75%: 80%».
+    /// </summary>
+    private void BindSliderValue(Slider slider, Func<float, string> format)
+    {
+        if (slider == null || slider.transform.parent == null)
+            return;
+
+        // Окно свёрнуто на старте, поэтому неактивные объекты тоже нужно просматривать.
+        TMP_Text label = slider.transform.parent.GetComponentInChildren<TMP_Text>(true);
+
+        if (label != null)
+            sliderValues.Add((slider, label, label.text, format));
+    }
+
+    private void UpdateSliderValues()
+    {
+        for (int i = 0; i < sliderValues.Count; i++)
+        {
+            var entry = sliderValues[i];
+            entry.label.text = $"{entry.title}: {entry.format(entry.slider.value)}";
         }
     }
 
@@ -333,6 +378,9 @@ public sealed class SettingsWindow : MonoBehaviour
         if (vsyncText != null) vsyncText.text = draft.verticalSync ? "Вкл." : "Выкл.";
         if (smoothingText != null) smoothingText.text = draft.cameraSmoothing ? "Вкл." : "Выкл.";
         if (invertText != null) invertText.text = draft.invertVerticalLook ? "Вкл." : "Выкл.";
+
+        // SetValueWithoutNotify выше не поднимает onValueChanged, поэтому подписи обновляем вручную.
+        UpdateSliderValues();
     }
 
     private void SelectTab(string id)
@@ -373,6 +421,8 @@ public sealed class SettingsWindow : MonoBehaviour
         sensitivitySlider?.onValueChanged.AddListener(value => service?.SetMouseSensitivity(value));
         fovSlider?.onValueChanged.AddListener(value => service?.SetFieldOfView(value));
         frameRateDropdown?.onValueChanged.AddListener(SetFrameRate);
+        for (int i = 0; i < sliderValues.Count; i++)
+            sliderValues[i].slider.onValueChanged.AddListener(_ => UpdateSliderValues());
         smoothingIntensitySlider?.onValueChanged.AddListener(value => { if (session != null) session.Draft.cameraSmoothingIntensity = value; });
     }
 
