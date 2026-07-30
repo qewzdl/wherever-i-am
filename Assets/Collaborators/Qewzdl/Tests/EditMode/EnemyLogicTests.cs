@@ -237,6 +237,241 @@ public sealed class EnemyLogicTests
     }
 
     [Test]
+    public void GazeScanner_ScansBothSidesWithoutTargetAndRecentersWhenPursuing()
+    {
+        GameObject enemy = new("Gaze scanner enemy");
+        enemy.SetActive(false);
+
+        try
+        {
+            GameObject eyes = new("Eyes");
+            eyes.transform.SetParent(enemy.transform, false);
+
+            // Same contract error as EnemyTarget: the sensor validates itself
+            // the moment it is added, before the test can point it at anything.
+            LogAssert.Expect(
+                LogType.Error,
+                new System.Text.RegularExpressions.Regex(
+                    "EnemyVisionSensor has invalid configuration:"
+                )
+            );
+
+            EnemyVisionSensor visionSensor = enemy.AddComponent<EnemyVisionSensor>();
+            TestReflection.SetField(visionSensor, "eyes", eyes.transform);
+
+            EnemyGazeScanner scanner = enemy.AddComponent<EnemyGazeScanner>();
+
+            float widestLeftSweep = 0f;
+            float widestRightSweep = 0f;
+
+            for (int i = 0; i < 400; i++)
+            {
+                scanner.TickServer(0.05f, EnemyState.Patrol);
+
+                widestLeftSweep = Mathf.Min(widestLeftSweep, scanner.CurrentYaw);
+                widestRightSweep = Mathf.Max(widestRightSweep, scanner.CurrentYaw);
+            }
+
+            Assert.That(
+                widestRightSweep,
+                Is.GreaterThan(1f),
+                "Gaze must sweep to one side while the enemy has no target.");
+
+            Assert.That(
+                widestLeftSweep,
+                Is.LessThan(-1f),
+                "Gaze must sweep to the other side too, otherwise it is not looking around.");
+
+            Assert.That(
+                Mathf.Max(widestRightSweep, -widestLeftSweep),
+                Is.LessThanOrEqualTo(55f + 0.01f),
+                "Gaze must stay inside the configured sweep angle.");
+
+            Assert.That(
+                Mathf.DeltaAngle(0f, eyes.transform.localRotation.eulerAngles.y),
+                Is.EqualTo(scanner.CurrentYaw).Within(0.01f),
+                "Vision cone follows the eyes transform, so the swept yaw must be applied to it.");
+
+            for (int i = 0; i < 100; i++)
+            {
+                scanner.TickServer(0.05f, EnemyState.Chase);
+            }
+
+            Assert.That(
+                scanner.CurrentYaw,
+                Is.EqualTo(0f).Within(0.001f),
+                "Gaze must recenter onto the body forward while pursuing a target.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(enemy);
+        }
+    }
+
+    [Test]
+    public void PerceptionMemory_VisualGraceDeliberatelyFollowsLiveTargetPosition()
+    {
+        GameObject player = new("Visual memory target");
+        player.SetActive(false);
+
+        try
+        {
+            EnemyTarget target = CreateUnconfiguredTarget(player);
+            player.transform.position = new Vector3(0f, 0f, 5f);
+
+            EnemyPerceptionMemory memory = new();
+
+            Assert.That(memory.TryStartVisualMemoryGracePeriod(target, 2f), Is.True);
+            Assert.That(memory.IsUsingVisualMemory, Is.True);
+            Assert.That(memory.VisualMemoryTimeRemaining, Is.EqualTo(2f));
+            Assert.That(
+                memory.GetVisualMemoryTargetPosition(),
+                Is.EqualTo(new Vector3(0f, 0f, 5f)));
+
+            player.transform.position = new Vector3(9f, 0f, 5f);
+
+            // Pins the deliberate design documented on EnemyPerceptionMemory:
+            // during the grace period the enemy keeps tracking the live target
+            // through walls instead of freezing on the last seen point.
+            Assert.That(
+                memory.GetVisualMemoryTargetPosition(),
+                Is.EqualTo(new Vector3(9f, 0f, 5f)),
+                "Visual memory intentionally follows the live target; freezing it would change enemy balance.");
+
+            Assert.That(memory.TryStartVisualMemoryGracePeriod(null, 2f), Is.False);
+            Assert.That(memory.TryStartVisualMemoryGracePeriod(target, 0f), Is.False);
+
+            memory.CancelVisualMemory();
+
+            Assert.That(memory.IsUsingVisualMemory, Is.False);
+            Assert.That(memory.VisualMemoryTimeRemaining, Is.Zero);
+            Assert.That(memory.GetVisualMemoryTargetPosition(), Is.EqualTo(Vector3.zero));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(player);
+        }
+    }
+
+    [Test]
+    public void StimulusResolver_ConfirmedVisionOutranksLouderHearingButKeepsItAsSuspicion()
+    {
+        GameObject player = new("Seen enemy target");
+        player.SetActive(false);
+
+        try
+        {
+            EnemyTarget target = CreateUnconfiguredTarget(player);
+
+            EnemyPerceptionStimulus vision =
+                EnemyPerceptionStimulus.ForConfirmedTarget(
+                    target,
+                    new Vector3(1f, 0f, 1f),
+                    1f,
+                    EnemyPerceptionSource.Vision);
+
+            EnemyPerceptionStimulus hearing =
+                EnemyPerceptionStimulus.ForSuspiciousPosition(
+                    new Vector3(-8f, 0f, 3f),
+                    99f,
+                    EnemyPerceptionSource.Hearing);
+
+            EnemyStimulusResolveContext context = new(
+                null,
+                new EnemyBlackboard(),
+                EnemyState.Patrol,
+                vision,
+                true,
+                hearing,
+                true,
+                5f);
+
+            EnemyStimulusResolution resolution = new EnemyStimulusResolver().Resolve(
+                context,
+                new EnemyStimulusResolverPolicy());
+
+            Assert.That(
+                resolution.Action,
+                Is.EqualTo(EnemyStimulusResolutionAction.ChaseConfirmedTarget),
+                "Eyes outrank ears regardless of score while visionAlwaysOverridesHearing is on.");
+
+            Assert.That(resolution.PrimaryStimulus.Target, Is.EqualTo(target));
+
+            Assert.That(
+                resolution.HasSecondaryStimulus,
+                Is.True,
+                "A noise from somewhere else must survive as a secondary suspicion.");
+
+            Assert.That(
+                resolution.SecondaryStimulus.Position,
+                Is.EqualTo(hearing.Position));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(player);
+        }
+    }
+
+    [Test]
+    public void StimulusResolver_HeardTargetOnlyStartsInvestigationNotChase()
+    {
+        GameObject player = new("Heard enemy target");
+        player.SetActive(false);
+
+        try
+        {
+            EnemyTarget target = CreateUnconfiguredTarget(player);
+
+            EnemyPerceptionStimulus hearing =
+                EnemyPerceptionStimulus.ForConfirmedTarget(
+                    target,
+                    new Vector3(3f, 0f, 0f),
+                    4f,
+                    EnemyPerceptionSource.Hearing);
+
+            EnemyStimulusResolveContext context = new(
+                null,
+                new EnemyBlackboard(),
+                EnemyState.Patrol,
+                EnemyPerceptionStimulus.None,
+                false,
+                hearing,
+                true,
+                5f);
+
+            EnemyStimulusResolution resolution = new EnemyStimulusResolver().Resolve(
+                context,
+                new EnemyStimulusResolverPolicy());
+
+            Assert.That(
+                resolution.Action,
+                Is.EqualTo(EnemyStimulusResolutionAction.InvestigateSuspiciousPosition),
+                "Ears alone must not confirm a target while confirmedHearingCanStartChase is off.");
+
+            Assert.That(resolution.ShouldClearCurrentTarget, Is.False);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(player);
+        }
+    }
+
+    // EnemyTarget logs its visibility contract error the moment it is added,
+    // before a test can configure it. Tests that only need target identity
+    // swallow that one expected error here.
+    private static EnemyTarget CreateUnconfiguredTarget(GameObject inactiveOwner)
+    {
+        LogAssert.Expect(
+            LogType.Error,
+            new System.Text.RegularExpressions.Regex(
+                "EnemyTarget has invalid visibility configuration:"
+            )
+        );
+
+        return inactiveOwner.AddComponent<EnemyTarget>();
+    }
+
+    [Test]
     public void PatrolProfile_ClampsUnsafeRoutePlanningValues()
     {
         EnemyPatrolConfig config =
