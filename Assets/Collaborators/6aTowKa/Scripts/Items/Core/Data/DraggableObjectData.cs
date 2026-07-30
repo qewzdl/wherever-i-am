@@ -3,7 +3,7 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "NewInteractableObjectData", menuName = "Wherever I Am/Items/Draggable Object data")]
 public class DraggableObjectData : InteractableObjectData
 {
-    [Header("Enemy Navigation")]
+    [Header("Enemy Interaction")]
     public bool BlocksEnemyNavigation = true;
 
     [Header("Dragging")]

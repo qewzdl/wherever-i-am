@@ -334,7 +334,6 @@ public sealed class PlayerMechanicsPlayModeTests
 
         Assert.That(canvas, Is.Not.Null);
         Assert.That(canvas.renderMode, Is.EqualTo(RenderMode.ScreenSpaceOverlay));
-        Assert.That(canvas.overrideSorting, Is.True);
         Assert.That(canvas.sortingOrder, Is.LessThan(0));
         Assert.That(group.blocksRaycasts, Is.False);
         Assert.That(group.interactable, Is.False);

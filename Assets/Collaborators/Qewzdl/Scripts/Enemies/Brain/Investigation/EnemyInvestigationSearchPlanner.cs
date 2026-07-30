@@ -18,7 +18,31 @@ public sealed class EnemyInvestigationSearchPlanner
         float branchRadius,
         int branchPointCount,
         float leafRadius,
-        int leafPointCountPerBranch
+        int leafPointCountPerBranch)
+    {
+        NavMeshBuildSettings settings = NavMesh.GetSettingsByIndex(0);
+        BuildHierarchicalSearchPlan(
+            origin,
+            enemyPosition,
+            branchRadius,
+            branchPointCount,
+            leafRadius,
+            leafPointCountPerBranch,
+            new NavMeshQueryFilter
+            {
+                agentTypeID = settings.agentTypeID,
+                areaMask = NavMesh.AllAreas
+            });
+    }
+
+    public void BuildHierarchicalSearchPlan(
+        Vector3 origin,
+        Vector3 enemyPosition,
+        float branchRadius,
+        int branchPointCount,
+        float leafRadius,
+        int leafPointCountPerBranch,
+        NavMeshQueryFilter filter
     )
     {
         points.Clear();
@@ -38,7 +62,11 @@ public sealed class EnemyInvestigationSearchPlanner
             Vector3 branchDirection = GetDirectionFromAngle(angle);
             Vector3 rawBranchPoint = origin + branchDirection * branchRadius;
 
-            if (!TrySampleNavMeshPoint(rawBranchPoint, branchRadius, out Vector3 branchPoint))
+            if (!TrySampleNavMeshPoint(
+                    rawBranchPoint,
+                    branchRadius,
+                    filter,
+                    out Vector3 branchPoint))
             {
                 continue;
             }
@@ -59,7 +87,8 @@ public sealed class EnemyInvestigationSearchPlanner
                 origin,
                 leafRadius,
                 leafPointCountPerBranch,
-                validBranchIndex
+                validBranchIndex,
+                filter
             );
 
             validBranchIndex++;
@@ -84,7 +113,8 @@ public sealed class EnemyInvestigationSearchPlanner
         Vector3 origin,
         float leafRadius,
         int leafPointCount,
-        int branchIndex
+        int branchIndex,
+        NavMeshQueryFilter filter
     )
     {
         if (leafPointCount <= 0 || leafRadius <= 0f)
@@ -102,7 +132,11 @@ public sealed class EnemyInvestigationSearchPlanner
             Vector3 leafDirection = GetDirectionFromAngle(angle);
             Vector3 rawLeafPoint = branchPoint + leafDirection * leafRadius;
 
-            if (!TrySampleNavMeshPoint(rawLeafPoint, leafRadius, out Vector3 leafPoint))
+            if (!TrySampleNavMeshPoint(
+                    rawLeafPoint,
+                    leafRadius,
+                    filter,
+                    out Vector3 leafPoint))
             {
                 continue;
             }
@@ -119,11 +153,19 @@ public sealed class EnemyInvestigationSearchPlanner
         }
     }
 
-    private bool TrySampleNavMeshPoint(Vector3 rawPoint, float radius, out Vector3 sampledPoint)
+    private bool TrySampleNavMeshPoint(
+        Vector3 rawPoint,
+        float radius,
+        NavMeshQueryFilter filter,
+        out Vector3 sampledPoint)
     {
         float sampleRadius = Mathf.Max(0.5f, radius * NavMeshSampleRadiusMultiplier);
 
-        if (NavMesh.SamplePosition(rawPoint, out NavMeshHit hit, sampleRadius, NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(
+                rawPoint,
+                out NavMeshHit hit,
+                sampleRadius,
+                filter))
         {
             sampledPoint = hit.position;
             return true;

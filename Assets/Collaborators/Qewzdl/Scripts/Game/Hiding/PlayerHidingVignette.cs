@@ -148,7 +148,6 @@ public sealed class PlayerHidingVignette : MonoBehaviour
 
         canvas = canvasObject.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.overrideSorting = true;
         canvas.sortingOrder = CanvasSortingOrder;
 
         canvasGroup = canvasObject.GetComponent<CanvasGroup>();

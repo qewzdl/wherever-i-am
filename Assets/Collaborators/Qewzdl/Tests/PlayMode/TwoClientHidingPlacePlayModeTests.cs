@@ -300,17 +300,6 @@ public sealed class TwoClientHidingPlacePlayModeTests
             "Client A did not occupy the hiding place."
         );
 
-        clientA.Manager.Shutdown(discardMessageQueue: false);
-
-        yield return WaitForCondition(
-            () => !clientA.Manager.IsListening &&
-                  !server.Manager.SpawnManager.SpawnedObjects.ContainsKey(
-                      playerAId
-                  ) &&
-                  !serverPlace.IsOccupied,
-            "Disconnect did not despawn the occupant and release the place."
-        );
-
         PlayerHidingController playerB = GetComponent<PlayerHidingController>(
             clientB,
             playerBId
@@ -320,6 +309,18 @@ public sealed class TwoClientHidingPlacePlayModeTests
                 clientB,
                 hidingPlaceId
             );
+
+        clientA.Manager.Shutdown(discardMessageQueue: false);
+
+        yield return WaitForCondition(
+            () => !clientA.Manager.IsListening &&
+                  !server.Manager.SpawnManager.SpawnedObjects.ContainsKey(
+                      playerAId
+                  ) &&
+                  !serverPlace.IsOccupied &&
+                  placeB.IsAvailable,
+            "Disconnect did not despawn the occupant and release the place."
+        );
 
         Assert.That(placeB.TryRequestEnter(playerB), Is.True);
 
@@ -337,6 +338,20 @@ public sealed class TwoClientHidingPlacePlayModeTests
                   ) &&
                   !playerB.IsHidden,
             "Hiding place despawn did not release its active occupant."
+        );
+
+        Rigidbody recoveredBody = GetComponent<PlayerHidingController>(
+            server,
+            playerBId
+        ).GetComponent<Rigidbody>();
+
+        // A hard teleport onto the floor takes a few physics steps to
+        // settle (small penetration-correction bounce either way).
+        // Wait for the body to actually stop moving instead of guessing
+        // a fixed delay.
+        yield return WaitForCondition(
+            () => recoveredBody.linearVelocity.sqrMagnitude < 0.0001f,
+            "Recovered player did not settle after runtime destruction."
         );
 
         Vector3 recoveredPosition =
@@ -859,6 +874,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
             "A floor-level exit anchor incorrectly blocked hiding exit."
         );
 
+        Physics.SyncTransforms();
+
         CapsuleCollider playerCollider =
             player.GetComponent<CapsuleCollider>();
         Assert.That(
@@ -962,6 +979,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
         body.useGravity = false;
         CapsuleCollider bodyCollider =
             playerPrefab.AddComponent<CapsuleCollider>();
+        bodyCollider.height = 2f;
         playerPrefab.AddComponent<MeshRenderer>();
         playerPrefab.AddComponent<HidingEntryEligibilityProbe>();
 
@@ -1014,6 +1032,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
         HidingPlaceData hidingData =
             Track(ScriptableObject.CreateInstance<HidingPlaceData>());
+        PlayModeTestReflection.SetField(hidingData, "enterDuration", 0.2f);
+        PlayModeTestReflection.SetField(hidingData, "exitDuration", 0.2f);
 
         hidingPlacePrefab = Track(
             new GameObject("Hiding place prefab")
@@ -1029,7 +1049,9 @@ public sealed class TwoClientHidingPlacePlayModeTests
             placeNetworkObject,
             HidingPlacePrefabHash
         );
-        hidingPlacePrefab.AddComponent<BoxCollider>();
+        BoxCollider hidingPlaceCollider =
+            hidingPlacePrefab.AddComponent<BoxCollider>();
+        hidingPlaceCollider.size = new Vector3(0.8f, 0.8f, 0.8f);
 
         Transform hidingPoint = CreateChild(
             hidingPlacePrefab.transform,
@@ -1196,6 +1218,13 @@ public sealed class TwoClientHidingPlacePlayModeTests
             },
             "Hiding objects were not spawned on every endpoint."
         );
+
+        // Newly spawned/positioned colliders (e.g. a player's body
+        // capsule) aren't guaranteed to be reflected in Physics queries
+        // (Collider.bounds, raycasts) until the physics world syncs.
+        // Callers immediately run line-of-sight/overlap checks against
+        // these objects, so force the sync here once for everyone.
+        Physics.SyncTransforms();
     }
 
     private static bool HasSpawnedObject(

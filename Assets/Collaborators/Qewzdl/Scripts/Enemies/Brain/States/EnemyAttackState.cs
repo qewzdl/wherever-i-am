@@ -59,10 +59,15 @@ public sealed class EnemyAttackState : IEnemyStateHandler
             return;
         }
 
-        context.StopNavigation();
+        if (context.Navigator.IsDirectApproachBlockedByItem(targetPosition))
+        {
+            context.ChangeState(EnemyState.Chase);
+            return;
+        }
 
         if (context.AttackController != null && context.AttackController.IsBusy)
         {
+            context.StopNavigation();
             return;
         }
 
@@ -73,6 +78,27 @@ public sealed class EnemyAttackState : IEnemyStateHandler
             context.ChangeState(EnemyState.Chase);
             return;
         }
+
+        if (!context.AttackController.TryValidateAttackTarget(
+                context.TargetMemory.CurrentTarget,
+                context.Config,
+                context.Navigator.Position,
+                context.AttackController,
+                out EnemyAttackResultType validationFailureType
+            ))
+        {
+            if (validationFailureType == EnemyAttackResultType.InvalidTarget)
+            {
+                context.ForgetCurrentTargetButKeepLastKnownPosition();
+                MoveToInvestigationOrReturn();
+                return;
+            }
+
+            context.ChangeState(EnemyState.Chase);
+            return;
+        }
+
+        context.StopNavigation();
 
         EnemyAttackResult result = context.AttackController.TryStartAttack(
             context.TargetMemory.CurrentTarget,

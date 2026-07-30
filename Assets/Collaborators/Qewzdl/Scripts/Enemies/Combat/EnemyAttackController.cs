@@ -129,6 +129,31 @@ public class EnemyAttackController : MonoBehaviour, IEnemyValidatedComponent
         return result.WasStarted;
     }
 
+    public bool TryValidateAttackTarget(
+        EnemyTarget target,
+        EnemyConfig config,
+        Vector3 attackerPosition,
+        Component logContext,
+        out EnemyAttackResultType failureType
+    )
+    {
+        Component resolvedLogContext = logContext != null ? logContext : this;
+
+        if (!EnsurePipeline(resolvedLogContext))
+        {
+            failureType = EnemyAttackResultType.MissingEffect;
+            return false;
+        }
+
+        return pipeline.TryValidateAttackTarget(
+            target,
+            config,
+            attackerPosition,
+            resolvedLogContext,
+            out failureType
+        );
+    }
+
     public void Interrupt(
         EnemyAttackResultType reason = EnemyAttackResultType.Interrupted
     )

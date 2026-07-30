@@ -110,12 +110,20 @@ public sealed class EnemyPatrolController
             return false;
         }
 
-        if (!stopWanderPlanner.TryGetRandomWanderPoint(
+        EnemyPosture posture = blackboard != null
+            ? blackboard.CurrentPosture
+            : EnemyPosture.Standing;
+
+        if (!navigator.TryGetNavigationQueryFilter(
+                posture,
+                out NavMeshQueryFilter filter) ||
+            !stopWanderPlanner.TryGetRandomWanderPoint(
             currentRoutePoint.position,
             navigator.Position,
             config.patrolStopWanderRadius,
             config.patrolStopWanderMinDistanceFromEnemy,
             config.patrolStopWanderSampleAttempts,
+            filter,
             out Vector3 wanderPoint
         ))
         {

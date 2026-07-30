@@ -17,6 +17,6 @@ MonoBehaviour:
   validateLineOfHit: 1
   attackLineOfHitBlockingMask:
     serializedVersion: 2
-    m_Bits: 897
+    m_Bits: 1921
   attackLineOfHitOriginHeight: 1.2
   attackLineOfHitTriggerInteraction: 1
