@@ -6,6 +6,10 @@ public sealed class GameSettingsData
 {
     public const int CurrentVersion = 2;
 
+    /// <summary>Единственный источник правды для слайдера и камеры.</summary>
+    public const float MinMouseSensitivity = 10f;
+    public const float MaxMouseSensitivity = 100f;
+
     public int version = CurrentVersion;
 
     public int resolutionWidth = 1920;
@@ -106,7 +110,7 @@ public sealed class GameSettingsData
         interfaceOpacity = Mathf.Clamp01(interfaceOpacity);
         crosshairSize = Mathf.Clamp(crosshairSize, 0.5f, 2f);
 
-        mouseSensitivity = Mathf.Clamp(mouseSensitivity, 10f, 300f);
+        mouseSensitivity = Mathf.Clamp(mouseSensitivity, MinMouseSensitivity, MaxMouseSensitivity);
         fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
         cameraSmoothingIntensity = Mathf.Clamp01(cameraSmoothingIntensity);
         debugNoClipSpeed = Mathf.Clamp(debugNoClipSpeed, 2f, 30f);

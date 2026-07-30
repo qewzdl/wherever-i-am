@@ -92,7 +92,7 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
         float smoothingIntensity,
         float fieldOfView)
     {
-        sensitivity = Mathf.Clamp(mouseSensitivity, 10f, 300f);
+        sensitivity = Mathf.Clamp(mouseSensitivity, GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
         verticalSensitivitySign = invertVerticalLook ? -1f : 1f;
         smoothingTime = smoothingEnabled
             ? Mathf.Lerp(0.005f, 0.12f, Mathf.Clamp01(smoothingIntensity))
@@ -376,7 +376,7 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
         }
 
         if (SettingsService.TryGet(out ISettingsService settings))
-            sensitivity = Mathf.Clamp(settings.Current.mouseSensitivity, 10f, 300f);
+            sensitivity = Mathf.Clamp(settings.Current.mouseSensitivity, GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
 
         Vector2 scaledDelta = pendingLookDelta * sensitivity / 500f;
 

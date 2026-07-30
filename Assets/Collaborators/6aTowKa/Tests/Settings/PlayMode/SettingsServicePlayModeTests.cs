@@ -19,13 +19,13 @@ public sealed class SettingsServicePlayModeTests
         {
             SettingsService service = gameObject.AddComponent<SettingsService>();
             service.InitializeForTests(path, GameSettingsData.CreateDefaults(1920, 1080, 0), 3);
-            service.SetMouseSensitivity(177f);
+            service.SetMouseSensitivity(77f);
             service.SetMasterVolume(0.4f);
             service.SetInterfaceVolume(0.5f);
 
             yield return null;
 
-            Assert.That(service.Current.mouseSensitivity, Is.EqualTo(177f));
+            Assert.That(service.Current.mouseSensitivity, Is.EqualTo(77f));
             Assert.That(service.Current.masterVolume, Is.EqualTo(0.4f));
             Assert.That(service.Current.interfaceVolume, Is.EqualTo(0.5f));
         }

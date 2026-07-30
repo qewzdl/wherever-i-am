@@ -149,7 +149,7 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
     public void SetMouseSensitivity(float value)
     {
         EnsureInitialized();
-        float clamped = Mathf.Clamp(value, 10f, 300f);
+        float clamped = Mathf.Clamp(value, GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
 
         if (Mathf.Approximately(current.mouseSensitivity, clamped))
             return;

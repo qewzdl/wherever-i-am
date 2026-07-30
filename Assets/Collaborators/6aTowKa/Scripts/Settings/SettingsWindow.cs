@@ -68,6 +68,13 @@ public sealed class SettingsWindow : MonoBehaviour
             Debug.LogError("SettingsWindow prefab references are incomplete.", this);
         else
             overlay.SetActive(false);
+
+        // Диапазон задан в коде и в Sanitize, поэтому prefab не должен с ним расходиться.
+        if (sensitivitySlider != null)
+        {
+            sensitivitySlider.minValue = GameSettingsData.MinMouseSensitivity;
+            sensitivitySlider.maxValue = GameSettingsData.MaxMouseSensitivity;
+        }
     }
 
     private void OnEnable()

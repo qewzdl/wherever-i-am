@@ -72,7 +72,7 @@ public static class SettingsWindowPrefabBuilder
 
         GameObject controls = Page(pagesRoot, pages, ids, "Controls");
         Section(controls.transform, "Управление");
-        Slider sensitivity = SliderRow(controls.transform, "Чувствительность", 10f, 300f);
+        Slider sensitivity = SliderRow(controls.transform, "Чувствительность", GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
         ActionRow(controls.transform, "Инверсия Y", styleSource, out TMP_Text invert, out Button invertButton);
 
         GameObject ui = Page(pagesRoot, pages, ids, "Interface");

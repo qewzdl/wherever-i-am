@@ -29,7 +29,7 @@ public sealed class GameSettingsTests
         Assert.That(settings.frameRateLimit, Is.EqualTo(30));
         Assert.That(settings.masterVolume, Is.EqualTo(1f));
         Assert.That(settings.musicVolume, Is.EqualTo(0f));
-        Assert.That(settings.mouseSensitivity, Is.EqualTo(300f));
+        Assert.That(settings.mouseSensitivity, Is.EqualTo(GameSettingsData.MaxMouseSensitivity));
         Assert.That(settings.fieldOfView, Is.EqualTo(50f));
         Assert.That(settings.cameraSmoothingIntensity, Is.EqualTo(1f));
     }
