@@ -11,6 +11,14 @@ public class CrosshairUI : MonoBehaviour
     public static CrosshairUI Active { get; private set; }
     public static event Action<CrosshairUI> ActiveChanged;
 
+    private void Awake()
+    {
+        // Unscaled prefab size: must be read before Update() ever scales sizeDelta,
+        // otherwise re-enabling the HUD would treat the scaled size as the new base.
+        if (crosshairImage != null)
+            baseSize = crosshairImage.rectTransform.sizeDelta;
+    }
+
     private void OnEnable()
     {
         if (crosshairImage == null)
@@ -24,7 +32,7 @@ public class CrosshairUI : MonoBehaviour
             Debug.LogWarning($"Replacing active {nameof(CrosshairUI)} '{Active.name}' with '{name}'.", this);
 
         Active = this;
-        baseSize = crosshairImage.rectTransform.sizeDelta;
+        appliedSettingsRevision = -1; // Update() was not running while hidden; re-apply the current size.
         ActiveChanged?.Invoke(this);
     }
 
