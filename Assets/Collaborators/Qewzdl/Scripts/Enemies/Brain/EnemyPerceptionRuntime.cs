@@ -41,6 +41,8 @@ public sealed class EnemyPerceptionRuntime
     {
         deltaTime = Mathf.Max(0f, deltaTime);
 
+        TrackTargetHidingPlace();
+
         EnemyPerceptionDecision visualMemoryDecision = TickVisualTargetMemory(
             deltaTime,
             currentState
@@ -196,7 +198,6 @@ public sealed class EnemyPerceptionRuntime
         }
 
         blackboard.InvestigationMemory.RememberSuspiciousPosition(stimulus.Position);
-        RememberObservedHidingPlace(stimulus);
     }
 
     private EnemyPerceptionDecision ApplyConfirmedTargetStimulus(
@@ -218,7 +219,11 @@ public sealed class EnemyPerceptionRuntime
 
         investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
         investigationMemory.ClearSuspiciousPosition();
-        RememberObservedHidingPlace(stimulus);
+
+        // The target is visible again, so whichever box it used earlier is
+        // history - keeping it would send the next investigation to a place
+        // this pursuit has nothing to do with.
+        investigationMemory.ClearObservedHidingPlace();
 
         perceptionMemory.CancelVisualMemory();
 
@@ -266,22 +271,39 @@ public sealed class EnemyPerceptionRuntime
         }
 
         investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
-        RememberObservedHidingPlace(stimulus);
 
         return EnemyPerceptionDecision.SuspiciousPosition();
     }
 
-    private void RememberObservedHidingPlace(
-        EnemyPerceptionStimulus stimulus
-    )
+    // A pursued target that stopped being detectable while still spawned did
+    // one of two things: broke line of sight, or climbed into something. Only
+    // the second resolves to a hiding place, and it is the one an enemy could
+    // honestly have watched happen.
+    //
+    // This runs every tick, at the very top, and that placement is the whole
+    // point. Reading the Entering state is useless - an entry completes inside
+    // a single call, so no polling sensor ever observes a player mid-climb. And
+    // hanging it off the perception grace period is just as useless, because
+    // EnemyChaseState drops a target the moment it stops being detectable,
+    // which is the same tick. The brain runs perception before the state
+    // handler, so this is the last point where the target is still held.
+    private void TrackTargetHidingPlace()
     {
-        if (!stimulus.HasHidingPlace)
+        EnemyTarget target = blackboard.TargetMemory.CurrentTarget;
+
+        if (target == null || target.CanBeDetected)
         {
             return;
         }
 
+        // Set OR clear: a target that vanished behind a wall rather than into a
+        // box must wipe any earlier reference, otherwise it outlives the
+        // pursuit that earned it and redirects the next investigation.
+        HidingPlaceInteractable hidingPlace = null;
+        target.TryGetCurrentHidingPlace(out hidingPlace);
+
         blackboard.InvestigationMemory.RememberObservedHidingPlace(
-            stimulus.HidingPlace
+            hidingPlace
         );
     }
 

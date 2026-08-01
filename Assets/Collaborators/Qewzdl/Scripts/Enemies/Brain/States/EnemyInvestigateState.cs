@@ -129,15 +129,28 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return false;
         }
 
-        checkedHidingPlace = hidingPlace;
+        // No relevance check on the reference itself: it is only ever written
+        // for a target this enemy watched vanish into this box, and the
+        // investigation origin is that box. Enemies that saw nothing arrive
+        // here with no reference at all and bail out above.
         HidingPlaceData settings = hidingPlace.Configuration;
+
+        checkedHidingPlace = hidingPlace;
         hidingCheckTimer =
             (settings != null
                 ? settings.EnterDuration + settings.ExitDuration
                 : 0f) + 0.5f;
         phase = InvestigationPhase.CheckingHidingPlace;
 
-        context.StopNavigation();
+        // Walk up to the hiding place instead of stopping where the stimulus
+        // was: the server only opens it from within EnemyInvestigationDistance,
+        // and the investigation origin can sit a metre or two off the anchor.
+        if (!TrySetDestination(
+                hidingPlace.EnemyInvestigationPosition,
+                context.Config.chaseSpeed))
+        {
+            context.StopNavigation();
+        }
 
         if (hidingPlace.State == HidingTransitionState.Occupied)
         {
@@ -160,6 +173,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             StartHierarchicalSearch();
             return;
         }
+
+        RepathToCurrentDestination(context.Config.chaseSpeed);
 
         if (checkedHidingPlace.State ==
             HidingTransitionState.Entering)
@@ -307,6 +322,15 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         FinishInvestigation();
     }
 
+    // A remembered hiding place wins over the last known position, and it has
+    // to. Visual memory hands out the target's LIVE position while it runs, so
+    // a target that climbed into a box leaves its last known position inside
+    // that box - inside the hole the box carves out of the NavMesh. Pathing
+    // there fails, Enter gives up, and the enemy forgets a player it just
+    // watched hide. The interaction anchor is reachable by construction.
+    //
+    // Safe to prefer because the reference now has exactly one writer: a
+    // pursued target that vanished into a box while the enemy was watching.
     private bool TryResolveInvestigationOrigin(out Vector3 position)
     {
         HidingPlaceInteractable hidingPlace =

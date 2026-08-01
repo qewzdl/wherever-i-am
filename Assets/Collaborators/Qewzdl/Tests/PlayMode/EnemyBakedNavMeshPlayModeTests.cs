@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.AI.Navigation;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using Unity.Netcode.Transports.UTP;
 #if UNITY_EDITOR
 using UnityEditor.SceneManagement;
@@ -565,6 +566,372 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             minimumHidingPlaceDistance,
             Is.GreaterThan(1f),
             "Enemy capsule intersected the hiding place while navigating.");
+    }
+
+    // The original complaint: an enemy busy with something else walks straight
+    // past an occupied box and yanks the player out of it. An enemy that never
+    // watched anyone climb in holds no reference, and without a reference the
+    // box is just scenery no matter how close the route passes.
+    [UnityTest]
+    public IEnumerator InvestigateState_WithoutAReference_WalksPastOccupiedBox()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+        yield return OccupyHidingPlace(hidingPlace, occupant);
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject actor,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> stateChanges);
+
+        // A noise on the far side of the box, and nothing else. The route to it
+        // runs right past the occupant.
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            new Vector3(0f, 0f, 9f));
+
+        state.Enter();
+
+        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
+        bool walkedPastTheHidingPlace = false;
+        bool reachedTheRealStimulus = false;
+
+        while (stateChanges.Count == 0 &&
+               Time.realtimeSinceStartup < timeout)
+        {
+            state.Tick(Time.deltaTime);
+
+            Vector3 position = actor.transform.position;
+            walkedPastTheHidingPlace |= position.z > 1f;
+            reachedTheRealStimulus |= position.z > 8f;
+
+            Assert.That(
+                hidingPlace.State,
+                Is.EqualTo(HidingTransitionState.Occupied),
+                "Enemy opened an occupied box it had no reason to suspect.");
+
+            if (reachedTheRealStimulus)
+                break;
+
+            yield return null;
+        }
+
+        Assert.That(
+            walkedPastTheHidingPlace,
+            Is.True,
+            "Enemy never walked past the hiding place, so nothing was covered.");
+        Assert.That(
+            reachedTheRealStimulus,
+            Is.True,
+            "Enemy did not investigate the position the stimulus actually came from.");
+        Assert.That(occupant.IsHidden, Is.True);
+    }
+
+    // The closest thing to a playtest that runs unattended: the shipped enemy
+    // prefab with its real brain, a real networked player and a real hiding
+    // place on a baked NavMesh. Every other test here drives one link of the
+    // chain in isolation - perception with a pinned state, or the investigate
+    // state with memory set by hand. This one is the whole chain, which is
+    // where the interesting breakages live.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_WatchingPlayerHide_ComesOverAndOpensTheBox()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -8f));
+        EnemyServerRuntime runtime =
+            enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        yield return WaitForCondition(
+            () => enemy.HasTarget &&
+                  (enemy.CurrentState == EnemyState.Chase ||
+                   enemy.CurrentState == EnemyState.Attack),
+            "Production enemy never saw the player standing in the open.");
+
+        // Climb in while it is actively looking at us.
+        Assert.That(hidingPlace.TryRequestEnter(occupant), Is.True);
+        Assert.That(
+            hidingPlace.State,
+            Is.EqualTo(HidingTransitionState.Occupied),
+            "Entry is instant, so the enemy never sees an Entering state.");
+
+        // Visual memory keeps it chasing the live position for a couple of
+        // seconds before the investigation even starts, so allow real time.
+        EnemyBlackboard enemyBlackboard =
+            PlayModeTestReflection.GetField<EnemyBlackboard>(
+                runtime,
+                "blackboard");
+        List<EnemyState> observedStates = new();
+        bool everRememberedHidingPlace = false;
+        bool sampledInvestigateEntry = false;
+        Vector3 investigateLastKnown = Vector3.zero;
+        float closestApproach = float.PositiveInfinity;
+        float openTimeout = Time.realtimeSinceStartup + 25f;
+
+        while (hidingPlace.State == HidingTransitionState.Occupied &&
+               Time.realtimeSinceStartup < openTimeout)
+        {
+            if (observedStates.Count == 0 ||
+                observedStates[observedStates.Count - 1] != enemy.CurrentState)
+            {
+                observedStates.Add(enemy.CurrentState);
+            }
+
+            everRememberedHidingPlace |=
+                enemyBlackboard.InvestigationMemory.ObservedHidingPlace != null;
+
+            if (!sampledInvestigateEntry &&
+                enemy.CurrentState == EnemyState.Investigate)
+            {
+                sampledInvestigateEntry = true;
+                investigateLastKnown = enemyBlackboard
+                    .InvestigationMemory.LastKnownTargetPosition;
+            }
+
+            closestApproach = Mathf.Min(
+                closestApproach,
+                Vector3.Distance(
+                    enemy.transform.position,
+                    hidingPlace.EnemyInvestigationPosition));
+
+            yield return null;
+        }
+
+        Assert.That(
+            hidingPlace.State != HidingTransitionState.Occupied,
+            Is.True,
+            "Production enemy watched the player climb in and never came to " +
+            "open the box. " +
+            $"states=[{string.Join(",", observedStates)}] " +
+            $"everRememberedHidingPlace={everRememberedHidingPlace} " +
+            $"investigateLastKnown={investigateLastKnown} " +
+            $"closestApproach={closestApproach:F2} " +
+            $"anchor={hidingPlace.EnemyInvestigationPosition} " +
+            $"reachDistance={enemy.Config.investigationReachDistance:F2} " +
+            $"openDistance={hidingPlace.Configuration.EnemyInvestigationDistance:F2}");
+
+        yield return WaitForCondition(
+            () => !occupant.IsInHidingSequence,
+            "Opened hiding place did not release its occupant.");
+    }
+
+    // The entry completes inside a single call, so no polling sensor can ever
+    // catch the player mid-climb. What an enemy CAN observe is the transition:
+    // the target it was pursuing stopped being detectable, and it is now inside
+    // a hiding place. That is the signal this whole feature rests on.
+    [UnityTest]
+    public IEnumerator EnemyWatchingPlayerVanish_LearnsTheHidingPlace()
+    {
+        yield return StartHost();
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+        EnemyTargetDetector detector =
+            CreateWatchingDetector(new Vector3(0f, 0f, -8f), noiseWorld);
+
+        EnemyBlackboard blackboard = new();
+        EnemyPerceptionRuntime perception = new(
+            enemyConfig,
+            detector,
+            usesTargetDetection: true,
+            blackboard,
+            _ => { });
+
+        yield return TickPerceptionUntil(
+            perception,
+            EnemyState.Chase,
+            () => blackboard.TargetMemory.HasTarget,
+            "Enemy never confirmed the player standing in the open.");
+
+        Assert.That(
+            blackboard.InvestigationMemory.ObservedHidingPlace,
+            Is.Null,
+            "Enemy knew about a hiding place before the player used one.");
+
+        Assert.That(hidingPlace.TryRequestEnter(occupant), Is.True);
+        Assert.That(
+            hidingPlace.State,
+            Is.EqualTo(HidingTransitionState.Occupied),
+            "This test is only meaningful while the entry is instant.");
+
+        yield return TickPerceptionUntil(
+            perception,
+            EnemyState.Chase,
+            () => blackboard.InvestigationMemory.ObservedHidingPlace != null,
+            "Enemy watched the player vanish but never worked out which " +
+            "hiding place they used.");
+
+        Assert.That(
+            blackboard.InvestigationMemory.ObservedHidingPlace,
+            Is.SameAs(hidingPlace));
+    }
+
+    // The flip side, and the reason the signal is tied to losing a pursued
+    // target rather than to the hiding place itself: an enemy that never had
+    // eyes on the player must not be handed its location.
+    [UnityTest]
+    public IEnumerator EnemyThatNeverSawThePlayer_LearnsNothing()
+    {
+        yield return StartHost();
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+
+        yield return OccupyHidingPlace(hidingPlace, occupant);
+
+        EnemyTargetDetector detector =
+            CreateWatchingDetector(new Vector3(0f, 0f, -8f), noiseWorld);
+        EnemyBlackboard blackboard = new();
+        EnemyPerceptionRuntime perception = new(
+            enemyConfig,
+            detector,
+            usesTargetDetection: true,
+            blackboard,
+            _ => { });
+
+        float endTime = Time.realtimeSinceStartup + 2f;
+
+        while (Time.realtimeSinceStartup < endTime)
+        {
+            perception.Tick(Time.deltaTime, EnemyState.Chase);
+
+            Assert.That(
+                blackboard.InvestigationMemory.ObservedHidingPlace == null,
+                Is.True,
+                "An enemy that never saw the player still learned which " +
+                "hiding place they were in.");
+
+            yield return null;
+        }
+
+        Assert.That(blackboard.TargetMemory.HasTarget, Is.False);
+    }
+
+    // Visual memory hands out the target's live position, so by the time the
+    // grace period lapses the last known position sits INSIDE the box - and
+    // inside the hole the box carves out of the NavMesh. Investigating that
+    // point is unreachable; the enemy used to give up and forget a player it
+    // had just watched hide.
+    [UnityTest]
+    public IEnumerator InvestigateState_LastKnownPositionInsideTheBox_StillOpensIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+        yield return OccupyHidingPlace(hidingPlace, occupant);
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject _,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> _);
+
+        blackboard.InvestigationMemory.RememberObservedHidingPlace(hidingPlace);
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            occupant.transform.position);
+
+        state.Enter();
+
+        yield return TickInvestigationUntil(
+            state,
+            () => hidingPlace.State != HidingTransitionState.Occupied,
+            "Enemy gave up instead of checking the hiding place it watched " +
+            "the player climb into.");
+
+        yield return WaitForCondition(
+            () => !occupant.IsInHidingSequence &&
+                  hidingPlace.State == HidingTransitionState.Available,
+            "Opened hiding place did not release its occupant.");
+    }
+
+    [UnityTest]
+    public IEnumerator InvestigateState_StimulusAtHidingPlace_StillOpensIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+        yield return OccupyHidingPlace(hidingPlace, occupant);
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject _,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> _);
+
+        // What seeing the target climb in, or hearing the entry noise, leaves
+        // behind: a last known position right next to the hiding place.
+        blackboard.InvestigationMemory.RememberObservedHidingPlace(hidingPlace);
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            new Vector3(0f, 0f, -1.2f));
+
+        state.Enter();
+
+        yield return TickInvestigationUntil(
+            state,
+            () => hidingPlace.State != HidingTransitionState.Occupied,
+            "Enemy did not open the hiding place its investigation was about.");
+
+        yield return WaitForCondition(
+            () => !occupant.IsInHidingSequence &&
+                  hidingPlace.State == HidingTransitionState.Available,
+            "Opened hiding place did not release its occupant.");
     }
 
     [UnityTest]
@@ -1578,6 +1945,332 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         return navigation;
     }
 
+    private HidingPlaceInteractable CreateSpawnedHidingPlace(Vector3 position)
+    {
+        HidingPlaceData settings =
+            Track(ScriptableObject.CreateInstance<HidingPlaceData>());
+        // Instant entry, matching the shipped configuration: nothing here may
+        // depend on the Entering state surviving a frame.
+        PlayModeTestReflection.SetField(settings, "enterDuration", 0f);
+        PlayModeTestReflection.SetField(settings, "exitDuration", 0.1f);
+
+        GameObject placeObject =
+            Track(new GameObject("Investigated hiding place"));
+        placeObject.SetActive(false);
+        placeObject.layer = 10;
+        placeObject.transform.position = position;
+
+        NetworkObject networkObject =
+            placeObject.AddComponent<NetworkObject>();
+        BoxCollider collider = placeObject.AddComponent<BoxCollider>();
+        collider.size = new Vector3(0.8f, 0.8f, 0.8f);
+        collider.center = new Vector3(0f, 0.4f, 0f);
+
+        // The interaction anchor stands in front of the box the way an authored
+        // one does - inside it, the NavMesh carve would make it unreachable.
+        // It also has to sit near the floor, because it doubles as the position
+        // enemies navigate to: the authored one is at the box's base, and an
+        // anchor left floating produces a destination no agent can path to.
+        // Just clear of the floor plane, so the entry line-of-sight ray from
+        // the player's capsule centre descends without grazing it.
+        Transform interactionAnchor = CreateHidingAnchor(
+            placeObject.transform,
+            "Interaction Anchor",
+            new Vector3(0f, 0.1f, -1.2f));
+        Transform hidingPoint = CreateHidingAnchor(
+            placeObject.transform,
+            "Hiding Point",
+            Vector3.zero);
+        Transform cameraAnchor = CreateHidingAnchor(
+            placeObject.transform,
+            "Camera Anchor",
+            Vector3.up);
+        Transform exitPoint = CreateHidingAnchor(
+            placeObject.transform,
+            "Exit Point",
+            new Vector3(0f, 0f, -2f));
+
+        HidingPlaceInteractable hidingPlace =
+            placeObject.AddComponent<HidingPlaceInteractable>();
+        PlayModeTestReflection.SetField(hidingPlace, "data", settings);
+        PlayModeTestReflection.SetField(
+            hidingPlace,
+            "interactionAnchor",
+            interactionAnchor);
+        PlayModeTestReflection.SetField(
+            hidingPlace,
+            "hidingPoint",
+            hidingPoint);
+        PlayModeTestReflection.SetField(
+            hidingPlace,
+            "cameraAnchor",
+            cameraAnchor);
+        PlayModeTestReflection.SetField(hidingPlace, "exitPoint", exitPoint);
+        PlayModeTestReflection.SetField(
+            hidingPlace,
+            "fallbackExitPoints",
+            Array.Empty<Transform>());
+        placeObject.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(networkObject.IsSpawned, Is.True);
+        Assert.That(
+            hidingPlace.IsAvailable,
+            Is.True,
+            "Test hiding place rejected entries right after spawning.");
+        Physics.SyncTransforms();
+        return hidingPlace;
+    }
+
+    private PlayerHidingController CreateSpawnedHidingPlayer(Vector3 position)
+    {
+        GameObject playerObject = Track(new GameObject("Hiding player"));
+        playerObject.SetActive(false);
+        playerObject.layer = PlayerLayer;
+        playerObject.transform.position = position;
+
+        NetworkObject networkObject =
+            playerObject.AddComponent<NetworkObject>();
+        NetworkTransform networkTransform =
+            playerObject.AddComponent<NetworkTransform>();
+        networkTransform.AuthorityMode =
+            NetworkTransform.AuthorityModes.Owner;
+
+        Rigidbody body = playerObject.AddComponent<Rigidbody>();
+        body.useGravity = false;
+        CapsuleCollider bodyCollider =
+            playerObject.AddComponent<CapsuleCollider>();
+        bodyCollider.height = 2f;
+        bodyCollider.radius = 0.35f;
+        bodyCollider.center = Vector3.up;
+
+        playerObject.AddComponent<HidingEntryEligibilityProbe>();
+
+#if UNITY_EDITOR
+        LogAssert.Expect(
+            LogType.Error,
+            new Regex("EnemyTarget has invalid visibility configuration:"));
+#endif
+        EnemyTarget enemyTarget = playerObject.AddComponent<EnemyTarget>();
+        PlayModeTestReflection.SetField(
+            enemyTarget,
+            "visibilityColliders",
+            new Collider[] { bodyCollider });
+
+        PlayerController movement =
+            playerObject.AddComponent<PlayerController>();
+        movement.enabled = false;
+        PlayerActionGate actionGate =
+            playerObject.AddComponent<PlayerActionGate>();
+
+        PlayerHidingController hiding =
+            playerObject.AddComponent<PlayerHidingController>();
+        PlayModeTestReflection.SetField(
+            hiding,
+            "networkTransform",
+            networkTransform);
+        PlayModeTestReflection.SetField(hiding, "playerBody", body);
+        PlayModeTestReflection.SetField(hiding, "bodyCollider", bodyCollider);
+        PlayModeTestReflection.SetField(hiding, "playerController", movement);
+        PlayModeTestReflection.SetField(
+            hiding,
+            "playerActionGateSource",
+            actionGate);
+        PlayModeTestReflection.SetField(
+            hiding,
+            "visualRoot",
+            playerObject.transform);
+        PlayModeTestReflection.SetField(
+            hiding,
+            "gameplayColliders",
+            new Collider[] { bodyCollider });
+        PlayModeTestReflection.SetField(
+            hiding,
+            "hitboxColliders",
+            Array.Empty<Collider>());
+        playerObject.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.SpawnWithOwnership(NetworkManager.ServerClientId);
+
+        Assert.That(networkObject.IsSpawned, Is.True);
+        Physics.SyncTransforms();
+        return hiding;
+    }
+
+    private IEnumerator OccupyHidingPlace(
+        HidingPlaceInteractable hidingPlace,
+        PlayerHidingController occupant)
+    {
+        Assert.That(
+            hidingPlace.TryRequestEnter(occupant),
+            Is.True,
+            "Server rejected the hiding entry this fixture is built on.");
+
+        yield return WaitForCondition(
+            () => hidingPlace.State == HidingTransitionState.Occupied &&
+                  occupant.IsHidden,
+            "Fixture player did not become a hidden occupant.");
+    }
+
+    private EnemyInvestigateState CreateInvestigateState(
+        Vector3 position,
+        int standingAgentTypeId,
+        out GameObject actor,
+        out EnemyBlackboard blackboard,
+        out List<EnemyState> stateChanges)
+    {
+        actor = Track(new GameObject("Investigating enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = position;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 4f;
+        agent.acceleration = 30f;
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        Assert.That(
+            TryPlaceAgent(agent, position),
+            Is.True,
+            "Investigating enemy could not be placed on NavMesh.");
+
+        EnemyConfig config = CloneNavigationConfig(enemyConfig);
+        navigator.Configure(config);
+
+        EnemyBlackboard createdBlackboard = new();
+        List<EnemyState> observedStateChanges = new();
+        blackboard = createdBlackboard;
+        stateChanges = observedStateChanges;
+
+        // Investigation only touches the config, the navigator and the
+        // blackboard, so the detector, patrol, attack and posture controllers
+        // stay null and the state falls back to standing navigation.
+        EnemyBrainContext context = new(
+            config,
+            navigator,
+            null,
+            null,
+            null,
+            null,
+            createdBlackboard,
+            observedStateChanges.Add,
+            null);
+
+        return new EnemyInvestigateState(context);
+    }
+
+    // Sensors and a detector, but no spawned enemy: a running brain would
+    // chase the player and walk into the very line of sight under test.
+    private EnemyTargetDetector CreateWatchingDetector(
+        Vector3 position,
+        GameplayNoiseWorldService noiseWorld)
+    {
+        GameObject detectorObject = Track(new GameObject("Watching enemy"));
+        detectorObject.SetActive(false);
+        detectorObject.transform.position = position;
+
+        Transform eyes = CreateHidingAnchor(
+            detectorObject.transform,
+            "Eyes",
+            new Vector3(0f, 1.5f, 0f));
+
+        // OnValidate runs on AddComponent and reports the still-unassigned
+        // serialized fields before the test gets a chance to set them.
+#if UNITY_EDITOR
+        LogAssert.Expect(
+            LogType.Error,
+            new Regex("EnemyVisionSensor has invalid configuration:"));
+#endif
+        EnemyVisionSensor vision =
+            detectorObject.AddComponent<EnemyVisionSensor>();
+        PlayModeTestReflection.SetField(vision, "eyes", eyes);
+        PlayModeTestReflection.SetField(
+            vision,
+            "targetMask",
+            (LayerMask)(1 << PlayerLayer));
+        PlayModeTestReflection.SetField(
+            vision,
+            "obstructionMask",
+            (LayerMask)(1 << EnvironmentLayer));
+
+        EnemyHearingSensor hearing =
+            detectorObject.AddComponent<EnemyHearingSensor>();
+
+#if UNITY_EDITOR
+        LogAssert.Expect(
+            LogType.Error,
+            new Regex("EnemyTargetDetector has invalid configuration:"));
+#endif
+        EnemyTargetDetector detector =
+            detectorObject.AddComponent<EnemyTargetDetector>();
+        PlayModeTestReflection.SetField(detector, "visionSensor", vision);
+        PlayModeTestReflection.SetField(detector, "hearingSensor", hearing);
+        PlayModeTestReflection.SetField(
+            detector,
+            "stimulusResolverPolicy",
+            new EnemyStimulusResolverPolicy());
+        detectorObject.SetActive(true);
+
+        detector.Construct(noiseWorld);
+        return detector;
+    }
+
+    private static IEnumerator TickPerceptionUntil(
+        EnemyPerceptionRuntime perception,
+        EnemyState state,
+        Func<bool> condition,
+        string failureMessage)
+    {
+        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (!condition.Invoke() && Time.realtimeSinceStartup < timeout)
+        {
+            perception.Tick(Time.deltaTime, state);
+            yield return null;
+        }
+
+        Assert.That(condition.Invoke(), Is.True, failureMessage);
+    }
+
+    private static Transform CreateHidingAnchor(
+        Transform parent,
+        string anchorName,
+        Vector3 localPosition)
+    {
+        GameObject anchor = new(anchorName);
+        anchor.transform.SetParent(parent, false);
+        anchor.transform.localPosition = localPosition;
+        return anchor.transform;
+    }
+
+    private static IEnumerator TickInvestigationUntil(
+        EnemyInvestigateState state,
+        Func<bool> condition,
+        string failureMessage)
+    {
+        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (!condition.Invoke() && Time.realtimeSinceStartup < timeout)
+        {
+            state.Tick(Time.deltaTime);
+            yield return null;
+        }
+
+        Assert.That(condition.Invoke(), Is.True, failureMessage);
+    }
+
     private DoorInteractableObject CreateEnemyDoor(
         Vector3 position,
         out EnemyDoorInteractionZone zone)
@@ -1884,7 +2577,18 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Func<bool> condition,
         string failureMessage)
     {
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
+        yield return WaitForCondition(
+            TimeoutSeconds,
+            condition,
+            failureMessage);
+    }
+
+    private static IEnumerator WaitForCondition(
+        float timeoutSeconds,
+        Func<bool> condition,
+        string failureMessage)
+    {
+        float timeout = Time.realtimeSinceStartup + timeoutSeconds;
 
         while (!condition.Invoke() && Time.realtimeSinceStartup < timeout)
             yield return null;

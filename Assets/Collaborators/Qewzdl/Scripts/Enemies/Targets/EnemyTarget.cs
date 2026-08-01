@@ -26,12 +26,6 @@ public class EnemyTarget : MonoBehaviour
     public Vector3 AimPosition => AimPoint.position;
     public bool CanBeDetected =>
         canBeDetected && (hidingState == null || !hidingState.IsHidden);
-    public HidingTransitionState HidingState =>
-        hidingState != null
-            ? hidingState.HidingState
-            : HidingTransitionState.Available;
-    public bool IsEnteringHiding =>
-        HidingState == HidingTransitionState.Entering;
 
     public NetworkObject NetworkObject
     {

@@ -72,53 +72,18 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        TryResolveHidingPlace(
-            noiseEvent.SourceObject,
-            out HidingPlaceInteractable hidingPlace
-        );
-
+        // A noise carries a position and nothing else. Resolving its source
+        // object back to the HidingPlaceInteractable handed the enemy the one
+        // fact hearing cannot give it - which container the player climbed
+        // into - so anyone within the entry noise radius was opened up with
+        // certainty and no counterplay. Only sight arms a hiding place check.
         stimulus = EnemyPerceptionStimulus.ForSuspiciousPosition(
             noiseEvent.Position,
             score,
-            EnemyPerceptionSource.Hearing,
-            hidingPlace
+            EnemyPerceptionSource.Hearing
         );
 
         return true;
-    }
-
-    private static bool TryResolveHidingPlace(
-        Object sourceObject,
-        out HidingPlaceInteractable hidingPlace
-    )
-    {
-        hidingPlace = null;
-
-        GameObject sourceGameObject = sourceObject switch
-        {
-            GameObject gameObject => gameObject,
-            Component component => component.gameObject,
-            _ => null
-        };
-
-        if (sourceGameObject == null)
-        {
-            return false;
-        }
-
-        hidingPlace =
-            sourceGameObject.GetComponentInParent<HidingPlaceInteractable>();
-
-        if (hidingPlace != null)
-        {
-            return true;
-        }
-
-        PlayerHidingController playerHiding =
-            sourceGameObject.GetComponentInParent<PlayerHidingController>();
-
-        return playerHiding != null &&
-               playerHiding.TryGetCurrentHidingPlace(out hidingPlace);
     }
 
     private bool ValidateConfig(EnemyConfig config)
