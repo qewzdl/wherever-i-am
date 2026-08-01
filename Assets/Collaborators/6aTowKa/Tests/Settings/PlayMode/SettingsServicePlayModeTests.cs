@@ -31,7 +31,9 @@ public sealed class SettingsServicePlayModeTests
         }
         finally
         {
-            UnityEngine.Object.Destroy(gameObject);
+            // Release the singleton's static instance synchronously so a
+            // following test can create its own service.
+            UnityEngine.Object.DestroyImmediate(gameObject);
             if (Directory.Exists(directory))
                 Directory.Delete(directory, true);
         }

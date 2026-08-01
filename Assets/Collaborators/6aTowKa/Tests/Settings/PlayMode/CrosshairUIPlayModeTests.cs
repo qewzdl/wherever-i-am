@@ -22,6 +22,10 @@ public sealed class CrosshairUIPlayModeTests
         Directory.CreateDirectory(directory);
         GameObject serviceObject = new GameObject("Settings Service");
         GameObject hud = new GameObject("HUD");
+        // CrosshairUI reads crosshairImage in Awake and validates it in
+        // OnEnable, both of which run the moment the component lands on an
+        // active object - before the test can inject the field.
+        hud.SetActive(false);
 
         try
         {
@@ -55,8 +59,11 @@ public sealed class CrosshairUIPlayModeTests
         }
         finally
         {
-            UnityEngine.Object.Destroy(hud);
-            UnityEngine.Object.Destroy(serviceObject);
+            // SettingsService is a singleton that only releases its static
+            // instance in OnDestroy. A deferred Destroy leaves it alive into
+            // the next test, which then logs "Only one SettingsService".
+            UnityEngine.Object.DestroyImmediate(hud);
+            UnityEngine.Object.DestroyImmediate(serviceObject);
             if (Directory.Exists(directory))
                 Directory.Delete(directory, true);
         }
