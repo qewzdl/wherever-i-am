@@ -214,7 +214,13 @@ public class MusicManager : MonoBehaviour, IMusicService
             return;
         }
 
-        if (currentTrack == track && currentSource.isPlaying && !restartIfSameTrack)
+        // Only skip the work when nothing is in flight. A fade-out started by
+        // StopMusic is still a transition: bailing out here would leave it
+        // running and it would silence the track we were just asked to play.
+        if (currentTrack == track &&
+            currentSource.isPlaying &&
+            !restartIfSameTrack &&
+            transitionCoroutine == null)
         {
             return;
         }
@@ -355,9 +361,12 @@ public class MusicManager : MonoBehaviour, IMusicService
             nextSourceBaseVolume = 0f;
         }
 
+        // Deliberately does not touch currentCue or cueState. StopMusic clears
+        // both through StopCueRoutine before starting this fade, so repeating
+        // it here is redundant on the normal path - and actively harmful on the
+        // late one, where a newer cue is already running and would have its
+        // state pulled out from under a live PlayCueRoutine.
         currentTrack = null;
-        currentCue = null;
-        cueState = null;
         transitionCoroutine = null;
     }
 
@@ -377,9 +386,8 @@ public class MusicManager : MonoBehaviour, IMusicService
             nextSourceBaseVolume = 0f;
         }
 
+        // Same reasoning as FadeOutAndStop: cue ownership belongs to StopMusic.
         currentTrack = null;
-        currentCue = null;
-        cueState = null;
         transitionCoroutine = null;
     }
 
