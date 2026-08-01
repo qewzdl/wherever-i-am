@@ -82,6 +82,20 @@ public sealed class ProductionPatrolRoutePlayModeTests
         {
             Transform from = route.GetPoint(routeIndex);
             Transform to = route.GetPoint(routeIndex + 1);
+
+            // Unity's != is the only comparison that sees an unassigned
+            // inspector slot; NUnit's Is.Not.Null would happily accept one and
+            // let the leg below die on an UnassignedReferenceException instead
+            // of naming the empty slot.
+            Assert.That(
+                from != null,
+                Is.True,
+                $"Production patrol point {routeIndex} is an empty slot.");
+            Assert.That(
+                to != null,
+                Is.True,
+                $"Production patrol point {routeIndex + 1} is an empty slot.");
+
             List<Vector3> plan = new();
             EnemyPatrolPathPlanner planner = new(1000 + routeIndex);
 

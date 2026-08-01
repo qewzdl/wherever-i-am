@@ -4399,10 +4399,6 @@ MonoBehaviour:
   points:
   - {fileID: 244437620}
   - {fileID: 1265238771}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
   previewConfig: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
   drawStopRadius: 1
   fallbackStopRadius: 2
