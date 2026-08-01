@@ -423,12 +423,39 @@ public sealed class TwoClientHidingPlacePlayModeTests
         yield return null;
         Physics.SyncTransforms();
 
+        // This assertion has a history of failing intermittently in full runs
+        // and never in isolation, and "the server stayed Available" on its own
+        // says nothing about which of TryEnterServer's three checks refused.
+        // Capture the inputs to those checks up front so the next occurrence
+        // explains itself instead of costing another bisect.
+        PlayerHidingController serverPlayer =
+            GetComponent<PlayerHidingController>(server, playerId);
+        Vector3 serverPlayerPosition = serverPlayer.transform.position;
+        Vector3 clientPlayerPosition = player.transform.position;
+
         Assert.That(clientPlace.TryRequestEnter(player), Is.True);
 
-        yield return WaitForCondition(
-            () => serverPlace.State ==
-                  HidingTransitionState.Entering,
-            "Server did not expose the entering transition."
+        float enteringTimeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (serverPlace.State != HidingTransitionState.Entering &&
+               Time.realtimeSinceStartup < enteringTimeout)
+        {
+            yield return null;
+        }
+
+        Assert.That(
+            serverPlace.State == HidingTransitionState.Entering,
+            Is.True,
+            "Server did not expose the entering transition. " +
+            $"serverPlayerPos={serverPlayerPosition} " +
+            $"clientPlayerPos={clientPlayerPosition} " +
+            $"placePos={serverPlace.transform.position} " +
+            $"anchorPos={serverPlace.EnemyInvestigationPosition} " +
+            $"maxInteractionDistance={serverPlace.Configuration.MaxInteractionDistance} " +
+            $"serverState={serverPlace.State} " +
+            $"serverAvailable={serverPlace.IsAvailable} " +
+            $"serverPlayerNow={serverPlayer.transform.position} " +
+            $"clientPlayerNow={player.transform.position}"
         );
 
         Assert.That(serverPlace.IsAvailable, Is.False);
