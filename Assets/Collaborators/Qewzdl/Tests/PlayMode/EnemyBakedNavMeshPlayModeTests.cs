@@ -568,6 +568,111 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Enemy capsule intersected the hiding place while navigating.");
     }
 
+    // A noise that lands mid-investigation updates the memory, but the brain
+    // will not restart a state it is already in, so the route stays planned
+    // around wherever the enemy was already looking.
+    [UnityTest]
+    public IEnumerator InvestigateState_StimulusFarFromTheRoute_RebuildsIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject _,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> _);
+
+        Vector3 firstStimulus = Vector3.zero;
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            firstStimulus);
+
+        state.Enter();
+
+        yield return TickInvestigationUntil(
+            state,
+            () => blackboard.HasCurrentDestination &&
+                  Vector3.Distance(
+                      blackboard.CurrentDestination,
+                      firstStimulus) < 0.5f,
+            "Enemy never headed for the first stimulus.");
+
+        // Something loud, well outside the ring being walked.
+        Vector3 secondStimulus = new(0f, 0f, 8f);
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            secondStimulus);
+
+        yield return TickInvestigationUntil(
+            state,
+            () => blackboard.HasCurrentDestination &&
+                  Vector3.Distance(
+                      blackboard.CurrentDestination,
+                      secondStimulus) < 0.5f,
+            "Enemy kept walking the old route after a new stimulus landed " +
+            "well outside it.");
+    }
+
+    // The other half of the same rule: a stimulus inside the ring must not
+    // rebuild anything, or every repeat of one noise restarts the route.
+    [UnityTest]
+    public IEnumerator InvestigateState_StimulusInsideTheRoute_KeepsIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject _,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> _);
+
+        Vector3 firstStimulus = Vector3.zero;
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            firstStimulus);
+
+        state.Enter();
+
+        yield return TickInvestigationUntil(
+            state,
+            () => blackboard.HasCurrentDestination &&
+                  Vector3.Distance(
+                      blackboard.CurrentDestination,
+                      firstStimulus) < 0.5f,
+            "Enemy never headed for the first stimulus.");
+
+        Vector3 nearbyStimulus = new(0f, 0f, 1.5f);
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            nearbyStimulus);
+
+        float endTime = Time.realtimeSinceStartup + 1f;
+
+        while (Time.realtimeSinceStartup < endTime)
+        {
+            state.Tick(Time.deltaTime);
+
+            Assert.That(
+                Vector3.Distance(
+                    blackboard.CurrentDestination,
+                    nearbyStimulus),
+                Is.GreaterThan(0.5f),
+                "A stimulus inside the ring restarted the route.");
+
+            yield return null;
+        }
+    }
+
     // The original complaint: an enemy busy with something else walks straight
     // past an occupied box and yanks the player out of it. An enemy that never
     // watched anyone climb in holds no reference, and without a reference the

@@ -60,6 +60,11 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
+        if (TryRestartOnNewerStimulus())
+        {
+            return;
+        }
+
         repathTimer -= deltaTime;
 
         if (phase == InvestigationPhase.MovingToLastKnownPosition)
@@ -108,6 +113,49 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         }
 
         StartHierarchicalSearch();
+    }
+
+    // A stimulus that lands while the enemy is already investigating updates
+    // the memory but cannot restart the state: ApplyPerceptionDecision only
+    // calls ChangeState when the enemy is not already investigating, and
+    // ChangeState returns early on a matching state, so Enter never runs again
+    // and the plan built around the old origin stands. Notice the move here.
+    private bool TryRestartOnNewerStimulus()
+    {
+        // Committed to opening a box. The check is short and bounded by its own
+        // timer, and abandoning it would let any thrown object rescue a player
+        // this enemy actually watched climb in.
+        if (phase == InvestigationPhase.CheckingHidingPlace)
+        {
+            return false;
+        }
+
+        // A known hiding place is a stronger lead than a noise, and it is what
+        // TryResolveInvestigationOrigin would pick anyway - restarting on it
+        // would rebuild the same plan every tick.
+        if (context.InvestigationMemory.HasObservedHidingPlace)
+        {
+            return false;
+        }
+
+        if (!context.InvestigationMemory.TryGetLastKnownTargetPosition(
+                out Vector3 lastKnown))
+        {
+            return false;
+        }
+
+        // Inside the ring already being walked, the current plan covers it.
+        // Restarting on every repeat of the same noise would thrash the route.
+        float relevanceRadius = context.Config.investigationBranchRadius;
+
+        if ((lastKnown - investigationOrigin).sqrMagnitude <=
+            relevanceRadius * relevanceRadius)
+        {
+            return false;
+        }
+
+        Enter();
+        return true;
     }
 
     private bool TryStartHidingPlaceCheck()
