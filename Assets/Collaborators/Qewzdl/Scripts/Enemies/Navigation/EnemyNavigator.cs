@@ -11,6 +11,9 @@ public class EnemyNavigator : MonoBehaviour
     [SerializeField] private EnemyDoorInteractor doorInteractor;
     [SerializeField] private EnemyItemPusher itemPusher;
 
+    private const float MinimumFacingSqrMagnitude = 0.0001f;
+
+    private Rigidbody body;
     private NavMeshPath pathBuffer;
     private EnemyNavigationQueryTelemetry queryTelemetry;
     private EnemyNavigationQueryService queryService;
@@ -41,6 +44,42 @@ public class EnemyNavigator : MonoBehaviour
     {
         return itemPusher != null &&
                itemPusher.IsDirectApproachBlockedByItem(destination);
+    }
+
+    // Turns the body toward a direction. Only safe to call at a standstill, and
+    // only because nothing else writes rotation there: EnemyPhysicsMotor bails
+    // out before rotating when it has no facing direction, and NavMeshAgent's
+    // own updateRotation needs a velocity it does not have. While moving, both
+    // of those own the rotation and this would fight them.
+    public void FaceDirection(
+        Vector3 direction,
+        float degreesPerSecond,
+        float deltaTime
+    )
+    {
+        Vector3 flatDirection = new(direction.x, 0f, direction.z);
+
+        if (flatDirection.sqrMagnitude < MinimumFacingSqrMagnitude)
+        {
+            return;
+        }
+
+        Quaternion target = Quaternion.LookRotation(flatDirection, Vector3.up);
+        Quaternion next = Quaternion.RotateTowards(
+            transform.rotation,
+            target,
+            Mathf.Max(0f, degreesPerSecond) * Mathf.Max(0f, deltaTime)
+        );
+
+        // Matches how EnemyPhysicsMotor writes rotation when it is driving, so
+        // the two never disagree about who moved the body.
+        if (body != null && !body.isKinematic)
+        {
+            body.MoveRotation(next);
+            return;
+        }
+
+        transform.rotation = next;
     }
 
     private void Awake()
@@ -831,6 +870,11 @@ public class EnemyNavigator : MonoBehaviour
         if (itemPusher == null)
         {
             itemPusher = GetComponent<EnemyItemPusher>();
+        }
+
+        if (body == null)
+        {
+            body = GetComponent<Rigidbody>();
         }
     }
 

@@ -568,6 +568,122 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Enemy capsule intersected the hiding place while navigating.");
     }
 
+    // Asserts the observable thing - the enemy actually comes to a stop - not
+    // that a timer counted down. Without a dwell it never stops once between
+    // arriving and giving up, so no stationary window exists at all.
+    [UnityTest]
+    public IEnumerator InvestigateState_StandsStillAtReachedPoints()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        float dwellDuration = enemyConfig.investigationPointDwellDuration;
+
+        Assert.That(
+            dwellDuration,
+            Is.GreaterThan(0f),
+            "The shipped config disables dwelling, so this test would pass " +
+            "vacuously.");
+        Assert.That(
+            enemyConfig.investigationLookAroundAngle,
+            Is.GreaterThan(0f),
+            "The shipped config disables looking around, so the yaw half of " +
+            "this test would pass vacuously.");
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject actor,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> stateChanges);
+
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            Vector3.zero);
+
+        state.Enter();
+
+        // Speed, not per-frame distance: batchmode runs unrendered and fast, so
+        // a moving enemy covers well under a centimetre per frame and any
+        // distance threshold would call that standing still.
+        const float stationarySpeed = 0.2f;
+        float lookAroundAngle = enemyConfig.investigationLookAroundAngle;
+        float longestStillWindow = 0f;
+        float currentStillWindow = 0f;
+        float widestYawSweep = 0f;
+        float windowYawMin = 0f;
+        float windowYawMax = 0f;
+        float windowStartYaw = actor.transform.eulerAngles.y;
+        Vector3 previousPosition = actor.transform.position;
+        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (stateChanges.Count == 0 &&
+               Time.realtimeSinceStartup < timeout &&
+               (longestStillWindow < dwellDuration * 0.5f ||
+                widestYawSweep < lookAroundAngle))
+        {
+            state.Tick(Time.deltaTime);
+
+            yield return null;
+
+            Vector3 currentPosition = actor.transform.position;
+            float speed = Time.deltaTime > 0f
+                ? (currentPosition - previousPosition).magnitude /
+                  Time.deltaTime
+                : 0f;
+
+            if (speed < stationarySpeed)
+            {
+                if (currentStillWindow <= 0f)
+                {
+                    windowStartYaw = actor.transform.eulerAngles.y;
+                    windowYawMin = 0f;
+                    windowYawMax = 0f;
+                }
+
+                currentStillWindow += Time.deltaTime;
+
+                // Relative to the yaw this window started at, so the
+                // measurement never trips over the 0/360 wrap.
+                float yawOffset = Mathf.DeltaAngle(
+                    windowStartYaw,
+                    actor.transform.eulerAngles.y);
+
+                windowYawMin = Mathf.Min(windowYawMin, yawOffset);
+                windowYawMax = Mathf.Max(windowYawMax, yawOffset);
+                widestYawSweep = Mathf.Max(
+                    widestYawSweep,
+                    windowYawMax - windowYawMin);
+            }
+            else
+            {
+                currentStillWindow = 0f;
+            }
+
+            longestStillWindow = Mathf.Max(
+                longestStillWindow,
+                currentStillWindow);
+            previousPosition = currentPosition;
+        }
+
+        Assert.That(
+            longestStillWindow,
+            Is.GreaterThanOrEqualTo(dwellDuration * 0.5f),
+            "Enemy never stood still at a point long enough to look around.");
+
+        // Turns one way then the other, so a completed look spans about twice
+        // the configured angle. Asserting one angle leaves room for a turn that
+        // ran out of dwell before finishing its second half.
+        Assert.That(
+            widestYawSweep,
+            Is.GreaterThanOrEqualTo(lookAroundAngle),
+            "Enemy stood still but never turned to look around.");
+    }
+
     // A noise that lands mid-investigation updates the memory, but the brain
     // will not restart a state it is already in, so the route stays planned
     // around wherever the enemy was already looking.

@@ -21,6 +21,10 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private int currentSearchPointIndex;
     private float repathTimer;
     private float hidingCheckTimer;
+    private float dwellTimer;
+    private float dwellDurationTotal;
+    private Vector3 dwellArrivalForward;
+    private bool isDwelling;
 
     private bool hasDestination;
     private HidingPlaceInteractable checkedHidingPlace;
@@ -69,7 +73,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
         if (phase == InvestigationPhase.MovingToLastKnownPosition)
         {
-            TickMovingToLastKnownPosition();
+            TickMovingToLastKnownPosition(deltaTime);
             return;
         }
 
@@ -79,7 +83,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        TickFollowingSearchRoute();
+        TickFollowingSearchRoute(deltaTime);
     }
 
     public void Exit()
@@ -88,8 +92,24 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         ResetRuntimeState();
     }
 
-    private void TickMovingToLastKnownPosition()
+    private void TickMovingToLastKnownPosition(float deltaTime)
     {
+        if (isDwelling)
+        {
+            if (TickPointDwell(deltaTime))
+            {
+                return;
+            }
+
+            if (TryStartHidingPlaceCheck())
+            {
+                return;
+            }
+
+            StartHierarchicalSearch();
+            return;
+        }
+
         if (!hasDestination)
         {
             if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
@@ -107,12 +127,84 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
+        if (TryBeginPointDwell())
+        {
+            return;
+        }
+
         if (TryStartHidingPlaceCheck())
         {
             return;
         }
 
         StartHierarchicalSearch();
+    }
+
+    // Standing still is the whole point. EnemyVisionSensor measures its cone
+    // against the eyes transform, and EnemyGazeScanner sweeps that transform
+    // whenever the enemy is not chasing - so a stationary body turns the sweep
+    // into real coverage of the corners around this point, where walking just
+    // drags the cone along the route.
+    //
+    // Has to be checked before RepathToCurrentDestination: the repath would
+    // re-issue the destination and undo StopNavigation on its next interval.
+    private bool TryBeginPointDwell()
+    {
+        float dwellDuration = context.Config.investigationPointDwellDuration;
+
+        if (dwellDuration <= 0f)
+        {
+            return false;
+        }
+
+        isDwelling = true;
+        dwellTimer = dwellDuration;
+        dwellDurationTotal = dwellDuration;
+        dwellArrivalForward = context.Navigator.transform.forward;
+        context.StopNavigation();
+
+        return true;
+    }
+
+    private bool TickPointDwell(float deltaTime)
+    {
+        dwellTimer -= Mathf.Max(0f, deltaTime);
+
+        if (dwellTimer > 0f)
+        {
+            TickLookAround(deltaTime);
+            return true;
+        }
+
+        isDwelling = false;
+        dwellTimer = 0f;
+
+        return false;
+    }
+
+    // First half of the dwell turns one way, second half the other. A turn that
+    // does not fit in its half simply stops short - the enemy looks less far
+    // rather than snapping around - so the angle and speed can be tuned against
+    // the dwell without any of the three having to agree exactly.
+    private void TickLookAround(float deltaTime)
+    {
+        float angle = context.Config.investigationLookAroundAngle;
+
+        if (angle <= 0f || dwellDurationTotal <= 0f)
+        {
+            return;
+        }
+
+        bool isFirstHalf = dwellTimer > dwellDurationTotal * 0.5f;
+        float targetYaw = isFirstHalf ? -angle : angle;
+        Vector3 targetDirection =
+            Quaternion.Euler(0f, targetYaw, 0f) * dwellArrivalForward;
+
+        context.Navigator.FaceDirection(
+            targetDirection,
+            context.Config.investigationLookAroundSpeed,
+            deltaTime
+        );
     }
 
     // A stimulus that lands while the enemy is already investigating updates
@@ -290,8 +382,19 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         MoveToNextSearchPointOrFinish();
     }
 
-    private void TickFollowingSearchRoute()
+    private void TickFollowingSearchRoute(float deltaTime)
     {
+        if (isDwelling)
+        {
+            if (TickPointDwell(deltaTime))
+            {
+                return;
+            }
+
+            MoveToNextSearchPointOrFinish();
+            return;
+        }
+
         if (!hasDestination)
         {
             MoveToNextSearchPointOrFinish();
@@ -301,6 +404,11 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         RepathToCurrentDestination(context.Config.investigationSearchSpeed);
 
         if (!context.Navigator.HasReached(context.Config.investigationReachDistance))
+        {
+            return;
+        }
+
+        if (TryBeginPointDwell())
         {
             return;
         }
@@ -494,6 +602,10 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         currentSearchPointIndex = 0;
         repathTimer = 0f;
         hidingCheckTimer = 0f;
+        dwellTimer = 0f;
+        dwellDurationTotal = 0f;
+        dwellArrivalForward = Vector3.forward;
+        isDwelling = false;
 
         hasDestination = false;
         checkedHidingPlace = null;
