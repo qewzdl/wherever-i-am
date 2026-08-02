@@ -36,6 +36,9 @@ public sealed class TwoClientHidingPlacePlayModeTests
     private GameObject playerPrefab;
     private GameObject hidingPlacePrefab;
 
+    private int playerLayer = -1;
+    private bool previousPlayerLayerCollision;
+
     [UnityTearDown]
     public IEnumerator TearDown()
     {
@@ -73,6 +76,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
         }
 
         cleanup.Clear();
+        RestoreReplicaCollisions();
         server = null;
         clientA = null;
         clientB = null;
@@ -949,8 +953,47 @@ public sealed class TwoClientHidingPlacePlayModeTests
         return groundPosition + Vector3.up;
     }
 
+    // Three NetworkManagers share one physics scene, so every networked object
+    // exists three times at identical coordinates - the server's copy and one
+    // per client, capsules exactly inside each other. Penetration resolution
+    // shoves them apart, and with useGravity off nothing brings them back: the
+    // replicas climb away from the spawn point for the rest of the test.
+    //
+    // Left alone this randomly pushed the server's copy of the player out of
+    // MaxInteractionDistance before it could enter a hiding place, which is
+    // where this fixture's intermittent failures came from. Replicas of one
+    // object have no business colliding with each other.
+    private void SuppressReplicaCollisions()
+    {
+        playerLayer = LayerMask.NameToLayer("Player");
+
+        if (playerLayer < 0)
+        {
+            return;
+        }
+
+        previousPlayerLayerCollision =
+            Physics.GetIgnoreLayerCollision(playerLayer, playerLayer);
+        Physics.IgnoreLayerCollision(playerLayer, playerLayer, true);
+    }
+
+    private void RestoreReplicaCollisions()
+    {
+        if (playerLayer < 0)
+        {
+            return;
+        }
+
+        Physics.IgnoreLayerCollision(
+            playerLayer,
+            playerLayer,
+            previousPlayerLayerCollision);
+        playerLayer = -1;
+    }
+
     private IEnumerator StartNetwork()
     {
+        SuppressReplicaCollisions();
         CreateNetworkPrefabs();
 
         server = CreateEndpoint("Hiding dedicated server");
