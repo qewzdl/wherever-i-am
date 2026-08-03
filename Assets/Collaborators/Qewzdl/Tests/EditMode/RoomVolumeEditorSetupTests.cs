@@ -641,6 +641,101 @@ public sealed class RoomVolumeEditorSetupTests
         }
     }
 
+    // A part placed by hand, in a spot no probe would get right, has to
+    // survive the button. Locking is per part, unlike the side switches which
+    // apply to the whole room.
+    [Test]
+    public void FitPartsToWalls_LeavesLockedPartsAlone()
+    {
+        GameObject level = null;
+        RoomVolume room = null;
+
+        try
+        {
+            level = BuildBoxRoom(halfX: 5f, halfZ: 3f);
+
+            room = RoomVolumeSetupUtility.CreateInScene();
+            room.transform.position = Vector3.zero;
+            RoomVolumeSetupUtility.AddVolumePart(room);
+
+            BoxCollider locked = room.transform.GetChild(0)
+                .GetComponent<BoxCollider>();
+            BoxCollider free = room.transform.GetChild(1)
+                .GetComponent<BoxCollider>();
+
+            Vector3 lockedSizeBefore = locked.size;
+            Vector3 lockedCentreBefore = locked.center;
+
+            RoomVolumeSetupUtility.SetPartLocked(room, locked, true);
+
+            Assert.That(
+                room.IsPartLocked(locked),
+                Is.True,
+                "The lock did not take.");
+            Assert.That(room.IsPartLocked(free), Is.False);
+            Assert.That(
+                RoomVolumeSetupUtility.CountUnlockedParts(room),
+                Is.EqualTo(1));
+
+            Assert.That(
+                RoomVolumeSetupUtility.FitPartsToWalls(room),
+                Is.EqualTo(1),
+                "The locked part was fitted as well.");
+
+            Assert.That(
+                locked.size,
+                Is.EqualTo(lockedSizeBefore),
+                $"The locked part was resized to {locked.size}.");
+            Assert.That(locked.center, Is.EqualTo(lockedCentreBefore));
+
+            Assert.That(
+                (free.size - new Vector3(10f, 3f, 6f)).magnitude,
+                Is.LessThan(0.3f),
+                $"The unlocked part fitted to {free.size} instead.");
+        }
+        finally
+        {
+            if (room != null)
+            {
+                Object.DestroyImmediate(room.gameObject);
+            }
+
+            if (level != null)
+            {
+                Object.DestroyImmediate(level);
+            }
+        }
+    }
+
+    [Test]
+    public void SetPartLocked_UnlocksAgain()
+    {
+        RoomVolume room = null;
+
+        try
+        {
+            room = RoomVolumeSetupUtility.CreateInScene();
+
+            Collider part = room.transform.GetChild(0).GetComponent<Collider>();
+
+            RoomVolumeSetupUtility.SetPartLocked(room, part, true);
+            RoomVolumeSetupUtility.SetPartLocked(room, part, false);
+
+            Assert.That(
+                room.IsPartLocked(part),
+                Is.False,
+                "Clearing an object reference array element leaves a hole " +
+                "unless it is nulled before it is deleted.");
+        }
+        finally
+        {
+            if (room != null)
+            {
+                Object.DestroyImmediate(room.gameObject);
+            }
+        }
+    }
+
     // The escape hatch for rooms the probe reads badly - an open side, a wall
     // of glass, a courtyard. Switch that side off and it keeps what it had.
     [Test]

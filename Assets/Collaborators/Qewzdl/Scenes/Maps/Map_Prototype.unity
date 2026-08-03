@@ -487,8 +487,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 18.619316, y: 1.9999001, z: 2.9165444}
-  m_Center: {x: 7.7398424, y: 0.000049978495, z: -0.99492586}
+  m_Size: {x: 18.364483, y: 1.9999001, z: 2.9165444}
+  m_Center: {x: 7.881416, y: 0.000049978495, z: -0.99492675}
 --- !u!1 &271828910
 GameObject:
   m_ObjectHideFlags: 0
@@ -574,6 +574,7 @@ Transform:
   m_Children:
   - {fileID: 2075696426}
   - {fileID: 251693186}
+  - {fileID: 1284742118}
   m_Father: {fileID: 779925913}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &278145237
@@ -590,6 +591,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: corridor
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &314159265
 GameObject:
   m_ObjectHideFlags: 0
@@ -1294,6 +1296,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: storeroom
   volumeColliders: []
+  lockedParts: []
 --- !u!1001 &497970427
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1767,6 +1770,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: partition
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &732461266
 GameObject:
   m_ObjectHideFlags: 0
@@ -2572,6 +2576,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: main
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &855196255
 GameObject:
   m_ObjectHideFlags: 0
@@ -2898,6 +2903,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: transition
   volumeColliders: []
+  lockedParts: []
 --- !u!1001 &907132605
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3444,6 +3450,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: exit
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &1014111640
 GameObject:
   m_ObjectHideFlags: 0
@@ -4346,6 +4353,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: long
   volumeColliders: []
+  lockedParts: []
 --- !u!1001 &1221651233
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4677,6 +4685,59 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1284742117
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1284742118}
+  - component: {fileID: 1284742119}
+  m_Layer: 2
+  m_Name: Part 3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1284742118
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1284742117}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.90500546, y: 2.396443, z: 4.645941}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 278145236}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &1284742119
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1284742117}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.5026858, y: 1.9999, z: 7.117075}
+  m_Center: {x: 0.017298698, y: 0.000050008297, z: -3.1664534}
 --- !u!1 &1290916480
 GameObject:
   m_ObjectHideFlags: 0
@@ -4946,6 +5007,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: hidden
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &1375076675
 GameObject:
   m_ObjectHideFlags: 0
@@ -5927,6 +5989,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: ventilation
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &1684153069
 GameObject:
   m_ObjectHideFlags: 0
@@ -6082,6 +6145,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: box
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &1760612839
 GameObject:
   m_ObjectHideFlags: 0
@@ -7065,6 +7129,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roomId: maze
   volumeColliders: []
+  lockedParts: []
 --- !u!1 &2023468116
 GameObject:
   m_ObjectHideFlags: 0

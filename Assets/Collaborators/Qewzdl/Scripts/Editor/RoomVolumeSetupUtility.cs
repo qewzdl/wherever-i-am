@@ -109,6 +109,7 @@ public struct RoomFitOptions
 public static class RoomVolumeSetupUtility
 {
     public const string VolumeCollidersProperty = "volumeColliders";
+    public const string LockedPartsProperty = "lockedParts";
     public const string RoomIdProperty = "roomId";
 
     public const string RoomLayerName = "Ignore Raycast";
@@ -406,8 +407,12 @@ public static class RoomVolumeSetupUtility
 
         for (int i = 0; i < parts.Length; i++)
         {
-            if (parts[i] != null &&
-                TryFitPartToWalls(parts[i].transform, options))
+            if (parts[i] == null || room.IsPartLocked(parts[i]))
+            {
+                continue;
+            }
+
+            if (TryFitPartToWalls(parts[i].transform, options))
             {
                 fitted++;
             }
@@ -416,6 +421,90 @@ public static class RoomVolumeSetupUtility
         room.Refresh();
 
         return fitted;
+    }
+
+    public static int CountUnlockedParts(RoomVolume room)
+    {
+        if (room == null)
+        {
+            return 0;
+        }
+
+        Collider[] parts =
+            room.GetComponentsInChildren<Collider>(includeInactive: true);
+        int unlocked = 0;
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (parts[i] != null && !room.IsPartLocked(parts[i]))
+            {
+                unlocked++;
+            }
+        }
+
+        return unlocked;
+    }
+
+    // Through a SerializedObject rather than the field so the change undoes
+    // and so a prefab instance records it as an override.
+    public static void SetPartLocked(
+        RoomVolume room,
+        Collider part,
+        bool locked
+    )
+    {
+        if (room == null || part == null)
+        {
+            return;
+        }
+
+        SerializedObject serialized = new(room);
+        SerializedProperty lockedParts =
+            serialized.FindProperty(LockedPartsProperty);
+
+        if (lockedParts == null)
+        {
+            return;
+        }
+
+        int existing = IndexOfPart(lockedParts, part);
+
+        if (locked && existing < 0)
+        {
+            lockedParts.arraySize++;
+            lockedParts
+                .GetArrayElementAtIndex(lockedParts.arraySize - 1)
+                .objectReferenceValue = part;
+        }
+        else if (!locked && existing >= 0)
+        {
+            // Assigning null first: on an object reference array, deleting the
+            // element only clears it the first time round.
+            lockedParts.GetArrayElementAtIndex(existing).objectReferenceValue =
+                null;
+            lockedParts.DeleteArrayElementAtIndex(existing);
+        }
+        else
+        {
+            return;
+        }
+
+        serialized.ApplyModifiedProperties();
+        EditorUtility.SetDirty(room);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(room);
+    }
+
+    private static int IndexOfPart(SerializedProperty array, Collider part)
+    {
+        for (int i = 0; i < array.arraySize; i++)
+        {
+            if (array.GetArrayElementAtIndex(i).objectReferenceValue == part)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     // The walls already tell us which way the room faces - every cast returns

@@ -26,6 +26,13 @@ public sealed class RoomVolume : MonoBehaviour
         "colliders are not supported - build the shape out of primitives.")]
     [SerializeField] private Collider[] volumeColliders = Array.Empty<Collider>();
 
+    [Tooltip(
+        "Parts that Fit Parts To Walls leaves alone. For the ones placed by " +
+        "hand where no probe would get it right. Authoring only - nothing " +
+        "reads this at runtime, but it lives in the scene rather than in " +
+        "editor preferences so it survives being opened on another machine.")]
+    [SerializeField] private Collider[] lockedParts = Array.Empty<Collider>();
+
     // The serialized field is the designer's explicit override; this is what is
     // actually used. Keeping them apart matters: writing the collected children
     // back into the serialized list would silently turn "collect automatically"
@@ -54,6 +61,24 @@ public sealed class RoomVolume : MonoBehaviour
     public float ShapeVolume { get; private set; }
 
     public IReadOnlyList<Collider> Colliders => resolvedColliders;
+
+    public bool IsPartLocked(Collider part)
+    {
+        if (part == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < lockedParts.Length; i++)
+        {
+            if (lockedParts[i] == part)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     // Re-reads the shape. Needed whenever the colliders under this object
     // change after OnEnable - the editor tooling leans on it, and so would

@@ -84,6 +84,11 @@ public sealed class RoomVolumeEditor : Editor
         DrawShape();
 
         serializedObject.ApplyModifiedProperties();
+
+        // After the apply: locking goes through its own SerializedObject, and
+        // running both over the same component in one pass loses whichever
+        // wrote first.
+        DrawPartLocks();
     }
 
     private void DrawIdentity()
@@ -284,6 +289,17 @@ public sealed class RoomVolumeEditor : Editor
 
         if (fitted > 0)
         {
+            return;
+        }
+
+        if (RoomVolumeSetupUtility.CountUnlockedParts(Room) == 0)
+        {
+            Debug.LogWarning(
+                "Every part of this room is locked, so the button had " +
+                "nothing to do.",
+                Room
+            );
+
             return;
         }
 
@@ -707,6 +723,61 @@ public sealed class RoomVolumeEditor : Editor
             box.center = handle.center;
             box.size = handle.size;
             EditorUtility.SetDirty(box);
+        }
+    }
+
+    // One row per part with a padlock. A part that was placed by hand, where
+    // no probe would get it right, is otherwise wiped by the next press of
+    // the fit button.
+    private void DrawPartLocks()
+    {
+        EditorGUILayout.Space(6f);
+        EditorGUILayout.LabelField("Parts", EditorStyles.miniBoldLabel);
+
+        Collider[] parts =
+            Room.GetComponentsInChildren<Collider>(includeInactive: true);
+
+        if (parts.Length == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            Collider part = parts[i];
+
+            if (part == null)
+            {
+                continue;
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                bool locked = Room.IsPartLocked(part);
+                bool nowLocked = GUILayout.Toggle(
+                    locked,
+                    locked ? "Locked" : "Fits",
+                    EditorStyles.miniButton,
+                    GUILayout.Width(60f)
+                );
+
+                if (nowLocked != locked)
+                {
+                    RoomVolumeSetupUtility.SetPartLocked(Room, part, nowLocked);
+                }
+
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    EditorGUILayout.ObjectField(
+                        part.gameObject, typeof(GameObject), true);
+                }
+
+                if (GUILayout.Button("Select", GUILayout.Width(55f)))
+                {
+                    Selection.activeGameObject = part.gameObject;
+                    SceneView.lastActiveSceneView?.FrameSelected();
+                }
+            }
         }
     }
 
