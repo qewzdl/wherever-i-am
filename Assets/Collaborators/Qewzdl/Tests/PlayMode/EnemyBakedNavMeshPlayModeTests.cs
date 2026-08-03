@@ -1945,9 +1945,32 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         // A continuously shifting destination, unlike a fixed
         // back-and-forth point, mirrors a real player being chased.
-        float endTime = Time.realtimeSinceStartup + 20f;
+        float startTime = Time.realtimeSinceStartup;
+        float endTime = startTime + 20f;
         bool wasMoving = false;
         int nonAttackStopEvents = 0;
+
+        // A halt has to last to be a halt. Measured in seconds rather than in
+        // frames because this loop runs unrendered at well over a thousand
+        // frames a second and the rate swings by a third between runs - the
+        // same frame count was twenty milliseconds in one run and would be
+        // half a second at playable frame rates.
+        //
+        // A quarter second is far longer than the repath at the start of a
+        // chase, which leaves the agent without a steering target for about
+        // twenty milliseconds, and far shorter than the periodic stalls this
+        // test was written to catch.
+        const float haltGraceSeconds = 0.25f;
+
+        List<string> stopReports = new();
+        float worstFrameMs = 0f;
+        bool inHalt = false;
+        bool haltCounted = false;
+        float haltSeconds = 0f;
+        string haltOpening = null;
+        int totalFrames = 0;
+        int framesBelowThreshold = 0;
+        float minSpeed = float.PositiveInfinity;
 
         while (Time.realtimeSinceStartup < endTime)
         {
@@ -1958,12 +1981,49 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 2f + Mathf.Cos(t * 0.35f) * 8f);
             Physics.SyncTransforms();
 
+            float frameMs = Time.unscaledDeltaTime * 1000f;
+            worstFrameMs = Mathf.Max(worstFrameMs, frameMs);
+
             float speed = agent.enabled ? agent.velocity.magnitude : 0f;
             bool isMoving = speed > 0.15f;
 
-            if (wasMoving && !isMoving && enemy.CurrentState != EnemyState.Attack)
+            totalFrames++;
+            minSpeed = Mathf.Min(minSpeed, speed);
+
+            if (!isMoving)
             {
-                nonAttackStopEvents++;
+                framesBelowThreshold++;
+            }
+
+            bool halting = !isMoving && enemy.CurrentState != EnemyState.Attack;
+
+            if (halting && (inHalt || wasMoving))
+            {
+                if (!inHalt)
+                {
+                    inHalt = true;
+                    haltCounted = false;
+                    haltSeconds = 0f;
+                    haltOpening =
+                        $"at {Time.realtimeSinceStartup - startTime:0.0}s " +
+                        $"speed={speed:0.###} isStopped={agent.isStopped} " +
+                        $"pathPending={agent.pathPending} " +
+                        $"hasPath={agent.hasPath} status={agent.pathStatus} " +
+                        $"remaining={agent.remainingDistance:0.##}";
+                }
+
+                haltSeconds += Time.unscaledDeltaTime;
+
+                if (!haltCounted && haltSeconds >= haltGraceSeconds)
+                {
+                    nonAttackStopEvents++;
+                    haltCounted = true;
+                    stopReports.Add($"[{haltOpening} held for {haltSeconds:0.00}s]");
+                }
+            }
+            else
+            {
+                inHalt = false;
             }
 
             wasMoving = isMoving;
@@ -1971,10 +2031,17 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             yield return null;
         }
 
+        // Most of the frames under the threshold are the enemy standing still
+        // to attack, which is why they are reported next to the stops rather
+        // than counted as any.
         Assert.That(
             nonAttackStopEvents,
             Is.Zero,
-            "Enemy fully halted mid-chase outside of an attack.");
+            $"Enemy stood still for {haltGraceSeconds:0.00}s or more mid-chase " +
+            $"outside of an attack. {totalFrames} frames, worst " +
+            $"{worstFrameMs:0.#} ms, {framesBelowThreshold} under the speed " +
+            $"threshold, slowest {minSpeed:0.###}. " +
+            string.Join(" ", stopReports));
     }
 
     private IEnumerator StartHost()
