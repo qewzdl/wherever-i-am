@@ -9,32 +9,16 @@ public sealed class EnemyInvestigationSearchPlanner
 
     private readonly List<EnemyInvestigationSearchPoint> points = new();
 
+    private RoomVolume originRoom;
+
     public IReadOnlyList<EnemyInvestigationSearchPoint> Points => points;
     public int PointCount => points.Count;
 
-    public void BuildHierarchicalSearchPlan(
-        Vector3 origin,
-        Vector3 enemyPosition,
-        float branchRadius,
-        int branchPointCount,
-        float leafRadius,
-        int leafPointCountPerBranch)
-    {
-        NavMeshBuildSettings settings = NavMesh.GetSettingsByIndex(0);
-        BuildHierarchicalSearchPlan(
-            origin,
-            enemyPosition,
-            branchRadius,
-            branchPointCount,
-            leafRadius,
-            leafPointCountPerBranch,
-            new NavMeshQueryFilter
-            {
-                agentTypeID = settings.agentTypeID,
-                areaMask = NavMesh.AllAreas
-            });
-    }
-
+    // Deliberately no overload that picks an agent type for you. There used
+    // to be one, defaulting to the project's first, which is not the agent
+    // that will walk the route on a level with more than one - so it sampled
+    // a NavMesh the enemy cannot use and quietly returned points from the
+    // wrong surface, or none at all.
     public void BuildHierarchicalSearchPlan(
         Vector3 origin,
         Vector3 enemyPosition,
@@ -52,6 +36,55 @@ public sealed class EnemyInvestigationSearchPlanner
             return;
         }
 
+        // Keep the route inside the room the stimulus came from. A branch
+        // point two and a half metres out reaches through a doorway easily,
+        // and NavMesh sampling will pull one straight through a wall onto the
+        // floor next door - so the enemy walks off to search a spot the noise
+        // could not have come from. Levels with no rooms marked up are
+        // unaffected: no room, no filtering.
+        RoomVolume.TryGetRoomAt(origin, out originRoom);
+
+        BuildBranchPoints(
+            origin,
+            enemyPosition,
+            branchRadius,
+            branchPointCount,
+            leafRadius,
+            leafPointCountPerBranch,
+            filter
+        );
+
+        if (points.Count > 0 || originRoom == null)
+        {
+            return;
+        }
+
+        // Nothing fitted - the room is tighter than the route, or the noise
+        // came from a corner of it. Searching a little outside beats an empty
+        // plan, which abandons the search on the spot.
+        originRoom = null;
+
+        BuildBranchPoints(
+            origin,
+            enemyPosition,
+            branchRadius,
+            branchPointCount,
+            leafRadius,
+            leafPointCountPerBranch,
+            filter
+        );
+    }
+
+    private void BuildBranchPoints(
+        Vector3 origin,
+        Vector3 enemyPosition,
+        float branchRadius,
+        int branchPointCount,
+        float leafRadius,
+        int leafPointCountPerBranch,
+        NavMeshQueryFilter filter
+    )
+    {
         float branchAngleStep = Mathf.Max(MinAngleStep, 360f / branchPointCount);
         float branchStartAngle = GetFlatAngle(origin, enemyPosition) + 45f;
         int validBranchIndex = 0;
@@ -161,18 +194,25 @@ public sealed class EnemyInvestigationSearchPlanner
     {
         float sampleRadius = Mathf.Max(0.5f, radius * NavMeshSampleRadiusMultiplier);
 
-        if (NavMesh.SamplePosition(
+        sampledPoint = default;
+
+        if (!NavMesh.SamplePosition(
                 rawPoint,
                 out NavMeshHit hit,
                 sampleRadius,
                 filter))
         {
-            sampledPoint = hit.position;
-            return true;
+            return false;
         }
 
-        sampledPoint = default;
-        return false;
+        if (originRoom != null && !originRoom.Contains(hit.position))
+        {
+            return false;
+        }
+
+        sampledPoint = hit.position;
+
+        return true;
     }
 
     private Vector3 GetDirectionFromAngle(float angle)

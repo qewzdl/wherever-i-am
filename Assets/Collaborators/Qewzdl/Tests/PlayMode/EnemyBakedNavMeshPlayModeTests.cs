@@ -2606,6 +2606,125 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         return clone;
     }
 
+    // The search route reaches four metres from the origin at its furthest,
+    // so a six metre room holds the branch points and not the leaves. A room
+    // big enough for all of them would make the filter untestable.
+    [UnityTest]
+    public IEnumerator SearchPlan_StaysInTheRoomTheStimulusCameFrom()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        RoomVolume room = CreateSearchRoom(
+            new Vector3(0f, 1.5f, 0f),
+            new Vector3(6f, 5f, 6f));
+
+        yield return null;
+
+        EnemyInvestigationSearchPlanner planner = new();
+        planner.BuildHierarchicalSearchPlan(
+            Vector3.zero,
+            new Vector3(0f, 0f, -8f),
+            branchRadius: 2.5f,
+            branchPointCount: 3,
+            leafRadius: 1.5f,
+            leafPointCountPerBranch: 3,
+            StandingQueryFilter(standingAgentTypeId));
+
+        Assert.That(
+            planner.PointCount,
+            Is.GreaterThan(0),
+            "The room swallowed the whole route.");
+
+        for (int i = 0; i < planner.PointCount; i++)
+        {
+            Assert.That(planner.TryGetPoint(i, out Vector3 point), Is.True);
+            Assert.That(
+                room.Contains(point),
+                Is.True,
+                $"Search point {i} at {point} is outside the room the noise " +
+                "came from.");
+        }
+    }
+
+    // Most of the level has no rooms marked up, and the search has to carry
+    // on exactly as it did before it knew what a room was.
+    [UnityTest]
+    public IEnumerator SearchPlan_WithoutRoomsReachesAsFarAsItAlwaysDid()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        yield return null;
+
+        EnemyInvestigationSearchPlanner planner = new();
+        planner.BuildHierarchicalSearchPlan(
+            Vector3.zero,
+            new Vector3(0f, 0f, -8f),
+            branchRadius: 2.5f,
+            branchPointCount: 3,
+            leafRadius: 1.5f,
+            leafPointCountPerBranch: 3,
+            StandingQueryFilter(standingAgentTypeId));
+
+        float furthest = 0f;
+
+        for (int i = 0; i < planner.PointCount; i++)
+        {
+            planner.TryGetPoint(i, out Vector3 point);
+            furthest = Mathf.Max(
+                furthest,
+                Vector3.ProjectOnPlane(point, Vector3.up).magnitude);
+        }
+
+        Assert.That(
+            furthest,
+            Is.GreaterThan(3f),
+            "With no room to stay inside, the route should still spread past " +
+            "the branch ring.");
+    }
+
+    // The arena is baked for the production agent types, so sampling with the
+    // project's first agent type - which is what the filterless overload
+    // uses - finds no NavMesh at all.
+    private static NavMeshQueryFilter StandingQueryFilter(int standingAgentTypeId)
+    {
+        return new NavMeshQueryFilter
+        {
+            agentTypeID = standingAgentTypeId,
+            areaMask = NavMesh.AllAreas
+        };
+    }
+
+    private RoomVolume CreateSearchRoom(Vector3 centre, Vector3 size)
+    {
+        GameObject root = Track(new GameObject("Search room"));
+        root.SetActive(false);
+
+        GameObject part = new("Part");
+        part.transform.SetParent(root.transform, false);
+        part.transform.position = centre;
+
+        BoxCollider partCollider = part.AddComponent<BoxCollider>();
+        partCollider.size = size;
+        partCollider.isTrigger = true;
+
+        RoomVolume room = root.AddComponent<RoomVolume>();
+        root.SetActive(true);
+
+        return room;
+    }
+
     private void BakeOpenArena(
         int standingAgentTypeId,
         int crawlingAgentTypeId)
