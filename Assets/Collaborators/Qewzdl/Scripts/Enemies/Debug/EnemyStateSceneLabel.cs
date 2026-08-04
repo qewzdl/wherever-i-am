@@ -15,6 +15,10 @@ public class EnemyStateSceneLabel : MonoBehaviour
     [SerializeField] private bool drawOnlyWhenSelected;
 #if UNITY_EDITOR
     [SerializeField] private bool drawTargetInfo = true;
+
+    // A line in this block rather than a label of its own: two labels over
+    // one enemy sit on top of each other and neither is readable.
+    [SerializeField] private bool drawRoom = true;
 #endif
     [SerializeField] private Vector3 worldOffset = new(0f, 2.4f, 0f);
 
@@ -118,11 +122,23 @@ public class EnemyStateSceneLabel : MonoBehaviour
 
     private string BuildLabelText(EnemyState state)
     {
-        if (!drawTargetInfo)
+        string text = $"Enemy: {state}";
+
+        if (drawTargetInfo)
         {
-            return $"Enemy: {state}";
+            text += $"\n{BuildTargetLine()}";
         }
 
+        if (drawRoom)
+        {
+            text += $"\n{BuildRoomLine()}";
+        }
+
+        return text;
+    }
+
+    private string BuildTargetLine()
+    {
         bool hasTarget = false;
         ulong targetClientId = EnemyTargetMemory.NoTargetClientId;
 
@@ -137,12 +153,16 @@ public class EnemyStateSceneLabel : MonoBehaviour
             targetClientId = networkState.CurrentTargetClientId;
         }
 
-        if (!hasTarget)
-        {
-            return $"Enemy: {state}\nTarget: None";
-        }
+        return hasTarget
+            ? $"Target ClientId: {targetClientId}"
+            : "Target: None";
+    }
 
-        return $"Enemy: {state}\nTarget ClientId: {targetClientId}";
+    private string BuildRoomLine()
+    {
+        return RoomVolume.TryGetRoomAt(transform.position, out RoomVolume room)
+            ? $"Room: {room.RoomId}"
+            : "Room: none";
     }
 
     private Color GetStateColor(EnemyState state)
