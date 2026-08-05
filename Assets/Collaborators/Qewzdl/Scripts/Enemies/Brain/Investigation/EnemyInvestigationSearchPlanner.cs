@@ -6,6 +6,7 @@ public sealed class EnemyInvestigationSearchPlanner
 {
     private const float MinAngleStep = 1f;
     private const float NavMeshSampleRadiusMultiplier = 0.65f;
+    private const float OriginRoomLookupLift = 1f;
 
     private readonly List<EnemyInvestigationSearchPoint> points = new();
 
@@ -42,7 +43,7 @@ public sealed class EnemyInvestigationSearchPlanner
         // floor next door - so the enemy walks off to search a spot the noise
         // could not have come from. Levels with no rooms marked up are
         // unaffected: no room, no filtering.
-        RoomVolume.TryGetRoomAt(origin, out originRoom);
+        TryResolveOriginRoom(origin);
 
         BuildBranchPoints(
             origin,
@@ -205,7 +206,7 @@ public sealed class EnemyInvestigationSearchPlanner
             return false;
         }
 
-        if (originRoom != null && !originRoom.Contains(hit.position))
+        if (!IsInsideOriginRoom(hit.position))
         {
             return false;
         }
@@ -213,6 +214,49 @@ public sealed class EnemyInvestigationSearchPlanner
         sampledPoint = hit.position;
 
         return true;
+    }
+
+    // A noise happens on the floor, and a room volume dragged into place by
+    // eye starts a little off the ground often enough. Asked strictly, the
+    // room lookup then finds nothing at the stimulus, no room is bound, and
+    // the whole filter quietly does nothing - which is far worse than being
+    // slightly wrong, because it looks like the feature is broken.
+    //
+    // Standing height off the floor is still unambiguously the same storey.
+    private void TryResolveOriginRoom(Vector3 origin)
+    {
+        if (RoomVolume.TryGetRoomAt(origin, out originRoom))
+        {
+            return;
+        }
+
+        RoomVolume.TryGetRoomAt(
+            origin + Vector3.up * OriginRoomLookupLift,
+            out originRoom
+        );
+    }
+
+    // A room is a footprint as far as the search is concerned. Search points
+    // sit on the NavMesh, at floor level, while a room volume is dragged into
+    // place by eye - its underside lands above the floor easily, and a typed
+    // height need not reach down to it at all. Judged strictly in three
+    // dimensions, such a room rejects every candidate, the plan comes back
+    // empty, the fallback drops the room, and the search spills everywhere:
+    // the exact opposite of what marking the room up was for.
+    //
+    // Lifting the point into the room's own vertical span keeps storeys
+    // apart, because it still has to land inside the footprint to pass.
+    private bool IsInsideOriginRoom(Vector3 point)
+    {
+        if (originRoom == null)
+        {
+            return true;
+        }
+
+        Bounds bounds = originRoom.Bounds;
+        point.y = Mathf.Clamp(point.y, bounds.min.y, bounds.max.y);
+
+        return originRoom.Contains(point);
     }
 
     private Vector3 GetDirectionFromAngle(float angle)

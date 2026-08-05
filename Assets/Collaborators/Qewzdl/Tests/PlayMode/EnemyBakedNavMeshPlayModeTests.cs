@@ -2652,6 +2652,57 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         }
     }
 
+    // Room volumes are dragged into place by eye and their undersides sit
+    // above the floor as often as not, while search points land on the
+    // NavMesh. Judged strictly, such a room rejects everything, the plan
+    // empties, the fallback drops the room, and the search spills all over
+    // the level - which reads as the filter doing nothing at all.
+    [UnityTest]
+    public IEnumerator SearchPlan_StaysInARoomWhoseVolumeFloatsAboveTheFloor()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        // Underside at 0.3, well clear of the floor the points land on.
+        RoomVolume room = CreateSearchRoom(
+            new Vector3(0f, 1.8f, 0f),
+            new Vector3(6f, 3f, 6f));
+
+        yield return null;
+
+        Assert.That(
+            room.Bounds.min.y,
+            Is.GreaterThan(0.2f),
+            "The fixture no longer floats the room above the floor.");
+
+        EnemyInvestigationSearchPlanner planner = new();
+        planner.BuildHierarchicalSearchPlan(
+            Vector3.zero,
+            new Vector3(0f, 0f, -8f),
+            branchRadius: 2.5f,
+            branchPointCount: 3,
+            leafRadius: 1.5f,
+            leafPointCountPerBranch: 3,
+            StandingQueryFilter(standingAgentTypeId));
+
+        Assert.That(planner.PointCount, Is.GreaterThan(0));
+
+        for (int i = 0; i < planner.PointCount; i++)
+        {
+            planner.TryGetPoint(i, out Vector3 point);
+
+            Assert.That(
+                Mathf.Max(Mathf.Abs(point.x), Mathf.Abs(point.z)),
+                Is.LessThanOrEqualTo(3.05f),
+                $"Search point {i} at {point} escaped the room's footprint.");
+        }
+    }
+
     // Most of the level has no rooms marked up, and the search has to carry
     // on exactly as it did before it knew what a room was.
     [UnityTest]
