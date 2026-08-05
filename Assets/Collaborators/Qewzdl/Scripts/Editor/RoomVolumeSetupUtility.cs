@@ -148,6 +148,22 @@ public static class RoomVolumeSetupUtility
     // the face in leaves the width that matters and drops the contact.
     private const float ProbeShrink = 0.9f;
 
+    // Anything standing on the floor is below a volume that starts above it,
+    // and so counts as outside the room. Five centimetres is below what
+    // anyone drags by accident and well under a step.
+    public const float FloorGapTolerance = 0.05f;
+
+    private const float FloorProbeDistance = 12f;
+
+    private static readonly Vector2[] FloorProbeOffsets =
+    {
+        new(0f, 0f),
+        new(0.6f, 0.6f),
+        new(-0.6f, 0.6f),
+        new(0.6f, -0.6f),
+        new(-0.6f, -0.6f),
+    };
+
     private static readonly Vector3 DefaultPartSize = new(6f, 3f, 6f);
 
     // Small enough to land inside a narrow passage without poking through its
@@ -893,6 +909,102 @@ public static class RoomVolumeSetupUtility
         ApplyRoomLayer(room.gameObject);
     }
 
+    // How far the floor beneath a part sits below the part's underside. The
+    // gap is what makes a room silently refuse everyone standing in it: the
+    // volume looks right, the gizmo draws, the inspector says ready, and
+    // every lookup at floor level answers "no room".
+    public static bool TryMeasureFloorGap(BoxCollider box, out float gap)
+    {
+        gap = 0f;
+
+        if (box == null)
+        {
+            return false;
+        }
+
+        Transform part = box.transform;
+        Vector3 scale = SafeScale(part.lossyScale);
+        Vector3 half = Vector3.Scale(box.size * 0.5f, scale);
+        Vector3 centre = part.TransformPoint(box.center);
+        float bottomY = centre.y - half.y;
+        float highestFloor = float.NegativeInfinity;
+
+        for (int i = 0; i < FloorProbeOffsets.Length; i++)
+        {
+            Vector2 offset = FloorProbeOffsets[i];
+            Vector3 origin = centre
+                + part.right * (offset.x * half.x)
+                + part.forward * (offset.y * half.z);
+            origin.y = bottomY;
+
+            if (Physics.Raycast(
+                    origin,
+                    Vector3.down,
+                    out RaycastHit hit,
+                    FloorProbeDistance,
+                    DefaultWallMask,
+                    QueryTriggerInteraction.Ignore))
+            {
+                // The highest floor found wins, so an uneven floor or a step
+                // under one corner does not raise a complaint about a room
+                // that is sitting on the ground everywhere that matters.
+                highestFloor = Mathf.Max(highestFloor, hit.point.y);
+            }
+        }
+
+        if (float.IsNegativeInfinity(highestFloor))
+        {
+            return false;
+        }
+
+        gap = bottomY - highestFloor;
+
+        return gap > FloorGapTolerance;
+    }
+
+    // Grows the part downwards rather than moving it, so the ceiling stays
+    // where the designer put it.
+    public static int DropPartsToFloor(RoomVolume room)
+    {
+        if (room == null)
+        {
+            return 0;
+        }
+
+        BoxCollider[] parts =
+            room.GetComponentsInChildren<BoxCollider>(includeInactive: true);
+        int dropped = 0;
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            BoxCollider box = parts[i];
+
+            if (box == null || !TryMeasureFloorGap(box, out float gap))
+            {
+                continue;
+            }
+
+            float localGap = gap / SafeScale(box.transform.lossyScale).y;
+
+            Undo.RecordObject(box, "Drop Room Volume Part To Floor");
+
+            Vector3 size = box.size;
+            size.y += localGap;
+            box.size = size;
+
+            Vector3 centre = box.center;
+            centre.y -= localGap * 0.5f;
+            box.center = centre;
+
+            EditorUtility.SetDirty(box);
+            dropped++;
+        }
+
+        room.Refresh();
+
+        return dropped;
+    }
+
     public static IReadOnlyList<string> GetSetupProblems(RoomVolume room)
     {
         List<string> problems = new();
@@ -955,7 +1067,41 @@ public static class RoomVolumeSetupUtility
             );
         }
 
+        AddFloorGapProblem(room, problems);
+
         return problems;
+    }
+
+    private static void AddFloorGapProblem(
+        RoomVolume room,
+        List<string> problems
+    )
+    {
+        BoxCollider[] parts =
+            room.GetComponentsInChildren<BoxCollider>(includeInactive: true);
+        int floating = 0;
+        float worstGap = 0f;
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (TryMeasureFloorGap(parts[i], out float gap))
+            {
+                floating++;
+                worstGap = Mathf.Max(worstGap, gap);
+            }
+        }
+
+        if (floating == 0)
+        {
+            return;
+        }
+
+        problems.Add(
+            $"{floating} part(s) start above the floor, by up to " +
+            $"{worstGap:0.##} m. Anything standing on that floor - a player, " +
+            "a noise, a search point - is below the volume and counts as " +
+            "outside the room."
+        );
     }
 
     public static bool HasCompleteSetup(RoomVolume room)

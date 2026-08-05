@@ -356,6 +356,11 @@ public sealed class RoomVolumeEditor : Editor
             }
         }
 
+        if (GUILayout.Button("Drop Parts To Floor"))
+        {
+            RoomVolumeSetupUtility.DropPartsToFloor(Room);
+        }
+
         EditInScene = EditorGUILayout.ToggleLeft(
             "Resize parts in the scene view",
             EditInScene

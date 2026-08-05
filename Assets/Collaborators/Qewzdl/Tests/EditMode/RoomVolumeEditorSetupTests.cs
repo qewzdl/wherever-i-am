@@ -984,6 +984,74 @@ public sealed class RoomVolumeEditorSetupTests
         box.layer = layer;
     }
 
+    // The mis-authoring that hides itself: the volume looks right, the gizmo
+    // draws, the inspector says ready, and every lookup at floor level
+    // answers "no room".
+    [Test]
+    public void GetSetupProblems_ReportsAVolumeThatStartsAboveTheFloor()
+    {
+        GameObject level = null;
+        RoomVolume room = null;
+
+        try
+        {
+            level = new GameObject("Level");
+            AddBox(level.transform, new Vector3(0f, -0.25f, 0f),
+                new Vector3(20f, 0.5f, 20f));
+            Physics.SyncTransforms();
+
+            room = RoomVolumeSetupUtility.CreateInScene();
+            room.transform.position = Vector3.zero;
+
+            BoxCollider box = room.transform.GetChild(0)
+                .GetComponent<BoxCollider>();
+            box.center = new Vector3(0f, 1.8f, 0f);
+            box.size = new Vector3(6f, 3f, 6f);
+            Physics.SyncTransforms();
+
+            float topBefore = box.bounds.max.y;
+
+            Assert.That(
+                RoomVolumeSetupUtility.TryMeasureFloorGap(box, out float gap),
+                Is.True);
+            Assert.That(gap, Is.EqualTo(0.3f).Within(0.02f));
+            Assert.That(
+                RoomVolumeSetupUtility.HasCompleteSetup(room),
+                Is.False,
+                "A room floating above its floor was reported as ready.");
+
+            Assert.That(
+                RoomVolumeSetupUtility.DropPartsToFloor(room),
+                Is.EqualTo(1));
+            Physics.SyncTransforms();
+
+            Assert.That(
+                box.bounds.min.y,
+                Is.EqualTo(0f).Within(0.06f),
+                "The part was not brought down onto the floor.");
+            Assert.That(
+                box.bounds.max.y,
+                Is.EqualTo(topBefore).Within(0.02f),
+                "Dropping the part moved its ceiling as well.");
+            Assert.That(
+                RoomVolumeSetupUtility.HasCompleteSetup(room),
+                Is.True,
+                string.Join("; ", RoomVolumeSetupUtility.GetSetupProblems(room)));
+        }
+        finally
+        {
+            if (room != null)
+            {
+                Object.DestroyImmediate(room.gameObject);
+            }
+
+            if (level != null)
+            {
+                Object.DestroyImmediate(level);
+            }
+        }
+    }
+
     [Test]
     public void FixCollidersAndLayer_RepairsHandBuiltVolumes()
     {
