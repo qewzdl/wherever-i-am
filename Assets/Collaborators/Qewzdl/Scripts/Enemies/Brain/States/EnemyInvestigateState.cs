@@ -371,6 +371,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         );
 
         context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
+        context.InvestigationDebugData?.SetBoundRoom(searchPlanner.OriginRoom);
         context.Blackboard.SetCurrentInvestigationRoute(searchPlanner.Points);
 
         if (searchPlanner.PointCount == 0)
@@ -464,6 +465,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
                 );
 
                 context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
+                context.InvestigationDebugData?.SetBoundRoom(searchPlanner.OriginRoom);
                 context.Blackboard.SetCurrentInvestigationRoute(searchPlanner.Points);
 
                 if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))

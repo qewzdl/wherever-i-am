@@ -15,6 +15,12 @@ public sealed class EnemyInvestigationSearchPlanner
     public IReadOnlyList<EnemyInvestigationSearchPoint> Points => points;
     public int PointCount => points.Count;
 
+    // Null when the route was not held to a room - either the level has none
+    // marked up there, or the room was tighter than the route and the
+    // fallback dropped it. Both look identical from outside, which is why
+    // this is worth reporting.
+    public RoomVolume OriginRoom => originRoom;
+
     // Deliberately no overload that picks an agent type for you. There used
     // to be one, defaulting to the project's first, which is not the agent
     // that will walk the route on a level with more than one - so it sampled

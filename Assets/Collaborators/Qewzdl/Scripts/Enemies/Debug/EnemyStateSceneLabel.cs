@@ -10,6 +10,7 @@ public class EnemyStateSceneLabel : MonoBehaviour
     [Header("References")]
     [SerializeField] private NetworkEnemyController enemyController;
     [SerializeField] private EnemyNetworkState networkState;
+    [SerializeField] private EnemyServerRuntime serverRuntime;
 
     [Header("Drawing")]
     [SerializeField] private bool drawOnlyWhenSelected;
@@ -32,7 +33,11 @@ public class EnemyStateSceneLabel : MonoBehaviour
     [SerializeField] private Color chaseColor = Color.red;
     [SerializeField] private Color attackColor = new(1f, 0f, 0f);
 
+    [SerializeField] private Color backgroundColor = new(0f, 0f, 0f, 0.65f);
+    [SerializeField] private bool drawBackground = true;
+
     private GUIStyle labelStyle;
+    private Texture2D backgroundTexture;
 #endif
 
     private void Awake()
@@ -132,9 +137,29 @@ public class EnemyStateSceneLabel : MonoBehaviour
         if (drawRoom)
         {
             text += $"\n{BuildRoomLine()}";
+            text += $"\n{BuildSearchRoomLine()}";
         }
 
         return text;
+    }
+
+    // The room the enemy stands in is not the one the search is held to - it
+    // walks out of that one while searching, and the route stays behind.
+    // Without this line a correctly filtered route reads as a broken one,
+    // and a route held to nothing at all is invisible.
+    private string BuildSearchRoomLine()
+    {
+        EnemyInvestigationDebugData debugData =
+            serverRuntime != null ? serverRuntime.InvestigationDebugData : null;
+
+        if (debugData == null || !debugData.IsActive)
+        {
+            return "Search: idle";
+        }
+
+        return string.IsNullOrEmpty(debugData.BoundRoomId)
+            ? "Search: unbounded"
+            : $"Search: {debugData.BoundRoomId}";
     }
 
     private string BuildTargetLine()
@@ -188,10 +213,38 @@ public class EnemyStateSceneLabel : MonoBehaviour
         labelStyle = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = Mathf.Max(8, fontSize),
-            alignment = TextAnchor.MiddleCenter
+            alignment = TextAnchor.MiddleLeft,
+            padding = new RectOffset(7, 7, 5, 5),
+            richText = false
         };
 
         labelStyle.normal.textColor = textColor;
+
+        if (drawBackground)
+        {
+            labelStyle.normal.background = EnsureBackgroundTexture();
+        }
+    }
+
+    // Plain text over a lit scene is unreadable against anything bright, and
+    // this block is four lines now. A flat panel behind it costs one pixel of
+    // texture, kept out of the scene and out of any build.
+    private Texture2D EnsureBackgroundTexture()
+    {
+        if (backgroundTexture != null)
+        {
+            return backgroundTexture;
+        }
+
+        backgroundTexture = new Texture2D(1, 1)
+        {
+            hideFlags = HideFlags.HideAndDontSave
+        };
+
+        backgroundTexture.SetPixel(0, 0, backgroundColor);
+        backgroundTexture.Apply();
+
+        return backgroundTexture;
     }
 
     private void Reset()
@@ -205,6 +258,12 @@ public class EnemyStateSceneLabel : MonoBehaviour
 
         fontSize = Mathf.Max(8, fontSize);
         labelStyle = null;
+
+        if (backgroundTexture != null)
+        {
+            DestroyImmediate(backgroundTexture);
+            backgroundTexture = null;
+        }
     }
 #endif
 
@@ -218,6 +277,11 @@ public class EnemyStateSceneLabel : MonoBehaviour
         if (networkState == null)
         {
             networkState = GetComponent<EnemyNetworkState>();
+        }
+
+        if (serverRuntime == null)
+        {
+            serverRuntime = GetComponent<EnemyServerRuntime>();
         }
     }
 }
