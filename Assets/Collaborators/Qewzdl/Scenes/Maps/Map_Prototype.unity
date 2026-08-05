@@ -3504,56 +3504,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 17.908098, y: 1.4466064, z: 1.5380976}
   m_Center: {x: 0.76500034, y: 1.0198464, z: 0.039996833}
---- !u!1 &1025451939
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1025451941}
-  - component: {fileID: 1025451940}
-  m_Layer: 0
-  m_Name: Enemy Threat Music Director
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1025451940
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1025451939}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3cba32eecf001a74c8edc27a3a21c242, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  musicManager: {fileID: 0}
-  suspiciousCue: {fileID: 0}
-  combatCue: {fileID: 0}
-  lostTargetCue: {fileID: 0}
-  calmCue: {fileID: 0}
-  calmFadeOutTime: 1
---- !u!4 &1025451941
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1025451939}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5.9619837, y: -32.81221, z: -5.6860094}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1027996972
 GameObject:
   m_ObjectHideFlags: 0
@@ -8281,7 +8231,6 @@ SceneRoots:
   - {fileID: 1274255674}
   - {fileID: 1602318127}
   - {fileID: 314159266}
-  - {fileID: 1025451941}
   - {fileID: 779925913}
   - {fileID: 9079563123122128164}
   - {fileID: 1966005317}

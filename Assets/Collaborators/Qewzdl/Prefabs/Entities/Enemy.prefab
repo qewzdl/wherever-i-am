@@ -307,7 +307,6 @@ GameObject:
   - component: {fileID: 2915486393420281245}
   - component: {fileID: 5748802255991143052}
   - component: {fileID: 732498019463342965}
-  - component: {fileID: 1988043157719056020}
   - component: {fileID: 4936594606328749735}
   m_Layer: 6
   m_Name: Enemy
@@ -344,7 +343,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 494402498
+  GlobalObjectIdHash: 2590614329
   InScenePlacedSourceGlobalObjectIdHash: 494402498
   DeferredDespawnTick: 0
   Ownership: 1
@@ -689,6 +688,7 @@ MonoBehaviour:
   attackController: {fileID: 7387159276498090581}
   navMeshStartupGate: {fileID: 4840997165000147843}
   postureController: {fileID: 1705734711893662682}
+  gazeScanner: {fileID: 0}
 --- !u!114 &6129419102609731285
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -795,8 +795,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   enemyController: {fileID: 3244720467120631997}
   networkState: {fileID: 5660041982996278054}
+  serverRuntime: {fileID: 6370502762402772414}
   drawOnlyWhenSelected: 0
   drawTargetInfo: 1
+  drawRoom: 1
   worldOffset: {x: 0, y: 2.4, z: 0}
   fontSize: 13
   textColor: {r: 1, g: 1, b: 1, a: 1}
@@ -805,6 +807,8 @@ MonoBehaviour:
   investigateColor: {r: 1, g: 0.7, b: 0.1, a: 1}
   chaseColor: {r: 1, g: 0, b: 0, a: 1}
   attackColor: {r: 1, g: 0, b: 0, a: 1}
+  backgroundColor: {r: 0, g: 0, b: 0, a: 0.65}
+  drawBackground: 1
 --- !u!114 &5421604093297213535
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -911,22 +915,6 @@ MonoBehaviour:
   hitVfx: {fileID: 0}
   missVfx: {fileID: 0}
   interruptedVfx: {fileID: 0}
---- !u!114 &1988043157719056020
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5706861626712077370}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7cb8d0af5fec757439c816e0bad56f24, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
-  requireLocalTargetForCombat: 1
-  playSuspiciousWithoutLocalTarget: 1
-  keepLostTargetOnlyForLocalPlayer: 1
 --- !u!114 &4936594606328749735
 MonoBehaviour:
   m_ObjectHideFlags: 0
