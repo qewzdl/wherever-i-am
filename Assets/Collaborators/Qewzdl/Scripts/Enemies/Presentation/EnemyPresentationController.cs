@@ -23,7 +23,6 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
     public static event Action<EnemyPresentationController> Registered;
     public static event Action<EnemyPresentationController> Unregistered;
-    public static event Action<EnemyPresentationController, EnemyThreatLevel> ThreatLevelChanged;
 
     public static IReadOnlyList<EnemyPresentationController> ActiveControllers => activeControllers;
 
@@ -41,13 +40,11 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
     private EnemyState currentPresentedState = EnemyState.Idle;
     private EnemyAttackPhase currentPresentedAttackPhase = EnemyAttackPhase.Idle;
     private EnemyStatePresentation currentPresentation;
-    private EnemyThreatLevel currentThreatLevel = EnemyThreatLevel.None;
 
     private bool isRegistered;
     private bool subscribedToNetworkState;
     private IGameplaySoundService gameplaySoundService;
 
-    public EnemyThreatLevel CurrentThreatLevel => currentThreatLevel;
     public EnemyAttackPhase CurrentAttackPhase => currentPresentedAttackPhase;
 
     private void Awake()
@@ -185,7 +182,6 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
         if (!profile.TryGetPresentation(nextState, out EnemyStatePresentation nextPresentation))
         {
-            SetThreatLevel(EnemyThreatLevel.None);
             return;
         }
 
@@ -194,7 +190,6 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         ApplyAnimatorState(nextPresentation);
         PlayEnterSounds(nextPresentation);
         ApplyLoopingSounds(nextPresentation);
-        SetThreatLevel(nextPresentation.ThreatLevel);
     }
 
     private void ApplyAttackPhase(EnemyAttackPhaseSnapshot snapshot, bool force)
@@ -398,17 +393,6 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         gameplaySoundService.Play2D(sound);
     }
 
-    private void SetThreatLevel(EnemyThreatLevel nextThreatLevel)
-    {
-        if (currentThreatLevel == nextThreatLevel)
-        {
-            return;
-        }
-
-        currentThreatLevel = nextThreatLevel;
-        ThreatLevelChanged?.Invoke(this, currentThreatLevel);
-    }
-
     private void SubscribeToNetworkState()
     {
         if (subscribedToNetworkState || networkState == null)
@@ -462,7 +446,6 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         isRegistered = false;
         activeControllers.Remove(this);
 
-        ThreatLevelChanged?.Invoke(this, EnemyThreatLevel.None);
         Unregistered?.Invoke(this);
     }
 
@@ -476,7 +459,6 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
         currentPresentation = null;
         currentPresentedAttackPhase = EnemyAttackPhase.Idle;
-        currentThreatLevel = EnemyThreatLevel.None;
     }
 
     private void CacheComponents()

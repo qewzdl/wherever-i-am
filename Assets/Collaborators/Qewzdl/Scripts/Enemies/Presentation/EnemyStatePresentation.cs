@@ -19,9 +19,6 @@ public sealed class EnemyStatePresentation
     [Header("Animation Event Sounds")]
     [SerializeField] private EnemyAnimationSound[] animationSounds;
 
-    [Header("Threat")]
-    [SerializeField] private EnemyThreatLevel threatLevel;
-
     public EnemyState State => state;
 
     public int AnimatorStateValue => animatorStateValue;
@@ -33,8 +30,6 @@ public sealed class EnemyStatePresentation
 
     public EnemyLoopingPresentationSound[] LoopingSounds => loopingSounds;
     public bool HasLoopingSounds => loopingSounds != null && loopingSounds.Length > 0;
-
-    public EnemyThreatLevel ThreatLevel => threatLevel;
 
     public bool TryGetAnimationSound(string eventId, out EnemyAnimationSound animationSound)
     {
