@@ -109,7 +109,7 @@ public sealed class EnemyPerceptionRuntime
         blackboard.ClearCurrentStimulus();
         SyncTarget();
 
-        if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
+        if (EnemyStateRules.IsEngagedWithTarget(currentState))
         {
             return EnemyPerceptionDecision.SuspiciousPosition();
         }
@@ -306,14 +306,14 @@ public sealed class EnemyPerceptionRuntime
             hidingPlace
         );
     }
-
+
     private bool IsPursuingConfirmedTarget(EnemyState currentState)
     {
         EnemyTargetMemory targetMemory = blackboard.TargetMemory;
 
         return targetMemory.HasTarget &&
                targetMemory.IsCurrentTargetValid &&
-               (currentState == EnemyState.Chase || currentState == EnemyState.Attack);
+               EnemyStateRules.IsEngagedWithTarget(currentState);
     }
 
     private EnemyPerceptionDecision HandleNoStimulus(EnemyState currentState)
@@ -323,7 +323,7 @@ public sealed class EnemyPerceptionRuntime
         EnemyTargetMemory targetMemory = blackboard.TargetMemory;
         EnemyPerceptionMemory perceptionMemory = blackboard.PerceptionMemory;
 
-        if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
+        if (EnemyStateRules.IsEngagedWithTarget(currentState))
         {
             if (targetMemory.HasTarget)
             {
