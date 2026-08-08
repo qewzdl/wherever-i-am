@@ -20,6 +20,9 @@ public class EnemyStateSceneLabel : MonoBehaviour
     // A line in this block rather than a label of its own: two labels over
     // one enemy sit on top of each other and neither is readable.
     [SerializeField] private bool drawRoom = true;
+    [SerializeField] private bool drawSeenByPlayers = true;
+    [SerializeField] private bool drawPlayerDistance = true;
+    [SerializeField] private float seenProbeHeight = 1.8f;
 #endif
     [SerializeField] private Vector3 worldOffset = new(0f, 2.4f, 0f);
 
@@ -140,7 +143,87 @@ public class EnemyStateSceneLabel : MonoBehaviour
             text += $"\n{BuildSearchRoomLine()}";
         }
 
+        if (drawSeenByPlayers)
+        {
+            text += $"\n{BuildSeenLine()}";
+        }
+
+        if (drawPlayerDistance)
+        {
+            text += $"\n{BuildDistanceLine()}";
+        }
+
         return text;
+    }
+
+    // The bare number is not the useful part - which side of the stalking
+    // band it falls on is. Reading "8.3" and remembering where the thresholds
+    // sit is work this can do instead.
+    private string BuildDistanceLine()
+    {
+        if (!TryGetNearestPlayerDistance(out float distance))
+        {
+            return "Player: none";
+        }
+
+        EnemyConfig config = enemyController != null
+            ? enemyController.Config
+            : null;
+
+        if (config == null)
+        {
+            return $"Player: {distance:0.0} m";
+        }
+
+        float chase = config.chaseWithoutStalkingDistance;
+        float stalk = config.stalkInsteadOfChasingDistance;
+
+        string side = distance <= chase
+            ? "chase"
+            : distance >= stalk
+                ? "stalk"
+                : "band";
+
+        return $"Player: {distance:0.0} m [{side} {chase:0.#}-{stalk:0.#}]";
+    }
+
+    private bool TryGetNearestPlayerDistance(out float distance)
+    {
+        distance = float.PositiveInfinity;
+
+        for (int i = 0; i < PlayerGazeNetwork.All.Count; i++)
+        {
+            PlayerGazeNetwork gaze = PlayerGazeNetwork.All[i];
+
+            if (gaze == null)
+            {
+                continue;
+            }
+
+            distance = Mathf.Min(
+                distance,
+                Vector3.Distance(transform.position, gaze.transform.position)
+            );
+        }
+
+        return !float.IsPositiveInfinity(distance);
+    }
+
+    // Whichever way the enemy behaves once it can be watched, the first
+    // question about it will be "why did it not react" and the answer will
+    // usually be that nobody was actually looking at it.
+    private string BuildSeenLine()
+    {
+        if (PlayerGazeNetwork.All.Count == 0)
+        {
+            return "Seen: nobody looking";
+        }
+
+        return PlayerGazeNetwork.IsBodySeenByAnyone(
+            transform.position,
+            seenProbeHeight)
+            ? "Seen: yes"
+            : "Seen: no";
     }
 
     // The room the enemy stands in is not the one the search is held to - it
