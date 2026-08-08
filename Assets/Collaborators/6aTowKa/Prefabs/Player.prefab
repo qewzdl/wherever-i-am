@@ -867,6 +867,7 @@ GameObject:
   - component: {fileID: 867530900123456789}
   - component: {fileID: 771234567890123457}
   - component: {fileID: 771234567890123458}
+  - component: {fileID: 3796379094830436580}
   m_Layer: 3
   m_Name: Player
   m_TagString: Untagged
@@ -904,7 +905,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 4291613607
+  GlobalObjectIdHash: 1978515664
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -1468,6 +1469,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9ff3a18e2c34b49bf123b839a204e43, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &3796379094830436580
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ce70f460423af7418eeb0b0ce1bec87, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  eyeHeight: 1.6
+  halfViewAngle: 60
+  maxViewDistance: 40
+  obstructionMask:
+    serializedVersion: 2
+    m_Bits: 897
+  drawViewCone: 1
 --- !u!1 &8004139109675559352
 GameObject:
   m_ObjectHideFlags: 0

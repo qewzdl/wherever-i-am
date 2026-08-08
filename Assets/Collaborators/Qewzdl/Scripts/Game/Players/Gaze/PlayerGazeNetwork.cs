@@ -1,0 +1,278 @@
+using System.Collections.Generic;
+using Unity.Netcode;
+using UnityEngine;
+
+// Where a player is looking, known on the server.
+//
+// Perception in this project only ever ran one way - the enemy sees the
+// player - so nothing could answer "is the enemy being watched". Every
+// behaviour that reacts to being noticed needs that answer first.
+//
+// Only the pitch is replicated. The body's yaw already reaches the server
+// through the player's NetworkTransform, and the camera turns the body with
+// it, so sending a whole direction would send the yaw twice.
+[DisallowMultipleComponent]
+public sealed class PlayerGazeNetwork : NetworkBehaviour
+{
+    private const float PitchSendThreshold = 1.5f;
+
+    private static readonly List<PlayerGazeNetwork> RegisteredGazes = new();
+
+    [Header("Eye")]
+    [Tooltip("Where the camera sits above the player's origin when standing.")]
+    [SerializeField] private float eyeHeight = 1.6f;
+
+    [Header("View")]
+    [Tooltip("Half angle of the cone a player is taken to see within.")]
+    [SerializeField, Range(5f, 90f)] private float halfViewAngle = 60f;
+
+    [SerializeField] private float maxViewDistance = 40f;
+
+    // Geometry only. Everything blocks sight if this includes the character
+    // layers, because the sight line to a body ends inside that body and hits
+    // it on the way - so the answer is always "blocked" and the whole sense
+    // reads as broken. The enemy's own vision draws the same distinction.
+    [Tooltip("What blocks sight. Walls and doors, not characters.")]
+    [SerializeField] private LayerMask obstructionMask = DefaultObstruction;
+
+    private const int DefaultObstruction =
+        (1 << 0) | (1 << 7) | (1 << 8) | (1 << 9);
+
+    private readonly NetworkVariable<float> pitch = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner
+    );
+
+    // Eyes sit near the top of a head, not at the very crown.
+    private const float EyeShareOfHeight = 0.92f;
+
+    private Camera ownerCamera;
+    private CapsuleCollider cachedCapsule;
+    private float lastSentPitch;
+
+    public static IReadOnlyList<PlayerGazeNetwork> All => RegisteredGazes;
+
+    // Taken from the capsule when there is one, so crouching lowers the eye
+    // without this component having to hear about postures. The serialized
+    // height is the fallback for anything that is not built that way.
+    public Vector3 EyePosition
+    {
+        get
+        {
+            CapsuleCollider capsule = Capsule;
+
+            float height = capsule != null
+                ? capsule.center.y + capsule.height * 0.5f * EyeShareOfHeight
+                : eyeHeight;
+
+            return transform.position + Vector3.up * height;
+        }
+    }
+
+    private CapsuleCollider Capsule
+    {
+        get
+        {
+            if (cachedCapsule == null)
+            {
+                cachedCapsule = GetComponent<CapsuleCollider>();
+            }
+
+            return cachedCapsule;
+        }
+    }
+
+    // Body yaw from the network transform, pitch from the one value this
+    // component sends.
+    public Vector3 GazeDirection =>
+        Quaternion.AngleAxis(pitch.Value, transform.right) * transform.forward;
+
+    public override void OnNetworkSpawn()
+    {
+        if (!RegisteredGazes.Contains(this))
+        {
+            RegisteredGazes.Add(this);
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        RegisteredGazes.Remove(this);
+    }
+
+    private void LateUpdate()
+    {
+        if (!IsOwner || !IsSpawned)
+        {
+            return;
+        }
+
+        if (ownerCamera == null)
+        {
+            ownerCamera = GetComponentInChildren<Camera>(true);
+
+            if (ownerCamera == null)
+            {
+                return;
+            }
+        }
+
+        // Signed angle between the body's flat forward and where the camera
+        // actually points, which is the part the body rotation does not carry.
+        float nextPitch = Vector3.SignedAngle(
+            transform.forward,
+            ownerCamera.transform.forward,
+            transform.right
+        );
+
+        // A pitch that trickles out every frame is a message per frame per
+        // player for something nobody can see moving. Only meaningful turns
+        // are worth the traffic.
+        if (Mathf.Abs(Mathf.DeltaAngle(lastSentPitch, nextPitch)) <
+            PitchSendThreshold)
+        {
+            return;
+        }
+
+        lastSentPitch = nextPitch;
+        pitch.Value = nextPitch;
+    }
+
+    public bool CanSee(Vector3 worldPoint)
+    {
+        Vector3 eye = EyePosition;
+        Vector3 toPoint = worldPoint - eye;
+        float distance = toPoint.magnitude;
+
+        if (distance > maxViewDistance || distance <= 0.001f)
+        {
+            return false;
+        }
+
+        if (Vector3.Angle(GazeDirection, toPoint) > halfViewAngle)
+        {
+            return false;
+        }
+
+        return !Physics.Raycast(
+            eye,
+            toPoint / distance,
+            distance,
+            obstructionMask,
+            QueryTriggerInteraction.Ignore
+        );
+    }
+
+#if UNITY_EDITOR
+    // Drawn from inside the component rather than from a debug one of its own:
+    // the player assembly cannot see the enemy assembly's debug helpers, and
+    // this is not worth a second component to get round that.
+    [Header("Debug")]
+    [SerializeField] private bool drawViewCone = true;
+
+    private void OnDrawGizmosSelected()
+    {
+        if (!drawViewCone)
+        {
+            return;
+        }
+
+        Vector3 eye = EyePosition;
+        Vector3 forward = GazeDirection;
+        Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
+        Vector3 up = Vector3.Cross(forward, right);
+
+        Gizmos.color = new Color(1f, 0.9f, 0.3f, 0.9f);
+        Gizmos.DrawRay(eye, forward * maxViewDistance);
+
+        for (int i = 0; i < 4; i++)
+        {
+            Vector3 axis = i switch
+            {
+                0 => right,
+                1 => -right,
+                2 => up,
+                _ => -up,
+            };
+
+            Vector3 edge = Quaternion.AngleAxis(halfViewAngle, Vector3.Cross(forward, axis))
+                * forward;
+
+            Gizmos.DrawRay(eye, edge * maxViewDistance);
+        }
+    }
+#endif
+
+    // A body is not a point. Asking about one spot on it means a head over a
+    // crate reads as hidden and a foot under a railing reads as exposed,
+    // depending on which spot was chosen. The enemy's own vision samples a
+    // handful of points on its target for the same reason; this is that,
+    // pointed the other way.
+    public bool CanSeeBody(Vector3 footPosition, float height)
+    {
+        return CanSee(footPosition + Vector3.up * (height * 0.95f)) ||
+               CanSee(footPosition + Vector3.up * (height * 0.55f)) ||
+               CanSee(footPosition + Vector3.up * (height * 0.15f));
+    }
+
+    // The question the enemy actually asks. Any player counts: being watched
+    // by one is being watched.
+    public static bool IsPointSeenByAnyone(Vector3 worldPoint)
+    {
+        for (int i = 0; i < RegisteredGazes.Count; i++)
+        {
+            PlayerGazeNetwork gaze = RegisteredGazes[i];
+
+            if (gaze != null && gaze.CanSee(worldPoint))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool TryGetNearest(Vector3 from, out PlayerGazeNetwork nearest)
+    {
+        nearest = null;
+        float nearestSqr = float.PositiveInfinity;
+
+        for (int i = 0; i < RegisteredGazes.Count; i++)
+        {
+            PlayerGazeNetwork gaze = RegisteredGazes[i];
+
+            if (gaze == null)
+            {
+                continue;
+            }
+
+            float sqr = (gaze.transform.position - from).sqrMagnitude;
+
+            if (sqr >= nearestSqr)
+            {
+                continue;
+            }
+
+            nearestSqr = sqr;
+            nearest = gaze;
+        }
+
+        return nearest != null;
+    }
+
+    public static bool IsBodySeenByAnyone(Vector3 footPosition, float height)
+    {
+        for (int i = 0; i < RegisteredGazes.Count; i++)
+        {
+            PlayerGazeNetwork gaze = RegisteredGazes[i];
+
+            if (gaze != null && gaze.CanSeeBody(footPosition, height))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
