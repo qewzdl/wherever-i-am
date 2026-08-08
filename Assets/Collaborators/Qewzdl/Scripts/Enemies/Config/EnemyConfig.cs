@@ -88,6 +88,28 @@ public class EnemyConfig : ScriptableObject
     public float targetRefreshInterval => visionProfile.targetRefreshInterval;
     public float visualTargetMemoryDuration => visionProfile.visualTargetMemoryDuration;
 
+    public float chaseWithoutStalkingDistance =>
+        visionProfile.chaseWithoutStalkingDistance;
+
+    // Held at least a metre above the chase distance no matter how the asset
+    // is authored: equal values are one threshold, and one threshold flips
+    // the enemy between chasing and stalking as the target drifts over it.
+    public float stalkInsteadOfChasingDistance => Mathf.Max(
+        visionProfile.stalkInsteadOfChasingDistance,
+        chaseWithoutStalkingDistance + 1f
+    );
+
+    public float stalkNoticedDuration => visionProfile.stalkNoticedDuration;
+
+    public float retreatBrokenSightDuration =>
+        visionProfile.retreatBrokenSightDuration;
+
+    public float retreatDistance => visionProfile.retreatDistance;
+
+    public float flankBehindDistance => visionProfile.flankBehindDistance;
+    public float flankTimeout => visionProfile.flankTimeout;
+    public float ambushPatience => visionProfile.ambushPatience;
+
     public float investigationReachDistance => Mathf.Max(
         investigationProfile.investigationReachDistance,
         stoppingDistance

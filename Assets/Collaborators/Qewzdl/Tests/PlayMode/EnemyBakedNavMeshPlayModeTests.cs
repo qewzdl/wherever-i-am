@@ -1937,10 +1937,15 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
             "Enemy did not start on the prebuilt NavMesh.");
 
+        // Acquisition is what this waits for, not chasing specifically. A
+        // target first seen from beyond the stalking threshold is stalked, and
+        // insisting on Chase here would only be waiting for the target's
+        // wandering to bring it close enough.
         yield return WaitForCondition(
             () => enemy.HasTarget &&
                   (enemy.CurrentState == EnemyState.Chase ||
-                   enemy.CurrentState == EnemyState.Attack),
+                   enemy.CurrentState == EnemyState.Attack ||
+                   enemy.CurrentState == EnemyState.Stalk),
             "Enemy did not acquire the moving target.");
 
         // A continuously shifting destination, unlike a fixed
@@ -1995,7 +2000,15 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 framesBelowThreshold++;
             }
 
-            bool halting = !isMoving && enemy.CurrentState != EnemyState.Attack;
+            // Standing still is correct in two states now. Attacking has
+            // always been one; stalking is the other, and its whole purpose is
+            // to stop and watch, so counting it as a stall would test the
+            // opposite of what is wanted.
+            bool shouldBeMoving =
+                enemy.CurrentState != EnemyState.Attack &&
+                enemy.CurrentState != EnemyState.Stalk;
+
+            bool halting = !isMoving && shouldBeMoving;
 
             if (halting && (inHalt || wasMoving))
             {
@@ -2106,7 +2119,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
     private EnemyTarget CreateSpawnedTarget(
         Vector3 position,
-        bool canBeDetected)
+        bool canBeDetected,
+        bool withGaze = false)
     {
         GameObject targetObject =
             Track(new GameObject("Baked NavMesh player target"));
@@ -2136,6 +2150,15 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             target,
             "canBeDetected",
             canBeDetected);
+
+        // Before the spawn, or OnNetworkSpawn never runs for it and it never
+        // reaches the registry the enemy asks - which reads as a target that
+        // can never see anything.
+        if (withGaze)
+        {
+            targetObject.AddComponent<PlayerGazeNetwork>();
+        }
+
         targetObject.SetActive(true);
 
         PlayModeTestReflection.SetField(
@@ -2604,6 +2627,139 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "postureProfile",
             posture);
         return clone;
+    }
+
+    // Vision refreshes every quarter second, so there is always a frame with
+    // no stimulus in it. A state that is not counted as working a target
+    // loses that target on such a frame, and an enemy standing and watching a
+    // player forgets it and wanders back to patrol.
+    [UnityTest]
+    public IEnumerator Stalking_KeepsItsTargetBetweenVisionRefreshes()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+
+        // Far enough out to be stalked rather than chased.
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 6f),
+            canBeDetected: true);
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -6f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning,
+            "Enemy did not start.");
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Stalk,
+            "Enemy did not settle into stalking a distant target.");
+
+        // Standing with the target visible never reaches the branch this is
+        // about - there is a stimulus every refresh. Taking the target out of
+        // sight for a moment is what a player stepping behind something does,
+        // and it is the frame on which an unengaged state throws its target
+        // away.
+        PlayModeTestReflection.SetField(target, "canBeDetected", false);
+
+        yield return new WaitForSecondsRealtime(0.6f);
+
+        // Dropping the target and going to look is correct - chasing does the
+        // same, and demanding otherwise would be asking stalking to be more
+        // stubborn than the behaviour it replaces. What must not happen is
+        // going straight back to patrol: that is what a state outside the
+        // engaged set does, throwing the target and the search memory away
+        // together and leaving nothing to look for.
+        Assert.That(
+            enemy.CurrentState,
+            Is.Not.EqualTo(EnemyState.Patrol),
+            "The enemy went back to patrolling the moment the target stepped " +
+            "out of sight, instead of going to look for it.");
+    }
+
+    // The sequence the whole thing was built for, end to end. Nothing before
+    // this reached past stalking: the other fixtures use a target with no
+    // gaze, and without something that can look back there is no being
+    // noticed, so no retreat, no going round and no ambush.
+    [UnityTest]
+    public IEnumerator StalkChain_GoesRoundBehindAndLiesInWait()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 6f),
+            canBeDetected: true,
+            withGaze: true);
+        PlayerGazeNetwork gaze = target.GetComponent<PlayerGazeNetwork>();
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -6f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning,
+            "Enemy did not start.");
+
+        // Looking away, so being spotted is not what brings on the stalk.
+        target.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Stalk,
+            "Enemy did not stalk a target seen from a distance.");
+
+        // Turn round and look straight at it.
+        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Retreat,
+            "Enemy did not break off after being looked at.");
+
+        // Look away again so it can get round without being seen.
+        target.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            20f,
+            () => enemy.CurrentState == EnemyState.Ambush,
+            "Enemy never got behind the target and settled into an ambush.");
+
+        Assert.That(
+            gaze.CanSeeBody(enemy.transform.position, 1.8f),
+            Is.False,
+            "The ambush position is in the target's view.");
+
+        // Turning round on something standing behind you is the beat the whole
+        // sequence exists to deliver. Chase rather than Attack: closing the
+        // last stride and swinging is chasing's job, and this hands over to it.
+        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Chase ||
+                  enemy.CurrentState == EnemyState.Attack,
+            "The target turned round onto the ambush and the enemy did not " +
+            "come at it.");
     }
 
     // The search route reaches four metres from the origin at its furthest,

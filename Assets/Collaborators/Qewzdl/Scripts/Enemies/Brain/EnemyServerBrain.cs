@@ -153,6 +153,10 @@ public sealed class EnemyServerBrain
         Register(new EnemyChaseState(context));
         Register(new EnemyAttackState(context));
         Register(new EnemyInvestigateState(context));
+        Register(new EnemyStalkState(context));
+        Register(new EnemyRetreatState(context));
+        Register(new EnemyFlankState(context));
+        Register(new EnemyAmbushState(context));
     }
 
     private void Register(IEnemyStateHandler handler)
@@ -197,19 +201,11 @@ public sealed class EnemyServerBrain
         switch (decision.Type)
         {
             case EnemyPerceptionDecisionType.ConfirmedTarget:
-                if (currentState != EnemyState.Chase && currentState != EnemyState.Attack)
-                {
-                    ChangeState(EnemyState.Chase);
-                }
-
+                ApplyConfirmedTarget();
                 break;
 
             case EnemyPerceptionDecisionType.SuspiciousPosition:
-                if (currentState != EnemyState.Investigate)
-                {
-                    ChangeState(EnemyState.Investigate);
-                }
-
+                ApplySuspiciousPosition();
                 break;
 
             case EnemyPerceptionDecisionType.None:
@@ -221,6 +217,81 @@ public sealed class EnemyServerBrain
                 );
 
                 break;
+        }
+    }
+
+    // Losing sight of the target normally means going to look for it. Not
+    // while circling round or lying in wait: those states are out of view on
+    // purpose, so they lose the target constantly by design, and pulling them
+    // into a search every time it happens meant the enemy never once reached
+    // the ambush.
+    //
+    // Both have their own timeouts, so nothing is left standing forever.
+    private void ApplySuspiciousPosition()
+    {
+        if (EnemyStateRules.HandlesOwnSightLoss(currentState) ||
+            currentState == EnemyState.Investigate)
+        {
+            return;
+        }
+
+        ChangeState(EnemyState.Investigate);
+    }
+
+    // Near targets are run at, far ones are stalked. Between the two
+    // thresholds nothing changes, so a target drifting across a single line
+    // cannot flip the enemy back and forth.
+    private void ApplyConfirmedTarget()
+    {
+        // Chase is the only engaged state the fork may still change - the
+        // rest run their own sequence and say when they are done.
+        if (EnemyStateRules.IsEngagedWithTarget(currentState) &&
+            currentState != EnemyState.Chase)
+        {
+            return;
+        }
+
+        // No usable target position to measure against yet. Chasing is what
+        // this did before stalking existed, and refusing to act at all would
+        // mean a confirmed target that the enemy notices and then ignores.
+        if (!blackboard.TargetMemory.HasTarget ||
+            !blackboard.TargetMemory.IsCurrentTargetValid)
+        {
+            if (currentState != EnemyState.Chase)
+            {
+                ChangeState(EnemyState.Chase);
+            }
+
+            return;
+        }
+
+        float distance = Vector3.Distance(
+            context.Navigator.Position,
+            context.GetTargetNavigationPosition(blackboard.TargetMemory.CurrentTarget)
+        );
+
+        float chaseDistance = context.Config.chaseWithoutStalkingDistance;
+        float stalkDistance = context.Config.stalkInsteadOfChasingDistance;
+
+        // Not committed to either yet - coming off patrol, idle or a search.
+        // There is nothing to flip between, so the band must not stop it
+        // deciding: a target first seen inside the band would otherwise be
+        // noticed and then ignored.
+        if (currentState != EnemyState.Chase)
+        {
+            ChangeState(distance >= (chaseDistance + stalkDistance) * 0.5f
+                ? EnemyState.Stalk
+                : EnemyState.Chase);
+
+            return;
+        }
+
+        // Already chasing. Only the far edge of the band turns that into
+        // stalking, so a target drifting around the threshold does not keep
+        // changing the enemy's mind. The way back is Stalk's own business.
+        if (distance >= stalkDistance)
+        {
+            ChangeState(EnemyState.Stalk);
         }
     }
 
