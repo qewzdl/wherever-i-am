@@ -182,6 +182,16 @@ public sealed class EnemyServerBrain
             return;
         }
 
+#if UNITY_EDITOR
+        // Kept rather than deleted. Three separate misbehaviours in this state
+        // machine were diagnosed from this line and none of them reproduced in
+        // a fixture; removing it just means adding it back next time.
+        Debug.Log(
+            $"[enemy-state] {currentState} -> {nextState} " +
+            $"hasTarget={blackboard.TargetMemory.HasTarget} " +
+            $"valid={blackboard.TargetMemory.IsCurrentTargetValid}");
+#endif
+
         currentHandler?.Exit();
 
         currentState = nextState;

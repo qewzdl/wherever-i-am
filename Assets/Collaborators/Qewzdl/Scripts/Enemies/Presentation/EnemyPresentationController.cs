@@ -41,6 +41,8 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
     private EnemyAttackPhase currentPresentedAttackPhase = EnemyAttackPhase.Idle;
     private EnemyStatePresentation currentPresentation;
 
+    private readonly HashSet<EnemyState> warnedMissingPresentations = new();
+
     private bool isRegistered;
     private bool subscribedToNetworkState;
     private IGameplaySoundService gameplaySoundService;
@@ -182,6 +184,7 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
         if (!profile.TryGetPresentation(nextState, out EnemyStatePresentation nextPresentation))
         {
+            WarnAboutMissingPresentation(nextState);
             return;
         }
 
@@ -391,6 +394,26 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         }
 
         gameplaySoundService.Play2D(sound);
+    }
+
+    // A state with no entry used to pass in silence, leaving the animator in
+    // whatever pose it already held and the previous state's looping sounds
+    // still going. An enemy stalking with a walk animation and patrol audio
+    // looks like a bug in the behaviour rather than a missing asset, so the
+    // gap says so - once per state, not once per transition.
+    private void WarnAboutMissingPresentation(EnemyState state)
+    {
+        if (!warnedMissingPresentations.Add(state))
+        {
+            return;
+        }
+
+        Debug.LogWarning(
+            $"{nameof(EnemyPresentationController)} has no presentation for " +
+            $"{state}, so the animator and looping sounds stay on whatever " +
+            "the previous state left. Add an entry for it to the profile.",
+            this
+        );
     }
 
     private void SubscribeToNetworkState()
