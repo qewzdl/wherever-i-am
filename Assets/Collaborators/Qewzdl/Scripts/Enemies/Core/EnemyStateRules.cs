@@ -20,14 +20,17 @@ public static class EnemyStateRules
                state == EnemyState.Ambush;
     }
 
-    // Breaks line of sight on purpose, so losing the target is the state
-    // working rather than failing. Sending these off to search the moment
-    // sight is lost means they never finish what they set out to do.
+    // Loses sight of the target as part of doing its job, so being sent off
+    // to search the moment it happens interrupts the state rather than
+    // finishing it. Three of these break sight deliberately; watching counts
+    // too, because a target that steps behind a door frame for a quarter
+    // second has not gone anywhere, and vision only refreshes that often.
     //
     // Each one carries its own timeout, so nothing waits forever.
     public static bool HandlesOwnSightLoss(EnemyState state)
     {
-        return state == EnemyState.Retreat ||
+        return state == EnemyState.Stalk ||
+               state == EnemyState.Retreat ||
                state == EnemyState.Flank ||
                state == EnemyState.Ambush;
     }

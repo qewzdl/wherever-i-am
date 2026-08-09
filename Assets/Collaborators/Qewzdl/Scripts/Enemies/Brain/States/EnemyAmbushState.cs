@@ -8,7 +8,6 @@ using UnityEngine;
 // would be a second thing to keep correct.
 public sealed class EnemyAmbushState : IEnemyStateHandler
 {
-    private const float BodyHeight = 1.8f;
     private const float FacingDegreesPerSecond = 260f;
 
     private readonly EnemyBrainContext context;
@@ -44,21 +43,30 @@ public sealed class EnemyAmbushState : IEnemyStateHandler
 
         // Turned round and seen it. This is the beat the whole sequence was
         // built for.
-        if (PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, BodyHeight))
+        if (PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
         {
             context.ChangeState(EnemyState.Chase);
             return;
         }
 
-        // Walked off without ever turning round. Standing here forever would
-        // leave the enemy behind a player who is now in another room.
         waitTimer += deltaTime;
 
-        if (waitTimer >= context.Config.ambushPatience ||
-            Vector3.Distance(selfPosition, player.transform.position) >
+        // Wandered off out of reach. Nothing to spring on any more, so go back
+        // to watching and pick another moment.
+        if (Vector3.Distance(selfPosition, player.transform.position) >
             context.Config.stalkInsteadOfChasingDistance)
         {
             context.ChangeState(EnemyState.Stalk);
+            return;
+        }
+
+        // Never turned round. Going back to stalking here left the whole
+        // sequence with no ending - watch, circle, wait, give up, watch again,
+        // for as long as the player never looked behind them. Patience running
+        // out is the enemy deciding it has waited long enough.
+        if (waitTimer >= context.Config.ambushPatience)
+        {
+            context.ChangeState(EnemyState.Chase);
         }
     }
 

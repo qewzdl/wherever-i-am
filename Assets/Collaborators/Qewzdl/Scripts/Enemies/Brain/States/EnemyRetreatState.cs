@@ -6,13 +6,15 @@ using UnityEngine.AI;
 // somewhere else.
 public sealed class EnemyRetreatState : IEnemyStateHandler
 {
-    private const float BodyHeight = 1.8f;
     private const float RepathInterval = 0.4f;
+    private const float ArrivalDistance = 1.2f;
 
     private readonly EnemyBrainContext context;
 
     private float repathTimer;
     private float unseenTimer;
+    private Vector3 retreatPoint;
+    private bool hasRetreatPoint;
 
     public EnemyState State => EnemyState.Retreat;
 
@@ -25,6 +27,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     {
         repathTimer = 0f;
         unseenTimer = 0f;
+        hasRetreatPoint = false;
     }
 
     public void Tick(float deltaTime)
@@ -43,7 +46,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
             return;
         }
 
-        if (PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, BodyHeight))
+        if (PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
         {
             unseenTimer = 0f;
         }
@@ -71,12 +74,27 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
 
         repathTimer = RepathInterval;
 
-        if (TryFindRetreatPoint(
-                selfPosition,
-                player.transform.position,
-                out Vector3 retreat))
+        // Keep the spot once it is chosen. Picking again every repath meant a
+        // different corner of the fan each time, and the enemy walked a
+        // circuit around the player instead of leaving.
+        if (hasRetreatPoint &&
+            Vector3.Distance(selfPosition, retreatPoint) > ArrivalDistance &&
+            !PlayerGazeNetwork.IsBodySeenByAnyone(
+                retreatPoint,
+                context.Navigator.BodyHeight))
         {
-            context.TryMoveTo(retreat, context.Config.chaseSpeed);
+            context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+            return;
+        }
+
+        hasRetreatPoint = TryFindRetreatPoint(
+            selfPosition,
+            player.transform.position,
+            out retreatPoint);
+
+        if (hasRetreatPoint)
+        {
+            context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
         }
     }
 
@@ -84,11 +102,14 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     {
         repathTimer = 0f;
         unseenTimer = 0f;
+        hasRetreatPoint = false;
     }
 
-    // Straight away from the target, and if the level does not allow that, off
-    // to either side of it. Backing into a corner and staying visible is the
-    // failure this guards against.
+    // Straight away from someone looking at you keeps you dead centre in
+    // their view the whole way - which is why the first build appeared to
+    // hide in plain sight. Sideways is what actually leaves a cone, so the
+    // lateral options are tried first and a candidate the player can still
+    // see is not a retreat at all.
     private bool TryFindRetreatPoint(
         Vector3 selfPosition,
         Vector3 targetPosition,
@@ -106,26 +127,55 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
 
         away.Normalize();
 
-        float distance = context.Config.retreatDistance;
+        float preferred = context.Config.retreatDistance;
+        float bodyHeight = context.Navigator.BodyHeight;
+        bool hasFallback = false;
+        Vector3 fallback = default;
 
-        for (int i = 0; i < RetreatAngles.Length; i++)
+        for (int r = 0; r < DistanceScales.Length; r++)
         {
-            Vector3 direction = Quaternion.Euler(0f, RetreatAngles[i], 0f) * away;
+            float distance = preferred * DistanceScales[r];
 
-            if (NavMesh.SamplePosition(
-                    selfPosition + direction * distance,
-                    out NavMeshHit hit,
-                    distance * 0.5f,
-                    NavMesh.AllAreas))
+            for (int i = 0; i < RetreatAngles.Length; i++)
             {
-                retreatPoint = hit.position;
-                return true;
+                Vector3 direction =
+                    Quaternion.Euler(0f, RetreatAngles[i], 0f) * away;
+
+                if (!NavMesh.SamplePosition(
+                        selfPosition + direction * distance,
+                        out NavMeshHit hit,
+                        distance * 0.5f,
+                        NavMesh.AllAreas))
+                {
+                    continue;
+                }
+
+                if (!PlayerGazeNetwork.IsBodySeenByAnyone(hit.position, bodyHeight))
+                {
+                    retreatPoint = hit.position;
+                    return true;
+                }
+
+                // Nowhere out of sight yet. Remember the first reachable spot
+                // so the enemy keeps moving instead of standing in the open
+                // waiting for a perfect answer that this room may not have.
+                if (!hasFallback)
+                {
+                    hasFallback = true;
+                    fallback = hit.position;
+                }
             }
         }
 
-        retreatPoint = default;
-        return false;
+        retreatPoint = fallback;
+        return hasFallback;
     }
 
-    private static readonly float[] RetreatAngles = { 0f, -40f, 40f, -75f, 75f };
+    // Sideways before backwards. Leaving a hundred and twenty degree cone is
+    // a matter of getting out of its edge, and walking straight back does not
+    // do that at any distance.
+    private static readonly float[] RetreatAngles =
+        { -90f, 90f, -135f, 135f, -45f, 45f, 0f };
+
+    private static readonly float[] DistanceScales = { 1f, 0.6f, 0.35f };
 }

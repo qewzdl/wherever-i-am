@@ -5,15 +5,13 @@ using UnityEngine;
 // wait to find out whether they have noticed you.
 public sealed class EnemyStalkState : IEnemyStateHandler
 {
-    // Roughly how tall the enemy is, for asking whether a player can see it.
-    // A single point at the feet is hidden by every crate in the level.
-    private const float BodyHeight = 1.8f;
 
     private const float FacingDegreesPerSecond = 220f;
 
     private readonly EnemyBrainContext context;
 
     private float watchedTimer;
+    private float lostTimer;
 
     public EnemyState State => EnemyState.Stalk;
 
@@ -25,6 +23,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
     public void Enter()
     {
         watchedTimer = 0f;
+        lostTimer = 0f;
 
         // Stopping is the whole point of the state, and it has to happen on
         // entry rather than being left to the first tick - a frame of walking
@@ -34,17 +33,31 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
     public void Tick(float deltaTime)
     {
+        Vector3 selfPosition = context.Navigator.Position;
+
+        // A lost target is not immediately a search. Vision refreshes four
+        // times a second, so a target that steps behind a door frame is
+        // "gone" for a moment on its way past - abandoning the stalk on that
+        // meant the enemy dropped into a search over and over and never got
+        // anywhere.
         if (!context.TargetMemory.HasTarget ||
             !context.TargetMemory.IsCurrentTargetValid)
         {
-            context.ForgetCurrentTargetButKeepLastKnownPosition();
-            context.ChangeState(EnemyState.Investigate);
+            lostTimer += deltaTime;
+
+            if (lostTimer >= context.Config.visualTargetMemoryDuration)
+            {
+                context.ForgetCurrentTargetButKeepLastKnownPosition();
+                context.ChangeState(EnemyState.Investigate);
+            }
+
             return;
         }
 
+        lostTimer = 0f;
+
         Vector3 targetPosition =
             context.GetTargetNavigationPosition(context.TargetMemory.CurrentTarget);
-        Vector3 selfPosition = context.Navigator.Position;
         float distance = Vector3.Distance(selfPosition, targetPosition);
 
         if (distance > context.Config.loseTargetDistance)
@@ -64,7 +77,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
         FaceTarget(targetPosition, selfPosition, deltaTime);
 
-        if (!PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, BodyHeight))
+        if (!PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
         {
             watchedTimer = 0f;
             return;
@@ -83,6 +96,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
     public void Exit()
     {
         watchedTimer = 0f;
+        lostTimer = 0f;
     }
 
     private void FaceTarget(
