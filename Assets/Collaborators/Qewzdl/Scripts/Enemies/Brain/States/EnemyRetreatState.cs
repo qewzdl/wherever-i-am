@@ -77,8 +77,17 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         // Keep the spot once it is chosen. Picking again every repath meant a
         // different corner of the fan each time, and the enemy walked a
         // circuit around the player instead of leaving.
+        Vector3 playerPosition = player.transform.position;
+
         if (hasRetreatPoint &&
             Vector3.Distance(selfPosition, retreatPoint) > ArrivalDistance &&
+            // The point was chosen against where they stood then. They move,
+            // and a spot that led away a moment ago can lead straight back
+            // past them.
+            !EnemyStateRules.ClosesOnWatcher(
+                selfPosition,
+                retreatPoint,
+                playerPosition) &&
             !PlayerGazeNetwork.IsBodySeenByAnyone(
                 retreatPoint,
                 context.Navigator.BodyHeight))
@@ -89,13 +98,18 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
 
         hasRetreatPoint = TryFindRetreatPoint(
             selfPosition,
-            player.transform.position,
+            playerPosition,
             out retreatPoint);
 
         if (hasRetreatPoint)
         {
             context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+            return;
         }
+
+        // Nothing to move to that leads away. Standing still beats walking in
+        // the one direction this state exists to avoid.
+        context.StopNavigation();
     }
 
     public void Exit()
@@ -146,6 +160,19 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
                         out NavMeshHit hit,
                         distance * 0.5f,
                         NavMesh.AllAreas))
+                {
+                    continue;
+                }
+
+                // The wide angles swing round the target rather than away
+                // from it, and at this state's distances they can finish on
+                // the far side - further off than they started, having walked
+                // right through the target on the way. A retreat that passes
+                // closer than the gap it started with is not a retreat.
+                if (EnemyStateRules.ClosesOnWatcher(
+                        selfPosition,
+                        hit.position,
+                        targetPosition))
                 {
                     continue;
                 }

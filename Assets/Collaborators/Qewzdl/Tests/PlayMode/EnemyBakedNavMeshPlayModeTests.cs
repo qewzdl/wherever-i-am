@@ -2762,6 +2762,87 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "come at it.");
     }
 
+    // Backing away is measured against the target, not against the compass.
+    // The retreat fan reaches a hundred and thirty five degrees off straight
+    // back, which at this state's distances swings round the target and
+    // finishes on the far side of it - further away than it started, having
+    // walked through the gap on the way. In a dead end that is the only
+    // candidate the level offers, so it was taken, and the enemy walked at
+    // someone who was looking straight at it.
+    [UnityTest]
+    public IEnumerator Retreat_DoesNotCloseOnATargetThatIsWatching()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeDeadEndFacingTheTarget(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 3f),
+            canBeDetected: true,
+            withGaze: true);
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -9f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning,
+            "Enemy did not start.");
+
+        // Looking away, so the stalk is what being seen from a distance
+        // brings on rather than being caught.
+        target.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Stalk,
+            "Enemy did not stalk a target seen from a distance.");
+
+        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Retreat,
+            "Enemy did not break off after being looked at.");
+
+        float startDistance = Vector3.Distance(
+            enemy.transform.position,
+            target.transform.position);
+        float closest = startDistance;
+        float deadline = Time.realtimeSinceStartup + 3f;
+
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            closest = Mathf.Min(
+                closest,
+                Vector3.Distance(
+                    enemy.transform.position,
+                    target.transform.position));
+
+            yield return null;
+        }
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(EnemyState.Retreat),
+            "The enemy left the retreat, so this measured something else.");
+
+        // Standing still is a fine answer here - there is nowhere to back
+        // away to. Walking in is not.
+        Assert.That(
+            closest,
+            Is.GreaterThan(startDistance - 1f),
+            $"The enemy closed on a target watching it, from " +
+            $"{startDistance:F2} to {closest:F2}.");
+    }
+
     // The search route reaches four metres from the origin at its furthest,
     // so a six metre room holds the branch points and not the leaves. A room
     // big enough for all of them would make the filter untestable.
@@ -2995,6 +3076,31 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Room wall right of doorway",
             new Vector3(7.5f, 1f, 0f),
             new Vector3(5f, 2f, 0.4f),
+            root.transform);
+        BakeSurfaces(
+            root,
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+    }
+
+    // A dead end whose only opening faces the target: a stem the enemy stands
+    // in, and a room beyond it that the target stands in. Everything sideways
+    // and behind runs off the mesh, so the only reachable retreat candidates
+    // are the wide ones that swing round toward the target.
+    private void BakeDeadEndFacingTheTarget(
+        int standingAgentTypeId,
+        int crawlingAgentTypeId)
+    {
+        GameObject root = Track(new GameObject("Prebuilt dead end"));
+        CreateGeometry(
+            "Dead end room",
+            new Vector3(0f, -0.1f, 2.5f),
+            new Vector3(16f, 0.2f, 11f),
+            root.transform);
+        CreateGeometry(
+            "Dead end stem",
+            new Vector3(0f, -0.1f, -7f),
+            new Vector3(2f, 0.2f, 8f),
             root.transform);
         BakeSurfaces(
             root,

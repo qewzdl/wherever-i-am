@@ -78,9 +78,11 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         // on a single frame of it. Crossing a doorway puts the enemy in view
         // for an instant, and treating that as being caught threw away the
         // whole approach every few metres.
-        if (PlayerGazeNetwork.IsBodySeenByAnyone(
-                selfPosition,
-                context.Navigator.BodyHeight))
+        bool isSeen = PlayerGazeNetwork.IsBodySeenByAnyone(
+            selfPosition,
+            context.Navigator.BodyHeight);
+
+        if (isSeen)
         {
             seenTimer += deltaTime;
 
@@ -128,6 +130,21 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         if (Vector3.Distance(selfPosition, flankPoint) <= ArrivalDistance)
         {
             context.ChangeState(EnemyState.Ambush);
+            return;
+        }
+
+        // Caught partway round. The route is allowed to be seen for stretches
+        // of it - insisting otherwise found nothing in a real level - but
+        // walking at someone while they are looking straight at you is not a
+        // flank, it is a charge. Wait them out; either the sighting passes or
+        // the timer above hands this to the retreat.
+        if (isSeen &&
+            EnemyStateRules.ClosesOnWatcher(
+                selfPosition,
+                flankPoint,
+                player.transform.position))
+        {
+            context.StopNavigation();
             return;
         }
 
