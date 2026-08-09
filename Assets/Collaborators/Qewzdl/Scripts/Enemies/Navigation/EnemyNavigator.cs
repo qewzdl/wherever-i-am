@@ -35,6 +35,13 @@ public class EnemyNavigator : MonoBehaviour
     private readonly List<ItemNavigationObstacle> pushThroughCandidates = new();
 
     public Vector3 Position => transform.position;
+
+    // How tall this enemy is, for anyone asking whether it can be seen. Taken
+    // from the agent rather than written down again per state: it is already
+    // the authority on the enemy's size, and it shrinks when the posture does.
+    public float BodyHeight => agent != null ? agent.height : DefaultBodyHeight;
+
+    private const float DefaultBodyHeight = 1.8f;
     public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
         queryTelemetry != null
             ? queryTelemetry.Snapshot

@@ -47,6 +47,7 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
     // Eyes sit near the top of a head, not at the very crown.
     private const float EyeShareOfHeight = 0.92f;
 
+    private IReplicatedPlayerHidingStateService hidingState;
     private Camera ownerCamera;
     private CapsuleCollider cachedCapsule;
     private float lastSentPitch;
@@ -85,8 +86,16 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
 
     // Body yaw from the network transform, pitch from the one value this
     // component sends.
+    // Clamped on read. The owner writes this value, so a client could send
+    // anything; the clamp bounds the nonsense to angles a camera can actually
+    // reach. It cannot stop a client lying within that range - that would need
+    // the server to own aiming, which is a much larger change than this.
     public Vector3 GazeDirection =>
-        Quaternion.AngleAxis(pitch.Value, transform.right) * transform.forward;
+        Quaternion.AngleAxis(
+            Mathf.Clamp(pitch.Value, -MaxPitch, MaxPitch),
+            transform.right) * transform.forward;
+
+    private const float MaxPitch = 85f;
 
     public override void OnNetworkSpawn()
     {
@@ -139,8 +148,29 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         pitch.Value = nextPitch;
     }
 
+    // Someone folded into a box is not watching the room. The enemy's own
+    // sight already works this way - a hidden player cannot be detected - and
+    // without the same rule here a player in a crate scared the enemy off a
+    // flank it should have walked straight past.
+    public bool IsWatching =>
+        HidingState == null || !HidingState.IsHidden;
+
+    private IReplicatedPlayerHidingStateService HidingState
+    {
+        get
+        {
+            hidingState ??= GetComponent<IReplicatedPlayerHidingStateService>();
+            return hidingState;
+        }
+    }
+
     public bool CanSee(Vector3 worldPoint)
     {
+        if (!IsWatching)
+        {
+            return false;
+        }
+
         Vector3 eye = EyePosition;
         Vector3 toPoint = worldPoint - eye;
         float distance = toPoint.magnitude;
@@ -211,6 +241,14 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
     // pointed the other way.
     public bool CanSeeBody(Vector3 footPosition, float height)
     {
+        // One cheap rejection for the whole body before any raycasting. Three
+        // probes each cast a ray, and the common answer is "nowhere near
+        // looking at it" - which distance and angle settle on their own.
+        if (!IsWatching || !IsBodyWorthCasting(footPosition, height))
+        {
+            return false;
+        }
+
         return CanSee(footPosition + Vector3.up * (height * 0.95f)) ||
                CanSee(footPosition + Vector3.up * (height * 0.55f)) ||
                CanSee(footPosition + Vector3.up * (height * 0.15f));
@@ -233,6 +271,26 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         return false;
     }
 
+    private bool IsBodyWorthCasting(Vector3 footPosition, float height)
+    {
+        Vector3 centre = footPosition + Vector3.up * (height * 0.5f);
+        Vector3 toCentre = centre - EyePosition;
+        float distance = toCentre.magnitude;
+
+        if (distance > maxViewDistance + height)
+        {
+            return false;
+        }
+
+        // Widened by however much of the body could stick out past its middle,
+        // so a head just inside the cone is not thrown away by a test aimed at
+        // the waist.
+        float slack = Mathf.Atan2(height * 0.5f, Mathf.Max(distance, 0.01f)) *
+                      Mathf.Rad2Deg;
+
+        return Vector3.Angle(GazeDirection, toCentre) <= halfViewAngle + slack;
+    }
+
     public static bool TryGetNearest(Vector3 from, out PlayerGazeNetwork nearest)
     {
         nearest = null;
@@ -242,6 +300,11 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         {
             PlayerGazeNetwork gaze = RegisteredGazes[i];
 
+            // Not filtered by whether they are watching. This answers "who
+            // am I dealing with", which a player folded into a box still is -
+            // filtering here made the whole stalk chain collapse into a
+            // search the moment someone hid. Only the visibility questions
+            // care about watching.
             if (gaze == null)
             {
                 continue;
