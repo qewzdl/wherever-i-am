@@ -28,6 +28,9 @@ public class ChatWindowUI : MonoBehaviour
     [SerializeField] private bool releaseFocusAfterSubmit = true;
 
     private IChatReadService readService;
+#if UNITY_EDITOR
+    private bool warnedAboutRefusedOpen;
+#endif
     private IChatCommandService commandService;
     private IGameStateService stateMachine;
     private ILocalPlayerInputService localInputService;
@@ -115,7 +118,10 @@ public class ChatWindowUI : MonoBehaviour
     public void Open()
     {
         if (!CanOpen)
+        {
+            WarnAboutRefusedOpen();
             return;
+        }
 
         ResolveReferences();
 
@@ -132,6 +138,30 @@ public class ChatWindowUI : MonoBehaviour
 
         ApplyOpenState(true, true);
         FocusInput();
+    }
+
+    // Refusing to open in silence leaves nothing to go on: the key does
+    // nothing and the console stays empty. Each of the three reasons is a
+    // different problem, so the message says which one it was, once.
+    private void WarnAboutRefusedOpen()
+    {
+#if UNITY_EDITOR
+        if (warnedAboutRefusedOpen)
+        {
+            return;
+        }
+
+        warnedAboutRefusedOpen = true;
+
+        string reason = readService == null
+            ? "no chat service was handed to this window - the session " +
+              "service is missing or was never injected"
+            : "the session says chat is unavailable, which it does outside " +
+              "the lobby and a running game, and before the chat session has " +
+              "spawned";
+
+        Debug.LogWarning($"Chat refused to open: {reason}.", this);
+#endif
     }
 
     public void Close()
@@ -545,7 +575,12 @@ public class ChatWindowUI : MonoBehaviour
         if (canvasGroup == null)
             canvasGroup = root.AddComponent<CanvasGroup>();
 
-        root.SetActive(true);
+        // Only ever needed to undo an older Hide that deactivated the object.
+        // Doing it unconditionally reaches SetActive on an object that is
+        // already being deactivated - which is what unbinding the chat from
+        // OnDisable does - and Unity treats that as an error.
+        if (visible && !root.activeSelf)
+            root.SetActive(true);
 
         canvasGroup.alpha = visible ? 1f : 0f;
         canvasGroup.interactable = visible;
