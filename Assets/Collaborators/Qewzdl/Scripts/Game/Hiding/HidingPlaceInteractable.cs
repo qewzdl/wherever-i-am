@@ -32,6 +32,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
     private readonly HidingExitPlacementResolver exitPlacementResolver =
         new();
 
+    private Collider[] rangeColliders;
     private bool acceptingEntries;
     private bool networkSceneUnloadInProgress;
     private bool listensToNetworkSceneUnload;
@@ -536,15 +537,52 @@ public sealed class HidingPlaceInteractable : InteractableObject
         return playerHiding != null;
     }
 
+    // The reach that lets a player focus this place is a ray that stops at
+    // whatever surface it meets, so it measures to the outside of the box.
+    // Measuring to the anchor instead measures to a point buried inside that
+    // box, which is further away by however deep the box is - the same number
+    // in both settings then refuses entries the reach had already offered.
+    // Measured to the surface, one number means one thing.
     private bool IsInsideInteractionRange(Vector3 playerPosition)
     {
+        float maxDistance = Configuration.MaxInteractionDistance;
+        float maxSqrDistance = maxDistance * maxDistance;
+
+        rangeColliders ??= GetComponentsInChildren<Collider>(true);
+
+        bool measuredAnySurface = false;
+
+        for (int i = 0; i < rangeColliders.Length; i++)
+        {
+            Collider surface = rangeColliders[i];
+
+            if (surface == null || surface.isTrigger)
+            {
+                continue;
+            }
+
+            measuredAnySurface = true;
+
+            Vector3 nearest = surface.ClosestPoint(playerPosition);
+
+            if ((nearest - playerPosition).sqrMagnitude <= maxSqrDistance)
+            {
+                return true;
+            }
+        }
+
+        if (measuredAnySurface)
+        {
+            return false;
+        }
+
+        // Nothing solid to measure to, so the anchor is all there is.
         Transform anchor = interactionAnchor != null
             ? interactionAnchor
             : transform;
-        float maxDistance = Configuration.MaxInteractionDistance;
 
         return (playerPosition - anchor.position).sqrMagnitude <=
-               maxDistance * maxDistance;
+               maxSqrDistance;
     }
 
     private void RaiseServerNoise(
@@ -802,13 +840,10 @@ public sealed class HidingPlaceInteractable : InteractableObject
 
     private void OnDrawGizmosSelected()
     {
-        if (interactionAnchor != null && Configuration != null)
+        if (Configuration != null)
         {
             Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(
-                interactionAnchor.position,
-                Configuration.MaxInteractionDistance
-            );
+            DrawInteractionRange(Configuration.MaxInteractionDistance);
         }
 
         DrawAnchor(hidingPoint, Color.green, 0.15f);
@@ -828,6 +863,49 @@ public sealed class HidingPlaceInteractable : InteractableObject
                 0.12f
             );
         }
+    }
+
+    // Range is measured to the surface, so a sphere round the anchor would
+    // show a reach nobody uses. The box is the bounds grown by the distance -
+    // squarer at the corners than the real rounded region, close enough to
+    // place a hiding place by.
+    private void DrawInteractionRange(float maxDistance)
+    {
+        Collider[] colliders = GetComponentsInChildren<Collider>(true);
+        Bounds surface = default;
+        bool hasSurface = false;
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] == null || colliders[i].isTrigger)
+            {
+                continue;
+            }
+
+            if (hasSurface)
+            {
+                surface.Encapsulate(colliders[i].bounds);
+                continue;
+            }
+
+            surface = colliders[i].bounds;
+            hasSurface = true;
+        }
+
+        if (!hasSurface)
+        {
+            Transform anchor = interactionAnchor != null
+                ? interactionAnchor
+                : transform;
+
+            Gizmos.DrawWireSphere(anchor.position, maxDistance);
+            return;
+        }
+
+        Gizmos.DrawWireCube(
+            surface.center,
+            surface.size + Vector3.one * (maxDistance * 2f)
+        );
     }
 
     private static void DrawAnchor(

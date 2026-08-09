@@ -478,6 +478,10 @@ public sealed class TwoClientHidingPlacePlayModeTests
         );
     }
 
+    // Range is measured to the nearest surface of the place, not to its
+    // middle, so the box's own half depth is not part of the gap. Standing at
+    // 3 leaves a tenth of a metre of it, which this fixture's replica drift
+    // can eat on its own.
     [UnityTest]
     public IEnumerator OutOfRangePlayer_ServerRejectsEntry()
     {
@@ -485,7 +489,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
         ulong playerId = SpawnPlayer(
             clientA.Manager.LocalClientId,
-            Vector3.back * 3f
+            Vector3.back * 4f
         );
         ulong hidingPlaceId = SpawnHidingPlace();
 
@@ -516,6 +520,90 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
         Assert.That(serverPlace.IsOccupied, Is.False);
         Assert.That(player.IsHidden, Is.False);
+    }
+
+    // The reach that offers a hiding place is a ray that stops at its surface,
+    // so a player that reach can serve has to be able to get in. Measured to
+    // the middle of the place instead, this spot is out of range and the entry
+    // is refused - which is what the check used to do, and why entering meant
+    // walking closer than picking something up did.
+    [UnityTest]
+    public IEnumerator PlayerWithinReachOfSurface_ServerAcceptsEntry()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(
+            clientA.Manager.LocalClientId,
+            Vector3.back * 3.25f
+        );
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        // Three metres deep, so its near face is 1.75 away and its middle
+        // 3.25 - three quarters of a metre either side of the 2.5 it allows,
+        // so neither answer rests on a rounding.
+        WidenHidingPlace(hidingPlaceId, 3f);
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+        PlayerHidingController serverPlayer =
+            GetComponent<PlayerHidingController>(
+                server,
+                playerId
+            );
+
+        Assert.That(
+            Vector3.Distance(
+                serverPlayer.transform.position,
+                serverPlace.transform.position
+            ),
+            Is.GreaterThan(serverPlace.Configuration.MaxInteractionDistance),
+            "The player stands within range of the middle too, so this " +
+            "fixture cannot tell the two measurements apart."
+        );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.IsOccupied,
+            "A player standing within reach of the hiding place's surface " +
+            "was refused entry."
+        );
+    }
+
+    private void WidenHidingPlace(ulong hidingPlaceId, float depth)
+    {
+        Endpoint[] endpoints = { server, clientA, clientB };
+
+        for (int i = 0; i < endpoints.Length; i++)
+        {
+            BoxCollider box =
+                GetComponent<HidingPlaceInteractable>(
+                    endpoints[i],
+                    hidingPlaceId
+                ).GetComponent<BoxCollider>();
+
+            box.size = new Vector3(box.size.x, box.size.y, depth);
+        }
+
+        Physics.SyncTransforms();
     }
 
     [UnityTest]
