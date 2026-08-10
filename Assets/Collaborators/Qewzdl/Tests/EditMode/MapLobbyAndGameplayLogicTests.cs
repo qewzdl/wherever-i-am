@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 internal sealed class GameStateServiceStub : IGameStateService
 {
@@ -187,6 +189,56 @@ public sealed class MapLobbyAndGameplayLogicTests
         }
         finally
         {
+            UnityEngine.Object.DestroyImmediate(serviceObject);
+        }
+    }
+
+    // One client that never reported the map used to end the match for
+    // everyone, the host included - and a player quitting during the load
+    // reports the same way, so leaving was enough to do it. Whether the map is
+    // loaded here is what decides it now.
+    [Test]
+    public void MapService_KeepsTheMatchWhenAClientNeverReportsTheMap()
+    {
+        GameObject serviceObject = new("Map service");
+        GameObject rootObject = new("Map root");
+        GameMapDefinition map = CreateMap(3, "Prototype");
+
+        try
+        {
+            GameMapService service = serviceObject.AddComponent<GameMapService>();
+            GameMapRoot mapRoot = rootObject.AddComponent<GameMapRoot>();
+            bool? reportedSuccess = null;
+
+            // No catalog and no such loaded scene, so the handler's own
+            // caching leaves these alone - which is what stands in for a map
+            // that loaded here perfectly well.
+            TestReflection.SetField(service, "selectedMap", map);
+            TestReflection.SetField(service, "activeMap", map);
+            TestReflection.SetField(service, "activeMapRoot", mapRoot);
+            TestReflection.SetField(
+                service,
+                "pendingCompletion",
+                (Action<bool>)(success => reportedSuccess = success));
+
+            TestReflection.Invoke(
+                service,
+                "HandleNetworkLoadEventCompleted",
+                map.SceneName,
+                LoadSceneMode.Additive,
+                new List<ulong> { 0 },
+                new List<ulong> { 7 });
+
+            Assert.That(
+                reportedSuccess,
+                Is.EqualTo(true),
+                "One client failing to load the map ended the match for " +
+                "everyone.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(map);
+            UnityEngine.Object.DestroyImmediate(rootObject);
             UnityEngine.Object.DestroyImmediate(serviceObject);
         }
     }

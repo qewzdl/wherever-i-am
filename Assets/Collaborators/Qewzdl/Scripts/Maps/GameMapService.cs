@@ -322,21 +322,62 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         Scene loadedScene = SceneManager.GetSceneByName(sceneName);
         CacheLoadedMap(loadedScene);
 
-        bool success = activeMapRoot != null &&
-                       (clientsTimedOut == null || clientsTimedOut.Count == 0);
+        // Whether the map is loaded here is the only thing this decides. It
+        // used to fail unless every client reported in as well, which handed
+        // any one of them a switch that ended the match for everybody - a
+        // player quitting during the load was enough, and the host, whose own
+        // map had loaded perfectly well, was thrown back to the menu with
+        // them.
+        bool success = activeMapRoot != null;
 
         readyForMatch = success;
         CompletePending(success);
 
-        if (success)
+        if (!success)
         {
-            MapReady?.Invoke();
+            Debug.LogError(
+                $"Network map load for '{selectedMap.DisplayName}' did not complete.",
+                this);
+
             return;
         }
 
-        Debug.LogError(
-            $"Network map load for '{selectedMap.DisplayName}' did not complete successfully for all clients.",
-            this);
+        DropClientsMissingTheMap(clientsTimedOut);
+        MapReady?.Invoke();
+    }
+
+    // Staying connected without the map is worse than being sent back: the
+    // server spawns them on geometry their own copy has not got, and they drop
+    // through a world that is not there. Their own load has already failed on
+    // their side; this stops them waiting in a match they cannot play.
+    private void DropClientsMissingTheMap(List<ulong> clientsTimedOut)
+    {
+        if (clientsTimedOut == null ||
+            clientsTimedOut.Count == 0 ||
+            networkManager == null ||
+            !networkManager.IsServer)
+        {
+            return;
+        }
+
+        for (int i = 0; i < clientsTimedOut.Count; i++)
+        {
+            ulong clientId = clientsTimedOut[i];
+
+            if (clientId == networkManager.LocalClientId)
+            {
+                continue;
+            }
+
+            Debug.LogWarning(
+                $"Client {clientId} never loaded map " +
+                $"'{selectedMap.DisplayName}' and was dropped from the match.",
+                this);
+
+            networkManager.DisconnectClient(
+                clientId,
+                $"Map '{selectedMap.DisplayName}' was not loaded.");
+        }
     }
 
     public void CancelPending(ProjectOperationCancelReason reason)
