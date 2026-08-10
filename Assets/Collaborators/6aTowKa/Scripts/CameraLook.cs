@@ -113,6 +113,8 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     public void SetLocalControl(bool value)
     {
+        bool hadLocalControl = hasLocalControl;
+
         hasLocalControl = value;
         lookBlockers.Clear();
         lookActive = true;
@@ -120,7 +122,16 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
         if (!hasLocalControl)
         {
-            SetCursorLocked(false);
+            // The cursor is one global thing shared by every camera in the
+            // scene, and someone else's player has no business releasing it.
+            // Another player joining runs this on their copy here, which
+            // unlocked the local player's cursor - and looking around needs it
+            // locked, so the camera died until the pause menu locked it again.
+            if (hadLocalControl)
+            {
+                SetCursorLocked(false);
+            }
+
             enabled = false;
             return;
         }

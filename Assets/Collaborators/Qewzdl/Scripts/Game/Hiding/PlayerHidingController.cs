@@ -329,12 +329,16 @@ public sealed class PlayerHidingController :
     {
         ResolveReferences();
 
+        // No movement component is the normal shape of someone else's player
+        // here. PlayerSetup destroys it on every copy that is not locally
+        // controlled, and on the server that is every client - so demanding
+        // one let nobody but the host in. The checks that actually use it
+        // below already cope with it being absent.
         if (!IsServer ||
             !IsSpawned ||
             !isActiveAndEnabled ||
             IsInHidingSequence ||
-            bodyCollider == null ||
-            playerController == null)
+            bodyCollider == null)
         {
             return false;
         }

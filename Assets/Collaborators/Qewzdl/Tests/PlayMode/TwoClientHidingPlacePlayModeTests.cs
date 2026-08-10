@@ -522,6 +522,65 @@ public sealed class TwoClientHidingPlacePlayModeTests
         Assert.That(player.IsHidden, Is.False);
     }
 
+    // What a client's player actually looks like on the server: PlayerSetup
+    // destroys the movement component on every copy that is not locally
+    // controlled, and on the server that is every client. The entry gate asked
+    // for one anyway, so the only player who could ever get in was the host,
+    // whose own copy keeps it. The fixture hands every player one, which is
+    // why nothing here noticed.
+    [UnityTest]
+    public IEnumerator PlayerWithoutMovementComponent_ServerAcceptsEntry()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController serverPlayer =
+            GetComponent<PlayerHidingController>(
+                server,
+                playerId
+            );
+
+        Object.DestroyImmediate(serverPlayer.GetComponent<PlayerController>());
+
+        Assert.That(
+            serverPlayer.GetComponent<PlayerController>(),
+            Is.Null,
+            "The server's copy still has a movement component, so this is " +
+            "not shaped like a real client's player."
+        );
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.IsOccupied,
+            "A client was refused entry because the server's copy of its " +
+            "player has no movement component."
+        );
+    }
+
     // The reach that offers a hiding place is a ray that stops at its surface,
     // so a player that reach can serve has to be able to get in. Measured to
     // the middle of the place instead, this spot is out of range and the entry

@@ -25,6 +25,56 @@ public sealed class PlayerMechanicsPlayModeTests
         cleanup.Clear();
     }
 
+    // The cursor is one global thing. Another player joining sets their camera
+    // up here with local control off, and that released the cursor the local
+    // player was holding - after which looking around stopped dead, because it
+    // needs the cursor locked. Opening the pause menu and closing it locked
+    // the cursor again, which is why that appeared to fix joining a server.
+    [Test]
+    public void RemotePlayerCamera_DoesNotReleaseTheLocalCursor()
+    {
+        CameraLook remote = CreateLockingCameraLook("Remote player");
+
+        // Batch mode has no window, so the lock state itself does not take.
+        // Visibility is the other half of the same call and is observable, so
+        // that is what the released cursor would show up in.
+        Cursor.visible = false;
+
+        Assert.That(
+            Cursor.visible,
+            Is.False,
+            "Cursor visibility is not observable here, so this fixture " +
+            "cannot tell whether anything released the cursor.");
+
+        remote.SetLocalControl(false);
+
+        Assert.That(
+            Cursor.visible,
+            Is.False,
+            "Another player's camera released the local player's cursor.");
+    }
+
+    private CameraLook CreateLockingCameraLook(string name)
+    {
+        GameObject player = Track(new GameObject(name));
+        player.SetActive(false);
+        player.AddComponent<Rigidbody>().useGravity = false;
+
+        GameObject cameraObject = Track(new GameObject($"{name} camera"));
+        cameraObject.SetActive(false);
+        cameraObject.transform.SetParent(player.transform, false);
+
+        CameraLook cameraLook = cameraObject.AddComponent<CameraLook>();
+        PlayModeTestReflection.SetField(
+            cameraLook,
+            "playerTransform",
+            player.transform);
+
+        player.SetActive(true);
+        cameraObject.SetActive(true);
+        return cameraLook;
+    }
+
     [Test]
     public void InputHandler_RequiresEveryBlockerToReleaseInput()
     {
