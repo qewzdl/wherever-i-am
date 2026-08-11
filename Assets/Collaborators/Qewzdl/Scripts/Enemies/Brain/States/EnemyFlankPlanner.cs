@@ -15,6 +15,13 @@ using UnityEngine;
 // offer something reachable that is still out of view.
 internal sealed class EnemyFlankPlanner
 {
+    // How far the target may drift, and how far it may turn, before the pose
+    // the search started against is a different pose. Past either, the half of
+    // the fan already walked was judged against something that is no longer
+    // true, so the search starts again rather than mixing the two.
+    private const float SnapshotMoveTolerance = 1f;
+    private const float SnapshotTurnToleranceDot = 0.94f;
+
     private readonly EnemyBrainContext context;
 
     private int cursor;
@@ -22,6 +29,8 @@ internal sealed class EnemyFlankPlanner
     private bool mirrorSides;
     private Vector3 fallbackPoint;
     private bool hasFallbackPoint;
+    private Vector3 searchTargetPosition;
+    private Vector3 searchTargetForward;
 
     public EnemyFlankPlanner(EnemyBrainContext context)
     {
@@ -40,6 +49,7 @@ internal sealed class EnemyFlankPlanner
     public EnemyTacticalPlanResult TryFindPointBehind(
         EnemyTargetObservation targetObservation,
         Vector3 selfPosition,
+        ref int pathBudget,
         ref int visibilityBudget,
         out Vector3 point
     )
@@ -51,7 +61,28 @@ internal sealed class EnemyFlankPlanner
         int allowance = Mathf.Clamp(tactics.candidatesPerTick, 1, total);
         int routeBudget = Mathf.Min(tactics.routeSampleBudget, visibilityBudget);
 
-        Vector3 behind = -targetObservation.Forward;
+        // One pose per pass. Perception refreshes the observation whenever it
+        // sees the target again, so without this the first half of the fan was
+        // judged against where the target stood two ticks ago and the second
+        // half against where it stands now - and the point finally chosen
+        // could be the one left over from the older of the two.
+        //
+        // ponytail: pose only. A rebuilt NavMesh mid-search still mixes
+        // topologies; add a revision check if runtime rebuilds start moving
+        // geometry under a live manoeuvre.
+        if (searchedThisPass > 0 &&
+            !IsSameSearchPose(targetObservation))
+        {
+            ResetSearch();
+        }
+
+        if (searchedThisPass == 0)
+        {
+            searchTargetPosition = targetObservation.Position;
+            searchTargetForward = targetObservation.Forward;
+        }
+
+        Vector3 behind = -searchTargetForward;
         behind.y = 0f;
 
         if (behind.sqrMagnitude < 0.001f)
@@ -64,8 +95,23 @@ internal sealed class EnemyFlankPlanner
         float preferred = context.Config.flankBehindDistance;
         float bodyHeight = context.Navigator.BodyHeight;
 
+        // How many of this tick's candidates were seen through to an answer.
+        // Advancing the cursor by the whole allowance regardless was how a
+        // budget spent entirely on one long route left seven points behind
+        // it marked as searched and never looked at again.
+        int completed = 0;
+
         for (int n = 0; n < allowance; n++)
         {
+            // Nothing left to judge a candidate with. Stop on the one that has
+            // not been judged yet, so next tick resumes on it.
+            if (visibilityBudget <= 0 || routeBudget <= 0 || pathBudget <= 0)
+            {
+                break;
+            }
+
+            completed = n + 1;
+
             int index = (cursor + n) % total;
             float distance = preferred * scales[index / angles.Length];
             float angle = angles[index % angles.Length];
@@ -78,16 +124,11 @@ internal sealed class EnemyFlankPlanner
             Vector3 direction = Quaternion.Euler(0f, angle, 0f) * behind;
 
             if (!context.TacticalPlanner.TrySamplePoint(
-                    targetObservation.Position + direction * distance,
+                    searchTargetPosition + direction * distance,
                     distance * 0.5f,
                     out Vector3 candidate))
             {
                 continue;
-            }
-
-            if (visibilityBudget <= 0)
-            {
-                break;
             }
 
             visibilityBudget--;
@@ -109,8 +150,16 @@ internal sealed class EnemyFlankPlanner
             if (!context.TacticalPlanner.TryPlanRoute(
                     selfPosition,
                     candidate,
-                    out IReadOnlyList<Vector3> route))
+                    ref pathBudget,
+                    out IReadOnlyList<Vector3> route,
+                    out bool pathBudgetExhausted))
             {
+                if (pathBudgetExhausted)
+                {
+                    completed = n;
+                    break;
+                }
+
                 continue;
             }
 
@@ -123,25 +172,31 @@ internal sealed class EnemyFlankPlanner
                 bodyHeight,
                 tactics.routeSampleSpacing,
                 ref routeBudget,
-                out _
+                out bool routeBudgetExhausted
             );
 
             visibilityBudget = Mathf.Min(visibilityBudget, routeBudget);
 
-            if (EnemyTacticalSlotRegistry.IsClaimedByAnother(
-                    context.TacticalOwnerId,
-                    candidate,
-                    tactics.claimSpacing))
+            // Half a route checked is no verdict on this candidate either.
+            if (routeBudgetExhausted)
             {
-                continue;
+                completed = n;
+                break;
             }
 
             if (routeHidden)
             {
-                Claim(candidate);
-                ResetSearch();
-                point = candidate;
-                return EnemyTacticalPlanResult.Found;
+                if (EnemyTacticalSlotRegistry.TryClaim(
+                        context.TacticalOwnerId,
+                        candidate,
+                        tactics.claimSpacing))
+                {
+                    ResetSearch();
+                    point = candidate;
+                    return EnemyTacticalPlanResult.Found;
+                }
+
+                continue;
             }
 
             // A hidden place to stand, reached by a route that is seen for
@@ -149,15 +204,19 @@ internal sealed class EnemyFlankPlanner
             // Insisting on a wholly hidden route found nothing at all in a
             // real level - the log for that build is Flank falling straight
             // back to Stalk over and over - so it is preferred, not required.
-            if (!hasFallbackPoint)
+            if (!hasFallbackPoint &&
+                !EnemyTacticalSlotRegistry.IsClaimedByAnother(
+                    context.TacticalOwnerId,
+                    candidate,
+                    tactics.claimSpacing))
             {
                 hasFallbackPoint = true;
                 fallbackPoint = candidate;
             }
         }
 
-        cursor = (cursor + allowance) % total;
-        searchedThisPass += allowance;
+        cursor = (cursor + completed) % total;
+        searchedThisPass += completed;
 
         if (searchedThisPass < total)
         {
@@ -165,17 +224,18 @@ internal sealed class EnemyFlankPlanner
             return EnemyTacticalPlanResult.Deferred;
         }
 
-        bool hadFallback = hasFallbackPoint;
+        // The fallback was free when it was found, several ticks ago. Whether
+        // it still is decides this, not what was true then.
+        bool claimed = hasFallbackPoint &&
+                       EnemyTacticalSlotRegistry.TryClaim(
+                           context.TacticalOwnerId,
+                           fallbackPoint,
+                           context.Config.StealthTactics.claimSpacing);
+
         point = fallbackPoint;
-
-        if (hadFallback)
-        {
-            Claim(fallbackPoint);
-        }
-
         ResetSearch();
 
-        return hadFallback
+        return claimed
             ? EnemyTacticalPlanResult.Found
             : EnemyTacticalPlanResult.NotFound;
     }
@@ -185,9 +245,12 @@ internal sealed class EnemyFlankPlanner
         EnemyTacticalSlotRegistry.Release(context.TacticalOwnerId);
     }
 
-    private void Claim(Vector3 point)
+    private bool IsSameSearchPose(EnemyTargetObservation observation)
     {
-        EnemyTacticalSlotRegistry.Claim(context.TacticalOwnerId, point);
+        return (observation.Position - searchTargetPosition).sqrMagnitude <
+               SnapshotMoveTolerance * SnapshotMoveTolerance &&
+               Vector3.Dot(observation.Forward, searchTargetForward) >
+               SnapshotTurnToleranceDot;
     }
 
     private void ResetSearch()

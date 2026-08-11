@@ -10,10 +10,8 @@ using UnityEngine;
 // search may spend - was written into the state handlers as constants, so
 // tuning the behaviour meant editing code and rebuilding.
 //
-// Optional. An enemy with no tactics profile assigned keeps reading the
-// values authored on its vision profile for the fields that used to live
-// there, and uses the numbers below for the ones that used to be hard-coded,
-// so no existing asset has to be touched to keep behaving as it did.
+// Optional. An enemy with no tactics profile assigned sneaks by the defaults
+// below, which are the values those two places held.
 [CreateAssetMenu(
     menuName = "Wherever I Am/Enemies/Profiles/Enemy Stealth Tactics Config",
     fileName = "EnemyStealthTacticsConfig"

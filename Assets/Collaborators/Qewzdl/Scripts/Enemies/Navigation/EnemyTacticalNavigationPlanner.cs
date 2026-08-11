@@ -57,17 +57,30 @@ public sealed class EnemyTacticalNavigationPlanner
     // A complete route this agent can walk, or nothing. Partial paths are the
     // reason a flank used to commit to a point on the far side of a locked
     // door.
+    //
+    // Spends from the caller's reserved path-query allowance, the same way
+    // IsRouteHidden below spends its raycast allowance: a search that runs out
+    // partway stops there and is resumed, rather than quietly running the
+    // server's whole frame budget through one enemy's fan.
     public bool TryPlanRoute(
         Vector3 from,
         Vector3 to,
-        out IReadOnlyList<Vector3> route
+        ref int pathBudget,
+        out IReadOnlyList<Vector3> route,
+        out bool budgetExhausted
     )
     {
         routeCorners.Clear();
         route = routeCorners;
+        budgetExhausted = false;
 
         if (navigator == null ||
-            !navigator.TryPlanTacticalRoute(from, to, routePath))
+            !navigator.TryPlanTacticalRoute(
+                from,
+                to,
+                routePath,
+                ref pathBudget,
+                out budgetExhausted))
         {
             return false;
         }

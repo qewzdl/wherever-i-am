@@ -16,12 +16,21 @@ using UnityEngine;
 // and the frame budget is shared with every other enemy on the server.
 internal sealed class EnemyRetreatPlanner
 {
+    // How far the direction away from everyone may swing before the half of
+    // the fan already walked was aimed somewhere else. The watcher list is
+    // resampled eight times a second and the enemy is walking while it
+    // searches, so without this a pass could mix two different rooms' worth of
+    // threats and then pick the point that suited neither.
+    private const float SnapshotTurnToleranceDot = 0.94f;
+
     private readonly EnemyBrainContext context;
 
     private int cursor;
     private int searchedThisPass;
     private Vector3 fallbackPoint;
     private bool hasFallbackPoint;
+    private Vector3 searchAway;
+    private int searchThreatCount;
 
     public EnemyRetreatPlanner(EnemyBrainContext context)
     {
@@ -42,19 +51,23 @@ internal sealed class EnemyRetreatPlanner
     public bool IsPointStillLeaving(
         Vector3 selfPosition,
         Vector3 point,
-        IReadOnlyList<Vector3> threats
+        IReadOnlyList<Vector3> threats,
+        ref int pathBudget
     )
     {
         return context.TacticalPlanner.TryPlanRoute(
                    selfPosition,
                    point,
-                   out IReadOnlyList<Vector3> route) &&
+                   ref pathBudget,
+                   out IReadOnlyList<Vector3> route,
+                   out _) &&
                !RouteClosesOnAnyThreat(route, threats);
     }
 
     public EnemyTacticalPlanResult TryFindRetreatPoint(
         Vector3 selfPosition,
         IReadOnlyList<Vector3> threats,
+        ref int pathBudget,
         ref int visibilityBudget,
         out Vector3 point
     )
@@ -66,14 +79,45 @@ internal sealed class EnemyRetreatPlanner
         int allowance = Mathf.Clamp(tactics.candidatesPerTick, 1, total);
 
         Vector3 away = AwayFromAll(selfPosition, threats);
+        int threatCount = threats != null ? threats.Count : 0;
+
+        // One set of watchers per pass. Somebody joining or leaving the ones
+        // who can see this enemy changes what "away" means, and half a fan
+        // aimed at the old answer is not a search of the new one.
+        if (searchedThisPass > 0 &&
+            (threatCount != searchThreatCount ||
+             Vector3.Dot(away, searchAway) < SnapshotTurnToleranceDot))
+        {
+            Restart();
+        }
+
+        if (searchedThisPass == 0)
+        {
+            searchAway = away;
+            searchThreatCount = threatCount;
+        }
+
         float preferred = context.Config.retreatDistance;
+
+        // Only the candidates actually seen through to an answer move the
+        // cursor. Stepping it by the whole allowance meant a tick that spent
+        // its budget on the first candidate marked the rest as searched.
+        int completed = 0;
 
         for (int n = 0; n < allowance; n++)
         {
+            if (visibilityBudget <= 0 || pathBudget <= 0)
+            {
+                break;
+            }
+
+            completed = n + 1;
+
             int index = (cursor + n) % total;
             float distance = preferred * scales[index / angles.Length];
             Vector3 direction =
-                Quaternion.Euler(0f, angles[index % angles.Length], 0f) * away;
+                Quaternion.Euler(0f, angles[index % angles.Length], 0f) *
+                searchAway;
 
             if (!context.TacticalPlanner.TrySamplePoint(
                     selfPosition + direction * distance,
@@ -90,15 +134,24 @@ internal sealed class EnemyRetreatPlanner
             if (!context.TacticalPlanner.TryPlanRoute(
                     selfPosition,
                     candidate,
-                    out IReadOnlyList<Vector3> route) ||
-                RouteClosesOnAnyThreat(route, threats))
+                    ref pathBudget,
+                    out IReadOnlyList<Vector3> route,
+                    out bool pathBudgetExhausted))
             {
+                // No route, or no budget left to ask for one. Only the first
+                // is a verdict on this candidate.
+                if (pathBudgetExhausted)
+                {
+                    completed = n;
+                    break;
+                }
+
                 continue;
             }
 
-            if (visibilityBudget <= 0)
+            if (RouteClosesOnAnyThreat(route, threats))
             {
-                break;
+                continue;
             }
 
             visibilityBudget--;
@@ -122,8 +175,8 @@ internal sealed class EnemyRetreatPlanner
             }
         }
 
-        cursor = (cursor + allowance) % total;
-        searchedThisPass += allowance;
+        cursor = (cursor + completed) % total;
+        searchedThisPass += completed;
 
         if (searchedThisPass < total)
         {

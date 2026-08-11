@@ -557,14 +557,35 @@ public class EnemyNavigator : MonoBehaviour
     // enemy moves on - wrong agent size, wrong area mask, no posture, none of
     // the item blockers - so a plan could be judged perfect and then be
     // unwalkable the moment it was handed back here to be driven.
-    internal bool TryPlanTacticalRoute(Vector3 from, Vector3 to, NavMeshPath path)
+    // Costs one path query per posture tried, and says so. The tactical
+    // planners reserve their queries from the server scheduler before they
+    // start searching, and this is the only place that knows a candidate can
+    // cost two of them - one for the current posture, one for the crawl
+    // fallback. Counted here, the reservation is what actually limits them
+    // instead of being a number nobody subtracted from.
+    internal bool TryPlanTacticalRoute(
+        Vector3 from,
+        Vector3 to,
+        NavMeshPath path,
+        ref int pathBudget,
+        out bool budgetExhausted
+    )
     {
+        budgetExhausted = false;
+
         if (path == null)
         {
             return false;
         }
 
+        if (pathBudget <= 0)
+        {
+            budgetExhausted = true;
+            return false;
+        }
+
         EnemyPosture posture = CurrentTacticalPosture;
+        pathBudget--;
 
         if (TryPlanTacticalRouteForPosture(posture, from, to, path))
         {
@@ -573,14 +594,29 @@ public class EnemyNavigator : MonoBehaviour
 
         // Same fallback order the real move takes: standing first, then drop
         // to a crawl if the level only offers a crawl-sized way through.
-        return config != null &&
-               config.crawlingEnabled &&
-               posture != EnemyPosture.Crawling &&
-               TryPlanTacticalRouteForPosture(
-                   EnemyPosture.Crawling,
-                   from,
-                   to,
-                   path);
+        if (config == null ||
+            !config.crawlingEnabled ||
+            posture == EnemyPosture.Crawling)
+        {
+            return false;
+        }
+
+        // Out of budget with the crawl untried. Saying "no route" here would
+        // strike out a candidate on evidence that was never gathered, so the
+        // caller is told to come back for it rather than move past it.
+        if (pathBudget <= 0)
+        {
+            budgetExhausted = true;
+            return false;
+        }
+
+        pathBudget--;
+
+        return TryPlanTacticalRouteForPosture(
+            EnemyPosture.Crawling,
+            from,
+            to,
+            path);
     }
 
     internal bool TrySampleTacticalPoint(

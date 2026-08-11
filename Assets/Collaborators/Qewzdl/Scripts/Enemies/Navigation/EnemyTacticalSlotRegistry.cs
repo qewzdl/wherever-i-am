@@ -26,6 +26,23 @@ public static class EnemyTacticalSlotRegistry
         Claims[ownerId] = point;
     }
 
+    // Look and take in one go.
+    //
+    // A search that spans several ticks found a free spot, kept it as its
+    // fallback and claimed it a second later without looking again - and in
+    // that second the enemy next to it had walked its own fan, found the same
+    // gap behind the same player and claimed it. Both then walked to it.
+    public static bool TryClaim(int ownerId, Vector3 point, float spacing)
+    {
+        if (IsClaimedByAnother(ownerId, point, spacing))
+        {
+            return false;
+        }
+
+        Claims[ownerId] = point;
+        return true;
+    }
+
     public static void Release(int ownerId)
     {
         Claims.Remove(ownerId);

@@ -109,7 +109,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         if (!context.TryReservePlanningQueries(
                 candidateCount + 1,
                 candidateCount + 1,
-                out _,
+                out int pathBudget,
                 out int visibilityBudget))
         {
             repathTimer = 0f;
@@ -123,7 +123,11 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         if (hasRetreatPoint &&
             Vector3.Distance(selfPosition, retreatPoint) >
             tactics.arrivalDistance &&
-            planner.IsPointStillLeaving(selfPosition, retreatPoint, threats) &&
+            planner.IsPointStillLeaving(
+                selfPosition,
+                retreatPoint,
+                threats,
+                ref pathBudget) &&
             TryIsSeenByAnyone(
                 retreatPoint,
                 ref visibilityBudget,
@@ -137,6 +141,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         switch (planner.TryFindRetreatPoint(
                     selfPosition,
                     threats,
+                    ref pathBudget,
                     ref visibilityBudget,
                     out Vector3 nextRetreatPoint))
         {

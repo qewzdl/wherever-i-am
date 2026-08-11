@@ -97,20 +97,21 @@ public sealed class EnemyTargetBoundGazeTests
     [Test]
     public void RetreatTimeout_OutlastsBrokenSightDuration()
     {
-        EnemyVisionConfig vision = ScriptableObject.CreateInstance<EnemyVisionConfig>();
-        vision.retreatBrokenSightDuration = 5f;
-        vision.retreatTimeout = 1f;
+        EnemyStealthTacticsConfig tactics =
+            ScriptableObject.CreateInstance<EnemyStealthTacticsConfig>();
+        tactics.retreatBrokenSightDuration = 5f;
+        tactics.retreatTimeout = 1f;
 
         EnemyConfig config = ScriptableObject.CreateInstance<EnemyConfig>();
-        TestReflection.SetField(config, "visionProfile", vision);
+        TestReflection.SetField(config, "stealthTacticsProfile", tactics);
 
         Assert.That(config.retreatTimeout, Is.GreaterThan(config.retreatBrokenSightDuration));
 
-        vision.retreatTimeout = 30f;
+        tactics.retreatTimeout = 30f;
         Assert.That(config.retreatTimeout, Is.EqualTo(30f));
 
         Object.DestroyImmediate(config);
-        Object.DestroyImmediate(vision);
+        Object.DestroyImmediate(tactics);
     }
 
     [Test]
@@ -502,6 +503,111 @@ public sealed class EnemyTargetBoundGazeTests
             Is.False);
 
         EnemyTacticalSlotRegistry.ResetForTests();
+    }
+
+    // Look and take were two calls several ticks apart, and in between the
+    // enemy next to this one found the same gap behind the same player.
+    [Test]
+    public void TacticalSlotRegistry_TryClaimRefusesASpotSomebodyElseTook()
+    {
+        EnemyTacticalSlotRegistry.ResetForTests();
+
+        Vector3 behindThePlayer = new(3f, 0f, 0f);
+
+        Assert.That(
+            EnemyTacticalSlotRegistry.TryClaim(1, behindThePlayer, spacing: 2f),
+            Is.True);
+
+        Assert.That(
+            EnemyTacticalSlotRegistry.TryClaim(
+                2,
+                behindThePlayer + new Vector3(0.5f, 0f, 0f),
+                spacing: 2f),
+            Is.False);
+
+        // Refused means not taken: the loser must not have quietly overwritten
+        // the winner on its way out.
+        Assert.That(
+            EnemyTacticalSlotRegistry.IsClaimedByAnother(
+                1,
+                behindThePlayer,
+                spacing: 2f),
+            Is.False);
+
+        EnemyTacticalSlotRegistry.ResetForTests();
+    }
+
+    // A tick with no budget checks nothing, so it must leave the fan where it
+    // found it. Stepping the cursor by the whole per-tick allowance regardless
+    // marked candidates as searched that nobody had looked at, and the search
+    // then reported the level had nothing to offer.
+    [Test]
+    public void RetreatPlanner_KeepsItsPlaceWhenTheBudgetRunsOut()
+    {
+        EnemyStealthTacticsConfig tactics =
+            ScriptableObject.CreateInstance<EnemyStealthTacticsConfig>();
+        EnemyConfig config = ScriptableObject.CreateInstance<EnemyConfig>();
+        TestReflection.SetField(config, "stealthTacticsProfile", tactics);
+
+        EnemyBrainContext context = new(
+            config,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new EnemyBlackboard(),
+            null,
+            null);
+
+        EnemyRetreatPlanner planner = new(context);
+        List<Vector3> threats = new() { new Vector3(0f, 0f, 4f) };
+
+        int fanSize =
+            tactics.retreatAngles.Length * tactics.retreatDistanceScales.Length;
+        int ticksToWalkTheWholeFan =
+            Mathf.CeilToInt(fanSize / (float)tactics.candidatesPerTick);
+
+        // Denied every tick, so nothing is ever judged and the answer is
+        // always "ask again", never "there is nowhere to go".
+        for (int tick = 0; tick < ticksToWalkTheWholeFan + 1; tick++)
+        {
+            int noPathQueries = 0;
+            int noVisibilityQueries = 0;
+
+            Assert.That(
+                planner.TryFindRetreatPoint(
+                    Vector3.zero,
+                    threats,
+                    ref noPathQueries,
+                    ref noVisibilityQueries,
+                    out _),
+                Is.EqualTo(EnemyTacticalPlanResult.Deferred),
+                $"tick {tick} claimed candidates it never checked");
+        }
+
+        // With budget, every candidate reaches an answer - there is no NavMesh
+        // in an edit-mode test, so the answer is "nowhere" - and the fan does
+        // finish rather than deferring for ever.
+        EnemyTacticalPlanResult result = EnemyTacticalPlanResult.Deferred;
+
+        for (int tick = 0; tick < ticksToWalkTheWholeFan; tick++)
+        {
+            int pathQueries = fanSize;
+            int visibilityQueries = fanSize;
+
+            result = planner.TryFindRetreatPoint(
+                Vector3.zero,
+                threats,
+                ref pathQueries,
+                ref visibilityQueries,
+                out _);
+        }
+
+        Assert.That(result, Is.EqualTo(EnemyTacticalPlanResult.NotFound));
+
+        Object.DestroyImmediate(config);
+        Object.DestroyImmediate(tactics);
     }
 
     // One queue for both resources meant an enemy waiting on raycasts held up

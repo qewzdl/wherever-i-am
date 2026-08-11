@@ -16,6 +16,7 @@ MonoBehaviour:
   movementProfile: {fileID: 11400000, guid: 6f99476c13b6ade46bfe2993f8e280d6, type: 2}
   navigationProfile: {fileID: 11400000, guid: b568284f5c464da4882631e34320d19d, type: 2}
   visionProfile: {fileID: 11400000, guid: bcbded8c22ee45a4e875f723753d083f, type: 2}
+  stealthTacticsProfile: {fileID: 11400000, guid: 12815b575c6d44b4b818e808411e12ed, type: 2}
   hearingProfile: {fileID: 11400000, guid: a2d93308a73276548adedc078c7bcd1f, type: 2}
   investigationProfile: {fileID: 11400000, guid: 3727f94b1b18ec04fa47b04bce674644, type: 2}
   patrolProfile: {fileID: 11400000, guid: 27c11d71a9cde3445bb3c13234781f65, type: 2}

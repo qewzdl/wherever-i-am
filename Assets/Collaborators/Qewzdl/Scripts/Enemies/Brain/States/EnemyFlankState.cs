@@ -88,9 +88,17 @@ public sealed class EnemyFlankState : IEnemyStateHandler
 
         repathTimer -= deltaTime;
 
+        // Whatever the reservation below grants and the search leaves unspent.
+        // Reserved queries are a claim on this frame, so the leftovers live and
+        // die with this tick rather than being carried.
+        int pathBudget = 0;
+
         if (!hasFlankPoint || repathTimer <= 0f)
         {
-            if (!TryPlanFlankPoint(targetObservation, selfPosition))
+            if (!TryPlanFlankPoint(
+                    targetObservation,
+                    selfPosition,
+                    ref pathBudget))
             {
                 return;
             }
@@ -120,7 +128,8 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         // about a NavMesh route that goes round the other way. Wait them out;
         // either the sighting passes or the timer above hands this to the
         // retreat.
-        if (isSeen && RouteWalksIntoAWatcher(selfPosition, watchers))
+        if (isSeen &&
+            RouteWalksIntoAWatcher(selfPosition, watchers, ref pathBudget))
         {
             context.StopNavigation();
             return;
@@ -140,7 +149,8 @@ public sealed class EnemyFlankState : IEnemyStateHandler
     // part way through and will finish next tick.
     private bool TryPlanFlankPoint(
         EnemyTargetObservation targetObservation,
-        Vector3 selfPosition
+        Vector3 selfPosition,
+        ref int pathBudget
     )
     {
         EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
@@ -150,10 +160,14 @@ public sealed class EnemyFlankState : IEnemyStateHandler
             tactics.flankBehindAngles.Length * tactics.flankDistanceScales.Length
         );
 
+        // One route per candidate plus one for the walking-into-a-watcher
+        // check below. A candidate that only crawls costs two, so the search
+        // can run out early - that is a deferral, and it resumes on the
+        // candidate it stopped at rather than skipping past it.
         if (!context.TryReservePlanningQueries(
                 candidateCount + 1,
                 candidateCount + tactics.routeSampleBudget,
-                out _,
+                out pathBudget,
                 out int visibilityBudget))
         {
             // Capacity is not a navigation failure. Keep an existing point
@@ -174,6 +188,7 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         switch (planner.TryFindPointBehind(
                     targetObservation,
                     selfPosition,
+                    ref pathBudget,
                     ref visibilityBudget,
                     out Vector3 nextFlankPoint))
         {
@@ -201,16 +216,32 @@ public sealed class EnemyFlankState : IEnemyStateHandler
 
     private bool RouteWalksIntoAWatcher(
         Vector3 selfPosition,
-        IReadOnlyList<PlayerWatcher> watchers
+        IReadOnlyList<PlayerWatcher> watchers,
+        ref int pathBudget
     )
     {
+        // Worth one path query. Most ticks do not plan, so there is nothing
+        // left over to spend and this asks the server for its own.
+        if (pathBudget <= 0 &&
+            context.TryReservePlanningQueries(
+                1,
+                0,
+                out int grantedPathQueries,
+                out _))
+        {
+            pathBudget = grantedPathQueries;
+        }
+
         if (!context.TacticalPlanner.TryPlanRoute(
                 selfPosition,
                 flankPoint,
-                out IReadOnlyList<Vector3> route))
+                ref pathBudget,
+                out IReadOnlyList<Vector3> route,
+                out _))
         {
-            // No route to judge. The straight line is the only thing left to
-            // go on, and it is the conservative answer here.
+            // No route to judge, or nothing to judge it with. The straight
+            // line is the only thing left to go on, and it is the
+            // conservative answer here.
             for (int i = 0; i < watchers.Count; i++)
             {
                 if (EnemyStateRules.ClosesOnWatcher(
