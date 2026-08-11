@@ -13,6 +13,16 @@ internal sealed class EnemyPatrolPathPlanner
     private const float DestinationSampleRadius = 2f;
     private const int MaximumIntermediatePointCount = 8;
 
+    // Judging one candidate costs a path to it and a path from it onwards.
+    private const int QueriesPerCandidate = 2;
+
+    // And the finished plan still has to have its closing leg measured. The
+    // authored 32 attempts at two queries each outrun a repath allowance of
+    // 24 long before the last anchor, and a plan that cannot measure its own
+    // last stretch is thrown away for the direct line - so every decorated
+    // patrol leg silently collapsed into the shortest path.
+    private const int ClosingLegReserve = 1;
+
     private readonly System.Random random;
     private readonly NavMeshPath baselinePath = new();
     private readonly NavMeshPath segmentPath = new();
@@ -198,6 +208,13 @@ internal sealed class EnemyPatrolPathPlanner
 
         for (int attempt = 0; attempt < attempts; attempt++)
         {
+            // Stop looking for a better point while there is still enough
+            // allowance to finish the plan with the points already found.
+            if (remainingPathQueries < QueriesPerCandidate + ClosingLegReserve)
+            {
+                break;
+            }
+
             Vector2 offset = NextInsideUnitCircle() * variation;
 
             if (offset.sqrMagnitude < minimumOffsetSqr)

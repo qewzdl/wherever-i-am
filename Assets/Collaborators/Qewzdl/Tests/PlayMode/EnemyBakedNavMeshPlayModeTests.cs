@@ -1622,9 +1622,17 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         bool reachedRoutePoint = false;
 
+        // Building the route spent this enemy's share of the frame's path
+        // queries, so the move that follows it is deferred and retried by the
+        // navigation gate - which the server ticks every frame and this test
+        // stands in for. Without the tick the agent holds a destination it
+        // has no path to and never leaves its first point.
+        yield return null;
+
         yield return WaitForCondition(
             () =>
             {
+                navigator.TickNavigationGate();
                 reachedRoutePoint = controller.HasReachedCurrentRoutePoint();
                 return reachedRoutePoint;
             },
