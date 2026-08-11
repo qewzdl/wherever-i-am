@@ -22,6 +22,10 @@ internal sealed class EnemyFlankPlanner
     private const float SnapshotMoveTolerance = 1f;
     private const float SnapshotTurnToleranceDot = 0.94f;
 
+    // How far the route's own endpoint may sit from the point that was asked
+    // for before it counts as somewhere else, and has to be looked at again.
+    private const float EndpointDriftTolerance = 0.25f;
+
     private readonly EnemyBrainContext context;
 
     private int cursor;
@@ -31,6 +35,14 @@ internal sealed class EnemyFlankPlanner
     private bool hasFallbackPoint;
     private Vector3 searchTargetPosition;
     private Vector3 searchTargetForward;
+
+    // Where the enemy stood when the pass began. Routes are planned from here
+    // rather than from wherever it has walked to since, because a deferred
+    // search keeps the point it already had and keeps walking towards it - so
+    // planning from the live position gave every tick of one pass a slightly
+    // different route, and a half-finished check of one route is not a
+    // half-finished check of the next.
+    private Vector3 searchSelfPosition;
 
     // Which candidate the half-finished route check belongs to, so a stale
     // cursor is never applied to the next candidate's route.
@@ -71,11 +83,13 @@ internal sealed class EnemyFlankPlanner
         // half against where it stands now - and the point finally chosen
         // could be the one left over from the older of the two.
         //
-        // ponytail: pose only. A rebuilt NavMesh mid-search still mixes
-        // topologies; add a revision check if runtime rebuilds start moving
-        // geometry under a live manoeuvre.
+        // The enemy's own position is part of that pose: it is walking to the
+        // point it already had while it looks for the next one, and every
+        // candidate is judged by the route from where it stands.
         if (searchedThisPass > 0 &&
-            !IsSameSearchPose(targetObservation))
+            (!IsSameSearchPose(targetObservation) ||
+             (selfPosition - searchSelfPosition).sqrMagnitude >
+             SnapshotMoveTolerance * SnapshotMoveTolerance))
         {
             ResetSearch();
         }
@@ -84,6 +98,7 @@ internal sealed class EnemyFlankPlanner
         {
             searchTargetPosition = targetObservation.Position;
             searchTargetForward = targetObservation.Forward;
+            searchSelfPosition = selfPosition;
         }
 
         Vector3 behind = -searchTargetForward;
@@ -157,7 +172,7 @@ internal sealed class EnemyFlankPlanner
             // agent's own type, area mask and posture, so "reachable" means
             // reachable by this enemy rather than by an idealised one.
             if (!context.TacticalPlanner.TryPlanRoute(
-                    selfPosition,
+                    searchSelfPosition,
                     candidate,
                     ref pathBudget,
                     out IReadOnlyList<Vector3> route,
@@ -171,6 +186,36 @@ internal sealed class EnemyFlankPlanner
 
                 continue;
             }
+
+            // Where the route actually ends, which is not always the point it
+            // was asked for: planning samples the destination again, with the
+            // navigator's radius rather than this fan's, and the posture that
+            // finds a way through need not be the one that found the point.
+            // That gap is wider than the distance which counts as having
+            // arrived, so the spot judged hidden, the spot claimed and the
+            // spot walked to have to be this one, not the one asked for.
+            Vector3 endpoint = route[route.Count - 1];
+
+            // It drifted, so the view of it was never checked. Only the crawl
+            // fallback really moves it, which is why this is a branch rather
+            // than a second raycast on every candidate.
+            if ((endpoint - candidate).sqrMagnitude >
+                EndpointDriftTolerance * EndpointDriftTolerance)
+            {
+                if (visibilityBudget <= 0)
+                {
+                    continue;
+                }
+
+                visibilityBudget--;
+
+                if (PlayerGazeNetwork.IsBodySeenByAnyone(endpoint, bodyHeight))
+                {
+                    continue;
+                }
+            }
+
+            candidate = endpoint;
 
             // Nor by a route that crosses somebody's view on the way. The
             // shortest path to somewhere behind a person usually goes straight

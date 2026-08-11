@@ -96,11 +96,14 @@ public class EnemyStealthTacticsConfig : ScriptableObject
              "would be seen walking it.")]
     [Min(0.25f)] public float routeSampleSpacing = 1.5f;
 
-    [Tooltip("Raycast allowance for route checks across one whole search, " +
-             "not per candidate. Capped at what the server has left in a " +
-             "frame after the endpoint checks; a route needing more than that " +
-             "is resumed where it stopped rather than restarted.")]
-    [Min(1)] public int routeSampleBudget = 120;
+    [Tooltip("Raycast allowance a planning tick reserves for route checks, " +
+             "on top of one per candidate for the endpoints. Endpoints and " +
+             "routes then draw on it together, and a route needing more than " +
+             "one tick holds is resumed where it stopped rather than " +
+             "restarted - so this sizes a tick, not a whole search. Clamped " +
+             "to what the server hands out in a frame, because asking for " +
+             "more only gets the request cut down.")]
+    [Min(1)] public int routeSampleBudget = 48;
 
     [Tooltip("How many candidate points one search may test per tick. The " +
              "rest are resumed from where the last tick stopped rather than " +
@@ -147,8 +150,22 @@ public class EnemyStealthTacticsConfig : ScriptableObject
         claimSpacing = Mathf.Max(0.1f, claimSpacing);
         arrivalDistance = Mathf.Max(0.1f, arrivalDistance);
         routeSampleSpacing = Mathf.Max(0.25f, routeSampleSpacing);
-        routeSampleBudget = Mathf.Max(1, routeSampleBudget);
         candidatesPerTick = Mathf.Max(1, candidatesPerTick);
+
+        // A planning tick reserves one raycast per candidate for the endpoints
+        // plus this for the routes, and the server hands out a fixed number of
+        // them per frame. Anything above that is not a larger allowance, it is
+        // a request the scheduler cuts down - so the inspector would be
+        // showing a number the search never gets.
+        routeSampleBudget = Mathf.Clamp(
+            routeSampleBudget,
+            1,
+            Mathf.Max(
+                1,
+                EnemyServerPerceptionScheduler.VisibilityQueriesPerFrame -
+                candidatesPerTick
+            )
+        );
 
         // A phase that cannot outlast the whole manoeuvre never reaches its
         // own ending, and one that outlasts it by a lot makes the overall

@@ -164,6 +164,14 @@ internal sealed class EnemyRetreatPlanner
                 continue;
             }
 
+            // Where the route ends, not where it was aimed. Planning samples
+            // the destination again with the navigator's own radius, which is
+            // wider than the distance that counts as having arrived, so the
+            // point judged out of sight has to be the point walked to. Every
+            // check below this line is on the endpoint, and it costs nothing
+            // extra here because they all come after the route.
+            candidate = route[route.Count - 1];
+
             if (RouteClosesOnAnyThreat(route, threats))
             {
                 continue;

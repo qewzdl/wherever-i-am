@@ -1760,6 +1760,36 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             pathBudget,
             Is.Zero,
             "The crawl fallback did not charge for its query.");
+
+        // Planning samples the destination again with the navigator's own
+        // radius, which is two metres against an arrival distance of just over
+        // one, so the route can end well away from the point it was asked for.
+        // The planners read that endpoint off the last corner and walk to it -
+        // approving a route to one spot and then moving to another is how a
+        // flank arrived somewhere it had never checked.
+        Vector3 throughTheWall = new(3.5f, 0f, 0f);
+        pathBudget = 2;
+
+        Assert.That(
+            navigator.TryPlanTacticalRoute(
+                from,
+                throughTheWall,
+                path,
+                ref pathBudget,
+                out budgetExhausted),
+            Is.True);
+
+        Vector3[] corners = path.corners;
+        Vector3 endpoint = corners[corners.Length - 1];
+
+        Assert.That(
+            Mathf.Abs(endpoint.x),
+            Is.LessThan(2.4f),
+            "The route ended outside the corridor walls.");
+        Assert.That(
+            Vector3.Distance(endpoint, throughTheWall),
+            Is.GreaterThan(1f),
+            "This case needs a destination the planner has to move.");
     }
 
     [UnityTest]

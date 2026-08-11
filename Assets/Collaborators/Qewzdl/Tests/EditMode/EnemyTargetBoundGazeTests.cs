@@ -517,6 +517,61 @@ public sealed class EnemyTargetBoundGazeTests
         Assert.That(scan.Segment, Is.Zero);
     }
 
+    // The cursor counts corners, and a rebuilt NavMesh or a moved obstacle can
+    // hand back a different route with the same number of them. Resuming into
+    // that skips a stretch nobody looked at and reports it hidden.
+    [Test]
+    public void RouteVisibilityScan_OnADifferentRouteOfTheSameLength_StartsAgain()
+    {
+        EnemyTacticalNavigationPlanner planner = new(null);
+
+        Vector3[] route =
+        {
+            Vector3.zero,
+            new(0f, 0f, 50f),
+            new(50f, 0f, 50f),
+        };
+
+        EnemyRouteScan scan = default;
+        int budget = 30;
+
+        planner.IsRouteHidden(
+            route,
+            1.8f,
+            1f,
+            ref budget,
+            ref scan,
+            out bool exhausted);
+
+        Assert.That(exhausted, Is.True);
+        Assert.That(scan.Segment, Is.EqualTo(1));
+
+        // Three corners and a hundred samples again, over different ground.
+        Vector3[] elsewhere =
+        {
+            new(20f, 0f, 0f),
+            new(20f, 0f, 50f),
+            new(70f, 0f, 50f),
+        };
+
+        budget = 200;
+
+        Assert.That(
+            planner.IsRouteHidden(
+                elsewhere,
+                1f,
+                1f,
+                ref budget,
+                ref scan,
+                out exhausted),
+            Is.True);
+        Assert.That(exhausted, Is.False);
+        Assert.That(
+            200 - budget,
+            Is.EqualTo(100),
+            "The scan resumed into a route it had never looked at.");
+    }
+
     [Test]
     public void TacticalSlotRegistry_KeepsTwoFlankingEnemiesOffOneSpot()
     {

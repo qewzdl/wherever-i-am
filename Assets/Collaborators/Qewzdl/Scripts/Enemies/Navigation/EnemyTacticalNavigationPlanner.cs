@@ -27,6 +27,11 @@ public struct EnemyRouteScan
     // within it. Zero means "from the start".
     public int Segment;
     public int Step;
+
+    // The route those two were counted against. Resuming on a different route
+    // skips corners nobody looked at, and calling an unchecked stretch hidden
+    // is the one answer this must never give.
+    public int Fingerprint;
 }
 
 // Route planning for the stealth manoeuvre, asked the way the enemy will
@@ -104,6 +109,25 @@ public sealed class EnemyTacticalNavigationPlanner
         return routeCorners.Count > 0;
     }
 
+    // Cheap identity for a route, quantised to a quarter of a metre so the
+    // float noise of replanning the same route does not read as a new one.
+    // Routes are a handful of corners, so this is a few multiplies next to the
+    // raycasts it protects.
+    private static int Fingerprint(IReadOnlyList<Vector3> route)
+    {
+        int hash = route.Count;
+
+        for (int i = 0; i < route.Count; i++)
+        {
+            Vector3 corner = route[i];
+            hash = hash * 31 + Mathf.RoundToInt(corner.x * 4f);
+            hash = hash * 31 + Mathf.RoundToInt(corner.y * 4f);
+            hash = hash * 31 + Mathf.RoundToInt(corner.z * 4f);
+        }
+
+        return hash;
+    }
+
     // Whether walking this route brings the enemy closer to anyone watching it
     // than it already is. Every watcher, not the one being crept up on: the
     // way out of a room is shared by everybody standing in it.
@@ -151,18 +175,17 @@ public sealed class EnemyTacticalNavigationPlanner
 
         sampleSpacing = Mathf.Max(0.25f, sampleSpacing);
 
-        // Resume where the budget ran out last tick. The route was replanned
-        // between the two, but from and to are the same and NavMesh gives the
-        // same corners for them, so the count the cursor was taken against is
-        // the count it is being applied to.
-        //
-        // ponytail: corner count is the only sanity check. A NavMesh rebuilt
-        // mid-search could return a route of the same length through different
-        // geometry and the skipped corners would go unchecked; add a route
-        // hash if runtime rebuilds start moving geometry under a manoeuvre.
-        if (scan.Segment >= route.Count)
+        // Resume where the budget ran out last tick, but only down the route
+        // the cursor was counted against. The route is replanned every tick,
+        // and a rebuilt NavMesh or a moved obstacle can hand back a different
+        // one with the same number of corners - resuming into that skips a
+        // stretch nobody looked at and reports it hidden.
+        int fingerprint = Fingerprint(route);
+
+        if (scan.Fingerprint != fingerprint || scan.Segment >= route.Count)
         {
             scan = default;
+            scan.Fingerprint = fingerprint;
         }
 
         int firstSegment = Mathf.Max(1, scan.Segment);

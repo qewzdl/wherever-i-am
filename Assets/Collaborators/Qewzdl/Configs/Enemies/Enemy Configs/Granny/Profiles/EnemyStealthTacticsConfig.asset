@@ -52,5 +52,5 @@ MonoBehaviour:
   claimSpacing: 2
   arrivalDistance: 1.2
   routeSampleSpacing: 1.5
-  routeSampleBudget: 120
+  routeSampleBudget: 48
   candidatesPerTick: 8
