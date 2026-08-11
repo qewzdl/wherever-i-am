@@ -301,6 +301,74 @@ public sealed class ProjectAssetValidationTests
     }
 
     [Test]
+    public void GameplayCameras_HandOffFromSceneCameraToLocalPlayer()
+    {
+        GameObject playerPrefab = LoadBootstrapPlayerPrefab();
+        Assert.That(playerPrefab, Is.Not.Null);
+
+        Camera[] playerCameras = playerPrefab.GetComponentsInChildren<Camera>(true);
+        Assert.That(playerCameras, Is.Not.Empty, "Player prefab has no camera.");
+        Assert.That(
+            playerCameras.All(camera => !camera.enabled),
+            Is.True,
+            "Player prefab cameras must start disabled so a remote player never renders.");
+
+        float lowestPlayerCameraDepth = playerCameras.Min(camera => camera.depth);
+
+        AudioListener playerListener =
+            playerPrefab.GetComponentInChildren<AudioListener>(true);
+        Assert.That(playerListener, Is.Not.Null, "Player prefab has no audio listener.");
+        Assert.That(
+            playerListener.enabled,
+            Is.False,
+            "Player prefab audio listener must start disabled so a remote player never hears.");
+
+        ProjectSettings settings = LoadRequiredAsset<ProjectSettings>(ProjectSettingsPath);
+        Assert.That(
+            settings.TryGetScene(ProjectSceneKind.Game, out ProjectSceneDefinition game),
+            Is.True);
+
+        Scene existingScene = SceneManager.GetSceneByPath(game.ScenePath);
+        bool openedByTest = !existingScene.IsValid() || !existingScene.isLoaded;
+        Scene scene = openedByTest
+            ? EditorSceneManager.OpenScene(game.ScenePath, OpenSceneMode.Additive)
+            : existingScene;
+
+        try
+        {
+            List<Camera> sceneCameras = new();
+            GameObject[] roots = scene.GetRootGameObjects();
+
+            for (int i = 0; i < roots.Length; i++)
+            {
+                sceneCameras.AddRange(roots[i].GetComponentsInChildren<Camera>(true));
+            }
+
+            for (int i = 0; i < sceneCameras.Count; i++)
+            {
+                Camera sceneCamera = sceneCameras[i];
+
+                Assert.That(
+                    sceneCamera.GetComponent<FallbackCamera>(),
+                    Is.Not.Null,
+                    $"'{GetHierarchyPath(sceneCamera.transform)}' keeps rendering over the " +
+                    $"local player because nothing hands the view over.");
+
+                Assert.That(
+                    sceneCamera.depth,
+                    Is.LessThan(lowestPlayerCameraDepth),
+                    $"'{GetHierarchyPath(sceneCamera.transform)}' shares its depth with a " +
+                    $"player camera, so the winner of the last draw is undefined.");
+            }
+        }
+        finally
+        {
+            if (openedByTest && scene.IsValid())
+                EditorSceneManager.CloseScene(scene, true);
+        }
+    }
+
+    [Test]
     public void CollaboratorPrefabs_HaveNoMissingScripts()
     {
         string[] prefabGuids = AssetDatabase.FindAssets(

@@ -29,6 +29,7 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
     private readonly HashSet<object> lookBlockers = new();
 
     private Rigidbody playerRigidbody;
+    private Camera ownedCamera;
     private IPauseService pauseService;
 
     private Vector2 pendingLookDelta;
@@ -61,6 +62,8 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private void Awake()
     {
+        ownedCamera = GetComponentInChildren<Camera>(true);
+
         if (!ValidateReferences())
         {
             enabled = false;
@@ -80,9 +83,8 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
     private void OnFovChanged(float fieldOfView)
     {
-        Camera attachedCamera = GetComponentInChildren<Camera>(true);
-        if (attachedCamera != null)
-            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
+        if (ownedCamera != null)
+            ownedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
     }
 
     public void ApplyUserSettings(
@@ -98,11 +100,9 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
             ? Mathf.Lerp(0.005f, 0.12f, Mathf.Clamp01(smoothingIntensity))
             : 0f;
 
-        Camera attachedCamera = GetComponentInChildren<Camera>(true);
-
-        if (attachedCamera != null)
+        if (ownedCamera != null)
         {
-            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
+            ownedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
         }
     }
 
@@ -119,6 +119,13 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
         lookBlockers.Clear();
         lookActive = true;
         pendingLookDelta = Vector2.zero;
+
+        // The scene keeps a camera alive for the time before this player
+        // exists; claiming the view here is what switches that one off.
+        if (hasLocalControl)
+            FallbackCamera.SetLocalPlayerCamera(ownedCamera);
+        else
+            FallbackCamera.ClearLocalPlayerCamera(ownedCamera);
 
         if (!hasLocalControl)
         {
@@ -299,6 +306,13 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 
         if (hasLocalControl && unlockCursorOnDisable)
             SetCursorLocked(false);
+    }
+
+    private void OnDestroy()
+    {
+        // Leaving the match takes the player's camera with it, so the scene
+        // has to get the view back instead of nothing rendering at all.
+        FallbackCamera.ClearLocalPlayerCamera(ownedCamera);
     }
 
     private void OnApplicationFocus(bool hasFocus)
