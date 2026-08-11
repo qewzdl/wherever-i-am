@@ -30,7 +30,11 @@ public class EnemyVisionConfig : ScriptableObject
              "point where sight broke, so stepping aside behind cover works.")]
     public bool visualMemoryTracksLiveTarget = true;
 
-    [Header("Stalking")]
+    // Everything below this line describes how the enemy sneaks, not what it
+    // can see, and it now has a home of its own in EnemyStealthTacticsConfig.
+    // Kept here because assets are authored against these fields; assign a
+    // tactics profile on the EnemyConfig and it takes over entirely.
+    [Header("Stalking (legacy - see EnemyStealthTacticsConfig)")]
     [Tooltip(
         "Closer than this, a seen target is simply chased - there is no room " +
         "to circle round without being watched doing it, and the enemy is " +

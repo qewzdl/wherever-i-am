@@ -11,6 +11,34 @@ using UnityEngine;
 // Only the pitch is replicated. The body's yaw already reaches the server
 // through the player's NetworkTransform, and the camera turns the body with
 // it, so sending a whole direction would send the yaw twice.
+
+// One player who can see a given point, and where they are watching it from.
+//
+// "Is anybody looking at me" collapses a room full of people into a single
+// bool, and every stealth decision made from that bool is made against the
+// wrong person: an enemy noticed by player B while working on player A backed
+// away from A, which in a shared room is a route towards B.
+public readonly struct PlayerWatcher
+{
+    public ulong ClientId { get; }
+    public Vector3 Position { get; }
+    public Vector3 EyePosition { get; }
+    public Vector3 GazeDirection { get; }
+
+    public PlayerWatcher(
+        ulong clientId,
+        Vector3 position,
+        Vector3 eyePosition,
+        Vector3 gazeDirection
+    )
+    {
+        ClientId = clientId;
+        Position = position;
+        EyePosition = eyePosition;
+        GazeDirection = gazeDirection;
+    }
+}
+
 [DisallowMultipleComponent]
 public sealed class PlayerGazeNetwork : NetworkBehaviour
 {
@@ -310,5 +338,45 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         }
 
         return false;
+    }
+
+    // Everyone who can see this body, not merely whether anybody can.
+    //
+    // Costs the same as the question above in the common case - the cheap
+    // rejection runs first for every player either way - and it is the only
+    // form a retreat or a flank can plan honestly against, because it can
+    // route away from all of them at once instead of away from a guess.
+    public static void CollectBodyWatchers(
+        Vector3 footPosition,
+        float height,
+        List<PlayerWatcher> watchers
+    )
+    {
+        if (watchers == null)
+        {
+            return;
+        }
+
+        watchers.Clear();
+
+        for (int i = 0; i < RegisteredGazes.Count; i++)
+        {
+            PlayerGazeNetwork gaze = RegisteredGazes[i];
+
+            if (gaze != null && gaze.CanSeeBody(footPosition, height))
+            {
+                watchers.Add(gaze.AsWatcher());
+            }
+        }
+    }
+
+    private PlayerWatcher AsWatcher()
+    {
+        return new PlayerWatcher(
+            OwnerClientId,
+            transform.position,
+            EyePosition,
+            GazeDirection
+        );
     }
 }

@@ -234,6 +234,11 @@ public sealed class EnemyPerceptionRuntime
             Time.time
         );
 
+        // Same person, seen again: the manoeuvre plans against the fresh pose.
+        // Anyone else is refused here rather than quietly moving the spot an
+        // ambush is already creeping towards.
+        blackboard.StealthManeuver.TryRefresh(targetMemory.LastObservation);
+
         investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
         investigationMemory.ClearSuspiciousPosition();
 

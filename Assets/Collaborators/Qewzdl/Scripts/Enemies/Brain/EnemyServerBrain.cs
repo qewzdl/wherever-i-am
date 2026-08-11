@@ -196,6 +196,8 @@ public sealed class EnemyServerBrain
             $"valid={blackboard.TargetMemory.IsCurrentTargetValid}");
 #endif
 
+        UpdateStealthManeuver(currentState, nextState);
+
         currentHandler?.Exit();
 
         currentState = nextState;
@@ -203,6 +205,47 @@ public sealed class EnemyServerBrain
 
         currentHandler = nextHandler;
         currentHandler.Enter();
+    }
+
+    // The manoeuvre and its target lock live exactly as long as the manoeuvre.
+    //
+    // Starting one takes a snapshot of who it is against and when they were
+    // last seen; moving between its phases keeps both. Leaving it is the
+    // explicit abort - and the only thing that lets perception hand this enemy
+    // somebody else. Nothing about a perception refresh releases it, which is
+    // the whole point: the target vanishing used to null the held target and
+    // fall straight through into adopting whoever was visible instead.
+    private void UpdateStealthManeuver(EnemyState fromState, EnemyState toState)
+    {
+        bool wasManeuvering = EnemyStateRules.IsStealthManeuver(fromState);
+        bool willManeuver = EnemyStateRules.IsStealthManeuver(toState);
+
+        if (willManeuver && wasManeuvering && blackboard.StealthManeuver.IsActive)
+        {
+            blackboard.StealthManeuver.EnterPhase(toState);
+        }
+        else if (willManeuver)
+        {
+            blackboard.StealthManeuver.Begin(
+                blackboard.TargetMemory.LastObservation,
+                toState,
+                Time.time
+            );
+        }
+        else if (wasManeuvering)
+        {
+            blackboard.StealthManeuver.End();
+            EnemyTacticalSlotRegistry.Release(context.TacticalOwnerId);
+        }
+
+        // Chase and Attack carry on against the same person, so the
+        // commitment survives between them. Anything else has stopped dealing
+        // with anybody at all, and that is what releases it.
+        if (EnemyStateRules.IsEngagedWithTarget(fromState) &&
+            !EnemyStateRules.IsEngagedWithTarget(toState))
+        {
+            context.TargetDetector?.ResetTargetSelection();
+        }
     }
 
     private void ApplyPerceptionDecision(EnemyPerceptionDecision decision)

@@ -548,6 +548,112 @@ public class EnemyNavigator : MonoBehaviour
         return true;
     }
 
+    // Where this agent could actually stand, and the route it would actually
+    // walk to get there.
+    //
+    // The stealth states used to ask NavMesh.SamplePosition and
+    // NavMesh.CalculatePath with NavMesh.AllAreas and whichever agent type
+    // happened to be default. That is a different NavMesh from the one this
+    // enemy moves on - wrong agent size, wrong area mask, no posture, none of
+    // the item blockers - so a plan could be judged perfect and then be
+    // unwalkable the moment it was handed back here to be driven.
+    internal bool TryPlanTacticalRoute(Vector3 from, Vector3 to, NavMeshPath path)
+    {
+        if (path == null)
+        {
+            return false;
+        }
+
+        EnemyPosture posture = CurrentTacticalPosture;
+
+        if (TryPlanTacticalRouteForPosture(posture, from, to, path))
+        {
+            return true;
+        }
+
+        // Same fallback order the real move takes: standing first, then drop
+        // to a crawl if the level only offers a crawl-sized way through.
+        return config != null &&
+               config.crawlingEnabled &&
+               posture != EnemyPosture.Crawling &&
+               TryPlanTacticalRouteForPosture(
+                   EnemyPosture.Crawling,
+                   from,
+                   to,
+                   path);
+    }
+
+    internal bool TrySampleTacticalPoint(
+        Vector3 desiredPosition,
+        float maximumDistance,
+        out Vector3 sampledPosition)
+    {
+        sampledPosition = desiredPosition;
+
+        if (!TryGetNavigationQueryFilter(
+                CurrentTacticalPosture,
+                out NavMeshQueryFilter filter))
+        {
+            return false;
+        }
+
+        if (!NavMesh.SamplePosition(
+                desiredPosition,
+                out NavMeshHit hit,
+                Mathf.Max(0.1f, maximumDistance),
+                filter))
+        {
+            return false;
+        }
+
+        sampledPosition = hit.position;
+        return true;
+    }
+
+    private EnemyPosture CurrentTacticalPosture =>
+        postureController != null
+            ? postureController.CurrentPosture
+            : EnemyPosture.Standing;
+
+    private bool TryPlanTacticalRouteForPosture(
+        EnemyPosture posture,
+        Vector3 from,
+        Vector3 to,
+        NavMeshPath path)
+    {
+        path.ClearCorners();
+
+        if (!TryGetNavigationQueryFilter(posture, out NavMeshQueryFilter filter))
+        {
+            return false;
+        }
+
+        float sampleRadius = GetNavigationSampleRadius();
+
+        if (!NavMesh.SamplePosition(
+                from,
+                out NavMeshHit fromHit,
+                sampleRadius,
+                filter) ||
+            !NavMesh.SamplePosition(
+                to,
+                out NavMeshHit toHit,
+                sampleRadius,
+                filter))
+        {
+            path.ClearCorners();
+            return false;
+        }
+
+        return NavMesh.CalculatePath(
+                   fromHit.position,
+                   toHit.position,
+                   filter,
+                   path) &&
+               path.status == NavMeshPathStatus.PathComplete &&
+               !HasNavigationBlockerOnPath(path);
+    }
+
     private void RememberRequestedNavigation(
         Vector3 destination,
         float speed,

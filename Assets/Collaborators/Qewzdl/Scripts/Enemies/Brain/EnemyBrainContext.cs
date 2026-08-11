@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class EnemyBrainContext
@@ -22,6 +23,12 @@ public sealed class EnemyBrainContext
     public EnemyAttackController AttackController { get; }
     public EnemyPostureController PostureController { get; }
     public EnemyBlackboard Blackboard { get; }
+
+    // Plans routes with this enemy's own agent type, area mask, posture and
+    // blockers, so a tactical destination that passes is one it can reach.
+    public EnemyTacticalNavigationPlanner TacticalPlanner { get; }
+
+    public EnemyStealthManeuver Maneuver => Blackboard.StealthManeuver;
 
     public EnemyTargetMemory TargetMemory => Blackboard.TargetMemory;
     public EnemyPerceptionMemory PerceptionMemory => Blackboard.PerceptionMemory;
@@ -56,6 +63,8 @@ public sealed class EnemyBrainContext
         this.changeState = changeState;
         this.syncTarget = syncTarget;
 
+        TacticalPlanner = new EnemyTacticalNavigationPlanner(navigator);
+
         perceptionId = ++nextPerceptionId;
     }
 
@@ -68,12 +77,25 @@ public sealed class EnemyBrainContext
     // question whose answer does not change that fast.
     public bool IsSelfSeenByAnyone()
     {
+        return GetWatchers().Count > 0;
+    }
+
+    // Everyone who can see this enemy right now, from the same cached sample
+    // the bool above reads.
+    //
+    // The bool is not enough to plan with. An enemy noticed by player B while
+    // it works on player A backed away from A, and in a shared room that is a
+    // route towards B - it broke off, walked into the person who had spotted
+    // it, and broke off again. Read within the tick that asks for it: the
+    // scheduler refills the list on the next sample.
+    public IReadOnlyList<PlayerWatcher> GetWatchers()
+    {
         if (Navigator == null)
         {
-            return false;
+            return EnemyServerPerceptionScheduler.NoWatchers;
         }
 
-        return EnemyServerPerceptionScheduler.IsBodySeenByAnyone(
+        return EnemyServerPerceptionScheduler.GetBodyWatchers(
             perceptionId,
             Navigator.Position,
             Navigator.BodyHeight,
@@ -83,9 +105,44 @@ public sealed class EnemyBrainContext
         );
     }
 
+    // Every phase of the manoeuvre begins with the same question: is this
+    // still a manoeuvre, against the same person, on evidence recent enough
+    // to plan with? A false answer has already picked the way out.
+    public bool TryContinueManeuver(out EnemyTargetObservation observation)
+    {
+        EnemyStealthManeuverStatus status = Maneuver.Evaluate(
+            Time.time,
+            Config != null ? Config.stealthObservationMaxAge : 10f,
+            Config != null ? Config.stealthManeuverTimeout : 25f,
+            out observation
+        );
+
+        switch (status)
+        {
+            case EnemyStealthManeuverStatus.Running:
+                return true;
+
+            // Sneaking has had its chance. Coming at them is the same answer
+            // each phase's own timeout reaches, for the same reason.
+            case EnemyStealthManeuverStatus.Expired:
+                ChangeState(EnemyState.Chase);
+                return false;
+
+            default:
+                ChangeState(EnemyState.Investigate);
+                return false;
+        }
+    }
+
+    // Identifies this enemy to anything shared between enemies - the query
+    // budgets and the claimed tactical spots.
+    public int TacticalOwnerId =>
+        Navigator != null ? Navigator.NavigationSchedulerId : perceptionId;
+
     public void ForgetPerceptionCache()
     {
         EnemyServerPerceptionScheduler.Forget(perceptionId);
+        EnemyTacticalSlotRegistry.Release(TacticalOwnerId);
 
         if (Navigator != null)
         {
@@ -93,24 +150,6 @@ public sealed class EnemyBrainContext
                 Navigator.NavigationSchedulerId
             );
         }
-    }
-
-    public bool TryReserveVisibilityQueries(
-        int maximumQueries,
-        out int grantedQueries
-    )
-    {
-        if (Navigator == null)
-        {
-            grantedQueries = 0;
-            return false;
-        }
-
-        return EnemyServerPerceptionScheduler.TryReserveVisibilityQueries(
-            Navigator.NavigationSchedulerId,
-            maximumQueries,
-            out grantedQueries
-        );
     }
 
     public bool TryReservePlanningQueries(

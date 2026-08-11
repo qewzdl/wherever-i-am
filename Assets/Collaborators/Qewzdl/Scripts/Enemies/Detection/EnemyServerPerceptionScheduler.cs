@@ -28,22 +28,28 @@ public static class EnemyServerPerceptionScheduler
     public const int PathQueriesPerFrame = 32;
     public const int VisibilityQueriesPerFrame = 64;
 
+    // One queue per resource, not one queue for both.
+    //
+    // A single queue meant an enemy waiting on raycasts held up an enemy that
+    // only wanted a path, for work that has nothing to do with it - and the
+    // tactical planners ask for both while EnemyNavigator asks for paths
+    // alone, so the two ends of the same enemy queued behind each other.
+    private static readonly ResourceQueue PathQueue = new(PathQueriesPerFrame);
+    private static readonly ResourceQueue VisibilityQueue =
+        new(VisibilityQueriesPerFrame);
+
     private static int budgetFrame = -1;
-    private static int remainingPathQueries;
-    private static int remainingVisibilityQueries;
 
     private static readonly Dictionary<int, GazeSample> GazeSamples = new();
-    private static readonly Queue<int> PendingWorkRequesters = new();
-    private static readonly HashSet<int> PendingWorkRequesterSet = new();
-    private static readonly HashSet<int> GrantedWorkRequestersThisFrame = new();
-    private static readonly Dictionary<int, int> WorkLastRequestedFrame = new();
+    private static readonly List<PlayerWatcher> WatcherBuffer = new();
+    private static readonly List<PlayerWatcher> EmptyWatchers = new();
 
     public static int PathQueriesRemainingThisFrame
     {
         get
         {
             RefreshFrameBudget();
-            return remainingPathQueries;
+            return PathQueue.Remaining;
         }
     }
 
@@ -52,7 +58,7 @@ public static class EnemyServerPerceptionScheduler
         get
         {
             RefreshFrameBudget();
-            return remainingVisibilityQueries;
+            return VisibilityQueue.Remaining;
         }
     }
 
@@ -67,7 +73,6 @@ public static class EnemyServerPerceptionScheduler
         out int grantedQueries
     )
     {
-        RefreshFrameBudget();
         return TryReserveWork(
             enemyId,
             requestedQueries,
@@ -83,7 +88,6 @@ public static class EnemyServerPerceptionScheduler
         out int grantedQueries
     )
     {
-        RefreshFrameBudget();
         return TryReserveWork(
             enemyId,
             0,
@@ -101,7 +105,6 @@ public static class EnemyServerPerceptionScheduler
         out int grantedVisibilityQueries
     )
     {
-        RefreshFrameBudget();
         return TryReserveWork(
             enemyId,
             requestedPathQueries,
@@ -121,38 +124,64 @@ public static class EnemyServerPerceptionScheduler
         float refreshInterval = DefaultGazeRefreshInterval
     )
     {
+        return GetBodyWatchers(
+            enemyId,
+            footPosition,
+            bodyHeight,
+            refreshInterval
+        ).Count > 0;
+    }
+
+    // Who can see this enemy, from the same cached sample as the bool above.
+    //
+    // The returned list belongs to the cache and is refilled on the next
+    // sample for this enemy, so it is read within the tick that asked for it
+    // and not stored.
+    public static IReadOnlyList<PlayerWatcher> GetBodyWatchers(
+        int enemyId,
+        Vector3 footPosition,
+        float bodyHeight,
+        float refreshInterval = DefaultGazeRefreshInterval
+    )
+    {
         float now = Time.time;
         refreshInterval = Mathf.Max(0.05f, refreshInterval);
 
-        if (GazeSamples.TryGetValue(enemyId, out GazeSample sample) &&
-            now < sample.NextSampleAt &&
-            (sample.FootPosition - footPosition).sqrMagnitude <
-            ResampleDistance * ResampleDistance)
+        if (!GazeSamples.TryGetValue(enemyId, out GazeSample sample))
         {
-            return sample.IsSeen;
+            sample = new GazeSample();
+            GazeSamples[enemyId] = sample;
+        }
+        else if (now < sample.NextSampleAt &&
+                 (sample.FootPosition - footPosition).sqrMagnitude <
+                 ResampleDistance * ResampleDistance)
+        {
+            return sample.Watchers;
         }
 
-        bool isSeen = PlayerGazeNetwork.IsBodySeenByAnyone(
+        PlayerGazeNetwork.CollectBodyWatchers(
             footPosition,
-            bodyHeight
+            bodyHeight,
+            WatcherBuffer
         );
 
+        sample.Watchers.Clear();
+        sample.Watchers.AddRange(WatcherBuffer);
+        sample.FootPosition = footPosition;
+
         float phase = GetSamplePhase(enemyId, refreshInterval);
-        float nextSampleAt = GetNextSampleTime(now, refreshInterval, phase);
-        GazeSamples[enemyId] = new GazeSample(
-            nextSampleAt,
-            footPosition,
-            isSeen
-        );
-        return isSeen;
+        sample.NextSampleAt = GetNextSampleTime(now, refreshInterval, phase);
+
+        return sample.Watchers;
     }
+
+    public static IReadOnlyList<PlayerWatcher> NoWatchers => EmptyWatchers;
 
     public static void Forget(int enemyId)
     {
         GazeSamples.Remove(enemyId);
-        PendingWorkRequesterSet.Remove(enemyId);
-        GrantedWorkRequestersThisFrame.Remove(enemyId);
-        WorkLastRequestedFrame.Remove(enemyId);
+        PathQueue.Forget(enemyId);
+        VisibilityQueue.Forget(enemyId);
     }
 
     // Entering and leaving play mode keeps statics alive in the editor, and a
@@ -166,13 +195,10 @@ public static class EnemyServerPerceptionScheduler
     private static void ResetRuntimeState()
     {
         GazeSamples.Clear();
-        PendingWorkRequesters.Clear();
-        PendingWorkRequesterSet.Clear();
-        GrantedWorkRequestersThisFrame.Clear();
-        WorkLastRequestedFrame.Clear();
+        WatcherBuffer.Clear();
+        PathQueue.Reset();
+        VisibilityQueue.Reset();
         budgetFrame = -1;
-        remainingPathQueries = 0;
-        remainingVisibilityQueries = 0;
     }
 
     // Roughly a stride. Closer than this and the sight lines are the same
@@ -189,9 +215,8 @@ public static class EnemyServerPerceptionScheduler
         }
 
         budgetFrame = frame;
-        remainingPathQueries = PathQueriesPerFrame;
-        remainingVisibilityQueries = VisibilityQueriesPerFrame;
-        GrantedWorkRequestersThisFrame.Clear();
+        PathQueue.BeginFrame();
+        VisibilityQueue.BeginFrame();
     }
 
     private static bool TryReserveWork(
@@ -202,6 +227,8 @@ public static class EnemyServerPerceptionScheduler
         out int grantedVisibilityQueries
     )
     {
+        RefreshFrameBudget();
+
         grantedPathQueries = 0;
         grantedVisibilityQueries = 0;
         requestedPathQueries = Mathf.Clamp(
@@ -220,117 +247,22 @@ public static class EnemyServerPerceptionScheduler
             return false;
         }
 
-        WorkLastRequestedFrame[enemyId] = Time.frameCount;
-
-        CleanupForgottenRequesters(
-            PendingWorkRequesters,
-            PendingWorkRequesterSet
-        );
-
-        if (GrantedWorkRequestersThisFrame.Contains(enemyId))
+        // Both or neither: a half-reserved plan spends budget on a search that
+        // cannot finish.
+        if (!PathQueue.CanServe(enemyId, requestedPathQueries) ||
+            !VisibilityQueue.CanServe(enemyId, requestedVisibilityQueries))
         {
-            QueueRequester(
-                enemyId,
-                PendingWorkRequesters,
-                PendingWorkRequesterSet
-            );
+            PathQueue.Defer(enemyId, requestedPathQueries);
+            VisibilityQueue.Defer(enemyId, requestedVisibilityQueries);
             return false;
         }
 
-        if (PendingWorkRequesters.Count > 0)
-        {
-            if (!PendingWorkRequesterSet.Contains(enemyId))
-            {
-                QueueRequester(
-                    enemyId,
-                    PendingWorkRequesters,
-                    PendingWorkRequesterSet
-                );
-            }
+        PathQueue.Consume(enemyId, requestedPathQueries);
+        VisibilityQueue.Consume(enemyId, requestedVisibilityQueries);
 
-            CleanupForgottenRequesters(
-                PendingWorkRequesters,
-                PendingWorkRequesterSet
-            );
-
-            if (PendingWorkRequesters.Count == 0 ||
-                PendingWorkRequesters.Peek() != enemyId)
-            {
-                return false;
-            }
-        }
-
-        if (remainingPathQueries < requestedPathQueries ||
-            remainingVisibilityQueries < requestedVisibilityQueries)
-        {
-            QueueRequester(
-                enemyId,
-                PendingWorkRequesters,
-                PendingWorkRequesterSet
-            );
-            return false;
-        }
-
-        if (PendingWorkRequesters.Count > 0 &&
-            PendingWorkRequesters.Peek() == enemyId)
-        {
-            PendingWorkRequesters.Dequeue();
-            PendingWorkRequesterSet.Remove(enemyId);
-            WorkLastRequestedFrame.Remove(enemyId);
-        }
-
-        remainingPathQueries -= requestedPathQueries;
-        remainingVisibilityQueries -= requestedVisibilityQueries;
         grantedPathQueries = requestedPathQueries;
         grantedVisibilityQueries = requestedVisibilityQueries;
-        GrantedWorkRequestersThisFrame.Add(enemyId);
-        WorkLastRequestedFrame.Remove(enemyId);
         return true;
-    }
-
-    private static void QueueRequester(
-        int enemyId,
-        Queue<int> pendingRequesters,
-        HashSet<int> pendingRequesterSet
-    )
-    {
-        WorkLastRequestedFrame[enemyId] = Time.frameCount;
-
-        if (pendingRequesterSet.Add(enemyId))
-        {
-            pendingRequesters.Enqueue(enemyId);
-        }
-    }
-
-    private static void CleanupForgottenRequesters(
-        Queue<int> pendingRequesters,
-        HashSet<int> pendingRequesterSet
-    )
-    {
-        while (pendingRequesters.Count > 0 &&
-               IsForgottenOrStale(pendingRequesters.Peek(), pendingRequesterSet))
-        {
-            int staleRequester = pendingRequesters.Dequeue();
-            pendingRequesterSet.Remove(staleRequester);
-            WorkLastRequestedFrame.Remove(staleRequester);
-        }
-    }
-
-    private static bool IsForgottenOrStale(
-        int enemyId,
-        HashSet<int> pendingRequesterSet
-    )
-    {
-        if (!pendingRequesterSet.Contains(enemyId) ||
-            !WorkLastRequestedFrame.TryGetValue(enemyId, out int requestedFrame))
-        {
-            return true;
-        }
-
-        // A requester can change state after being queued. Do not let a slot
-        // it no longer asks for block every living enemy forever. One grace
-        // frame preserves fairness for normal Update ordering.
-        return requestedFrame < Time.frameCount - 1;
     }
 
     private static float GetSamplePhase(int enemyId, float interval)
@@ -349,17 +281,132 @@ public static class EnemyServerPerceptionScheduler
         return slot * interval + phase;
     }
 
-    private readonly struct GazeSample
+    private sealed class GazeSample
     {
-        public GazeSample(float nextSampleAt, Vector3 footPosition, bool isSeen)
+        public float NextSampleAt;
+        public Vector3 FootPosition;
+        public readonly List<PlayerWatcher> Watchers = new();
+    }
+
+    private sealed class ResourceQueue
+    {
+        private readonly Queue<int> pending = new();
+        private readonly HashSet<int> pendingSet = new();
+        private readonly HashSet<int> grantedThisFrame = new();
+        private readonly Dictionary<int, int> lastRequestedFrame = new();
+        private readonly int perFrame;
+
+        public int Remaining { get; private set; }
+
+        public ResourceQueue(int perFrame)
         {
-            NextSampleAt = nextSampleAt;
-            FootPosition = footPosition;
-            IsSeen = isSeen;
+            this.perFrame = perFrame;
+            Remaining = perFrame;
         }
 
-        public float NextSampleAt { get; }
-        public Vector3 FootPosition { get; }
-        public bool IsSeen { get; }
+        public void BeginFrame()
+        {
+            Remaining = perFrame;
+            grantedThisFrame.Clear();
+        }
+
+        public bool CanServe(int enemyId, int requestedQueries)
+        {
+            if (requestedQueries <= 0)
+            {
+                return true;
+            }
+
+            CleanupForgottenRequesters();
+
+            // An enemy that has already been served this frame yields only to
+            // someone actually waiting. Refusing outright meant a state's
+            // tactical plan and the same enemy's navigator repath took turns
+            // over alternate frames even on an empty server, which is a
+            // visible stutter for no gain.
+            if (grantedThisFrame.Contains(enemyId) && pending.Count > 0)
+            {
+                return false;
+            }
+
+            if (pending.Count > 0 && pending.Peek() != enemyId)
+            {
+                return false;
+            }
+
+            return Remaining >= requestedQueries;
+        }
+
+        public void Consume(int enemyId, int requestedQueries)
+        {
+            if (requestedQueries <= 0)
+            {
+                return;
+            }
+
+            Remaining -= requestedQueries;
+            grantedThisFrame.Add(enemyId);
+
+            if (pending.Count > 0 && pending.Peek() == enemyId)
+            {
+                pending.Dequeue();
+                pendingSet.Remove(enemyId);
+            }
+
+            lastRequestedFrame.Remove(enemyId);
+        }
+
+        public void Defer(int enemyId, int requestedQueries)
+        {
+            if (requestedQueries <= 0)
+            {
+                return;
+            }
+
+            lastRequestedFrame[enemyId] = Time.frameCount;
+
+            if (pendingSet.Add(enemyId))
+            {
+                pending.Enqueue(enemyId);
+            }
+        }
+
+        public void Forget(int enemyId)
+        {
+            pendingSet.Remove(enemyId);
+            grantedThisFrame.Remove(enemyId);
+            lastRequestedFrame.Remove(enemyId);
+        }
+
+        public void Reset()
+        {
+            pending.Clear();
+            pendingSet.Clear();
+            grantedThisFrame.Clear();
+            lastRequestedFrame.Clear();
+            Remaining = perFrame;
+        }
+
+        private void CleanupForgottenRequesters()
+        {
+            while (pending.Count > 0 && IsForgottenOrStale(pending.Peek()))
+            {
+                int staleRequester = pending.Dequeue();
+                pendingSet.Remove(staleRequester);
+                lastRequestedFrame.Remove(staleRequester);
+            }
+        }
+
+        // A requester can change state after being queued. Do not let a slot
+        // it no longer asks for block every living enemy forever. One grace
+        // frame preserves fairness for normal Update ordering.
+        private bool IsForgottenOrStale(int enemyId)
+        {
+            return !pendingSet.Contains(enemyId) ||
+                   !lastRequestedFrame.TryGetValue(
+                       enemyId,
+                       out int requestedFrame) ||
+                   requestedFrame < Time.frameCount - 1;
+        }
     }
 }

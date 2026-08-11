@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Stands and watches. The first beat of going round behind someone rather
@@ -33,15 +34,29 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
     public void Tick(float deltaTime)
     {
+        if (!context.TryContinueManeuver(
+                out EnemyTargetObservation targetObservation))
+        {
+            return;
+        }
+
         Vector3 selfPosition = context.Navigator.Position;
+        EnemyTarget currentTarget = context.TargetMemory.CurrentTarget;
+
+        // The manoeuvre's own target, not whoever perception is holding. They
+        // are the same person unless something has gone wrong, and this is
+        // where it would show.
+        bool hasLiveTarget =
+            currentTarget != null &&
+            context.TargetMemory.IsCurrentTargetValid &&
+            currentTarget == targetObservation.Target;
 
         // A lost target is not immediately a search. Vision refreshes four
         // times a second, so a target that steps behind a door frame is
         // "gone" for a moment on its way past - abandoning the stalk on that
         // meant the enemy dropped into a search over and over and never got
         // anywhere.
-        if (!context.TargetMemory.HasTarget ||
-            !context.TargetMemory.IsCurrentTargetValid)
+        if (!hasLiveTarget)
         {
             lostTimer += deltaTime;
 
@@ -57,7 +72,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
         lostTimer = 0f;
 
         Vector3 targetPosition =
-            context.GetTargetNavigationPosition(context.TargetMemory.CurrentTarget);
+            context.GetTargetNavigationPosition(currentTarget);
         float distance = Vector3.Distance(selfPosition, targetPosition);
 
         if (distance > context.Config.loseTargetDistance)
@@ -77,7 +92,9 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
         FaceTarget(targetPosition, selfPosition, deltaTime);
 
-        if (!context.IsSelfSeenByAnyone())
+        IReadOnlyList<PlayerWatcher> watchers = context.GetWatchers();
+
+        if (watchers.Count == 0)
         {
             watchedTimer = 0f;
             return;
@@ -89,6 +106,13 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
         if (watchedTimer >= context.Config.stalkNoticedDuration)
         {
+            // The decision the whole manoeuvre turns on, made once and here:
+            // the target does not change because somebody else noticed. A
+            // second player spotting the enemy is a reason to break off, not a
+            // reason to start creeping up on them instead - swapping would
+            // throw away the approach already walked and hand the new person a
+            // plan built for the old one. The retreat that follows backs away
+            // from everyone watching, including whoever this was.
             context.ChangeState(EnemyState.Retreat);
         }
     }

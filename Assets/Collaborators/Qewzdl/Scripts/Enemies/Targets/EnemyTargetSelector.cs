@@ -16,23 +16,31 @@ public sealed class EnemyTargetSelector
 {
     private float committedAtTime = float.NegativeInfinity;
     private EnemyTarget committedTarget;
+    private bool hasCommitment;
 
     public EnemyTarget CommittedTarget => committedTarget;
 
     // A state that has already built a plan around its target. Changing it
     // halfway means an approach walked for someone else, a wind-up landing on
     // a third party, or an ambush sprung on nobody.
+    //
+    // The whole stealth manoeuvre counts, not just its last two phases. Stalk
+    // and Retreat were outside the lock, so a manoeuvre could change person
+    // between watching someone and backing off, and then flank the new one
+    // with a plan built for the old.
     public static bool IsTargetLockedBy(EnemyState state)
     {
         return state == EnemyState.Attack ||
-               state == EnemyState.Flank ||
-               state == EnemyState.Ambush;
+               EnemyStateRules.IsStealthManeuver(state);
     }
 
+    // The explicit abort. Only leaving the manoeuvre - or the pursuit ending -
+    // releases the lock; a perception refresh never does.
     public void Clear()
     {
         committedTarget = null;
         committedAtTime = float.NegativeInfinity;
+        hasCommitment = false;
     }
 
     // currentScore is only meaningful when hasCurrentScore is set: a target
@@ -53,6 +61,21 @@ public sealed class EnemyTargetSelector
     )
     {
         if (candidate == null)
+        {
+            return false;
+        }
+
+        // Asked before "is there anything to defend", and that order is the
+        // whole point. Perception hands this a null current target whenever
+        // the held one stops being valid - despawned, disconnected, climbed
+        // into a box - and the branch below took that as permission to adopt
+        // whoever else was in view. A locked state then carried on with a plan
+        // built around somebody who is no longer in the level, aimed at
+        // somebody who never entered it. The target going away is a reason for
+        // the manoeuvre to abort, and aborting is what releases the lock.
+        if (IsTargetLockedBy(currentState) &&
+            hasCommitment &&
+            !IsCommittedTo(candidate))
         {
             return false;
         }
@@ -105,5 +128,14 @@ public sealed class EnemyTargetSelector
 
         committedTarget = target;
         committedAtTime = serverTime;
+        hasCommitment = true;
+    }
+
+    // Unity's destroyed-object equality on purpose: a commitment whose object
+    // has gone matches nothing, so no live candidate can inherit the lock by
+    // being the only one left standing.
+    private bool IsCommittedTo(EnemyTarget candidate)
+    {
+        return committedTarget != null && committedTarget == candidate;
     }
 }

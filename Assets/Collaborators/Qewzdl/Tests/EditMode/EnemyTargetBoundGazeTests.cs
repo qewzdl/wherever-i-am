@@ -277,6 +277,295 @@ public sealed class EnemyTargetBoundGazeTests
             Is.False);
     }
 
+    // The hole the lock had: perception nulls the held target the moment it
+    // stops being valid, and "nothing to defend, take anything visible" was
+    // checked before the lock was. So a target despawning mid-flank handed the
+    // approach - and the ambush at the end of it - to whoever else was in
+    // view, with a plan built for somebody who had left the level.
+    [Test]
+    public void TargetSelector_RefusesAChallengerWhenTheLockedTargetIsGone()
+    {
+        LogAssert.ignoreFailingMessages = true;
+
+        GameObject first = new("Despawned target");
+        GameObject second = new("Visible challenger");
+        spawned.Add(first);
+        spawned.Add(second);
+
+        EnemyTarget held = first.AddComponent<EnemyTarget>();
+        EnemyTarget challenger = second.AddComponent<EnemyTarget>();
+
+        EnemyTargetSelector selector = new();
+        selector.NotifyCommitted(held, 0f);
+
+        Object.DestroyImmediate(first);
+
+        EnemyState[] locked =
+        {
+            EnemyState.Attack,
+            EnemyState.Stalk,
+            EnemyState.Retreat,
+            EnemyState.Flank,
+            EnemyState.Ambush,
+        };
+
+        for (int i = 0; i < locked.Length; i++)
+        {
+            Assert.That(
+                Switch(selector, null, challenger, 100f, 0f, false, locked[i], 60f),
+                Is.False,
+                $"{locked[i]} committed to somebody else and has not aborted.");
+        }
+
+        // Chase has built nothing around its target, so a vanished one leaves
+        // it free to take the person in front of it.
+        Assert.That(
+            Switch(selector, null, challenger, 100f, 0f, false, EnemyState.Chase, 60f),
+            Is.True);
+
+        // Leaving the manoeuvre is the explicit abort, and it is the only
+        // thing that releases the lock.
+        selector.Clear();
+
+        Assert.That(
+            Switch(selector, null, challenger, 100f, 0f, false, EnemyState.Flank, 60f),
+            Is.True);
+    }
+
+    [Test]
+    public void StealthManeuver_HoldsOnePersonAcrossEveryPhase()
+    {
+        LogAssert.ignoreFailingMessages = true;
+
+        GameObject first = new("Stalked target");
+        GameObject second = new("Passer by");
+        spawned.Add(first);
+        spawned.Add(second);
+
+        EnemyTarget held = first.AddComponent<EnemyTarget>();
+        EnemyTarget other = second.AddComponent<EnemyTarget>();
+
+        EnemyTargetMemory memory = new();
+        memory.SetTarget(held);
+        memory.RememberObservation(held, Vector3.zero, Vector3.forward, 10f);
+
+        EnemyStealthManeuver maneuver = new();
+        maneuver.Begin(memory.LastObservation, EnemyState.Stalk, 10f);
+
+        maneuver.EnterPhase(EnemyState.Retreat);
+        maneuver.EnterPhase(EnemyState.Flank);
+
+        Assert.That(maneuver.PhaseChanges, Is.EqualTo(2));
+        Assert.That(maneuver.Observation.Target, Is.EqualTo(held));
+
+        // Somebody else walking past does not move the spot this manoeuvre is
+        // creeping towards.
+        EnemyTargetMemory otherMemory = new();
+        otherMemory.RememberObservation(
+            other,
+            new Vector3(30f, 0f, 0f),
+            Vector3.back,
+            11f);
+
+        Assert.That(maneuver.TryRefresh(otherMemory.LastObservation), Is.False);
+        Assert.That(maneuver.Observation.Position, Is.EqualTo(Vector3.zero));
+
+        // The same person, seen again, does.
+        memory.RememberObservation(
+            held,
+            new Vector3(4f, 0f, 0f),
+            Vector3.right,
+            12f);
+
+        Assert.That(maneuver.TryRefresh(memory.LastObservation), Is.True);
+        Assert.That(maneuver.Observation.Position.x, Is.EqualTo(4f));
+    }
+
+    // Each phase used to carry its own timer and reset the others by entering,
+    // so Retreat and Flank could hand back and forth forever on a pose nobody
+    // had checked the age of.
+    [Test]
+    public void StealthManeuver_EndsOnStaleEvidenceAndOnItsOwnDeadline()
+    {
+        LogAssert.ignoreFailingMessages = true;
+
+        GameObject player = new("Observed target");
+        spawned.Add(player);
+
+        EnemyTarget target = player.AddComponent<EnemyTarget>();
+        EnemyTargetMemory memory = new();
+        memory.RememberObservation(target, Vector3.zero, Vector3.forward, 100f);
+
+        EnemyStealthManeuver maneuver = new();
+        maneuver.Begin(memory.LastObservation, EnemyState.Stalk, 100f);
+
+        Assert.That(
+            maneuver.Evaluate(105f, 10f, 25f, out _),
+            Is.EqualTo(EnemyStealthManeuverStatus.Running));
+
+        Assert.That(
+            maneuver.Evaluate(115f, 10f, 25f, out _),
+            Is.EqualTo(EnemyStealthManeuverStatus.ObservationLost));
+
+        // Kept fresh, the manoeuvre still ends - sneaking has had its chance.
+        memory.RememberObservation(target, Vector3.zero, Vector3.forward, 120f);
+        maneuver.TryRefresh(memory.LastObservation);
+
+        Assert.That(
+            maneuver.Evaluate(126f, 10f, 25f, out _),
+            Is.EqualTo(EnemyStealthManeuverStatus.Expired));
+
+        maneuver.End();
+
+        Assert.That(
+            maneuver.Evaluate(126f, 10f, 25f, out _),
+            Is.EqualTo(EnemyStealthManeuverStatus.ObservationLost));
+    }
+
+    // A NavMesh route out of a dead end runs back down the corridor the
+    // watcher is standing in. The straight line from where the enemy is to
+    // where it is going never touches them, so the segment test called that a
+    // retreat and the enemy walked past the player's feet to reach it.
+    [Test]
+    public void RouteRules_CatchARouteThatDoublesBackPastTheWatcher()
+    {
+        Vector3 watcher = Vector3.zero;
+        Vector3 from = new(0f, 0f, 10f);
+        Vector3 to = new(0f, 0f, 12f);
+
+        Assert.That(
+            EnemyStateRules.ClosesOnWatcher(from, to, watcher),
+            Is.False);
+
+        Vector3[] route =
+        {
+            from,
+            new(0f, 0f, 1f),
+            to,
+        };
+
+        Assert.That(
+            EnemyStateRules.RouteClosesOnWatcher(route, watcher),
+            Is.True);
+
+        // A route that leads away the whole time is still a retreat.
+        Vector3[] straightAway =
+        {
+            from,
+            new(0f, 0f, 14f),
+            new(0f, 0f, 20f),
+        };
+
+        Assert.That(
+            EnemyStateRules.RouteClosesOnWatcher(straightAway, watcher),
+            Is.False);
+    }
+
+    [Test]
+    public void TacticalSlotRegistry_KeepsTwoFlankingEnemiesOffOneSpot()
+    {
+        EnemyTacticalSlotRegistry.ResetForTests();
+
+        Vector3 behindThePlayer = new(3f, 0f, 0f);
+        EnemyTacticalSlotRegistry.Claim(1, behindThePlayer);
+
+        Assert.That(
+            EnemyTacticalSlotRegistry.IsClaimedByAnother(
+                2,
+                behindThePlayer + new Vector3(0.5f, 0f, 0f),
+                spacing: 2f),
+            Is.True);
+
+        // Its own claim never blocks it, or it would refuse to keep the spot
+        // it is already walking to.
+        Assert.That(
+            EnemyTacticalSlotRegistry.IsClaimedByAnother(
+                1,
+                behindThePlayer,
+                spacing: 2f),
+            Is.False);
+
+        Assert.That(
+            EnemyTacticalSlotRegistry.IsClaimedByAnother(
+                2,
+                behindThePlayer + new Vector3(4f, 0f, 0f),
+                spacing: 2f),
+            Is.False);
+
+        EnemyTacticalSlotRegistry.Release(1);
+
+        Assert.That(
+            EnemyTacticalSlotRegistry.IsClaimedByAnother(
+                2,
+                behindThePlayer,
+                spacing: 2f),
+            Is.False);
+
+        EnemyTacticalSlotRegistry.ResetForTests();
+    }
+
+    // One queue for both resources meant an enemy waiting on raycasts held up
+    // an enemy that only wanted a path, and a state's tactical plan queued
+    // behind its own navigator's repath.
+    [Test]
+    public void PerceptionScheduler_QueuesPathAndVisibilityWorkSeparately()
+    {
+        EnemyServerPerceptionScheduler.ResetForTests();
+
+        int pathBudget = EnemyServerPerceptionScheduler.PathQueriesRemainingThisFrame;
+
+        Assert.That(
+            EnemyServerPerceptionScheduler.TryReservePathQueries(
+                enemyId: 1,
+                requestedQueries: pathBudget,
+                out _),
+            Is.True);
+
+        // Out of path budget, so this one waits at the head of the path queue.
+        Assert.That(
+            EnemyServerPerceptionScheduler.TryReservePathQueries(
+                enemyId: 1,
+                requestedQueries: 1,
+                out _),
+            Is.False);
+
+        // Which says nothing about raycasts, and used to.
+        Assert.That(
+            EnemyServerPerceptionScheduler.TryReserveVisibilityQueries(
+                enemyId: 2,
+                requestedQueries: 4,
+                out int grantedVisibility),
+            Is.True);
+        Assert.That(grantedVisibility, Is.EqualTo(4));
+
+        EnemyServerPerceptionScheduler.ResetForTests();
+    }
+
+    // An enemy asking twice in one frame - its planner and then its navigator -
+    // only yields to somebody actually waiting.
+    [Test]
+    public void PerceptionScheduler_ServesASecondRequestWhenNobodyIsWaiting()
+    {
+        EnemyServerPerceptionScheduler.ResetForTests();
+
+        Assert.That(
+            EnemyServerPerceptionScheduler.TryReservePathQueries(
+                enemyId: 7,
+                requestedQueries: 4,
+                out _),
+            Is.True);
+
+        Assert.That(
+            EnemyServerPerceptionScheduler.TryReservePathQueries(
+                enemyId: 7,
+                requestedQueries: 4,
+                out int grantedAgain),
+            Is.True);
+        Assert.That(grantedAgain, Is.EqualTo(4));
+
+        EnemyServerPerceptionScheduler.ResetForTests();
+    }
+
     private static bool Switch(
         EnemyTargetSelector selector,
         EnemyTarget current,

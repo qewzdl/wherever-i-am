@@ -2843,6 +2843,297 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             $"{startDistance:F2} to {closest:F2}.");
     }
 
+    // Being watched used to be one bool for the whole server, so a retreat was
+    // planned against the one pose the enemy had observed and nobody else.
+    // Here a second player stands behind the enemy in the stem, watching it,
+    // and is not a target the enemy could pick up - so the only thing that can
+    // keep the enemy off them is the retreat accounting for every watcher
+    // rather than for its own victim.
+    //
+    // Backing straight away from the target is backing into that second
+    // player, and the stem is too narrow to step aside in. Standing still is
+    // the only honest answer the level offers.
+    [UnityTest]
+    public IEnumerator Retreat_DoesNotBackAwayIntoASecondPlayerWatching()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeDeadEndFacingTheTarget(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 5f),
+            canBeDetected: true,
+            withGaze: true);
+
+        // Watches, cannot be watched for. Detectable, it would simply be the
+        // nearer target and the enemy would deal with it instead, which is a
+        // different behaviour from the one under test.
+        EnemyTarget watcher = CreateSpawnedTarget(
+            new Vector3(0f, 0f, -10f),
+            canBeDetected: false,
+            withGaze: true);
+
+        // Both looking down the stem at the enemy between them.
+        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        watcher.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        Physics.SyncTransforms();
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -5f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning,
+            "Enemy did not start.");
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Retreat,
+            "Enemy did not break off while two players watched it.");
+
+        float startToTarget = Vector3.Distance(
+            enemy.transform.position,
+            target.transform.position);
+        float startToWatcher = Vector3.Distance(
+            enemy.transform.position,
+            watcher.transform.position);
+        float closestToTarget = startToTarget;
+        float closestToWatcher = startToWatcher;
+        float deadline = Time.realtimeSinceStartup + 3f;
+
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            closestToTarget = Mathf.Min(
+                closestToTarget,
+                Vector3.Distance(
+                    enemy.transform.position,
+                    target.transform.position));
+            closestToWatcher = Mathf.Min(
+                closestToWatcher,
+                Vector3.Distance(
+                    enemy.transform.position,
+                    watcher.transform.position));
+
+            yield return null;
+        }
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(EnemyState.Retreat),
+            "The enemy left the retreat, so this measured something else.");
+
+        Assert.That(
+            closestToWatcher,
+            Is.GreaterThan(startToWatcher - 1.5f),
+            "The enemy backed away from its target straight into the second " +
+            $"player watching it, from {startToWatcher:F2} to " +
+            $"{closestToWatcher:F2}.");
+
+        Assert.That(
+            closestToTarget,
+            Is.GreaterThan(startToTarget - 1.5f),
+            $"The enemy closed on the target it was breaking off from, from " +
+            $"{startToTarget:F2} to {closestToTarget:F2}.");
+    }
+
+    // The manoeuvre's target leaving the level, at each phase of it, with
+    // somebody else standing in plain sight.
+    //
+    // Perception nulls a target the moment it stops being valid, and the
+    // selector's "nothing to defend, take anything visible" branch used to be
+    // checked before the lock was - so a despawn handed the approach, and the
+    // ambush at the end of it, to whichever other player was in view, running
+    // a plan built around somebody who had left. The phases carry on against
+    // the pose they observed, which is the point of them, but never against a
+    // different person: only leaving the manoeuvre releases the lock.
+    [UnityTest]
+    public IEnumerator StalkDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Stalk);
+    }
+
+    [UnityTest]
+    public IEnumerator RetreatDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Retreat);
+    }
+
+    [UnityTest]
+    public IEnumerator FlankDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Flank);
+    }
+
+    [UnityTest]
+    public IEnumerator AmbushDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Ambush);
+    }
+
+    private IEnumerator DespawnDuringPhase(EnemyState phase)
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 6f),
+            canBeDetected: true,
+            withGaze: true);
+
+        // Standing beside the target, in the open, and switched on only when
+        // the target goes - so up to that moment there is exactly one person
+        // the enemy could be dealing with, and from it there is exactly one
+        // person left to be tempted by. Beside the target rather than beside
+        // the enemy on purpose: whatever the manoeuvre ends in walks back
+        // towards where the target was last, so this one is certain to be
+        // found once the lock is released.
+        EnemyTarget challenger = CreateSpawnedTarget(
+            new Vector3(4f, 0f, 4f),
+            canBeDetected: false);
+        ulong challengerObjectId =
+            challenger.GetComponent<NetworkObject>().NetworkObjectId;
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -6f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning,
+            "Enemy did not start.");
+
+        yield return DriveManeuverTo(phase, enemy, target);
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(phase),
+            "The manoeuvre did not settle on the phase being tested.");
+
+        PlayModeTestReflection.SetField(challenger, "canBeDetected", true);
+        target.GetComponent<NetworkObject>().Despawn(destroy: true);
+
+        // Two halves, and the second is what stops the first proving nothing.
+        // While the manoeuvre runs, the person standing in plain sight must
+        // not become its target. Once it ends - a phase timing out, the
+        // overall deadline, or a search starting - the lock is released and
+        // that same person, in that same spot, is picked up. Refused because
+        // it was locked, not because it could not be seen.
+        bool leftTheManeuver = false;
+        bool tookTheChallenger = false;
+        float deadline = Time.realtimeSinceStartup + 24f;
+
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            if (!leftTheManeuver)
+            {
+                if (EnemyStateRules.IsStealthManeuver(enemy.CurrentState))
+                {
+                    Assert.That(
+                        TargetsNetworkObject(enemy, challengerObjectId),
+                        Is.False,
+                        $"The enemy carried its {phase} on against a " +
+                        "different player once its own target despawned.");
+                }
+                else
+                {
+                    leftTheManeuver = true;
+                }
+            }
+            else if (TargetsNetworkObject(enemy, challengerObjectId))
+            {
+                tookTheChallenger = true;
+                break;
+            }
+
+            yield return null;
+        }
+
+        Assert.That(
+            leftTheManeuver,
+            Is.True,
+            $"The {phase} never ended after its target left the level.");
+
+        Assert.That(
+            tookTheChallenger,
+            Is.True,
+            "The enemy never picked up the player standing in plain sight, " +
+            "so the refusal above proved nothing.");
+    }
+
+    // Stalk needs the target seen from a distance; the rest need it looking at
+    // the enemy and then away again, which is the sequence StalkChain walks.
+    private IEnumerator DriveManeuverTo(
+        EnemyState phase,
+        NetworkEnemyController enemy,
+        EnemyTarget target)
+    {
+        target.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Stalk,
+            "Enemy did not stalk a target seen from a distance.");
+
+        if (phase == EnemyState.Stalk)
+        {
+            yield break;
+        }
+
+        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Retreat,
+            "Enemy did not break off after being looked at.");
+
+        if (phase == EnemyState.Retreat)
+        {
+            yield break;
+        }
+
+        target.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        Physics.SyncTransforms();
+
+        if (phase == EnemyState.Flank)
+        {
+            yield return WaitForCondition(
+                () => enemy.CurrentState == EnemyState.Flank,
+                "Enemy did not go round after breaking sight.");
+
+            yield break;
+        }
+
+        yield return WaitForCondition(
+            20f,
+            () => enemy.CurrentState == EnemyState.Ambush,
+            "Enemy never got behind the target and settled into an ambush.");
+    }
+
+    private static bool TargetsNetworkObject(
+        NetworkEnemyController enemy,
+        ulong networkObjectId)
+    {
+        EnemyTargetIdentity identity = enemy.CurrentTargetIdentity;
+
+        return identity.HasTarget &&
+               identity.TargetObject.NetworkObjectId == networkObjectId;
+    }
+
     // The search route reaches four metres from the origin at its furthest,
     // so a six metre room holds the branch points and not the leaves. A room
     // big enough for all of them would make the filter untestable.

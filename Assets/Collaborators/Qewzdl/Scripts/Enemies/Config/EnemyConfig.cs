@@ -11,6 +11,13 @@ public class EnemyConfig : ScriptableObject
     [SerializeField] private EnemyMovementConfig movementProfile;
     [SerializeField] private EnemyNavigationConfig navigationProfile;
     [SerializeField] private EnemyVisionConfig visionProfile;
+
+    [Tooltip("Optional. How the enemy sneaks, as opposed to what it can see. " +
+             "Unassigned, the stealth values authored on the vision profile " +
+             "are used and the rest fall back to the numbers the state " +
+             "handlers used to hard-code.")]
+    [SerializeField] private EnemyStealthTacticsConfig stealthTacticsProfile;
+
     [SerializeField] private EnemyHearingConfig hearingProfile;
     [SerializeField] private EnemyInvestigationConfig investigationProfile;
     [SerializeField] private EnemyPatrolConfig patrolProfile;
@@ -90,37 +97,91 @@ public class EnemyConfig : ScriptableObject
     public float stealthVisibilityRefreshInterval =>
         visionProfile.stealthVisibilityRefreshInterval;
 
-    public float chaseWithoutStalkingDistance =>
-        visionProfile.chaseWithoutStalkingDistance;
+    // Stealth behaviour reads the tactics profile when there is one and the
+    // vision profile when there is not, so an enemy authored before the split
+    // keeps the values it was tuned with.
+    private bool HasStealthTactics => stealthTacticsProfile != null;
+
+    // The planning numbers that were constants in the state handlers. Nothing
+    // authored them before, so an unassigned profile is served a runtime
+    // instance holding exactly the values those constants had.
+    //
+    // ponytail: one throwaway instance per EnemyConfig that has no profile,
+    // never destroyed. Author a tactics asset if that ever matters.
+    public EnemyStealthTacticsConfig StealthTactics
+    {
+        get
+        {
+            if (stealthTacticsProfile != null)
+            {
+                return stealthTacticsProfile;
+            }
+
+            return defaultStealthTactics ??=
+                ScriptableObject.CreateInstance<EnemyStealthTacticsConfig>();
+        }
+    }
+
+    private EnemyStealthTacticsConfig defaultStealthTactics;
+
+    public float chaseWithoutStalkingDistance => HasStealthTactics
+        ? stealthTacticsProfile.chaseWithoutStalkingDistance
+        : visionProfile.chaseWithoutStalkingDistance;
 
     // Held at least a metre above the chase distance no matter how the asset
     // is authored: equal values are one threshold, and one threshold flips
     // the enemy between chasing and stalking as the target drifts over it.
     public float stalkInsteadOfChasingDistance => Mathf.Max(
-        visionProfile.stalkInsteadOfChasingDistance,
+        HasStealthTactics
+            ? stealthTacticsProfile.stalkInsteadOfChasingDistance
+            : visionProfile.stalkInsteadOfChasingDistance,
         chaseWithoutStalkingDistance + 1f
     );
 
     public bool visualMemoryTracksLiveTarget =>
         visionProfile.visualMemoryTracksLiveTarget;
 
-    public float stalkNoticedDuration => visionProfile.stalkNoticedDuration;
+    public float stalkNoticedDuration => HasStealthTactics
+        ? stealthTacticsProfile.stalkNoticedDuration
+        : visionProfile.stalkNoticedDuration;
 
-    public float retreatBrokenSightDuration =>
-        visionProfile.retreatBrokenSightDuration;
+    public float retreatBrokenSightDuration => HasStealthTactics
+        ? stealthTacticsProfile.retreatBrokenSightDuration
+        : visionProfile.retreatBrokenSightDuration;
 
-    public float retreatDistance => visionProfile.retreatDistance;
+    public float retreatDistance => HasStealthTactics
+        ? stealthTacticsProfile.retreatDistance
+        : visionProfile.retreatDistance;
 
     // Has to outlast the wait for sight to break, or the retreat gives up
     // before the outcome it exists to reach can happen at all.
     public float retreatTimeout => Mathf.Max(
-        visionProfile.retreatTimeout,
+        HasStealthTactics
+            ? stealthTacticsProfile.retreatTimeout
+            : visionProfile.retreatTimeout,
         retreatBrokenSightDuration + 1f
     );
 
-    public float flankBehindDistance => visionProfile.flankBehindDistance;
-    public float flankTimeout => visionProfile.flankTimeout;
-    public float ambushPatience => visionProfile.ambushPatience;
+    public float flankBehindDistance => HasStealthTactics
+        ? stealthTacticsProfile.flankBehindDistance
+        : visionProfile.flankBehindDistance;
+
+    public float flankTimeout => HasStealthTactics
+        ? stealthTacticsProfile.flankTimeout
+        : visionProfile.flankTimeout;
+
+    public float ambushPatience => HasStealthTactics
+        ? stealthTacticsProfile.ambushPatience
+        : visionProfile.ambushPatience;
+
+    // The whole manoeuvre's budget has to outlast the phases it contains, or
+    // it is the only thing that ever fires and the phases become decoration.
+    public float stealthManeuverTimeout => Mathf.Max(
+        StealthTactics.maneuverTimeout,
+        retreatTimeout + flankTimeout
+    );
+
+    public float stealthObservationMaxAge => StealthTactics.observationMaxAge;
 
     public float investigationReachDistance => Mathf.Max(
         investigationProfile.investigationReachDistance,
@@ -259,6 +320,7 @@ public class EnemyConfig : ScriptableObject
         movementProfile?.Validate();
         navigationProfile?.Validate();
         visionProfile?.Validate();
+        stealthTacticsProfile?.Validate();
         hearingProfile?.Validate();
         investigationProfile?.Validate(stoppingDistance);
         patrolProfile?.Validate();

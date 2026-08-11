@@ -29,10 +29,9 @@ public sealed class EnemyAmbushState : IEnemyStateHandler
 
     public void Tick(float deltaTime)
     {
-        if (!context.TargetMemory.TryGetLastObservation(
+        if (!context.TryContinueManeuver(
                 out EnemyTargetObservation targetObservation))
         {
-            context.ChangeState(EnemyState.Investigate);
             return;
         }
 
