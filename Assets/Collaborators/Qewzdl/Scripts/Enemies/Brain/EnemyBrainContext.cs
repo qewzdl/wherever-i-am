@@ -3,8 +3,17 @@ using UnityEngine;
 
 public sealed class EnemyBrainContext
 {
+    private static int nextPerceptionId;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticIds()
+    {
+        nextPerceptionId = 0;
+    }
+
     private readonly Action<EnemyState> changeState;
     private readonly Action syncTarget;
+    private readonly int perceptionId;
 
     public EnemyConfig Config { get; }
     public EnemyNavigator Navigator { get; }
@@ -46,6 +55,85 @@ public sealed class EnemyBrainContext
 
         this.changeState = changeState;
         this.syncTarget = syncTarget;
+
+        perceptionId = ++nextPerceptionId;
+    }
+
+    // Whether anyone can see this enemy where it is standing.
+    //
+    // Goes through the shared scheduler rather than PlayerGazeNetwork so the
+    // answer is reused for a fraction of a second. Four stealth states asked
+    // this every frame, and each ask is up to three raycasts per player, so
+    // the cost was enemies times players times three, every frame, for a
+    // question whose answer does not change that fast.
+    public bool IsSelfSeenByAnyone()
+    {
+        if (Navigator == null)
+        {
+            return false;
+        }
+
+        return EnemyServerPerceptionScheduler.IsBodySeenByAnyone(
+            perceptionId,
+            Navigator.Position,
+            Navigator.BodyHeight,
+            Config != null
+                ? Config.stealthVisibilityRefreshInterval
+                : EnemyServerPerceptionScheduler.DefaultGazeRefreshInterval
+        );
+    }
+
+    public void ForgetPerceptionCache()
+    {
+        EnemyServerPerceptionScheduler.Forget(perceptionId);
+
+        if (Navigator != null)
+        {
+            EnemyServerPerceptionScheduler.Forget(
+                Navigator.NavigationSchedulerId
+            );
+        }
+    }
+
+    public bool TryReserveVisibilityQueries(
+        int maximumQueries,
+        out int grantedQueries
+    )
+    {
+        if (Navigator == null)
+        {
+            grantedQueries = 0;
+            return false;
+        }
+
+        return EnemyServerPerceptionScheduler.TryReserveVisibilityQueries(
+            Navigator.NavigationSchedulerId,
+            maximumQueries,
+            out grantedQueries
+        );
+    }
+
+    public bool TryReservePlanningQueries(
+        int maximumPathQueries,
+        int maximumVisibilityQueries,
+        out int grantedPathQueries,
+        out int grantedVisibilityQueries
+    )
+    {
+        if (Navigator == null)
+        {
+            grantedPathQueries = 0;
+            grantedVisibilityQueries = 0;
+            return false;
+        }
+
+        return EnemyServerPerceptionScheduler.TryReservePlanningQueries(
+            Navigator.NavigationSchedulerId,
+            maximumPathQueries,
+            maximumVisibilityQueries,
+            out grantedPathQueries,
+            out grantedVisibilityQueries
+        );
     }
 
     public void ChangeState(EnemyState nextState)

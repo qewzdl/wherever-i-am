@@ -29,6 +29,7 @@ public class EnemyNavigator : MonoBehaviour
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
     private bool requestedAllowPushThrough;
+    private bool hasDeferredRepath;
     private float forcefulPushStopUntil = -1f;
 
     private readonly HashSet<ItemNavigationObstacle> pushThroughHolds = new();
@@ -40,6 +41,7 @@ public class EnemyNavigator : MonoBehaviour
     // from the agent rather than written down again per state: it is already
     // the authority on the enemy's size, and it shrinks when the posture does.
     public float BodyHeight => agent != null ? agent.height : DefaultBodyHeight;
+    public int NavigationSchedulerId => GetInstanceID();
 
     private const float DefaultBodyHeight = 1.8f;
     public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
@@ -117,6 +119,7 @@ public class EnemyNavigator : MonoBehaviour
         CacheComponents();
 
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         repathScheduler?.Invalidate();
         recoveryController?.Configure(config);
         queryTelemetry?.Reset();
@@ -155,6 +158,7 @@ public class EnemyNavigator : MonoBehaviour
         CacheComponents();
 
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
         doorTraversal?.Cancel();
@@ -170,6 +174,7 @@ public class EnemyNavigator : MonoBehaviour
     private void OnDisable()
     {
         ReleaseAllPushThroughHolds();
+        EnemyServerPerceptionScheduler.Forget(NavigationSchedulerId);
     }
 
     public bool TryMoveTo(Vector3 destination, float speed, bool allowPushThrough = false)
@@ -204,14 +209,15 @@ public class EnemyNavigator : MonoBehaviour
 
     public void TickNavigationGate()
     {
-        if (doorTraversal == null)
+        if (!hasRequestedNavigation)
         {
+            doorTraversal?.Cancel();
             return;
         }
 
-        if (!hasRequestedNavigation)
+        if (doorTraversal == null)
         {
-            doorTraversal.Cancel();
+            RetryDeferredRepath();
             return;
         }
 
@@ -247,7 +253,28 @@ public class EnemyNavigator : MonoBehaviour
                 requestedNavigationSpeed,
                 forceRepath: true
             );
+
+            return;
         }
+
+        if (hasDeferredRepath)
+        {
+            RetryDeferredRepath();
+        }
+    }
+
+    private void RetryDeferredRepath()
+    {
+        if (!hasDeferredRepath)
+        {
+            return;
+        }
+
+        TryMoveAfterDoorNavigation(
+            requestedNavigationDestination,
+            requestedNavigationSpeed,
+            forceRepath: true
+        );
     }
 
     private bool TryMoveAfterDoorNavigation(
@@ -292,14 +319,27 @@ public class EnemyNavigator : MonoBehaviour
             return true;
         }
 
+        int requestedPathQueries = navigationConfig != null
+            ? navigationConfig.maximumPathQueriesPerRepath
+            : 24;
+
+        if (!EnemyServerPerceptionScheduler.TryReservePathQueries(
+                NavigationSchedulerId,
+                requestedPathQueries,
+                out int grantedPathQueries))
+        {
+            hasDeferredRepath = true;
+            queryTelemetry.RecordDeferredRepath();
+            ContinueCurrentPath(speed);
+            return true;
+        }
+
+        hasDeferredRepath = false;
         repathScheduler.RecordAttempt(
             destination,
             navigationConfig,
             EnemyNavigationTopology.Revision);
-        queryService.BeginRepath(
-            navigationConfig != null
-                ? navigationConfig.maximumPathQueriesPerRepath
-                : 24);
+        queryService.BeginRepath(grantedPathQueries);
 
         if (!requestedAllowPushThrough)
         {
@@ -309,6 +349,14 @@ public class EnemyNavigator : MonoBehaviour
         if (config != null && config.crawlingEnabled && postureController != null)
         {
             bool moved = TryMoveWithPosturePriority(destination, speed);
+
+            if (!moved && queryService.WasPathBudgetExhausted)
+            {
+                hasDeferredRepath = true;
+                queryTelemetry.RecordDeferredRepath();
+                ContinueCurrentPath(speed);
+                return true;
+            }
 
             if (!moved && !postureController.IsPostureTransitionInProgress)
             {
@@ -322,12 +370,37 @@ public class EnemyNavigator : MonoBehaviour
             destination,
             speed);
 
+        if (!movedWithCurrentPosture && queryService.WasPathBudgetExhausted)
+        {
+            hasDeferredRepath = true;
+            queryTelemetry.RecordDeferredRepath();
+            ContinueCurrentPath(speed);
+            return true;
+        }
+
         if (!movedWithCurrentPosture)
         {
             StopAtBlockedRoute();
         }
 
         return movedWithCurrentPosture;
+    }
+
+    private void ContinueCurrentPath(float speed)
+    {
+        if (agent == null ||
+            !agent.enabled ||
+            !agent.isOnNavMesh ||
+            !agent.hasPath ||
+            agent.isPathStale ||
+            agent.pathStatus == NavMeshPathStatus.PathInvalid)
+        {
+            return;
+        }
+
+        agent.speed = Mathf.Max(0f, speed);
+        agent.isStopped = false;
+        queryTelemetry.RecordReusedPath();
     }
 
     private bool TryRecoverStalledNavigation()
@@ -365,6 +438,7 @@ public class EnemyNavigator : MonoBehaviour
     public void Stop()
     {
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
@@ -381,6 +455,7 @@ public class EnemyNavigator : MonoBehaviour
     public void ResetPath()
     {
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
@@ -573,6 +648,11 @@ public class EnemyNavigator : MonoBehaviour
             plan.IsComplete)
         {
             return ApplyPosturePlan(plan, speed);
+        }
+
+        if (queryService.WasPathBudgetExhausted)
+        {
+            return false;
         }
 
         if (!requestedAllowPushThrough)

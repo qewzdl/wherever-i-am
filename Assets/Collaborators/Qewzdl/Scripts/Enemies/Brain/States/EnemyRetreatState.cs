@@ -13,6 +13,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
 
     private float repathTimer;
     private float unseenTimer;
+    private float giveUpTimer;
     private Vector3 retreatPoint;
     private bool hasRetreatPoint;
 
@@ -27,6 +28,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     {
         repathTimer = 0f;
         unseenTimer = 0f;
+        giveUpTimer = 0f;
         hasRetreatPoint = false;
     }
 
@@ -34,19 +36,32 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     {
         Vector3 selfPosition = context.Navigator.Position;
 
-        // Deliberately does not need a live target. Breaking sight is this
-        // state's entire job, so the target is lost partway through almost
-        // every time - requiring it meant the retreat abandoned itself and
-        // went off to search instead of finishing and going round.
-        if (!PlayerGazeNetwork.TryGetNearest(
-                selfPosition,
-                out PlayerGazeNetwork player))
+        // Breaking sight is this state's job, so it continues from the last
+        // pose actually observed for its own target. Looking up the nearest
+        // live player here transfers the retreat to an unrelated client when
+        // the original target hides or disconnects.
+        if (!context.TargetMemory.TryGetLastObservation(
+                out EnemyTargetObservation targetObservation))
         {
             context.ChangeState(EnemyState.Investigate);
             return;
         }
 
-        if (PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
+        giveUpTimer += deltaTime;
+
+        // Backing off only works if there is somewhere out of sight to back
+        // off to. In a lit open room with several players there is not, and
+        // without this the enemy shuffled between fallback points for as long
+        // as anyone kept looking at it - the state had no ending that did not
+        // depend on the players' behaviour. Giving up and coming at them is
+        // the same answer the flank reaches for the same reason.
+        if (giveUpTimer >= context.Config.retreatTimeout)
+        {
+            context.ChangeState(EnemyState.Chase);
+            return;
+        }
+
+        if (context.IsSelfSeenByAnyone())
         {
             unseenTimer = 0f;
         }
@@ -74,10 +89,31 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
 
         repathTimer = RepathInterval;
 
+        int maximumVisibilityQueries =
+            RetreatAngles.Length * DistanceScales.Length + 1;
+
+        if (!context.TryReserveVisibilityQueries(
+                maximumVisibilityQueries,
+                out int visibilityBudget))
+        {
+            repathTimer = 0f;
+
+            if (hasRetreatPoint)
+            {
+                context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+            }
+            else
+            {
+                context.StopNavigation();
+            }
+
+            return;
+        }
+
         // Keep the spot once it is chosen. Picking again every repath meant a
         // different corner of the fan each time, and the enemy walked a
         // circuit around the player instead of leaving.
-        Vector3 playerPosition = player.transform.position;
+        Vector3 playerPosition = targetObservation.Position;
 
         if (hasRetreatPoint &&
             Vector3.Distance(selfPosition, retreatPoint) > ArrivalDistance &&
@@ -88,9 +124,11 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
                 selfPosition,
                 retreatPoint,
                 playerPosition) &&
-            !PlayerGazeNetwork.IsBodySeenByAnyone(
+            TryIsSeenByAnyone(
                 retreatPoint,
-                context.Navigator.BodyHeight))
+                ref visibilityBudget,
+                out bool existingPointIsSeen) &&
+            !existingPointIsSeen)
         {
             context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
             return;
@@ -99,6 +137,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         hasRetreatPoint = TryFindRetreatPoint(
             selfPosition,
             playerPosition,
+            ref visibilityBudget,
             out retreatPoint);
 
         if (hasRetreatPoint)
@@ -116,6 +155,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     {
         repathTimer = 0f;
         unseenTimer = 0f;
+        giveUpTimer = 0f;
         hasRetreatPoint = false;
     }
 
@@ -127,6 +167,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     private bool TryFindRetreatPoint(
         Vector3 selfPosition,
         Vector3 targetPosition,
+        ref int visibilityBudget,
         out Vector3 retreatPoint
     )
     {
@@ -142,7 +183,6 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         away.Normalize();
 
         float preferred = context.Config.retreatDistance;
-        float bodyHeight = context.Navigator.BodyHeight;
         bool hasFallback = false;
         Vector3 fallback = default;
 
@@ -177,7 +217,16 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
                     continue;
                 }
 
-                if (!PlayerGazeNetwork.IsBodySeenByAnyone(hit.position, bodyHeight))
+                if (!TryIsSeenByAnyone(
+                        hit.position,
+                        ref visibilityBudget,
+                        out bool candidateIsSeen))
+                {
+                    retreatPoint = fallback;
+                    return hasFallback;
+                }
+
+                if (!candidateIsSeen)
                 {
                     retreatPoint = hit.position;
                     return true;
@@ -196,6 +245,26 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
 
         retreatPoint = fallback;
         return hasFallback;
+    }
+
+    private bool TryIsSeenByAnyone(
+        Vector3 position,
+        ref int visibilityBudget,
+        out bool isSeen
+    )
+    {
+        if (visibilityBudget <= 0)
+        {
+            isSeen = false;
+            return false;
+        }
+
+        visibilityBudget--;
+        isSeen = PlayerGazeNetwork.IsBodySeenByAnyone(
+            position,
+            context.Navigator.BodyHeight
+        );
+        return true;
     }
 
     // Sideways before backwards. Leaving a hundred and twenty degree cone is

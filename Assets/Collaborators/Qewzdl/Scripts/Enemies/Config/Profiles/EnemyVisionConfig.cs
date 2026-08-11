@@ -20,6 +20,16 @@ public class EnemyVisionConfig : ScriptableObject
     [Min(0.05f)] public float targetRefreshInterval = 0.25f;
     [Min(0f)] public float visualTargetMemoryDuration = 2f;
 
+    [Tooltip("How often the server refreshes whether any player can see one " +
+             "enemy. Samples are staggered between enemies.")]
+    [Min(0.05f)] public float stealthVisibilityRefreshInterval = 0.125f;
+
+    [Tooltip("On, the enemy follows the target's real position through walls " +
+             "for the memory duration and cannot be shaken off within it - " +
+             "the behaviour the chase is balanced around. Off, it holds the " +
+             "point where sight broke, so stepping aside behind cover works.")]
+    public bool visualMemoryTracksLiveTarget = true;
+
     [Header("Stalking")]
     [Tooltip(
         "Closer than this, a seen target is simply chased - there is no room " +
@@ -41,6 +51,11 @@ public class EnemyVisionConfig : ScriptableObject
 
     [Tooltip("How long out of sight before a retreat is over.")]
     [Min(0f)] public float retreatBrokenSightDuration = 1.2f;
+
+    [Tooltip("How long to spend trying to break sight before giving up and " +
+             "coming at the target instead. A room with no cover and several " +
+             "players in it never breaks sight on its own.")]
+    [Min(1f)] public float retreatTimeout = 8f;
 
     [Tooltip("How far the enemy tries to put between itself and the target " +
              "while breaking off.")]
@@ -67,6 +82,10 @@ public class EnemyVisionConfig : ScriptableObject
         targetHeightOffset = Mathf.Max(0f, targetHeightOffset);
         targetRefreshInterval = Mathf.Max(0.05f, targetRefreshInterval);
         visualTargetMemoryDuration = Mathf.Max(0f, visualTargetMemoryDuration);
+        stealthVisibilityRefreshInterval = Mathf.Max(
+            0.05f,
+            stealthVisibilityRefreshInterval
+        );
 
         chaseWithoutStalkingDistance =
             Mathf.Max(0f, chaseWithoutStalkingDistance);
@@ -78,6 +97,21 @@ public class EnemyVisionConfig : ScriptableObject
             stalkInsteadOfChasingDistance,
             chaseWithoutStalkingDistance + MinimumStalkBand
         );
+
+        stalkNoticedDuration = Mathf.Max(0f, stalkNoticedDuration);
+        retreatBrokenSightDuration = Mathf.Max(
+            0f,
+            retreatBrokenSightDuration
+        );
+        retreatTimeout = Mathf.Max(
+            1f,
+            retreatBrokenSightDuration + 1f,
+            retreatTimeout
+        );
+        retreatDistance = Mathf.Max(1f, retreatDistance);
+        flankBehindDistance = Mathf.Max(1f, flankBehindDistance);
+        flankTimeout = Mathf.Max(1f, flankTimeout);
+        ambushPatience = Mathf.Max(1f, ambushPatience);
     }
 
     private const float MinimumStalkBand = 1f;

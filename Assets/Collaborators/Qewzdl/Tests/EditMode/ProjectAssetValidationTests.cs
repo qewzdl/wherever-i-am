@@ -203,6 +203,36 @@ public sealed class ProjectAssetValidationTests
         }
     }
 
+    // Stalk, Retreat, Flank and Ambush shipped with no presentation entries at
+    // all, so four of the nine states were silent and left the animator on
+    // whatever the previous state set. Nothing failed - the profile simply had
+    // no row - which is exactly the kind of gap a lookup by state hides.
+    [Test]
+    public void EnemyPresentationProfiles_CoverEveryEnemyState()
+    {
+        string[] profileGuids = AssetDatabase.FindAssets(
+            $"t:{nameof(EnemyPresentationProfile)}",
+            new[] { CollaboratorsRoot });
+
+        Assert.That(profileGuids.Length, Is.GreaterThan(0));
+
+        foreach (EnemyState state in Enum.GetValues(typeof(EnemyState)))
+        {
+            for (int i = 0; i < profileGuids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(profileGuids[i]);
+                EnemyPresentationProfile profile =
+                    AssetDatabase.LoadAssetAtPath<EnemyPresentationProfile>(path);
+
+                Assert.That(profile, Is.Not.Null, path);
+                Assert.That(
+                    profile.TryGetPresentation(state, out _),
+                    Is.True,
+                    $"{path} has no presentation entry for {state}.");
+            }
+        }
+    }
+
     [Test]
     public void AudioAssets_HavePlayableTracksEffectsAndCompleteUiTheme()
     {

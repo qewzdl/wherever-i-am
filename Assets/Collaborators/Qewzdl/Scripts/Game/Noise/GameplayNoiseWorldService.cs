@@ -204,7 +204,9 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
         {
             GameplayNoiseEvent noise = noises[i];
 
-            if (now - noise.CreatedAtTime > memoryDuration)
+            float age = now - noise.CreatedAtTime;
+
+            if (age > memoryDuration)
             {
                 continue;
             }
@@ -222,8 +224,13 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
                 continue;
             }
 
-            float normalizedDistance = distance / Mathf.Max(0.001f, effectiveRadius);
-            float score = noise.Loudness * (1f - normalizedDistance);
+            float score = ScoreNoise(
+                noise.Loudness,
+                distance,
+                effectiveRadius,
+                age,
+                memoryDuration
+            );
 
             if (score <= bestScore)
             {
@@ -236,6 +243,33 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
         }
 
         return hasBestNoise;
+    }
+
+    // Loud, close and recent, in that order of what the enemy goes to look at.
+    //
+    // Age used to count for nothing: a noise scored the same on its last
+    // remembered frame as on its first, so one loud bang held every enemy in
+    // range for the whole memory duration and a quieter, nearer, newer sound
+    // could not displace it. Fading to nothing at the memory horizon also
+    // removes the cliff, where a noise went from top candidate to forgotten
+    // between two frames.
+    //
+    // Internal rather than private so the scoring can be checked without
+    // standing up a server; TryFindBestNoise needs one.
+    internal static float ScoreNoise(
+        float loudness,
+        float distance,
+        float effectiveRadius,
+        float age,
+        float memoryDuration
+    )
+    {
+        float normalizedDistance = distance / Mathf.Max(0.001f, effectiveRadius);
+        float freshness = Mathf.Clamp01(
+            1f - age / Mathf.Max(0.001f, memoryDuration)
+        );
+
+        return loudness * (1f - normalizedDistance) * freshness;
     }
 
     public void Clear()

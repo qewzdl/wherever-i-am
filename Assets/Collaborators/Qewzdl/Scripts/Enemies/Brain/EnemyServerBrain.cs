@@ -140,6 +140,10 @@ public sealed class EnemyServerBrain
 
         perceptionRuntime.ResetRuntimeState();
 
+        // The scheduler's cache is keyed per enemy and it has no way to notice
+        // one going away, so a match's worth of dead enemies would sit in it.
+        context?.ForgetPerceptionCache();
+
         blackboard.ClearAll();
         SyncTarget();
 

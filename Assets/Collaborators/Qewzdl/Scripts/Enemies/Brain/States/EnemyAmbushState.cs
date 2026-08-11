@@ -29,9 +29,8 @@ public sealed class EnemyAmbushState : IEnemyStateHandler
 
     public void Tick(float deltaTime)
     {
-        if (!PlayerGazeNetwork.TryGetNearest(
-                context.Navigator.Position,
-                out PlayerGazeNetwork player))
+        if (!context.TargetMemory.TryGetLastObservation(
+                out EnemyTargetObservation targetObservation))
         {
             context.ChangeState(EnemyState.Investigate);
             return;
@@ -39,11 +38,11 @@ public sealed class EnemyAmbushState : IEnemyStateHandler
 
         Vector3 selfPosition = context.Navigator.Position;
 
-        FacePlayer(player.transform.position, selfPosition, deltaTime);
+        FacePlayer(targetObservation.Position, selfPosition, deltaTime);
 
         // Turned round and seen it. This is the beat the whole sequence was
         // built for.
-        if (PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
+        if (context.IsSelfSeenByAnyone())
         {
             context.ChangeState(EnemyState.Chase);
             return;
@@ -53,7 +52,7 @@ public sealed class EnemyAmbushState : IEnemyStateHandler
 
         // Wandered off out of reach. Nothing to spring on any more, so go back
         // to watching and pick another moment.
-        if (Vector3.Distance(selfPosition, player.transform.position) >
+        if (Vector3.Distance(selfPosition, targetObservation.Position) >
             context.Config.stalkInsteadOfChasingDistance)
         {
             context.ChangeState(EnemyState.Stalk);

@@ -354,6 +354,40 @@ public sealed class EnemyLogicTests
     }
 
     [Test]
+    public void PerceptionMemory_FrozenModeHoldsThePointWhereSightBroke()
+    {
+        GameObject player = new("Frozen memory target");
+        player.SetActive(false);
+
+        try
+        {
+            EnemyTarget target = CreateUnconfiguredTarget(player);
+            player.transform.position = new Vector3(0f, 0f, 5f);
+
+            EnemyPerceptionMemory memory = new();
+
+            Assert.That(
+                memory.TryStartVisualMemoryGracePeriod(
+                    target,
+                    2f,
+                    trackLiveTargetPosition: false),
+                Is.True);
+
+            player.transform.position = new Vector3(9f, 0f, 5f);
+
+            // The whole point of the switch: the player who steps aside behind
+            // cover is no longer followed through it.
+            Assert.That(
+                memory.GetVisualMemoryTargetPosition(),
+                Is.EqualTo(new Vector3(0f, 0f, 5f)));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(player);
+        }
+    }
+
+    [Test]
     public void StimulusResolver_ConfirmedVisionOutranksLouderHearingButKeepsItAsSuspicion()
     {
         GameObject player = new("Seen enemy target");

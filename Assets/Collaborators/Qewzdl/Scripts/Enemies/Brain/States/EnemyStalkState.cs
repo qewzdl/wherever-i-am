@@ -77,7 +77,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
         FaceTarget(targetPosition, selfPosition, deltaTime);
 
-        if (!PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
+        if (!context.IsSelfSeenByAnyone())
         {
             watchedTimer = 0f;
             return;

@@ -8,8 +8,9 @@ using UnityEngine.AI;
 // to be somewhere the player cannot see, and an enemy the player cannot see
 // usually cannot see the player either - the state machine log for the first
 // build is full of the target being lost every few seconds. Losing it here is
-// expected, so the destination is worked out from the player's position and
-// facing at the moment it is needed, not from the enemy's own memory.
+// expected, so the destination uses the last pose actually observed for that
+// target. It must not silently start flanking whichever other player happens
+// to be nearest.
 public sealed class EnemyFlankState : IEnemyStateHandler
 {
     private const float RepathInterval = 0.5f;
@@ -29,6 +30,12 @@ public sealed class EnemyFlankState : IEnemyStateHandler
 
     private static readonly Dictionary<EnemyFlankState, Vector3> ClaimedPoints =
         new();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetClaims()
+    {
+        ClaimedPoints.Clear();
+    }
 
     private readonly EnemyBrainContext context;
     private readonly NavMeshPath routePath = new();
@@ -63,9 +70,8 @@ public sealed class EnemyFlankState : IEnemyStateHandler
 
     public void Tick(float deltaTime)
     {
-        if (!PlayerGazeNetwork.TryGetNearest(
-                context.Navigator.Position,
-                out PlayerGazeNetwork player))
+        if (!context.TargetMemory.TryGetLastObservation(
+                out EnemyTargetObservation targetObservation))
         {
             context.ChangeState(EnemyState.Investigate);
             return;
@@ -78,9 +84,7 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         // on a single frame of it. Crossing a doorway puts the enemy in view
         // for an instant, and treating that as being caught threw away the
         // whole approach every few metres.
-        bool isSeen = PlayerGazeNetwork.IsBodySeenByAnyone(
-            selfPosition,
-            context.Navigator.BodyHeight);
+        bool isSeen = context.IsSelfSeenByAnyone();
 
         if (isSeen)
         {
@@ -113,9 +117,53 @@ public sealed class EnemyFlankState : IEnemyStateHandler
 
         if (!hasFlankPoint || repathTimer <= 0f)
         {
-            repathTimer = RepathInterval;
-            hasFlankPoint =
-                TryFindPointBehind(player, selfPosition, out flankPoint);
+            if (!context.TryReservePlanningQueries(
+                    BehindAngles.Length * DistanceScales.Length,
+                    RouteSampleBudget +
+                    BehindAngles.Length * DistanceScales.Length,
+                    out _,
+                    out int visibilityBudget))
+            {
+                // Capacity is not a navigation failure. Keep an existing point
+                // moving and retry an unplanned first point next frame.
+                repathTimer = 0f;
+
+                if (!hasFlankPoint)
+                {
+                    context.StopNavigation();
+                    return;
+                }
+            }
+            else
+            {
+                repathTimer = RepathInterval;
+                FlankPointSearchResult searchResult = TryFindPointBehind(
+                    targetObservation,
+                    selfPosition,
+                    ref visibilityBudget,
+                    out Vector3 nextFlankPoint
+                );
+
+                if (searchResult == FlankPointSearchResult.Found)
+                {
+                    flankPoint = nextFlankPoint;
+                    hasFlankPoint = true;
+                }
+                else if (searchResult == FlankPointSearchResult.NotFound)
+                {
+                    hasFlankPoint = false;
+                }
+                else
+                {
+                    repathTimer = 0f;
+
+                    if (!hasFlankPoint)
+                    {
+                        context.StopNavigation();
+                        return;
+                    }
+                }
+            }
         }
 
         // Nowhere behind them to stand, by either standard. Sneaking is off,
@@ -142,7 +190,7 @@ public sealed class EnemyFlankState : IEnemyStateHandler
             EnemyStateRules.ClosesOnWatcher(
                 selfPosition,
                 flankPoint,
-                player.transform.position))
+                targetObservation.Position))
         {
             context.StopNavigation();
             return;
@@ -176,8 +224,15 @@ public sealed class EnemyFlankState : IEnemyStateHandler
     // player could see the enemy standing anywhere along it. Sampled rather
     // than continuous: a stride is about a metre, and a gap the enemy crosses
     // between two samples is a glimpse, not a sighting.
-    private bool IsRouteHidden(Vector3 from, Vector3 to, ref int budget)
+    private bool IsRouteHidden(
+        Vector3 from,
+        Vector3 to,
+        ref int budget,
+        out bool budgetExhausted
+    )
     {
+        budgetExhausted = false;
+
         if (!NavMesh.CalculatePath(from, to, NavMesh.AllAreas, routePath) ||
             routePath.status != NavMeshPathStatus.PathComplete)
         {
@@ -201,6 +256,7 @@ public sealed class EnemyFlankState : IEnemyStateHandler
                 // to avoid.
                 if (budget <= 0)
                 {
+                    budgetExhausted = true;
                     return false;
                 }
 
@@ -223,9 +279,10 @@ public sealed class EnemyFlankState : IEnemyStateHandler
     // Straight behind first, then wider round either side, then closer in. A
     // point directly behind is often against a wall; the fan gives the level a
     // chance to offer something reachable that is still out of view.
-    private bool TryFindPointBehind(
-        PlayerGazeNetwork player,
+    private FlankPointSearchResult TryFindPointBehind(
+        EnemyTargetObservation targetObservation,
         Vector3 selfPosition,
+        ref int visibilityBudget,
         out Vector3 point
     )
     {
@@ -235,24 +292,43 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         // and over. A hidden place to stand, reached by a route that is seen
         // for part of the way, still ends with the enemy behind the player;
         // refusing it just means never getting there.
-        return TryFindPointBehind(player, selfPosition, true, out point) ||
-               TryFindPointBehind(player, selfPosition, false, out point);
+        FlankPointSearchResult hiddenRouteResult = TryFindPointBehind(
+            targetObservation,
+            selfPosition,
+            true,
+            ref visibilityBudget,
+            out point
+        );
+
+        if (hiddenRouteResult != FlankPointSearchResult.NotFound)
+        {
+            return hiddenRouteResult;
+        }
+
+        return TryFindPointBehind(
+            targetObservation,
+            selfPosition,
+            false,
+            ref visibilityBudget,
+            out point
+        );
     }
 
-    private bool TryFindPointBehind(
-        PlayerGazeNetwork player,
+    private FlankPointSearchResult TryFindPointBehind(
+        EnemyTargetObservation targetObservation,
         Vector3 selfPosition,
         bool requireHiddenRoute,
+        ref int visibilityBudget,
         out Vector3 point
     )
     {
-        Vector3 playerPosition = player.transform.position;
-        Vector3 behind = -player.transform.forward;
+        Vector3 playerPosition = targetObservation.Position;
+        Vector3 behind = -targetObservation.Forward;
         behind.y = 0f;
         behind.Normalize();
 
         float preferred = context.Config.flankBehindDistance;
-        int budget = RouteSampleBudget;
+        int routeSampleBudget = Mathf.Min(RouteSampleBudget, visibilityBudget);
 
         // Distances as well as angles. Five points at one radius all land in
         // the same wall in a corridor, and the enemy gave up and went back to
@@ -282,6 +358,18 @@ public sealed class EnemyFlankState : IEnemyStateHandler
                 // hidden from one player, walked it in full view of another,
                 // was spotted, broke off and started over - the same circling
                 // as before, brought on by a second person in the room.
+                if (visibilityBudget <= 0)
+                {
+                    point = default;
+                    return FlankPointSearchResult.Deferred;
+                }
+
+                visibilityBudget--;
+                routeSampleBudget = Mathf.Min(
+                    routeSampleBudget,
+                    visibilityBudget
+                );
+
                 if (PlayerGazeNetwork.IsBodySeenByAnyone(
                         hit.position,
                         context.Navigator.BodyHeight))
@@ -295,10 +383,32 @@ public sealed class EnemyFlankState : IEnemyStateHandler
                 // an enemy circling a player who never moved kept walking
                 // back into sight and starting over.
                 if (requireHiddenRoute &&
-                    !IsRouteHidden(selfPosition, hit.position, ref budget))
+                    !IsRouteHidden(
+                        selfPosition,
+                        hit.position,
+                        ref routeSampleBudget,
+                        out bool routeBudgetExhausted))
                 {
-                    continue;
+                    visibilityBudget = Mathf.Min(
+                        visibilityBudget,
+                        routeSampleBudget
+                    );
+
+                    if (!routeBudgetExhausted && visibilityBudget > 0)
+                    {
+                        continue;
+                    }
+
+                    // The destination itself is confirmed hidden and the
+                    // fallback pass permits a partly visible route. Use this
+                    // point instead of restarting the same exhausted search
+                    // forever on later frames.
                 }
+
+                visibilityBudget = Mathf.Min(
+                    visibilityBudget,
+                    routeSampleBudget
+                );
 
                 if (IsClaimedByAnotherEnemy(hit.position))
                 {
@@ -307,12 +417,19 @@ public sealed class EnemyFlankState : IEnemyStateHandler
 
                 ClaimedPoints[this] = hit.position;
                 point = hit.position;
-                return true;
+                return FlankPointSearchResult.Found;
             }
         }
 
         point = default;
-        return false;
+        return FlankPointSearchResult.NotFound;
+    }
+
+    private enum FlankPointSearchResult
+    {
+        Found,
+        NotFound,
+        Deferred,
     }
 
     private static readonly float[] BehindAngles =

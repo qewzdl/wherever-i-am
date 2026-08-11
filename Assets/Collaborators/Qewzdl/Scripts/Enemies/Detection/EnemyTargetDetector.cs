@@ -11,6 +11,7 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
     [SerializeField] private EnemyStimulusResolverPolicy stimulusResolverPolicy;
 
     private readonly EnemyStimulusResolver stimulusResolver = new();
+    private readonly EnemyTargetSelector targetSelector = new();
 
     private bool missingConfigLogged;
     private bool invalidStaticConfigurationLogged;
@@ -83,9 +84,12 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
             return false;
         }
 
+        EnemyTarget currentTarget = blackboard?.TargetMemory.CurrentTarget;
         bool hasVisionStimulus = visionSensor.TryFindBestStimulus(
             config,
-            out EnemyPerceptionStimulus visionStimulus
+            currentTarget,
+            out EnemyPerceptionStimulus visionStimulus,
+            out EnemyPerceptionStimulus currentTargetVisionStimulus
         );
 
         bool hasHearingStimulus = false;
@@ -111,7 +115,104 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
         );
 
         resolution = stimulusResolver.Resolve(resolveContext, stimulusResolverPolicy);
+        resolution = ApplyTargetSelection(
+            resolution,
+            config,
+            blackboard,
+            currentState,
+            resolveContext,
+            currentTargetVisionStimulus
+        );
+
         return resolution.HasResolution;
+    }
+
+    // The single gate every confirmed target passes through. The resolver
+    // decides what the senses are reporting; this decides whether the enemy is
+    // allowed to act on a change of person.
+    private EnemyStimulusResolution ApplyTargetSelection(
+        EnemyStimulusResolution resolution,
+        EnemyConfig config,
+        EnemyBlackboard blackboard,
+        EnemyState currentState,
+        EnemyStimulusResolveContext resolveContext,
+        EnemyPerceptionStimulus currentTargetVisionStimulus
+    )
+    {
+        if (blackboard == null ||
+            resolution.Action != EnemyStimulusResolutionAction.ChaseConfirmedTarget)
+        {
+            return resolution;
+        }
+
+        EnemyTarget currentTarget = blackboard.TargetMemory.CurrentTarget;
+        EnemyTarget candidate = resolution.PrimaryStimulus.Target;
+
+        if (!blackboard.TargetMemory.IsCurrentTargetValid)
+        {
+            currentTarget = null;
+        }
+
+        bool hasCurrentScore =
+            currentTarget != null &&
+            currentTarget != candidate &&
+            currentTargetVisionStimulus.HasStimulus;
+
+        float currentScore = hasCurrentScore
+            ? currentTargetVisionStimulus.Score
+            : 0f;
+
+        if (targetSelector.ShouldSwitchTo(
+                currentTarget,
+                candidate,
+                resolution.PrimaryStimulus.Score,
+                currentScore,
+                hasCurrentScore,
+                currentState,
+                resolveContext.ServerTime,
+                stimulusResolverPolicy.AllowSwitchToNewVisibleTarget,
+                stimulusResolverPolicy.TargetSwitchMinimumHoldDuration,
+                stimulusResolverPolicy.TargetSwitchScoreAdvantage
+            ))
+        {
+            targetSelector.NotifyCommitted(candidate, resolveContext.ServerTime);
+            return resolution;
+        }
+
+        // A refused challenger is not evidence that the current target was
+        // seen. If the held target was present in the same scan, continue from
+        // that real stimulus. Otherwise resolve hearing on its own and let the
+        // normal no-stimulus path start visual memory. Fabricating a vision
+        // hit at LastKnownTargetPosition kept refreshing stale targets forever.
+        if (currentTargetVisionStimulus.HasStimulus)
+        {
+            return EnemyStimulusResolution.Chase(
+                currentTargetVisionStimulus,
+                resolution.SecondaryStimulus,
+                resolution.HasSecondaryStimulus
+            );
+        }
+
+        EnemyStimulusResolveContext withoutRefusedVision = new(
+            config,
+            blackboard,
+            currentState,
+            EnemyPerceptionStimulus.None,
+            false,
+            resolveContext.HearingStimulus,
+            resolveContext.HasHearingStimulus,
+            resolveContext.ServerTime
+        );
+
+        return stimulusResolver.Resolve(
+            withoutRefusedVision,
+            stimulusResolverPolicy
+        );
+    }
+
+    public void ResetTargetSelection()
+    {
+        targetSelector.Clear();
     }
 
     public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)

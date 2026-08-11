@@ -1252,6 +1252,33 @@ public sealed class TwoClientHidingPlacePlayModeTests
         PlayModeTestReflection.SetField(hidingData, "enterDuration", 0.2f);
         PlayModeTestReflection.SetField(hidingData, "exitDuration", 0.2f);
 
+        // The other half of SuppressReplicaCollisions. Three NetworkManagers
+        // share one physics scene, so every player exists three times, and
+        // ignoring the player layer against itself only stops the copies
+        // shoving each other - it leaves them in overlap queries.
+        //
+        // The exit resolver defaults to a mask of everything and excludes
+        // only colliders belonging to the player it is placing. A replica is
+        // a different NetworkObject, so it reads as somebody standing in the
+        // exit; the release then falls through to the emergency path, which
+        // accepts the player's current pose and leaves them in the hiding
+        // place they were just let out of.
+        //
+        // Dropping the player layer from the mask is what makes the query see
+        // what production sees: one body per player. The cost is that this
+        // fixture cannot cover an exit blocked by another player - the
+        // deliberate blockers it does use are plain Default-layer colliders.
+        int playerObstructionLayer = LayerMask.NameToLayer("Player");
+
+        if (playerObstructionLayer >= 0)
+        {
+            PlayModeTestReflection.SetField(
+                hidingData,
+                "exitObstructionMask",
+                (LayerMask)(~(1 << playerObstructionLayer))
+            );
+        }
+
         hidingPlacePrefab = Track(
             new GameObject("Hiding place prefab")
         );

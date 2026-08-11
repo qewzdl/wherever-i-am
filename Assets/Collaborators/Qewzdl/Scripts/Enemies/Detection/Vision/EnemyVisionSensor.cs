@@ -16,7 +16,10 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
     [SerializeField] private LayerMask obstructionMask;
 
     [Header("Performance")]
-    [SerializeField, Min(1)] private int maxDetectionResults = 16;
+    // Colliders, not players. A four player lobby fits in sixteen only while
+    // every player is one collider; a ragdoll, a held item or a fifth slot
+    // silently drops targets out of the overlap instead.
+    [SerializeField, Min(1)] private int maxDetectionResults = 32;
     [SerializeField, Min(0.1f)] private float overflowWarningCooldown = 2f;
 
     [Header("Visibility")]
@@ -64,9 +67,35 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     public bool TryFindBestStimulus(EnemyConfig config, out EnemyPerceptionStimulus stimulus)
     {
-        stimulus = EnemyPerceptionStimulus.None;
+        return TryFindBestStimulus(
+            config,
+            null,
+            out stimulus,
+            out _
+        );
+    }
 
-        EnemyTarget bestTarget = FindBestVisibleTarget(config, out float bestScore, out Vector3 visiblePoint);
+    // Returns the best visible candidate and, from the same overlap/LOS pass,
+    // the currently held target if it was visible. Target selection needs both
+    // scores, but doing a second CanSeeTarget call doubled the LOS work for
+    // every enemy that had more than one player in range.
+    public bool TryFindBestStimulus(
+        EnemyConfig config,
+        EnemyTarget trackedTarget,
+        out EnemyPerceptionStimulus stimulus,
+        out EnemyPerceptionStimulus trackedTargetStimulus
+    )
+    {
+        stimulus = EnemyPerceptionStimulus.None;
+        trackedTargetStimulus = EnemyPerceptionStimulus.None;
+
+        EnemyTarget bestTarget = FindBestVisibleTarget(
+            config,
+            trackedTarget,
+            out float bestScore,
+            out Vector3 visiblePoint,
+            out trackedTargetStimulus
+        );
 
         if (bestTarget == null)
         {
@@ -85,17 +114,20 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
     public EnemyTarget FindBestVisibleTarget(EnemyConfig config)
     {
-        return FindBestVisibleTarget(config, out _, out _);
+        return FindBestVisibleTarget(config, null, out _, out _, out _);
     }
 
     private EnemyTarget FindBestVisibleTarget(
         EnemyConfig config,
+        EnemyTarget trackedTarget,
         out float bestScore,
-        out Vector3 bestVisiblePoint
+        out Vector3 bestVisiblePoint,
+        out EnemyPerceptionStimulus trackedTargetStimulus
     )
     {
         bestScore = 0f;
         bestVisiblePoint = Vector3.zero;
+        trackedTargetStimulus = EnemyPerceptionStimulus.None;
         HasLastTargetedVerticalView = false;
 
         if (!ValidateRuntimeDependencies())
@@ -162,6 +194,17 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
 
             Vector3 toCandidate = visiblePoint - origin.position;
             float distanceSqr = toCandidate.sqrMagnitude;
+            float score = 1f / Mathf.Max(0.001f, Mathf.Sqrt(distanceSqr));
+
+            if (enemyTarget == trackedTarget)
+            {
+                trackedTargetStimulus = EnemyPerceptionStimulus.ForConfirmedTarget(
+                    enemyTarget,
+                    visiblePoint,
+                    score,
+                    EnemyPerceptionSource.Vision
+                );
+            }
 
             if (distanceSqr >= bestDistanceSqr)
             {

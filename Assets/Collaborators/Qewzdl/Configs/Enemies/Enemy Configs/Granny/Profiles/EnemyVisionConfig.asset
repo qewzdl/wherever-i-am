@@ -19,10 +19,13 @@ MonoBehaviour:
   targetHeightOffset: 1.2
   targetRefreshInterval: 0.25
   visualTargetMemoryDuration: 2
+  stealthVisibilityRefreshInterval: 0.125
+  visualMemoryTracksLiveTarget: 1
   chaseWithoutStalkingDistance: 7.5
   stalkInsteadOfChasingDistance: 10.5
   stalkNoticedDuration: 0.4
   retreatBrokenSightDuration: 1.2
+  retreatTimeout: 8
   retreatDistance: 8
   flankBehindDistance: 3.5
   flankTimeout: 12

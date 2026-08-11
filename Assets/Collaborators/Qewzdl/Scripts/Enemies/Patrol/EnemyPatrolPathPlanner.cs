@@ -31,6 +31,26 @@ internal sealed class EnemyPatrolPathPlanner
         List<Vector3> output
     )
     {
+        int unlimitedTestBudget = int.MaxValue;
+        return TryBuildPlan(
+            start,
+            destination,
+            filter,
+            config,
+            output,
+            ref unlimitedTestBudget
+        );
+    }
+
+    internal bool TryBuildPlan(
+        Vector3 start,
+        Vector3 destination,
+        NavMeshQueryFilter filter,
+        EnemyConfig config,
+        List<Vector3> output,
+        ref int remainingPathQueries
+    )
+    {
         if (output == null)
         {
             throw new ArgumentNullException(nameof(output));
@@ -51,6 +71,7 @@ internal sealed class EnemyPatrolPathPlanner
                 sampledDestination,
                 filter,
                 baselinePath,
+                ref remainingPathQueries,
                 out float baselineLength
             ))
         {
@@ -103,6 +124,7 @@ internal sealed class EnemyPatrolPathPlanner
                     previousRemainingLength,
                     acceptedPrefixLength,
                     maxPlanLength,
+                    ref remainingPathQueries,
                     out Vector3 candidate,
                     out float segmentLength,
                     out float remainingLength
@@ -122,6 +144,7 @@ internal sealed class EnemyPatrolPathPlanner
                 sampledDestination,
                 filter,
                 segmentPath,
+                ref remainingPathQueries,
                 out float finalSegmentLength
             ) ||
             acceptedPrefixLength + finalSegmentLength >
@@ -153,6 +176,7 @@ internal sealed class EnemyPatrolPathPlanner
         float previousRemainingLength,
         float acceptedPrefixLength,
         float maxPlanLength,
+        ref int remainingPathQueries,
         out Vector3 bestPoint,
         out float bestSegmentLength,
         out float bestRemainingLength
@@ -213,6 +237,7 @@ internal sealed class EnemyPatrolPathPlanner
                     candidate,
                     filter,
                     segmentPath,
+                    ref remainingPathQueries,
                     out float segmentLength
                 ) ||
                 !TryCalculateCompletePath(
@@ -220,6 +245,7 @@ internal sealed class EnemyPatrolPathPlanner
                     destination,
                     filter,
                     remainingPath,
+                    ref remainingPathQueries,
                     out float remainingLength
                 ))
             {
@@ -312,13 +338,20 @@ internal sealed class EnemyPatrolPathPlanner
         Vector3 destination,
         NavMeshQueryFilter filter,
         NavMeshPath path,
+        ref int remainingPathQueries,
         out float length
     )
     {
         length = 0f;
 
-        if (path == null ||
-            !NavMesh.CalculatePath(source, destination, filter, path) ||
+        if (path == null || remainingPathQueries <= 0)
+        {
+            return false;
+        }
+
+        remainingPathQueries--;
+
+        if (!NavMesh.CalculatePath(source, destination, filter, path) ||
             path.status != NavMeshPathStatus.PathComplete)
         {
             return false;

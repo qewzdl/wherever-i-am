@@ -54,6 +54,12 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
 
     public static IReadOnlyList<PlayerGazeNetwork> All => RegisteredGazes;
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetRegisteredGazes()
+    {
+        RegisteredGazes.Clear();
+    }
+
     // Taken from the capsule when there is one, so crouching lowers the eye
     // without this component having to hear about postures. The serialized
     // height is the fallback for anything that is not built that way.
@@ -289,39 +295,6 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
                       Mathf.Rad2Deg;
 
         return Vector3.Angle(GazeDirection, toCentre) <= halfViewAngle + slack;
-    }
-
-    public static bool TryGetNearest(Vector3 from, out PlayerGazeNetwork nearest)
-    {
-        nearest = null;
-        float nearestSqr = float.PositiveInfinity;
-
-        for (int i = 0; i < RegisteredGazes.Count; i++)
-        {
-            PlayerGazeNetwork gaze = RegisteredGazes[i];
-
-            // Not filtered by whether they are watching. This answers "who
-            // am I dealing with", which a player folded into a box still is -
-            // filtering here made the whole stalk chain collapse into a
-            // search the moment someone hid. Only the visibility questions
-            // care about watching.
-            if (gaze == null)
-            {
-                continue;
-            }
-
-            float sqr = (gaze.transform.position - from).sqrMagnitude;
-
-            if (sqr >= nearestSqr)
-            {
-                continue;
-            }
-
-            nearestSqr = sqr;
-            nearest = gaze;
-        }
-
-        return nearest != null;
     }
 
     public static bool IsBodySeenByAnyone(Vector3 footPosition, float height)

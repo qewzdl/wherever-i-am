@@ -113,18 +113,10 @@ public sealed class EnemyStimulusResolver
             return EnemyStimulusResolution.Chase(visionStimulus);
         }
 
-        if (!policy.AllowSwitchToNewVisibleTarget)
-        {
-            return EnemyStimulusResolution.Chase(
-                EnemyPerceptionStimulus.ForConfirmedTarget(
-                    targetMemory.CurrentTarget,
-                    context.Blackboard.InvestigationMemory.LastKnownTargetPosition,
-                    visionStimulus.Score,
-                    EnemyPerceptionSource.Vision
-                )
-            );
-        }
-
+        // Target ownership is decided once, after vision and hearing have been
+        // resolved. Keeping a second switch rule here made the vision-only and
+        // combined paths disagree and manufactured a sighting for the old
+        // target at its last-known position.
         return EnemyStimulusResolution.Chase(visionStimulus);
     }
 

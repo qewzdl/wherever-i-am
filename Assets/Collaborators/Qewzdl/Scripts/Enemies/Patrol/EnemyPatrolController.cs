@@ -176,13 +176,31 @@ public sealed class EnemyPatrolController
     {
         ClearPlannedRoute();
 
-        if (TryBuildPlannedRouteForPosture(destination, EnemyPosture.Standing))
+        if (!EnemyServerPerceptionScheduler.TryReservePathQueries(
+                navigator.NavigationSchedulerId,
+                config.navigationMaximumPathQueriesPerRepath,
+                out int remainingPathQueries))
+        {
+            // Route variation is optional. Under load the authoritative
+            // navigator will still build the direct route when its fair turn
+            // arrives; skipping decoration must not send Patrol to Idle.
+            plannedRoutePoints.Add(destination);
+            return;
+        }
+
+        if (TryBuildPlannedRouteForPosture(
+                destination,
+                EnemyPosture.Standing,
+                ref remainingPathQueries))
         {
             return;
         }
 
         if (config.crawlingEnabled &&
-            TryBuildPlannedRouteForPosture(destination, EnemyPosture.Crawling))
+            TryBuildPlannedRouteForPosture(
+                destination,
+                EnemyPosture.Crawling,
+                ref remainingPathQueries))
         {
             return;
         }
@@ -192,7 +210,8 @@ public sealed class EnemyPatrolController
 
     private bool TryBuildPlannedRouteForPosture(
         Vector3 destination,
-        EnemyPosture posture
+        EnemyPosture posture,
+        ref int remainingPathQueries
     )
     {
         plannedRoutePoints.Clear();
@@ -203,7 +222,8 @@ public sealed class EnemyPatrolController
                    destination,
                    filter,
                    config,
-                   plannedRoutePoints
+                   plannedRoutePoints,
+                   ref remainingPathQueries
                ) &&
                plannedRoutePoints.Count > 0;
     }

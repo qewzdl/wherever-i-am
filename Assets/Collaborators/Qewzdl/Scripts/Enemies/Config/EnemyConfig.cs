@@ -87,6 +87,8 @@ public class EnemyConfig : ScriptableObject
     public float targetHeightOffset => visionProfile.targetHeightOffset;
     public float targetRefreshInterval => visionProfile.targetRefreshInterval;
     public float visualTargetMemoryDuration => visionProfile.visualTargetMemoryDuration;
+    public float stealthVisibilityRefreshInterval =>
+        visionProfile.stealthVisibilityRefreshInterval;
 
     public float chaseWithoutStalkingDistance =>
         visionProfile.chaseWithoutStalkingDistance;
@@ -99,12 +101,22 @@ public class EnemyConfig : ScriptableObject
         chaseWithoutStalkingDistance + 1f
     );
 
+    public bool visualMemoryTracksLiveTarget =>
+        visionProfile.visualMemoryTracksLiveTarget;
+
     public float stalkNoticedDuration => visionProfile.stalkNoticedDuration;
 
     public float retreatBrokenSightDuration =>
         visionProfile.retreatBrokenSightDuration;
 
     public float retreatDistance => visionProfile.retreatDistance;
+
+    // Has to outlast the wait for sight to break, or the retreat gives up
+    // before the outcome it exists to reach can happen at all.
+    public float retreatTimeout => Mathf.Max(
+        visionProfile.retreatTimeout,
+        retreatBrokenSightDuration + 1f
+    );
 
     public float flankBehindDistance => visionProfile.flankBehindDistance;
     public float flankTimeout => visionProfile.flankTimeout;

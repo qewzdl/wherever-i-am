@@ -8,6 +8,17 @@ public sealed class EnemyStimulusResolverPolicy
     [SerializeField] private bool visionAlwaysOverridesHearing = true;
     [SerializeField] private bool allowSwitchToNewVisibleTarget = true;
 
+    [Header("Target Switching")]
+    [Tooltip("How long a target has to be held before another one can take " +
+             "its place. Stops two players in one room trading the enemy " +
+             "back and forth every perception refresh.")]
+    [SerializeField, Min(0f)] private float targetSwitchMinimumHoldDuration = 2f;
+
+    [Tooltip("How much better a challenger has to score than the current " +
+             "target to be worth switching to. 1 means any improvement wins, " +
+             "which is the thrashing this exists to stop.")]
+    [SerializeField, Min(1f)] private float targetSwitchScoreAdvantage = 1.5f;
+
     [Header("Hearing Interrupt")]
     [SerializeField] private bool allowHearingToInterruptConfirmedTarget;
     [SerializeField, Min(0f)] private float minimumHearingInterruptScore = 2f;
@@ -25,6 +36,9 @@ public sealed class EnemyStimulusResolverPolicy
 
     public bool VisionAlwaysOverridesHearing => visionAlwaysOverridesHearing;
     public bool AllowSwitchToNewVisibleTarget => allowSwitchToNewVisibleTarget;
+
+    public float TargetSwitchMinimumHoldDuration => targetSwitchMinimumHoldDuration;
+    public float TargetSwitchScoreAdvantage => targetSwitchScoreAdvantage;
 
     public bool AllowHearingToInterruptConfirmedTarget => allowHearingToInterruptConfirmedTarget;
     public float MinimumHearingInterruptScore => minimumHearingInterruptScore;

@@ -213,4 +213,48 @@ public sealed class GameplayNoiseAndMatchLogicTests
         Assert.That(profile.TryGetPreset(impact, out GameplayNoisePreset actual), Is.True);
         Assert.That(actual, Is.SameAs(expected));
     }
+
+    [Test]
+    public void NoiseScore_FadesWithAgeSoAFreshSoundCanOutrankAnOldLouderOne()
+    {
+        const float memoryDuration = 3f;
+
+        float freshLoud = GameplayNoiseWorldService.ScoreNoise(
+            loudness: 10f,
+            distance: 0f,
+            effectiveRadius: 10f,
+            age: 0f,
+            memoryDuration: memoryDuration);
+
+        float staleLoud = GameplayNoiseWorldService.ScoreNoise(
+            loudness: 10f,
+            distance: 0f,
+            effectiveRadius: 10f,
+            age: 2.7f,
+            memoryDuration: memoryDuration);
+
+        float freshQuiet = GameplayNoiseWorldService.ScoreNoise(
+            loudness: 3f,
+            distance: 0f,
+            effectiveRadius: 10f,
+            age: 0f,
+            memoryDuration: memoryDuration);
+
+        Assert.That(staleLoud, Is.LessThan(freshLoud));
+        Assert.That(
+            freshQuiet,
+            Is.GreaterThan(staleLoud),
+            "An almost-forgotten bang should not outrank a new sound nearby.");
+
+        // No cliff at the memory horizon: the last remembered frame is worth
+        // nothing, rather than dropping from full value to gone.
+        Assert.That(
+            GameplayNoiseWorldService.ScoreNoise(
+                loudness: 10f,
+                distance: 0f,
+                effectiveRadius: 10f,
+                age: memoryDuration,
+                memoryDuration: memoryDuration),
+            Is.EqualTo(0f).Within(0.0001f));
+    }
 }
