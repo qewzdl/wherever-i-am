@@ -106,8 +106,12 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
             tactics.retreatAngles.Length * tactics.retreatDistanceScales.Length
         );
 
+        // Two spare paths, not one: the check on the point already held costs
+        // a query for the standing route and another for the crawl, and being
+        // refused the second read as "this no longer leads away" and threw a
+        // good point away for a fresh search.
         if (!context.TryReservePlanningQueries(
-                candidateCount + 1,
+                candidateCount + 2,
                 candidateCount + 1,
                 out int pathBudget,
                 out int visibilityBudget))

@@ -23,14 +23,23 @@ internal sealed class EnemyRetreatPlanner
     // threats and then pick the point that suited neither.
     private const float SnapshotTurnToleranceDot = 0.94f;
 
+    // How far a watcher may drift before the half of the fan already walked
+    // was judged against somebody standing somewhere else. Counting them was
+    // not enough: a watcher can walk the length of a corridor without the
+    // count changing, and two of them moving together barely shift the summed
+    // direction away, so neither check above noticed - and the fallback held
+    // over from the start of the pass was handed back as a retreat from where
+    // they used to be.
+    private const float ThreatMoveTolerance = 1f;
+
     private readonly EnemyBrainContext context;
+    private readonly List<Vector3> searchThreats = new();
 
     private int cursor;
     private int searchedThisPass;
     private Vector3 fallbackPoint;
     private bool hasFallbackPoint;
     private Vector3 searchAway;
-    private int searchThreatCount;
 
     public EnemyRetreatPlanner(EnemyBrainContext context)
     {
@@ -79,13 +88,12 @@ internal sealed class EnemyRetreatPlanner
         int allowance = Mathf.Clamp(tactics.candidatesPerTick, 1, total);
 
         Vector3 away = AwayFromAll(selfPosition, threats);
-        int threatCount = threats != null ? threats.Count : 0;
 
-        // One set of watchers per pass. Somebody joining or leaving the ones
-        // who can see this enemy changes what "away" means, and half a fan
-        // aimed at the old answer is not a search of the new one.
+        // One set of watchers per pass. Somebody joining, leaving or walking
+        // changes what "away" means, and half a fan aimed at the old answer is
+        // not a search of the new one.
         if (searchedThisPass > 0 &&
-            (threatCount != searchThreatCount ||
+            (!IsSameThreats(threats) ||
              Vector3.Dot(away, searchAway) < SnapshotTurnToleranceDot))
         {
             Restart();
@@ -94,7 +102,14 @@ internal sealed class EnemyRetreatPlanner
         if (searchedThisPass == 0)
         {
             searchAway = away;
-            searchThreatCount = threatCount;
+            searchThreats.Clear();
+
+            // Copied by index rather than AddRange: the list arrives as an
+            // interface, and that overload boxes an enumerator every pass.
+            for (int i = 0; threats != null && i < threats.Count; i++)
+            {
+                searchThreats.Add(threats[i]);
+            }
         }
 
         float preferred = context.Config.retreatDistance;
@@ -191,6 +206,30 @@ internal sealed class EnemyRetreatPlanner
         return hadFallback
             ? EnemyTacticalPlanResult.Found
             : EnemyTacticalPlanResult.NotFound;
+    }
+
+    // ponytail: compared by index. The watcher list comes back in registration
+    // order, so a reorder is unlikely and costs only a restarted search when
+    // it happens; match on owner id if it turns out to churn.
+    private bool IsSameThreats(IReadOnlyList<Vector3> threats)
+    {
+        int count = threats != null ? threats.Count : 0;
+
+        if (count != searchThreats.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if ((threats[i] - searchThreats[i]).sqrMagnitude >
+                ThreatMoveTolerance * ThreatMoveTolerance)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool RouteClosesOnAnyThreat(

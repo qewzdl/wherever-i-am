@@ -14,6 +14,21 @@ public enum EnemyTacticalPlanResult
     Deferred = 2,
 }
 
+// Where a route check stopped when it ran out of raycasts, so the next tick
+// resumes there instead of walking the first corners again.
+//
+// Without it a route needing more samples than one frame's allowance never
+// finished: every tick started at the first segment, spent the lot, and
+// deferred the same candidate forever. Reachable with the shipped numbers -
+// the profile asks for more route samples than the server has in a frame.
+public struct EnemyRouteScan
+{
+    // Index of the corner the interrupted segment ends at, and the sample
+    // within it. Zero means "from the start".
+    public int Segment;
+    public int Step;
+}
+
 // Route planning for the stealth manoeuvre, asked the way the enemy will
 // actually walk it.
 //
@@ -122,6 +137,7 @@ public sealed class EnemyTacticalNavigationPlanner
         float bodyHeight,
         float sampleSpacing,
         ref int budget,
+        ref EnemyRouteScan scan,
         out bool budgetExhausted
     )
     {
@@ -129,27 +145,50 @@ public sealed class EnemyTacticalNavigationPlanner
 
         if (route == null || route.Count < 2)
         {
+            scan = default;
             return route != null && route.Count == 1;
         }
 
         sampleSpacing = Mathf.Max(0.25f, sampleSpacing);
 
-        for (int i = 1; i < route.Count; i++)
+        // Resume where the budget ran out last tick. The route was replanned
+        // between the two, but from and to are the same and NavMesh gives the
+        // same corners for them, so the count the cursor was taken against is
+        // the count it is being applied to.
+        //
+        // ponytail: corner count is the only sanity check. A NavMesh rebuilt
+        // mid-search could return a route of the same length through different
+        // geometry and the skipped corners would go unchecked; add a route
+        // hash if runtime rebuilds start moving geometry under a manoeuvre.
+        if (scan.Segment >= route.Count)
+        {
+            scan = default;
+        }
+
+        int firstSegment = Mathf.Max(1, scan.Segment);
+        int firstStep = Mathf.Max(1, scan.Step);
+
+        for (int i = firstSegment; i < route.Count; i++)
         {
             Vector3 previous = route[i - 1];
             Vector3 corner = route[i];
             float length = Vector3.Distance(previous, corner);
             int steps = Mathf.Max(1, Mathf.CeilToInt(length / sampleSpacing));
 
-            for (int step = 1; step <= steps; step++)
+            for (int step = i == firstSegment ? firstStep : 1;
+                 step <= steps;
+                 step++)
             {
                 // Out of budget with the route half walked. Refusing is the
                 // only safe answer: calling an unchecked route hidden is how
                 // the enemy would walk straight across the view it was trying
-                // to avoid.
+                // to avoid. The cursor is what turns that refusal into
+                // progress rather than a candidate that repeats forever.
                 if (budget <= 0)
                 {
                     budgetExhausted = true;
+                    scan.Segment = i;
+                    scan.Step = step;
                     return false;
                 }
 
@@ -163,11 +202,13 @@ public sealed class EnemyTacticalNavigationPlanner
 
                 if (PlayerGazeNetwork.IsBodySeenByAnyone(sample, bodyHeight))
                 {
+                    scan = default;
                     return false;
                 }
             }
         }
 
+        scan = default;
         return true;
     }
 }

@@ -1647,66 +1647,14 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     [UnityTest]
     public IEnumerator Navigator_OnDualBakedNavMeshes_CrawlsUnderCeilingAndStandsAfterExit()
     {
-        EnemyConfig sourceConfig = enemyConfig;
-        GetProductionAgentTypes(
-            enemyPrefab,
-            out int standingAgentTypeId,
-            out int crawlingAgentTypeId);
-        BakeLowCeilingCorridor(
-            standingAgentTypeId,
-            crawlingAgentTypeId);
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out EnemyConfig config,
+            out EnemyPostureController postureController,
+            out NavMeshAgent agent);
 
-        EnemyConfig config = CloneNavigationConfig(sourceConfig);
-        EnemyPostureConfig postureProfile = config.PostureProfile;
-        postureProfile.standingToCrawlingTransitionDuration = 0f;
-        postureProfile.crawlingToStandingTransitionDuration = 0f;
-        postureProfile.minPostureDuration = 0f;
-        postureProfile.standingRecoveryCheckInterval = 0.05f;
-
-        GameObject actor = Track(new GameObject("Posture navigation enemy"));
-        actor.SetActive(false);
-        actor.layer = 6;
-        actor.transform.position = new Vector3(0f, 0f, -6f);
-        actor.AddComponent<NetworkObject>();
-
-        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
-        agent.enabled = false;
-        agent.agentTypeID = standingAgentTypeId;
-        agent.speed = 4f;
-        agent.acceleration = 30f;
-
-        CapsuleCollider bodyCollider =
-            actor.AddComponent<CapsuleCollider>();
-        bodyCollider.height = postureProfile.standingBodyColliderHeight;
-        bodyCollider.radius = postureProfile.standingBodyColliderRadius;
-        bodyCollider.center = postureProfile.standingBodyColliderCenter;
-
-        EnemyNetworkState networkState =
-            actor.AddComponent<EnemyNetworkState>();
-        EnemyPostureController postureController =
-            actor.AddComponent<EnemyPostureController>();
-        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
-
-        PlayModeTestReflection.SetField(
-            postureController,
-            "standingAgentTypeId",
-            standingAgentTypeId);
-        PlayModeTestReflection.SetField(
-            postureController,
-            "crawlingAgentTypeId",
-            crawlingAgentTypeId);
-        actor.SetActive(true);
-
-        agent.enabled = true;
-        Assert.That(
-            TryPlaceAgent(agent, actor.transform.position),
-            Is.True,
-            "Posture enemy could not be placed on the standing NavMesh.");
-        Assert.That(
-            postureController.TryInitializeServer(config, networkState),
-            Is.True);
-        navigator.Configure(config);
-
+        Transform actor = navigator.transform;
+        int standingAgentTypeId = agent.agentTypeID;
         Vector3 destination = new Vector3(0f, 0f, 6f);
         bool observedCrawling = false;
 
@@ -1717,7 +1665,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 observedCrawling |=
                     postureController.CurrentPosture ==
                     EnemyPosture.Crawling;
-                return actor.transform.position.z > 4.5f;
+                return actor.position.z > 4.5f;
             },
             "Enemy did not traverse the low passage on the crawling NavMesh.");
 
@@ -1737,6 +1685,81 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         Assert.That(agent.agentTypeID, Is.EqualTo(standingAgentTypeId));
         Assert.That(agent.isOnNavMesh, Is.True);
+    }
+
+    // Two things the flank and the retreat depend on for a destination that
+    // only exists under a low ceiling.
+    //
+    // The tactical sampler asked with the current posture alone, so a
+    // crawl-only spot was thrown out before the route planner - the one part
+    // of this that does drop to a crawl - was ever asked about it, and the
+    // crawl fallback could not be reached by the destinations that needed it.
+    //
+    // And the route to one costs two path queries. Being granted a single
+    // query has to read as "come back for this" rather than "there is no way
+    // through": the callers stop and retry on the first, and on the second
+    // they walk a straight line past whoever they were hiding from.
+    [UnityTest]
+    public IEnumerator TacticalPlanning_ForACrawlOnlyDestination_SamplesItAndCostsTwoQueries()
+    {
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out _,
+            out EnemyPostureController postureController,
+            out _);
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Standing),
+            "This test needs the enemy standing outside the low passage.");
+
+        // Mid-passage: the ceiling spans z -2.5 to 2.5, which is further from
+        // the standing NavMesh than the navigator's sample radius reaches.
+        Assert.That(
+            navigator.TrySampleTacticalPoint(
+                Vector3.zero,
+                1f,
+                out Vector3 sampled),
+            Is.True,
+            "A crawl-only destination was refused before the route planner saw it.");
+        Assert.That(Mathf.Abs(sampled.z), Is.LessThan(2.5f));
+
+        Vector3 from = navigator.transform.position;
+        NavMeshPath path = new();
+
+        // One query buys the standing attempt and nothing else. Answering "no
+        // route" here strikes the candidate out on evidence never gathered.
+        int pathBudget = 1;
+
+        Assert.That(
+            navigator.TryPlanTacticalRoute(
+                from,
+                sampled,
+                path,
+                ref pathBudget,
+                out bool budgetExhausted),
+            Is.False);
+        Assert.That(budgetExhausted, Is.True);
+        Assert.That(pathBudget, Is.Zero);
+
+        pathBudget = 2;
+
+        Assert.That(
+            navigator.TryPlanTacticalRoute(
+                from,
+                sampled,
+                path,
+                ref pathBudget,
+                out budgetExhausted),
+            Is.True,
+            "The crawl fallback did not find the route the enemy walks above.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(
+            pathBudget,
+            Is.Zero,
+            "The crawl fallback did not charge for its query.");
     }
 
     [UnityTest]
@@ -3458,6 +3481,76 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             root,
             standingAgentTypeId,
             crawlingAgentTypeId);
+    }
+
+    // The dual-NavMesh corridor with a posture-capable enemy standing on it.
+    // Shared by the traversal test and the tactical planning test, which need
+    // the same setup and have nothing else in common.
+    private EnemyNavigator BuildPostureEnemyOnLowCeilingCorridor(
+        Vector3 position,
+        out EnemyConfig config,
+        out EnemyPostureController postureController,
+        out NavMeshAgent agent)
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeLowCeilingCorridor(
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+
+        config = CloneNavigationConfig(enemyConfig);
+        EnemyPostureConfig postureProfile = config.PostureProfile;
+        postureProfile.standingToCrawlingTransitionDuration = 0f;
+        postureProfile.crawlingToStandingTransitionDuration = 0f;
+        postureProfile.minPostureDuration = 0f;
+        postureProfile.standingRecoveryCheckInterval = 0.05f;
+
+        GameObject actor = Track(new GameObject("Posture navigation enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = position;
+        actor.AddComponent<NetworkObject>();
+
+        agent = actor.AddComponent<NavMeshAgent>();
+        agent.enabled = false;
+        agent.agentTypeID = standingAgentTypeId;
+        agent.speed = 4f;
+        agent.acceleration = 30f;
+
+        CapsuleCollider bodyCollider =
+            actor.AddComponent<CapsuleCollider>();
+        bodyCollider.height = postureProfile.standingBodyColliderHeight;
+        bodyCollider.radius = postureProfile.standingBodyColliderRadius;
+        bodyCollider.center = postureProfile.standingBodyColliderCenter;
+
+        EnemyNetworkState networkState =
+            actor.AddComponent<EnemyNetworkState>();
+        postureController = actor.AddComponent<EnemyPostureController>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+
+        PlayModeTestReflection.SetField(
+            postureController,
+            "standingAgentTypeId",
+            standingAgentTypeId);
+        PlayModeTestReflection.SetField(
+            postureController,
+            "crawlingAgentTypeId",
+            crawlingAgentTypeId);
+        actor.SetActive(true);
+
+        agent.enabled = true;
+        Assert.That(
+            TryPlaceAgent(agent, position),
+            Is.True,
+            "Posture enemy could not be placed on the standing NavMesh.");
+        Assert.That(
+            postureController.TryInitializeServer(config, networkState),
+            Is.True);
+        navigator.Configure(config);
+
+        return navigator;
     }
 
     private void BakeSurfaces(

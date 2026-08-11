@@ -619,16 +619,47 @@ public class EnemyNavigator : MonoBehaviour
             path);
     }
 
+    // Same posture order as the route planning below and as the real move:
+    // standing first, then a crawl if the level only offers a crawl-sized way
+    // in. Asking with the current posture alone threw out every spot that
+    // exists only on the crawling NavMesh before the route planner - the one
+    // part of this that does drop to a crawl - was ever asked about it, so the
+    // crawl fallback could not be reached by a destination that needed it.
     internal bool TrySampleTacticalPoint(
+        Vector3 desiredPosition,
+        float maximumDistance,
+        out Vector3 sampledPosition)
+    {
+        EnemyPosture posture = CurrentTacticalPosture;
+
+        if (TrySampleTacticalPointForPosture(
+                posture,
+                desiredPosition,
+                maximumDistance,
+                out sampledPosition))
+        {
+            return true;
+        }
+
+        return config != null &&
+               config.crawlingEnabled &&
+               posture != EnemyPosture.Crawling &&
+               TrySampleTacticalPointForPosture(
+                   EnemyPosture.Crawling,
+                   desiredPosition,
+                   maximumDistance,
+                   out sampledPosition);
+    }
+
+    private bool TrySampleTacticalPointForPosture(
+        EnemyPosture posture,
         Vector3 desiredPosition,
         float maximumDistance,
         out Vector3 sampledPosition)
     {
         sampledPosition = desiredPosition;
 
-        if (!TryGetNavigationQueryFilter(
-                CurrentTacticalPosture,
-                out NavMeshQueryFilter filter))
+        if (!TryGetNavigationQueryFilter(posture, out NavMeshQueryFilter filter))
         {
             return false;
         }

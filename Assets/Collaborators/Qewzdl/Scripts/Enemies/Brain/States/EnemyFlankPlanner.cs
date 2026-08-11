@@ -32,6 +32,11 @@ internal sealed class EnemyFlankPlanner
     private Vector3 searchTargetPosition;
     private Vector3 searchTargetForward;
 
+    // Which candidate the half-finished route check belongs to, so a stale
+    // cursor is never applied to the next candidate's route.
+    private int routeScanCandidate = -1;
+    private EnemyRouteScan routeScan;
+
     public EnemyFlankPlanner(EnemyBrainContext context)
     {
         this.context = context;
@@ -59,7 +64,6 @@ internal sealed class EnemyFlankPlanner
         float[] scales = tactics.flankDistanceScales;
         int total = angles.Length * scales.Length;
         int allowance = Mathf.Clamp(tactics.candidatesPerTick, 1, total);
-        int routeBudget = Mathf.Min(tactics.routeSampleBudget, visibilityBudget);
 
         // One pose per pass. Perception refreshes the observation whenever it
         // sees the target again, so without this the first half of the fan was
@@ -105,7 +109,12 @@ internal sealed class EnemyFlankPlanner
         {
             // Nothing left to judge a candidate with. Stop on the one that has
             // not been judged yet, so next tick resumes on it.
-            if (visibilityBudget <= 0 || routeBudget <= 0 || pathBudget <= 0)
+            //
+            // One raycast allowance for both the endpoint and the route.
+            // Counting them separately let a tick spend the endpoint checks on
+            // top of a full route budget, which is more raycasts than the
+            // scheduler ever granted.
+            if (visibilityBudget <= 0 || pathBudget <= 0)
             {
                 break;
             }
@@ -167,22 +176,33 @@ internal sealed class EnemyFlankPlanner
             // shortest path to somewhere behind a person usually goes straight
             // past their face, which is how an enemy circling a player who
             // never moved kept walking back into sight and starting over.
+            EnemyRouteScan scan = routeScanCandidate == index
+                ? routeScan
+                : default;
+
             bool routeHidden = context.TacticalPlanner.IsRouteHidden(
                 route,
                 bodyHeight,
                 tactics.routeSampleSpacing,
-                ref routeBudget,
+                ref visibilityBudget,
+                ref scan,
                 out bool routeBudgetExhausted
             );
 
-            visibilityBudget = Mathf.Min(visibilityBudget, routeBudget);
-
             // Half a route checked is no verdict on this candidate either.
+            // Where it stopped is kept, so next tick carries on down the same
+            // route rather than re-walking the corners it already paid for -
+            // a route longer than one tick's allowance would otherwise never
+            // reach an answer.
             if (routeBudgetExhausted)
             {
+                routeScanCandidate = index;
+                routeScan = scan;
                 completed = n;
                 break;
             }
+
+            routeScanCandidate = -1;
 
             if (routeHidden)
             {
@@ -259,5 +279,7 @@ internal sealed class EnemyFlankPlanner
         searchedThisPass = 0;
         hasFallbackPoint = false;
         fallbackPoint = default;
+        routeScanCandidate = -1;
+        routeScan = default;
     }
 }

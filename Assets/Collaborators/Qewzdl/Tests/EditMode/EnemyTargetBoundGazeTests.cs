@@ -462,6 +462,61 @@ public sealed class EnemyTargetBoundGazeTests
             Is.False);
     }
 
+    // A route needing more raycasts than one tick's allowance used to restart
+    // at the first corner every tick, so the candidate stayed Deferred for as
+    // long as the enemy kept asking.
+    [Test]
+    public void RouteVisibilityScan_ResumesWhereTheBudgetRanOut()
+    {
+        EnemyTacticalNavigationPlanner planner = new(null);
+
+        // Two segments, fifty samples each at a spacing of one metre.
+        Vector3[] route =
+        {
+            Vector3.zero,
+            new(0f, 0f, 50f),
+            new(50f, 0f, 50f),
+        };
+
+        EnemyRouteScan scan = default;
+        int spent = 0;
+        int ticks = 0;
+        bool hidden;
+
+        do
+        {
+            int budget = 30;
+
+            hidden = planner.IsRouteHidden(
+                route,
+                1.8f,
+                1f,
+                ref budget,
+                ref scan,
+                out bool exhausted);
+
+            spent += 30 - budget;
+            ticks++;
+
+            Assert.That(ticks, Is.LessThanOrEqualTo(4), "the scan never finished");
+
+            if (!exhausted)
+            {
+                break;
+            }
+
+            Assert.That(hidden, Is.False, "an unchecked route is not hidden");
+        }
+        while (true);
+
+        // Nobody is watching, so the whole route is hidden - and each sample
+        // was paid for exactly once across the four ticks it took.
+        Assert.That(hidden, Is.True);
+        Assert.That(spent, Is.EqualTo(100));
+        Assert.That(ticks, Is.EqualTo(4));
+        Assert.That(scan.Segment, Is.Zero);
+    }
+
     [Test]
     public void TacticalSlotRegistry_KeepsTwoFlankingEnemiesOffOneSpot()
     {

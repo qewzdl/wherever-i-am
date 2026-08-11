@@ -160,13 +160,28 @@ public sealed class EnemyFlankState : IEnemyStateHandler
             tactics.flankBehindAngles.Length * tactics.flankDistanceScales.Length
         );
 
-        // One route per candidate plus one for the walking-into-a-watcher
-        // check below. A candidate that only crawls costs two, so the search
-        // can run out early - that is a deferral, and it resumes on the
-        // candidate it stopped at rather than skipping past it.
+        // Endpoints and routes share one raycast allowance, and asking for
+        // more of it than the whole server has in a frame is not a bigger
+        // budget - it is a request the scheduler silently truncates, so the
+        // search believed it had samples nobody granted. A search too big for
+        // one tick now resumes mid-route instead.
+        int visibilityQueries = candidateCount + Mathf.Max(
+            1,
+            Mathf.Min(
+                tactics.routeSampleBudget,
+                EnemyServerPerceptionScheduler.VisibilityQueriesPerFrame -
+                candidateCount
+            )
+        );
+
+        // One route per candidate plus two for the walking-into-a-watcher
+        // check below, which is what that route costs when the way through is
+        // crawl-sized. A candidate that only crawls costs two as well, so the
+        // search can still run out early - that is a deferral, and it resumes
+        // on the candidate it stopped at rather than skipping past it.
         if (!context.TryReservePlanningQueries(
-                candidateCount + 1,
-                candidateCount + tactics.routeSampleBudget,
+                candidateCount + 2,
+                visibilityQueries,
                 out pathBudget,
                 out int visibilityBudget))
         {
@@ -220,11 +235,14 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         ref int pathBudget
     )
     {
-        // Worth one path query. Most ticks do not plan, so there is nothing
-        // left over to spend and this asks the server for its own.
+        // Worth two path queries: what the route costs when the level only
+        // offers a crawl-sized way through. Reserving one meant the crawl
+        // attempt was refused for want of budget, and the enemy stood still
+        // over a route that was there. Most ticks do not plan, so there is
+        // nothing left over to spend and this asks the server for its own.
         if (pathBudget <= 0 &&
             context.TryReservePlanningQueries(
-                1,
+                2,
                 0,
                 out int grantedPathQueries,
                 out _))
@@ -232,6 +250,14 @@ public sealed class EnemyFlankState : IEnemyStateHandler
             pathBudget = grantedPathQueries;
         }
 
+        // No route means the enemy has no business walking, whichever reason
+        // it was: a point it cannot reach is not one it can walk to, and a
+        // check it could not afford is not a verdict. The straight line used
+        // to stand in for both and is conservative for neither - a real route
+        // bends round obstacles, sometimes towards the very watcher this is
+        // asking about, and reading that as "not walking into anyone" is how
+        // the enemy kept going. Standing still costs a tick; the flank timeout
+        // hands this to the chase if it never resolves.
         if (!context.TacticalPlanner.TryPlanRoute(
                 selfPosition,
                 flankPoint,
@@ -239,21 +265,7 @@ public sealed class EnemyFlankState : IEnemyStateHandler
                 out IReadOnlyList<Vector3> route,
                 out _))
         {
-            // No route to judge, or nothing to judge it with. The straight
-            // line is the only thing left to go on, and it is the
-            // conservative answer here.
-            for (int i = 0; i < watchers.Count; i++)
-            {
-                if (EnemyStateRules.ClosesOnWatcher(
-                        selfPosition,
-                        flankPoint,
-                        watchers[i].Position))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return true;
         }
 
         return EnemyTacticalNavigationPlanner.RouteClosesOnAnyWatcher(

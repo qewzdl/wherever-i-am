@@ -97,7 +97,9 @@ public class EnemyStealthTacticsConfig : ScriptableObject
     [Min(0.25f)] public float routeSampleSpacing = 1.5f;
 
     [Tooltip("Raycast allowance for route checks across one whole search, " +
-             "not per candidate.")]
+             "not per candidate. Capped at what the server has left in a " +
+             "frame after the endpoint checks; a route needing more than that " +
+             "is resumed where it stopped rather than restarted.")]
     [Min(1)] public int routeSampleBudget = 120;
 
     [Tooltip("How many candidate points one search may test per tick. The " +
