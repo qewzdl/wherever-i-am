@@ -21,6 +21,7 @@ public class EnemyNavigator : MonoBehaviour
     private EnemyNavigationRecoveryController recoveryController;
     private EnemyDoorTraversalHandler doorTraversal;
     private EnemyPostureTraversalPlanner postureTraversal;
+    private NavMeshPath tacticalPath;
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
@@ -109,7 +110,13 @@ public class EnemyNavigator : MonoBehaviour
             queryService,
             HasNavigationBlockerOnPath);
 
+        if (postureController != null)
+        {
+            postureController.ServerPostureChanged += HandleServerPostureChanged;
+        }
+
         pathBuffer = new NavMeshPath();
+        tacticalPath = new NavMeshPath();
     }
 
     public void Configure(EnemyConfig config)
@@ -175,6 +182,20 @@ public class EnemyNavigator : MonoBehaviour
     {
         ReleaseAllPushThroughHolds();
         EnemyServerPerceptionScheduler.Forget(NavigationSchedulerId);
+    }
+
+    private void OnDestroy()
+    {
+        if (postureController != null)
+        {
+            postureController.ServerPostureChanged -= HandleServerPostureChanged;
+        }
+    }
+
+    private void HandleServerPostureChanged(EnemyPosture posture)
+    {
+        postureTraversal?.NotifyPostureChanged(posture);
+        repathScheduler?.Invalidate();
     }
 
     public bool TryMoveTo(Vector3 destination, float speed, bool allowPushThrough = false)
@@ -548,8 +569,10 @@ public class EnemyNavigator : MonoBehaviour
         return true;
     }
 
-    // Where this agent could actually stand, and the route it would actually
-    // walk to get there.
+    // The complete route this agent would actually walk, including the posture
+    // of every leg. Runtime navigation and tactical preview both delegate to
+    // EnemyPostureTraversalPlanner, so reachability, sampled endpoints and the
+    // standing-prefix/crawl-continuation strategy cannot drift apart.
     //
     // The stealth states used to ask NavMesh.SamplePosition and
     // NavMesh.CalculatePath with NavMesh.AllAreas and whichever agent type
@@ -557,25 +580,23 @@ public class EnemyNavigator : MonoBehaviour
     // enemy moves on - wrong agent size, wrong area mask, no posture, none of
     // the item blockers - so a plan could be judged perfect and then be
     // unwalkable the moment it was handed back here to be driven.
-    // Costs one path query per posture tried, and says so. The tactical
-    // planners reserve their queries from the server scheduler before they
-    // start searching, and this is the only place that knows a candidate can
-    // cost two of them - one for the current posture, one for the crawl
-    // fallback. Counted here, the reservation is what actually limits them
-    // instead of being a number nobody subtracted from.
     internal bool TryPlanTacticalRoute(
-        Vector3 from,
         Vector3 to,
-        NavMeshPath path,
         ref int pathBudget,
+        out EnemyPostureTraversalPlan plan,
         out bool budgetExhausted
     )
     {
+        plan = default;
         budgetExhausted = false;
 
-        if (path == null)
+        if (UsesPostureNavigation)
         {
-            return false;
+            return postureTraversal.TryBuildTacticalPlan(
+                to,
+                ref pathBudget,
+                out plan,
+                out budgetExhausted);
         }
 
         if (pathBudget <= 0)
@@ -584,53 +605,70 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
-        EnemyPosture posture = CurrentTacticalPosture;
         pathBudget--;
+        tacticalPath.ClearCorners();
 
-        if (TryPlanTacticalRouteForPosture(posture, from, to, path))
-        {
-            return true;
-        }
-
-        // Same fallback order the real move takes: standing first, then drop
-        // to a crawl if the level only offers a crawl-sized way through.
-        if (config == null ||
-            !config.crawlingEnabled ||
-            posture == EnemyPosture.Crawling)
+        if (!TryGetNavigationQueryFilter(
+                EnemyPosture.Standing,
+                out NavMeshQueryFilter filter))
         {
             return false;
         }
 
-        // Out of budget with the crawl untried. Saying "no route" here would
-        // strike out a candidate on evidence that was never gathered, so the
-        // caller is told to come back for it rather than move past it.
-        if (pathBudget <= 0)
+        float sampleRadius = GetNavigationSampleRadius();
+
+        if (!NavMesh.SamplePosition(
+                transform.position,
+                out NavMeshHit fromHit,
+                sampleRadius,
+                filter) ||
+            !NavMesh.SamplePosition(
+                to,
+                out NavMeshHit toHit,
+                sampleRadius,
+                filter) ||
+            !NavMesh.CalculatePath(
+                fromHit.position,
+                toHit.position,
+                filter,
+                tacticalPath) ||
+            tacticalPath.status != NavMeshPathStatus.PathComplete ||
+            HasNavigationBlockerOnPath(tacticalPath))
         {
-            budgetExhausted = true;
             return false;
         }
 
-        pathBudget--;
-
-        return TryPlanTacticalRouteForPosture(
-            EnemyPosture.Crawling,
-            from,
-            to,
-            path);
+        plan = EnemyPostureTraversalPlan.Single(
+            new EnemyPostureTraversalLeg(
+                EnemyPosture.Standing,
+                toHit.position,
+                tacticalPath));
+        return true;
     }
 
-    // Same posture order as the route planning below and as the real move:
-    // standing first, then a crawl if the level only offers a crawl-sized way
-    // in. Asking with the current posture alone threw out every spot that
-    // exists only on the crawling NavMesh before the route planner - the one
-    // part of this that does drop to a crawl - was ever asked about it, so the
-    // crawl fallback could not be reached by a destination that needed it.
+    // The posture the move would try first, so what gets checked here is what
+    // gets walked. Same answer from the same place the runtime planner asks,
+    // rather than a second rule that agreed with it most of the time: a copy
+    // that judged only whether the enemy could physically stand still had it
+    // planning standing routes through the second or so a crawl is held for.
+    private EnemyPosture FirstTacticalPosture =>
+        postureController == null ||
+        config == null ||
+        !config.crawlingEnabled
+            ? EnemyPosture.Standing
+            : postureController.GetPreferredPlanningPosture();
+
+    // Both postures, in the same order the route planning above takes them.
+    // Asking with the current posture alone threw out every spot that exists
+    // only on the other NavMesh before the route planner - the one part of
+    // this that does try both - was ever asked about it, so a destination that
+    // needed the other posture could not be reached at all.
     internal bool TrySampleTacticalPoint(
         Vector3 desiredPosition,
         float maximumDistance,
         out Vector3 sampledPosition)
     {
-        EnemyPosture posture = CurrentTacticalPosture;
+        EnemyPosture posture = FirstTacticalPosture;
 
         if (TrySampleTacticalPointForPosture(
                 posture,
@@ -641,9 +679,11 @@ public class EnemyNavigator : MonoBehaviour
             return true;
         }
 
+        // Same two postures the route planning takes, and no more: a spot that
+        // exists only where the move will not go is not a spot to go to.
         return config != null &&
                config.crawlingEnabled &&
-               posture != EnemyPosture.Crawling &&
+               posture == EnemyPosture.Standing &&
                TrySampleTacticalPointForPosture(
                    EnemyPosture.Crawling,
                    desiredPosition,
@@ -658,6 +698,24 @@ public class EnemyNavigator : MonoBehaviour
         out Vector3 sampledPosition)
     {
         sampledPosition = desiredPosition;
+
+        // The same landing rule the route builder uses for its destination, so
+        // a point offered here is a point a route can end on. A plain sample
+        // accepted spots the posture cannot actually hold.
+        if (UsesPostureNavigation)
+        {
+            if (!postureController.TryGetUsablePosturePosition(
+                    posture,
+                    desiredPosition,
+                    Mathf.Max(0.1f, maximumDistance),
+                    out NavMeshHit postureHit))
+            {
+                return false;
+            }
+
+            sampledPosition = postureHit.position;
+            return true;
+        }
 
         if (!TryGetNavigationQueryFilter(posture, out NavMeshQueryFilter filter))
         {
@@ -677,48 +735,17 @@ public class EnemyNavigator : MonoBehaviour
         return true;
     }
 
-    private EnemyPosture CurrentTacticalPosture =>
-        postureController != null
-            ? postureController.CurrentPosture
-            : EnemyPosture.Standing;
+    private bool UsesPostureNavigation =>
+        config != null &&
+        config.crawlingEnabled &&
+        postureController != null &&
+        postureTraversal != null;
 
-    private bool TryPlanTacticalRouteForPosture(
-        EnemyPosture posture,
-        Vector3 from,
-        Vector3 to,
-        NavMeshPath path)
+    internal float GetBodyHeightForPosture(EnemyPosture posture)
     {
-        path.ClearCorners();
-
-        if (!TryGetNavigationQueryFilter(posture, out NavMeshQueryFilter filter))
-        {
-            return false;
-        }
-
-        float sampleRadius = GetNavigationSampleRadius();
-
-        if (!NavMesh.SamplePosition(
-                from,
-                out NavMeshHit fromHit,
-                sampleRadius,
-                filter) ||
-            !NavMesh.SamplePosition(
-                to,
-                out NavMeshHit toHit,
-                sampleRadius,
-                filter))
-        {
-            path.ClearCorners();
-            return false;
-        }
-
-        return NavMesh.CalculatePath(
-                   fromHit.position,
-                   toHit.position,
-                   filter,
-                   path) &&
-               path.status == NavMeshPathStatus.PathComplete &&
-               !HasNavigationBlockerOnPath(path);
+        return postureController != null
+            ? postureController.GetHeightForPosture(posture)
+            : BodyHeight;
     }
 
     private void RememberRequestedNavigation(
@@ -849,8 +876,6 @@ public class EnemyNavigator : MonoBehaviour
             speed,
             plan.Posture);
 
-        EnemyPosture previousPosture = postureController.CurrentPosture;
-
         if (!postureController.TrySetServerPosture(plan.Posture))
         {
             return false;
@@ -860,12 +885,6 @@ public class EnemyNavigator : MonoBehaviour
         {
             StopForPostureTransition();
             return false;
-        }
-
-        if (previousPosture != postureController.CurrentPosture)
-        {
-            postureTraversal.NotifyPostureChanged(
-                postureController.CurrentPosture);
         }
 
         return queryService.TryApplyPath(

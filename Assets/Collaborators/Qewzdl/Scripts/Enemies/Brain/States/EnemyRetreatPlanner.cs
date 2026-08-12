@@ -12,8 +12,8 @@ using UnityEngine;
 // standing in, and a from-to segment called that a retreat.
 //
 // The fan is walked a few candidates per tick and resumed from where it
-// stopped, because each candidate now costs a path query as well as a raycast
-// and the frame budget is shared with every other enemy on the server.
+// stopped, because each candidate now costs one or more path queries as well
+// as a raycast and the frame budget is shared with every other server enemy.
 internal sealed class EnemyRetreatPlanner
 {
     // How far the direction away from everyone may swing before the half of
@@ -57,20 +57,35 @@ internal sealed class EnemyRetreatPlanner
     // Whether a point already chosen still leads away from everyone, by the
     // route the enemy would take to it. They move, and a spot that led away a
     // moment ago can lead straight back past them.
-    public bool IsPointStillLeaving(
-        Vector3 selfPosition,
+    //
+    // Three answers, not two. "Could not check it" used to come back as "no
+    // good", which sent the state off to search for a replacement - and a
+    // search that then ran out of budget itself handed the rejected point
+    // back and walked to it. Found means keep going, NotFound means drop it,
+    // Deferred means nobody knows yet.
+    public EnemyTacticalPlanResult CheckPointStillLeaving(
         Vector3 point,
         IReadOnlyList<Vector3> threats,
-        ref int pathBudget
+        ref int pathBudget,
+        out EnemyTacticalRoute route
     )
     {
-        return context.TacticalPlanner.TryPlanRoute(
-                   selfPosition,
-                   point,
-                   ref pathBudget,
-                   out IReadOnlyList<Vector3> route,
-                   out _) &&
-               !RouteClosesOnAnyThreat(route, threats);
+        route = null;
+
+        if (!context.TacticalPlanner.TryPlanRoute(
+                point,
+                ref pathBudget,
+                out route,
+                out bool budgetExhausted))
+        {
+            return budgetExhausted
+                ? EnemyTacticalPlanResult.Deferred
+                : EnemyTacticalPlanResult.NotFound;
+        }
+
+        return RouteClosesOnAnyThreat(route, threats)
+            ? EnemyTacticalPlanResult.NotFound
+            : EnemyTacticalPlanResult.Found;
     }
 
     public EnemyTacticalPlanResult TryFindRetreatPoint(
@@ -85,7 +100,6 @@ internal sealed class EnemyRetreatPlanner
         float[] angles = tactics.retreatAngles;
         float[] scales = tactics.retreatDistanceScales;
         int total = angles.Length * scales.Length;
-        int allowance = Mathf.Clamp(tactics.candidatesPerTick, 1, total);
 
         Vector3 away = AwayFromAll(selfPosition, threats);
 
@@ -111,6 +125,15 @@ internal sealed class EnemyRetreatPlanner
                 searchThreats.Add(threats[i]);
             }
         }
+
+        // Only what is left of the fan. Taking the whole per-tick allowance on
+        // the last tick of a pass wrapped round and judged the first few
+        // candidates a second time, at the server's expense.
+        int allowance = Mathf.Clamp(
+            tactics.candidatesPerTick,
+            1,
+            total - searchedThisPass
+        );
 
         float preferred = context.Config.retreatDistance;
 
@@ -147,10 +170,9 @@ internal sealed class EnemyRetreatPlanner
             // further off than they started, having walked right through the
             // gap on the way.
             if (!context.TacticalPlanner.TryPlanRoute(
-                    selfPosition,
                     candidate,
                     ref pathBudget,
-                    out IReadOnlyList<Vector3> route,
+                    out EnemyTacticalRoute route,
                     out bool pathBudgetExhausted))
             {
                 // No route, or no budget left to ask for one. Only the first
@@ -170,7 +192,7 @@ internal sealed class EnemyRetreatPlanner
             // point judged out of sight has to be the point walked to. Every
             // check below this line is on the endpoint, and it costs nothing
             // extra here because they all come after the route.
-            candidate = route[route.Count - 1];
+            candidate = route.Endpoint;
 
             if (RouteClosesOnAnyThreat(route, threats))
             {
@@ -181,7 +203,7 @@ internal sealed class EnemyRetreatPlanner
 
             if (!PlayerGazeNetwork.IsBodySeenByAnyone(
                     candidate,
-                    context.Navigator.BodyHeight))
+                    route.EndpointBodyHeight))
             {
                 Restart();
                 point = candidate;

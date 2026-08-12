@@ -98,26 +98,31 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
         repathTimer = tactics.retreatRepathInterval;
 
-        // A path query per candidate now, because a candidate is only good if
-        // the route to it is.
+        // At least one path query per candidate, because a candidate is only
+        // good if the complete posture-aware route to it is.
         int candidateCount = Mathf.Clamp(
             tactics.candidatesPerTick,
             1,
             tactics.retreatAngles.Length * tactics.retreatDistanceScales.Length
         );
 
-        // Two spare paths, not one: the check on the point already held costs
-        // a query for the standing route and another for the crawl, and being
-        // refused the second read as "this no longer leads away" and threw a
-        // good point away for a fresh search.
+        // Three spare paths make four available even with one candidate: the
+        // expensive posture route is standing, crawl reference, standing
+        // waypoint and crawl continuation. Longer scans resume next frame.
         if (!context.TryReservePlanningQueries(
-                candidateCount + 2,
+                candidateCount + 3,
                 candidateCount + 1,
                 out int pathBudget,
                 out int visibilityBudget))
         {
+            // Refused the budget, so the point in hand has not been checked
+            // against where the watchers are standing now - and they are the
+            // reason this state exists. Being refused is ordinary with several
+            // enemies about, so this is the common case, not the corner: keep
+            // the point, retry next frame, but do not walk on a verdict from
+            // the last one.
             repathTimer = 0f;
-            KeepMovingOrStop();
+            context.StopNavigation();
             return;
         }
 
@@ -126,20 +131,31 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         // circuit around the player instead of leaving.
         if (hasRetreatPoint &&
             Vector3.Distance(selfPosition, retreatPoint) >
-            tactics.arrivalDistance &&
-            planner.IsPointStillLeaving(
-                selfPosition,
-                retreatPoint,
-                threats,
-                ref pathBudget) &&
-            TryIsSeenByAnyone(
-                retreatPoint,
-                ref visibilityBudget,
-                out bool existingPointIsSeen) &&
-            !existingPointIsSeen)
+            tactics.arrivalDistance)
         {
-            context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
-            return;
+            switch (CheckRetreatPoint(
+                        ref pathBudget,
+                        ref visibilityBudget))
+            {
+                case EnemyTacticalPlanResult.Found:
+                    context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+                    return;
+
+                // It leads back past somebody now, or nowhere at all. Drop it
+                // here rather than leaving it for the search below to hand
+                // back when the search itself runs out of budget.
+                case EnemyTacticalPlanResult.NotFound:
+                    hasRetreatPoint = false;
+                    break;
+
+                // Nothing left to check it with. It may well still be good, so
+                // it is kept - but walking on an unchecked verdict is what
+                // this state exists to avoid.
+                default:
+                    repathTimer = 0f;
+                    context.StopNavigation();
+                    return;
+            }
         }
 
         switch (planner.TryFindRetreatPoint(
@@ -155,9 +171,9 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
                 context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
                 return;
 
-            // Half a fan searched. Keep whatever is already held and finish
-            // the search next tick rather than throwing it away and starting
-            // the same one again.
+            // Half a fan searched. Anything still held got here either checked
+            // or already underfoot, so it is kept and the search finishes next
+            // tick rather than being thrown away and started again.
             case EnemyTacticalPlanResult.Deferred:
                 repathTimer = 0f;
                 KeepMovingOrStop();
@@ -215,23 +231,39 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         context.StopNavigation();
     }
 
-    private bool TryIsSeenByAnyone(
-        Vector3 position,
-        ref int visibilityBudget,
-        out bool isSeen
+    // Whether the point already held is still worth walking to: reachable by a
+    // route that leads away, and out of sight when the enemy gets there. Both
+    // halves can come back unanswered for want of budget, and unanswered is
+    // its own verdict rather than a refusal.
+    private EnemyTacticalPlanResult CheckRetreatPoint(
+        ref int pathBudget,
+        ref int visibilityBudget
     )
     {
-        if (visibilityBudget <= 0)
+        EnemyTacticalPlanResult leaving = planner.CheckPointStillLeaving(
+            retreatPoint,
+            threats,
+            ref pathBudget,
+            out EnemyTacticalRoute route
+        );
+
+        if (leaving != EnemyTacticalPlanResult.Found)
         {
-            isSeen = false;
-            return false;
+            return leaving;
         }
 
+        if (visibilityBudget <= 0 || route == null)
+        {
+            return EnemyTacticalPlanResult.Deferred;
+        }
+
+        retreatPoint = route.Endpoint;
         visibilityBudget--;
-        isSeen = PlayerGazeNetwork.IsBodySeenByAnyone(
-            position,
-            context.Navigator.BodyHeight
-        );
-        return true;
+
+        return PlayerGazeNetwork.IsBodySeenByAnyone(
+                   retreatPoint,
+                   route.EndpointBodyHeight)
+            ? EnemyTacticalPlanResult.NotFound
+            : EnemyTacticalPlanResult.Found;
     }
 }

@@ -22,10 +22,6 @@ internal sealed class EnemyFlankPlanner
     private const float SnapshotMoveTolerance = 1f;
     private const float SnapshotTurnToleranceDot = 0.94f;
 
-    // How far the route's own endpoint may sit from the point that was asked
-    // for before it counts as somewhere else, and has to be looked at again.
-    private const float EndpointDriftTolerance = 0.25f;
-
     private readonly EnemyBrainContext context;
 
     private int cursor;
@@ -36,18 +32,31 @@ internal sealed class EnemyFlankPlanner
     private Vector3 searchTargetPosition;
     private Vector3 searchTargetForward;
 
-    // Where the enemy stood when the pass began. Routes are planned from here
-    // rather than from wherever it has walked to since, because a deferred
-    // search keeps the point it already had and keeps walking towards it - so
-    // planning from the live position gave every tick of one pass a slightly
-    // different route, and a half-finished check of one route is not a
-    // half-finished check of the next.
+    // Where the enemy stood when the pass began. Routes are planned from where
+    // it stands now - the builder samples its own feet, so there is no other
+    // origin to give it - and this is the anchor that says when "now" has
+    // moved far enough that the half of the fan already judged was judged from
+    // somewhere else. The state stands the enemy still while a pass is in
+    // flight, so in practice the two stay together and a half-finished route
+    // check resumes down the same route.
     private Vector3 searchSelfPosition;
 
     // Which candidate the half-finished route check belongs to, so a stale
     // cursor is never applied to the next candidate's route.
     private int routeScanCandidate = -1;
     private EnemyRouteScan routeScan;
+
+    // Whether a pass is part way through. Everything it has judged so far was
+    // judged from where the enemy stood when it began, so letting the enemy
+    // walk while it waits for budget throws the pass away.
+    //
+    // A half-walked route counts even when no candidate has been finished yet.
+    // The first candidate's route can be long enough to spend the whole tick,
+    // which leaves the cursor holding a place in it and the candidate count at
+    // zero - and that was read as "nothing in progress", so the enemy walked
+    // on and the scan it had already paid for was thrown away.
+    public bool HasPendingSearch =>
+        searchedThisPass > 0 || routeScanCandidate >= 0;
 
     public EnemyFlankPlanner(EnemyBrainContext context)
     {
@@ -75,7 +84,6 @@ internal sealed class EnemyFlankPlanner
         float[] angles = tactics.flankBehindAngles;
         float[] scales = tactics.flankDistanceScales;
         int total = angles.Length * scales.Length;
-        int allowance = Mathf.Clamp(tactics.candidatesPerTick, 1, total);
 
         // One pose per pass. Perception refreshes the observation whenever it
         // sees the target again, so without this the first half of the fan was
@@ -86,7 +94,7 @@ internal sealed class EnemyFlankPlanner
         // The enemy's own position is part of that pose: it is walking to the
         // point it already had while it looks for the next one, and every
         // candidate is judged by the route from where it stands.
-        if (searchedThisPass > 0 &&
+        if (HasPendingSearch &&
             (!IsSameSearchPose(targetObservation) ||
              (selfPosition - searchSelfPosition).sqrMagnitude >
              SnapshotMoveTolerance * SnapshotMoveTolerance))
@@ -94,12 +102,25 @@ internal sealed class EnemyFlankPlanner
             ResetSearch();
         }
 
-        if (searchedThisPass == 0)
+        // A route check part way through counts as a pass in progress even
+        // before its candidate is finished, or the origin its corners were
+        // measured from would be moved out from under it every tick.
+        if (!HasPendingSearch)
         {
             searchTargetPosition = targetObservation.Position;
             searchTargetForward = targetObservation.Forward;
             searchSelfPosition = selfPosition;
         }
+
+        // Only what is left of the fan. Taking the whole per-tick allowance on
+        // the last tick of a pass wrapped round and judged the first few
+        // candidates a second time - twenty-four checks for a fan of
+        // twenty-one, and the extra three paid for on the server.
+        int allowance = Mathf.Clamp(
+            tactics.candidatesPerTick,
+            1,
+            total - searchedThisPass
+        );
 
         Vector3 behind = -searchTargetForward;
         behind.y = 0f;
@@ -112,8 +133,6 @@ internal sealed class EnemyFlankPlanner
         behind.Normalize();
 
         float preferred = context.Config.flankBehindDistance;
-        float bodyHeight = context.Navigator.BodyHeight;
-
         // How many of this tick's candidates were seen through to an answer.
         // Advancing the cursor by the whole allowance regardless was how a
         // budget spent entirely on one long route left seven points behind
@@ -155,27 +174,13 @@ internal sealed class EnemyFlankPlanner
                 continue;
             }
 
-            visibilityBudget--;
-
-            // No use walking to a spot the player is already looking at.
-            // Hidden from everyone, not just the one being crept up on.
-            // Checking only the nearest meant the enemy planned a route
-            // hidden from one player, walked it in full view of another, was
-            // spotted, broke off and started over - the same circling as
-            // before, brought on by a second person in the room.
-            if (PlayerGazeNetwork.IsBodySeenByAnyone(candidate, bodyHeight))
-            {
-                continue;
-            }
-
-            // Nor to a hidden spot the enemy cannot get to. Asked with this
-            // agent's own type, area mask and posture, so "reachable" means
-            // reachable by this enemy rather than by an idealised one.
+            // Reachable first, by this agent's own type, area mask and
+            // posture, so "reachable" means reachable by this enemy rather
+            // than by an idealised one.
             if (!context.TacticalPlanner.TryPlanRoute(
-                    searchSelfPosition,
                     candidate,
                     ref pathBudget,
-                    out IReadOnlyList<Vector3> route,
+                    out EnemyTacticalRoute route,
                     out bool pathBudgetExhausted))
             {
                 if (pathBudgetExhausted)
@@ -187,35 +192,29 @@ internal sealed class EnemyFlankPlanner
                 continue;
             }
 
-            // Where the route actually ends, which is not always the point it
-            // was asked for: planning samples the destination again, with the
-            // navigator's radius rather than this fan's, and the posture that
-            // finds a way through need not be the one that found the point.
-            // That gap is wider than the distance which counts as having
-            // arrived, so the spot judged hidden, the spot claimed and the
-            // spot walked to have to be this one, not the one asked for.
-            Vector3 endpoint = route[route.Count - 1];
+            // The route ends where the agent can stand, which is not always
+            // the point asked for: planning samples the destination again with
+            // the navigator's radius rather than this fan's, and the posture
+            // that finds a way through need not be the one that found the
+            // point. So the view is asked about this, once, after the route -
+            // asking first and adopting the endpoint afterwards left the enemy
+            // holding a verdict about a spot it was no longer going to.
+            //
+            // The loop above only starts a candidate with a raycast in hand,
+            // and nothing else spends one before here.
+            candidate = route.Endpoint;
+            visibilityBudget--;
 
-            // It drifted, so the view of it was never checked. Only the crawl
-            // fallback really moves it, which is why this is a branch rather
-            // than a second raycast on every candidate.
-            if ((endpoint - candidate).sqrMagnitude >
-                EndpointDriftTolerance * EndpointDriftTolerance)
+            // No use walking to a spot somebody is already looking at. Anybody,
+            // not just the one being crept up on: a route hidden from one
+            // player, walked in full view of another, is how the enemy was
+            // spotted, broke off, and started the same circling again.
+            if (PlayerGazeNetwork.IsBodySeenByAnyone(
+                    candidate,
+                    route.EndpointBodyHeight))
             {
-                if (visibilityBudget <= 0)
-                {
-                    continue;
-                }
-
-                visibilityBudget--;
-
-                if (PlayerGazeNetwork.IsBodySeenByAnyone(endpoint, bodyHeight))
-                {
-                    continue;
-                }
+                continue;
             }
-
-            candidate = endpoint;
 
             // Nor by a route that crosses somebody's view on the way. The
             // shortest path to somewhere behind a person usually goes straight
@@ -227,7 +226,6 @@ internal sealed class EnemyFlankPlanner
 
             bool routeHidden = context.TacticalPlanner.IsRouteHidden(
                 route,
-                bodyHeight,
                 tactics.routeSampleSpacing,
                 ref visibilityBudget,
                 ref scan,

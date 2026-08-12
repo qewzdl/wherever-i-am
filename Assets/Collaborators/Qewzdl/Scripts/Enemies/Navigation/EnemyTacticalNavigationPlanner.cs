@@ -1,6 +1,169 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;
+
+public readonly struct EnemyTacticalRouteLeg
+{
+    public EnemyPosture Posture { get; }
+    public float BodyHeight { get; }
+    public int FirstCornerIndex { get; }
+    public int CornerCount { get; }
+    public Vector3 Endpoint { get; }
+
+    internal EnemyTacticalRouteLeg(
+        EnemyPosture posture,
+        float bodyHeight,
+        int firstCornerIndex,
+        int cornerCount,
+        Vector3 endpoint)
+    {
+        Posture = posture;
+        BodyHeight = bodyHeight;
+        FirstCornerIndex = firstCornerIndex;
+        CornerCount = cornerCount;
+        Endpoint = endpoint;
+    }
+}
+
+// Immutable for the duration of one tactical query. The owning planner reuses
+// its buffers on the next query, so callers consume the route immediately and
+// store only its endpoint. Keeping the posture legs beside the flattened
+// corners lets visibility use the body height the enemy will have there.
+public sealed class EnemyTacticalRoute : IReadOnlyList<Vector3>
+{
+    private const float SharedCornerSqrTolerance = 0.0025f;
+
+    private readonly List<Vector3> corners = new();
+    private readonly List<EnemyTacticalRouteLeg> legs = new();
+
+    public int Count => corners.Count;
+    public Vector3 this[int index] => corners[index];
+    public IReadOnlyList<EnemyTacticalRouteLeg> Legs => legs;
+    public Vector3 Endpoint => corners.Count > 0
+        ? corners[corners.Count - 1]
+        : default;
+    public float EndpointBodyHeight => legs.Count > 0
+        ? legs[legs.Count - 1].BodyHeight
+        : 0f;
+
+    internal int Fingerprint { get; private set; }
+
+    internal void Clear()
+    {
+        corners.Clear();
+        legs.Clear();
+        Fingerprint = 0;
+    }
+
+    internal bool CopyFrom(
+        EnemyPostureTraversalPlan plan,
+        EnemyNavigator navigator)
+    {
+        Clear();
+
+        for (int legIndex = 0; legIndex < plan.LegCount; legIndex++)
+        {
+            EnemyPostureTraversalLeg sourceLeg = plan.GetLeg(legIndex);
+            Vector3[] sourceCorners = sourceLeg.Path?.corners;
+
+            if (sourceCorners == null || sourceCorners.Length == 0)
+            {
+                Clear();
+                return false;
+            }
+
+            int firstCornerIndex = corners.Count == 0
+                ? 0
+                : corners.Count - 1;
+            int sourceStart = 0;
+
+            if (corners.Count > 0 &&
+                (corners[corners.Count - 1] - sourceCorners[0]).sqrMagnitude <=
+                SharedCornerSqrTolerance)
+            {
+                sourceStart = 1;
+            }
+
+            for (int i = sourceStart; i < sourceCorners.Length; i++)
+            {
+                corners.Add(sourceCorners[i]);
+            }
+
+            int cornerCount = corners.Count - firstCornerIndex;
+
+            if (cornerCount <= 0)
+            {
+                Clear();
+                return false;
+            }
+
+            legs.Add(new EnemyTacticalRouteLeg(
+                sourceLeg.Posture,
+                navigator.GetBodyHeightForPosture(sourceLeg.Posture),
+                firstCornerIndex,
+                cornerCount,
+                sourceLeg.Destination));
+        }
+
+        Fingerprint = CalculateFingerprint();
+        return corners.Count > 0 && legs.Count == plan.LegCount;
+    }
+
+    internal float GetBodyHeightForSegment(int segmentEndCornerIndex)
+    {
+        for (int i = 0; i < legs.Count; i++)
+        {
+            EnemyTacticalRouteLeg leg = legs[i];
+            int firstSegmentEnd = leg.FirstCornerIndex + 1;
+            int lastSegmentEnd = leg.FirstCornerIndex + leg.CornerCount - 1;
+
+            if (segmentEndCornerIndex >= firstSegmentEnd &&
+                segmentEndCornerIndex <= lastSegmentEnd)
+            {
+                return leg.BodyHeight;
+            }
+        }
+
+        return EndpointBodyHeight;
+    }
+
+    public IEnumerator<Vector3> GetEnumerator()
+    {
+        return corners.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    private int CalculateFingerprint()
+    {
+        unchecked
+        {
+            int hash = corners.Count;
+
+            for (int i = 0; i < corners.Count; i++)
+            {
+                Vector3 corner = corners[i];
+                hash = hash * 31 + Mathf.RoundToInt(corner.x * 4f);
+                hash = hash * 31 + Mathf.RoundToInt(corner.y * 4f);
+                hash = hash * 31 + Mathf.RoundToInt(corner.z * 4f);
+            }
+
+            for (int i = 0; i < legs.Count; i++)
+            {
+                EnemyTacticalRouteLeg leg = legs[i];
+                hash = hash * 31 + (int)leg.Posture;
+                hash = hash * 31 + Mathf.RoundToInt(leg.BodyHeight * 100f);
+                hash = hash * 31 + leg.FirstCornerIndex;
+                hash = hash * 31 + leg.CornerCount;
+            }
+
+            return hash;
+        }
+    }
+}
 
 public enum EnemyTacticalPlanResult
 {
@@ -50,8 +213,7 @@ public struct EnemyRouteScan
 public sealed class EnemyTacticalNavigationPlanner
 {
     private readonly EnemyNavigator navigator;
-    private readonly NavMeshPath routePath = new();
-    private readonly List<Vector3> routeCorners = new();
+    private readonly EnemyTacticalRoute routePlan = new();
 
     public EnemyTacticalNavigationPlanner(EnemyNavigator navigator)
     {
@@ -82,31 +244,31 @@ public sealed class EnemyTacticalNavigationPlanner
     // IsRouteHidden below spends its raycast allowance: a search that runs out
     // partway stops there and is resumed, rather than quietly running the
     // server's whole frame budget through one enemy's fan.
+    // Always from where the enemy is standing. The builder samples its own
+    // feet and asks whether it can hold the posture there, so an origin passed
+    // in would have been a different question from the one being answered.
     public bool TryPlanRoute(
-        Vector3 from,
         Vector3 to,
         ref int pathBudget,
-        out IReadOnlyList<Vector3> route,
+        out EnemyTacticalRoute route,
         out bool budgetExhausted
     )
     {
-        routeCorners.Clear();
-        route = routeCorners;
+        routePlan.Clear();
+        route = routePlan;
         budgetExhausted = false;
 
         if (navigator == null ||
             !navigator.TryPlanTacticalRoute(
-                from,
                 to,
-                routePath,
                 ref pathBudget,
+                out EnemyPostureTraversalPlan posturePlan,
                 out budgetExhausted))
         {
             return false;
         }
 
-        routeCorners.AddRange(routePath.corners);
-        return routeCorners.Count > 0;
+        return routePlan.CopyFrom(posturePlan, navigator);
     }
 
     // Cheap identity for a route, quantised to a quarter of a metre so the
@@ -165,6 +327,44 @@ public sealed class EnemyTacticalNavigationPlanner
         out bool budgetExhausted
     )
     {
+        return IsRouteHidden(
+            route,
+            null,
+            bodyHeight,
+            sampleSpacing,
+            ref budget,
+            ref scan,
+            out budgetExhausted);
+    }
+
+    public bool IsRouteHidden(
+        EnemyTacticalRoute route,
+        float sampleSpacing,
+        ref int budget,
+        ref EnemyRouteScan scan,
+        out bool budgetExhausted
+    )
+    {
+        return IsRouteHidden(
+            route,
+            route,
+            route != null ? route.EndpointBodyHeight : 0f,
+            sampleSpacing,
+            ref budget,
+            ref scan,
+            out budgetExhausted);
+    }
+
+    private static bool IsRouteHidden(
+        IReadOnlyList<Vector3> route,
+        EnemyTacticalRoute postureRoute,
+        float defaultBodyHeight,
+        float sampleSpacing,
+        ref int budget,
+        ref EnemyRouteScan scan,
+        out bool budgetExhausted
+    )
+    {
         budgetExhausted = false;
 
         if (route == null || route.Count < 2)
@@ -180,7 +380,10 @@ public sealed class EnemyTacticalNavigationPlanner
         // and a rebuilt NavMesh or a moved obstacle can hand back a different
         // one with the same number of corners - resuming into that skips a
         // stretch nobody looked at and reports it hidden.
-        int fingerprint = Fingerprint(route);
+        int fingerprint = postureRoute != null
+            ? postureRoute.Fingerprint
+            : Fingerprint(route) * 31 +
+              Mathf.RoundToInt(defaultBodyHeight * 100f);
 
         if (scan.Fingerprint != fingerprint || scan.Segment >= route.Count)
         {
@@ -195,6 +398,9 @@ public sealed class EnemyTacticalNavigationPlanner
         {
             Vector3 previous = route[i - 1];
             Vector3 corner = route[i];
+            float bodyHeight = postureRoute != null
+                ? postureRoute.GetBodyHeightForSegment(i)
+                : defaultBodyHeight;
             float length = Vector3.Distance(previous, corner);
             int steps = Mathf.Max(1, Mathf.CeilToInt(length / sampleSpacing));
 

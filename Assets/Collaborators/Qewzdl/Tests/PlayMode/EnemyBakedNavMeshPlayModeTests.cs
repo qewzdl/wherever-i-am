@@ -1695,12 +1695,11 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     // of this that does drop to a crawl - was ever asked about it, and the
     // crawl fallback could not be reached by the destinations that needed it.
     //
-    // And the route to one costs two path queries. Being granted a single
-    // query has to read as "come back for this" rather than "there is no way
-    // through": the callers stop and retry on the first, and on the second
-    // they walk a straight line past whoever they were hiding from.
+    // Only NavMesh.CalculatePath consumes the path-query allowance. Rejecting
+    // standing at destination sampling is free, so the one actual crawl path
+    // still fits into a one-query grant.
     [UnityTest]
-    public IEnumerator TacticalPlanning_ForACrawlOnlyDestination_SamplesItAndCostsTwoQueries()
+    public IEnumerator TacticalPlanning_ForACrawlOnlyDestination_SamplesItAndChargesTheCalculatedPath()
     {
         EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
             new Vector3(0f, 0f, -6f),
@@ -1726,70 +1725,297 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "A crawl-only destination was refused before the route planner saw it.");
         Assert.That(Mathf.Abs(sampled.z), Is.LessThan(2.5f));
 
-        Vector3 from = navigator.transform.position;
-        NavMeshPath path = new();
+        EnemyTacticalNavigationPlanner tacticalPlanner = new(navigator);
 
-        // One query buys the standing attempt and nothing else. Answering "no
-        // route" here strikes the candidate out on evidence never gathered.
+        // Standing is rejected before CalculatePath; the crawl calculation is
+        // the only path query charged for this endpoint.
         int pathBudget = 1;
 
         Assert.That(
-            navigator.TryPlanTacticalRoute(
-                from,
+            tacticalPlanner.TryPlanRoute(
                 sampled,
-                path,
                 ref pathBudget,
+                out EnemyTacticalRoute route,
                 out bool budgetExhausted),
-            Is.False);
-        Assert.That(budgetExhausted, Is.True);
+            Is.True);
+        Assert.That(budgetExhausted, Is.False);
         Assert.That(pathBudget, Is.Zero);
 
         pathBudget = 2;
 
         Assert.That(
-            navigator.TryPlanTacticalRoute(
-                from,
+            tacticalPlanner.TryPlanRoute(
                 sampled,
-                path,
                 ref pathBudget,
+                out route,
                 out budgetExhausted),
             Is.True,
             "The crawl fallback did not find the route the enemy walks above.");
         Assert.That(budgetExhausted, Is.False);
         Assert.That(
             pathBudget,
-            Is.Zero,
+            Is.EqualTo(1),
             "The crawl fallback did not charge for its query.");
 
-        // Planning samples the destination again with the navigator's own
-        // radius, which is two metres against an arrival distance of just over
-        // one, so the route can end well away from the point it was asked for.
-        // The planners read that endpoint off the last corner and walk to it -
-        // approving a route to one spot and then moving to another is how a
-        // flank arrived somewhere it had never checked.
-        Vector3 throughTheWall = new(3.5f, 0f, 0f);
+        // Planning lands the destination on the NavMesh before routing to it,
+        // so the route ends somewhere other than the point asked for. The
+        // planners read that off the last corner and walk to it: approving a
+        // route to one spot and then moving to another is how a flank arrived
+        // somewhere it had never checked.
+        Vector3 shortOfTheWall = new(2.6f, 0f, 0f);
         pathBudget = 2;
 
         Assert.That(
-            navigator.TryPlanTacticalRoute(
-                from,
-                throughTheWall,
-                path,
+            tacticalPlanner.TryPlanRoute(
+                shortOfTheWall,
                 ref pathBudget,
+                out route,
                 out budgetExhausted),
             Is.True);
 
-        Vector3[] corners = path.corners;
-        Vector3 endpoint = corners[corners.Length - 1];
+        Vector3 endpoint = route.Endpoint;
 
         Assert.That(
             Mathf.Abs(endpoint.x),
             Is.LessThan(2.4f),
             "The route ended outside the corridor walls.");
         Assert.That(
-            Vector3.Distance(endpoint, throughTheWall),
-            Is.GreaterThan(1f),
+            Vector3.Distance(endpoint, shortOfTheWall),
+            Is.GreaterThan(0.1f),
             "This case needs a destination the planner has to move.");
+
+        // And how far it may be moved is the move's own landing radius, not a
+        // wider one of the preview's. A point well beyond it is refused here
+        // exactly as the move would refuse it - the preview used to snap such
+        // a point back through a wall and approve the route to it.
+        Vector3 throughTheWall = new(5f, 0f, 0f);
+        pathBudget = 2;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                throughTheWall,
+                ref pathBudget,
+                out route,
+                out budgetExhausted),
+            Is.False,
+            "The preview landed a destination the move would not have.");
+        Assert.That(budgetExhausted, Is.False);
+    }
+
+    // The other way round from the test above, and the one the tactical
+    // planner used to get wrong. A crawling enemy asked about the crawling
+    // route and stopped there, while EnemyPostureTraversalPlanner puts it back
+    // on its feet as soon as its recovery check comes round - so the route the
+    // visibility check approved was the one the enemy was about to stop using.
+    // The preview must expose the same standing prefix and crawl continuation
+    // as runtime, including the height used to check visibility on each leg.
+    [UnityTest]
+    public IEnumerator TacticalPlanning_WhileCrawling_BuildsStandingThenCrawlSequence()
+    {
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out EnemyConfig config,
+            out EnemyPostureController postureController,
+            out NavMeshAgent agent);
+
+        Assert.That(
+            postureController.TrySetServerPosture(EnemyPosture.Crawling),
+            Is.True,
+            "The enemy could not be put onto its belly for this test.");
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Crawling));
+
+        // Out in the open part of the corridor, so getting up is a question of
+        // when the recovery check comes round rather than whether it can.
+        Assert.That(
+            postureController.CanUsePostureAtCurrentPosition(
+                EnemyPosture.Standing),
+            Is.True,
+            "This test needs somewhere the enemy could stand up.");
+
+        Assert.That(
+            navigator.TrySampleTacticalPoint(
+                Vector3.zero,
+                1f,
+                out Vector3 underTheCeiling),
+            Is.True);
+
+        EnemyTacticalNavigationPlanner tacticalPlanner = new(navigator);
+
+        // One query buys the standing attempt, which cannot reach a spot under
+        // a low ceiling. Coming back with "no route" would be a verdict on
+        // evidence never gathered.
+        int pathBudget = 1;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                underTheCeiling,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out bool budgetExhausted),
+            Is.False);
+        Assert.That(
+            budgetExhausted,
+            Is.True,
+            "A crawling enemy planned without trying to stand up first.");
+
+        // The waypoint scan may span frames under the same small allowance.
+        // It must make progress rather than restarting at the far endpoint.
+        bool found = false;
+
+        for (int attempt = 0; attempt < 16 && !found; attempt++)
+        {
+            pathBudget = 4;
+            found = tacticalPlanner.TryPlanRoute(
+                underTheCeiling,
+                ref pathBudget,
+                out route,
+                out budgetExhausted);
+
+            if (!found)
+            {
+                Assert.That(
+                    budgetExhausted,
+                    Is.True,
+                    "A resumable waypoint scan returned a navigation failure.");
+            }
+        }
+
+        Assert.That(found, Is.True, "The standing waypoint scan did not finish.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(route.Legs.Count, Is.EqualTo(2));
+        Assert.That(route.Legs[0].Posture, Is.EqualTo(EnemyPosture.Standing));
+        Assert.That(route.Legs[1].Posture, Is.EqualTo(EnemyPosture.Crawling));
+        Assert.That(
+            route.Legs[0].BodyHeight,
+            Is.EqualTo(config.standingAgentHeight).Within(0.001f));
+        Assert.That(
+            route.Legs[1].BodyHeight,
+            Is.EqualTo(config.crawlingAgentHeight).Within(0.001f));
+        Assert.That(
+            Vector3.Distance(route.Endpoint, route.Legs[1].Endpoint),
+            Is.LessThan(0.05f));
+        Assert.That(
+            Vector3.Distance(route.Legs[0].Endpoint, route.Endpoint),
+            Is.GreaterThan(0.5f),
+            "The standing prefix was collapsed into the final crawl endpoint.");
+
+        // A non-zero transition used to lose the prefix: after standing up,
+        // the normal repath rebuilt from the final destination and immediately
+        // put the enemy back onto its belly at the original position.
+        Vector3 previewStandingEndpoint = route.Legs[0].Endpoint;
+        config.PostureProfile.crawlingToStandingTransitionDuration = 0.05f;
+
+        Assert.That(
+            navigator.TryMoveTo(underTheCeiling, config.chaseSpeed),
+            Is.False,
+            "The posture change should finish before the path is applied.");
+        Assert.That(postureController.IsPostureTransitionInProgress, Is.True);
+        Assert.That(
+            postureController.TargetPosture,
+            Is.EqualTo(EnemyPosture.Standing));
+
+        yield return new WaitForSeconds(0.06f);
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Standing));
+        Assert.That(
+            navigator.TryMoveTo(underTheCeiling, config.chaseSpeed),
+            Is.True,
+            "Runtime did not resume the standing prefix after the transition.");
+
+        Vector3[] runtimeCorners = agent.path.corners;
+        Assert.That(runtimeCorners.Length, Is.GreaterThan(1));
+        Assert.That(
+            Vector3.Distance(
+                runtimeCorners[runtimeCorners.Length - 1],
+                previewStandingEndpoint),
+            Is.LessThan(0.1f),
+            "Runtime applied a different first leg from the tactical preview.");
+    }
+
+    // And the window in between, which is where the two planners used to
+    // disagree. For the second or so a crawl is held for, the move will not
+    // try to get up however clear the ceiling is, so neither may the plan -
+    // judging a standing route the enemy is not about to walk is the same
+    // mistake as judging a crawling one it is about to leave.
+    [UnityTest]
+    public IEnumerator TacticalPlanning_WithinTheCrawlCooldown_StaysOnTheCrawlingRoute()
+    {
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out EnemyConfig config,
+            out EnemyPostureController postureController,
+            out _);
+
+        config.PostureProfile.minPostureDuration = 5f;
+
+        Assert.That(
+            postureController.TrySetServerPosture(EnemyPosture.Crawling),
+            Is.True);
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Crawling));
+        Assert.That(
+            postureController.CanUsePostureAtCurrentPosition(
+                EnemyPosture.Standing),
+            Is.True,
+            "This test needs a ceiling that is not what keeps it down.");
+
+        // Clear overhead, but only just onto its belly, so the move would keep
+        // crawling and so must the plan.
+        Assert.That(
+            postureController.GetPreferredPlanningPosture(),
+            Is.EqualTo(EnemyPosture.Crawling));
+
+        Assert.That(
+            navigator.TrySampleTacticalPoint(
+                Vector3.zero,
+                1f,
+                out Vector3 underTheCeiling),
+            Is.True);
+
+        // One query is enough when the first posture tried is the right one.
+        EnemyTacticalNavigationPlanner tacticalPlanner = new(navigator);
+        int pathBudget = 1;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                underTheCeiling,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out bool budgetExhausted),
+            Is.True,
+            "The plan spent its query standing up while the move would crawl.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(pathBudget, Is.Zero);
+
+        // And when the crawl destination cannot even be sampled, that is the
+        // answer. No CalculatePath was issued and standing must remain untried.
+        Vector3 outsideTheCorridor = new(20f, 0f, 0f);
+        pathBudget = 2;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                outsideTheCorridor,
+                ref pathBudget,
+                out route,
+                out budgetExhausted),
+            Is.False);
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(
+            pathBudget,
+            Is.EqualTo(2),
+            "A held crawl still went on to plan a standing route.");
     }
 
     [UnityTest]

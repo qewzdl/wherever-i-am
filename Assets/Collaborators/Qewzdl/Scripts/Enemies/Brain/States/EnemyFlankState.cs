@@ -174,22 +174,26 @@ public sealed class EnemyFlankState : IEnemyStateHandler
             )
         );
 
-        // One route per candidate plus two for the walking-into-a-watcher
-        // check below, which is what that route costs when the way through is
-        // crawl-sized. A candidate that only crawls costs two as well, so the
-        // search can still run out early - that is a deferral, and it resumes
-        // on the candidate it stopped at rather than skipping past it.
+        // One route per candidate plus three spare queries. Four is the minimum
+        // complete allowance for the expensive case: standing attempt, crawl
+        // reference, standing waypoint and crawl continuation. A larger fan
+        // naturally grants more; a long waypoint scan still resumes.
         if (!context.TryReservePlanningQueries(
-                candidateCount + 2,
+                candidateCount + 3,
                 visibilityQueries,
                 out pathBudget,
                 out int visibilityBudget))
         {
             // Capacity is not a navigation failure. Keep an existing point
-            // moving and retry an unplanned first point next frame.
+            // moving and retry an unplanned first point next frame - unless a
+            // pass is already part way through, because everything it has
+            // judged so far was judged from where the enemy stood when it
+            // began. Walking on until the budget comes back moves that spot,
+            // and the pass starts over: under load, a long route check would
+            // begin again and again and never finish.
             repathTimer = 0f;
 
-            if (hasFlankPoint)
+            if (hasFlankPoint && !planner.HasPendingSearch)
             {
                 return true;
             }
@@ -219,11 +223,15 @@ public sealed class EnemyFlankState : IEnemyStateHandler
             default:
                 repathTimer = 0f;
 
-                if (hasFlankPoint)
-                {
-                    return true;
-                }
-
+                // Stand still until the pass finishes, even with a point in
+                // hand. Every candidate in a pass is judged by the route from
+                // where the enemy stood when the pass began - that is what
+                // lets a half-finished route check resume - so walking on
+                // while it runs would have it commit to a route from a place
+                // it has left, which in a room with a pillar in it is the
+                // other way round the pillar. A deferred pass resumes on the
+                // very next frame, so this is a few frames of not moving,
+                // and only when the first candidates all failed.
                 context.StopNavigation();
                 return false;
         }
@@ -235,14 +243,12 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         ref int pathBudget
     )
     {
-        // Worth two path queries: what the route costs when the level only
-        // offers a crawl-sized way through. Reserving one meant the crawl
-        // attempt was refused for want of budget, and the enemy stood still
-        // over a route that was there. Most ticks do not plan, so there is
-        // nothing left over to spend and this asks the server for its own.
+        // Four queries cover a standing prefix plus its crawl continuation.
+        // Most ticks do not plan, so there is nothing left over to spend and
+        // this asks the server for its own.
         if (pathBudget <= 0 &&
             context.TryReservePlanningQueries(
-                2,
+                4,
                 0,
                 out int grantedPathQueries,
                 out _))
@@ -259,10 +265,9 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         // the enemy kept going. Standing still costs a tick; the flank timeout
         // hands this to the chase if it never resolves.
         if (!context.TacticalPlanner.TryPlanRoute(
-                selfPosition,
                 flankPoint,
                 ref pathBudget,
-                out IReadOnlyList<Vector3> route,
+                out EnemyTacticalRoute route,
                 out _))
         {
             return true;

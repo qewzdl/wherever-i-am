@@ -7,6 +7,7 @@ internal sealed class EnemyNavigationQueryService
     private int remainingPathQueries;
 
     public bool WasPathBudgetExhausted { get; private set; }
+    public int RemainingPathQueries => remainingPathQueries;
 
     public EnemyNavigationQueryService(EnemyNavigationQueryTelemetry telemetry)
     {
