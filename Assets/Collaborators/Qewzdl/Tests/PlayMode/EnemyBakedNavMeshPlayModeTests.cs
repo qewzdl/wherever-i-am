@@ -2018,6 +2018,121 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "A held crawl still went on to plan a standing route.");
     }
 
+    // Hidden lying down, in plain view the moment it gets up - and the route
+    // that begins with getting up used to be called hidden, because the scan
+    // starts at the first step of the first segment and never looks at the
+    // corner it sets off from. Nothing else covers that spot either: the
+    // perception cache measures where the enemy is at the height it has now,
+    // which is the crawl it is about to leave.
+    [UnityTest]
+    public IEnumerator RouteVisibility_WhenSettingOffMeansStandingUp_ChecksTheStartingPoint()
+    {
+        yield return StartHost();
+
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out _,
+            out EnemyPostureController postureController,
+            out _);
+
+        // Both are built after the NavMesh so they block sight without
+        // carving the floor the enemy plans over.
+        //
+        // Waist-high between the watcher and the enemy: it hides a body lying
+        // down and not one standing up. Then head-high just beyond the enemy,
+        // so everywhere the route goes is hidden at any height. Only the
+        // corner it sets off from is exposed, and only once it stands.
+        CreateGeometry(
+            "Low barrier",
+            new Vector3(0f, 0.7f, -4.5f),
+            new Vector3(4.6f, 1.4f, 0.3f));
+        CreateGeometry(
+            "High barrier",
+            new Vector3(0f, 1.5f, -6.8f),
+            new Vector3(4.6f, 3f, 0.3f));
+
+        EnemyTarget watcher = CreateSpawnedTarget(
+            new Vector3(0f, 0f, -3f),
+            canBeDetected: true,
+            withGaze: true);
+        watcher.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        Physics.SyncTransforms();
+
+        Assert.That(
+            postureController.TrySetServerPosture(EnemyPosture.Crawling),
+            Is.True);
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Crawling));
+
+        Vector3 start = navigator.transform.position;
+        float crawlHeight =
+            navigator.GetBodyHeightForPosture(EnemyPosture.Crawling);
+        float standHeight =
+            navigator.GetBodyHeightForPosture(EnemyPosture.Standing);
+
+        // The whole point of the fixture. If the barrier hides neither posture
+        // or both, the test below proves nothing, so say so here.
+        Assert.That(
+            PlayerGazeNetwork.IsBodySeenByAnyone(start, crawlHeight),
+            Is.False,
+            "Fixture: the enemy should be hidden while it is lying down.");
+        Assert.That(
+            PlayerGazeNetwork.IsBodySeenByAnyone(start, standHeight),
+            Is.True,
+            "Fixture: the enemy should be seen once it stands up.");
+
+        // The route runs off behind the head-high barrier, so every sample
+        // along it is hidden and the only thing that can fail the check is the
+        // corner it starts on. Without that look the whole route reads as
+        // hidden, which is the bug.
+        Assert.That(
+            postureController.GetPreferredPlanningPosture(),
+            Is.EqualTo(EnemyPosture.Standing));
+
+        EnemyTacticalNavigationPlanner planner = new(navigator);
+        Vector3 behindTheBarrier = new(0f, 0f, -7.4f);
+        int pathBudget = 4;
+
+        Assert.That(
+            planner.TryPlanRoute(
+                behindTheBarrier,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out _),
+            Is.True);
+        Assert.That(
+            PlayerGazeNetwork.IsBodySeenByAnyone(route.Endpoint, standHeight),
+            Is.False,
+            "Fixture: the far end of the route should be hidden even standing.");
+        Assert.That(route.Legs.Count, Is.GreaterThan(0));
+        Assert.That(
+            route.Legs[0].Posture,
+            Is.EqualTo(EnemyPosture.Standing));
+        Assert.That(route.StartsWithPostureChange, Is.True);
+
+        int visibilityBudget = 32;
+        EnemyRouteScan scan = default;
+
+        Assert.That(
+            planner.IsRouteHidden(
+                route,
+                1.5f,
+                ref visibilityBudget,
+                ref scan,
+                out bool budgetExhausted),
+            Is.False,
+            "A route that begins by standing into somebody's view was called hidden.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(
+            visibilityBudget,
+            Is.LessThan(32),
+            "The starting point was never looked at.");
+    }
+
     [UnityTest]
     public IEnumerator DoorTraversal_OnLShapedRoute_IgnoresDoorOutsideCalculatedCorridor()
     {

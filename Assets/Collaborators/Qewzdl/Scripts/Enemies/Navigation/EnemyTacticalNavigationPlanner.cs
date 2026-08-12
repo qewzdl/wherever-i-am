@@ -46,12 +46,23 @@ public sealed class EnemyTacticalRoute : IReadOnlyList<Vector3>
         ? legs[legs.Count - 1].BodyHeight
         : 0f;
 
+    // Whether setting off means changing posture where the enemy already
+    // stands. The perception cache has measured that spot, but at the height
+    // the enemy has now - getting up first is the same spot with a taller body
+    // and nobody has looked at that one.
+    public bool StartsWithPostureChange { get; private set; }
+
+    public float StartBodyHeight => legs.Count > 0
+        ? legs[0].BodyHeight
+        : 0f;
+
     internal int Fingerprint { get; private set; }
 
     internal void Clear()
     {
         corners.Clear();
         legs.Clear();
+        StartsWithPostureChange = false;
         Fingerprint = 0;
     }
 
@@ -105,6 +116,8 @@ public sealed class EnemyTacticalRoute : IReadOnlyList<Vector3>
                 sourceLeg.Destination));
         }
 
+        StartsWithPostureChange = legs.Count > 0 &&
+                                  legs[0].Posture != navigator.CurrentPosture;
         Fingerprint = CalculateFingerprint();
         return corners.Count > 0 && legs.Count == plan.LegCount;
     }
@@ -142,6 +155,7 @@ public sealed class EnemyTacticalRoute : IReadOnlyList<Vector3>
         unchecked
         {
             int hash = corners.Count;
+            hash = hash * 31 + (StartsWithPostureChange ? 1 : 0);
 
             for (int i = 0; i < corners.Count; i++)
             {
@@ -367,10 +381,10 @@ public sealed class EnemyTacticalNavigationPlanner
     {
         budgetExhausted = false;
 
-        if (route == null || route.Count < 2)
+        if (route == null || route.Count == 0)
         {
             scan = default;
-            return route != null && route.Count == 1;
+            return false;
         }
 
         sampleSpacing = Mathf.Max(0.25f, sampleSpacing);
@@ -389,6 +403,46 @@ public sealed class EnemyTacticalNavigationPlanner
         {
             scan = default;
             scan.Fingerprint = fingerprint;
+        }
+
+        // The point the enemy is already standing on, but only when it has to
+        // change posture to set off. Every candidate route starts from the
+        // same place, so sampling it otherwise separates no two of them and
+        // repeats what the perception cache already answered at the height the
+        // enemy has now. Standing up first is the case that answer does not
+        // cover: hidden lying down, in plain view the moment it rises, and the
+        // route was called hidden because nobody looked at its first corner.
+        //
+        // A zero segment means that look is still owed, so running out of
+        // budget here comes back to it rather than stepping over it.
+        if (postureRoute != null &&
+            postureRoute.StartsWithPostureChange &&
+            scan.Segment == 0)
+        {
+            if (budget <= 0)
+            {
+                budgetExhausted = true;
+                return false;
+            }
+
+            budget--;
+
+            if (PlayerGazeNetwork.IsBodySeenByAnyone(
+                    route[0],
+                    postureRoute.StartBodyHeight))
+            {
+                scan = default;
+                return false;
+            }
+
+            scan.Segment = 1;
+            scan.Step = 1;
+        }
+
+        if (route.Count < 2)
+        {
+            scan = default;
+            return true;
         }
 
         int firstSegment = Mathf.Max(1, scan.Segment);

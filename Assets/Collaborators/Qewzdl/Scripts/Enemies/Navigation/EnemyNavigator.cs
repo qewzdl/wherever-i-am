@@ -741,6 +741,15 @@ public class EnemyNavigator : MonoBehaviour
         postureController != null &&
         postureTraversal != null;
 
+    // The posture the enemy is in right now, as opposed to the one a route
+    // would be planned with. What a route costs in exposure depends on the
+    // difference: setting off in another posture is a change of body at a spot
+    // that has only been looked at as it stands.
+    internal EnemyPosture CurrentPosture =>
+        postureController != null
+            ? postureController.CurrentPosture
+            : EnemyPosture.Standing;
+
     internal float GetBodyHeightForPosture(EnemyPosture posture)
     {
         return postureController != null
