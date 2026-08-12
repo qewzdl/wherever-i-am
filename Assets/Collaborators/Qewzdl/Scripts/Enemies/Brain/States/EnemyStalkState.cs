@@ -13,6 +13,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
     private float watchedTimer;
     private float lostTimer;
+    private float unwatchedTimer;
 
     public EnemyState State => EnemyState.Stalk;
 
@@ -97,8 +98,37 @@ public sealed class EnemyStalkState : IEnemyStateHandler
         if (watchers.Count == 0)
         {
             watchedTimer = 0f;
+            unwatchedTimer += deltaTime;
+
+            // Nobody is looking. That is the opening the whole manoeuvre is
+            // waiting for, and standing here watching until something else
+            // times out spends it - the log for that build has the enemy
+            // stalling in cover for twenty seconds while the player faced a
+            // wall, then charging when the overall budget ran out.
+            //
+            // An opening is only worth taking if the pursuit still has an
+            // attempt to spend on it. Otherwise going round is a state change
+            // that Flank undoes on its first tick.
+            if (unwatchedTimer >=
+                context.Config.StealthTactics.stalkUnwatchedFlankDelay)
+            {
+                if (context.EngagementTactics.CanStartAnotherStealthAttempt(
+                        context.Config.StealthTactics
+                            .maxStealthAttemptsPerEngagement))
+                {
+                    context.ChangeState(EnemyState.Flank);
+                    return;
+                }
+
+                context.GiveUpOnStealth(
+                    EnemyStealthFailureReason.AttemptsSpent
+                );
+            }
+
             return;
         }
+
+        unwatchedTimer = 0f;
 
         // Being looked at for a moment is being noticed. A single frame is
         // not: a player sweeping the room past the enemy has not seen it.
@@ -121,6 +151,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
     {
         watchedTimer = 0f;
         lostTimer = 0f;
+        unwatchedTimer = 0f;
     }
 
     private void FaceTarget(

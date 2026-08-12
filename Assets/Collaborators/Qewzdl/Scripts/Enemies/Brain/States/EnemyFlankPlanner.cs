@@ -29,8 +29,16 @@ internal sealed class EnemyFlankPlanner
     private bool mirrorSides;
     private Vector3 fallbackPoint;
     private bool hasFallbackPoint;
+    private int fallbackRouteFingerprint;
     private Vector3 searchTargetPosition;
     private Vector3 searchTargetForward;
+
+    // What the pass has seen, so a fruitless one can say which kind of
+    // fruitless it was. A wall is permanent and a pair of eyes is not, and the
+    // state answers the two differently.
+    private bool anyFreshRouteFound;
+    private bool anyPreviouslyFailedRoute;
+    private bool anySlotBlocked;
 
     // Where the enemy stood when the pass began. Routes are planned from where
     // it stands now - the builder samples its own feet, so there is no other
@@ -58,6 +66,10 @@ internal sealed class EnemyFlankPlanner
     public bool HasPendingSearch =>
         searchedThisPass > 0 || routeScanCandidate >= 0;
 
+    // The route to the point last handed back, so the state can name it if the
+    // enemy is spotted walking it.
+    public int LastChosenRouteFingerprint { get; private set; }
+
     public EnemyFlankPlanner(EnemyBrainContext context)
     {
         this.context = context;
@@ -72,14 +84,32 @@ internal sealed class EnemyFlankPlanner
         ResetSearch();
     }
 
-    public EnemyTacticalPlanResult TryFindPointBehind(
+    // The same, but told which way round to go rather than merely told to go
+    // the other way. Alternating is only a guess at "somewhere else"; once the
+    // engagement knows which side the last attempt was caught on, the answer
+    // is not a guess.
+    public void RestartFacing(bool mirrored)
+    {
+        mirrorSides = mirrored;
+        ResetSearch();
+    }
+
+    // pointIsUsable says whether point may be walked to. It is false for every
+    // outcome except FoundHiddenRoute and an AllRoutesObserved that still
+    // managed to claim somewhere - "everything is being watched" can arrive
+    // with a spot worth taking once stealth is already blown, or with nothing
+    // at all.
+    public EnemyStealthPlanOutcome TryFindPointBehind(
         EnemyTargetObservation targetObservation,
         Vector3 selfPosition,
+        EnemyEngagementTacticsRuntime engagement,
         ref int pathBudget,
         ref int visibilityBudget,
-        out Vector3 point
+        out Vector3 point,
+        out bool pointIsUsable
     )
     {
+        pointIsUsable = false;
         EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
         float[] angles = tactics.flankBehindAngles;
         float[] scales = tactics.flankDistanceScales;
@@ -192,6 +222,23 @@ internal sealed class EnemyFlankPlanner
                 continue;
             }
 
+            // The way the last attempt was caught. Rejected before the
+            // endpoint raycast rather than after it, because a route already
+            // known to fail is not worth a query - and because the point at
+            // the end of it is usually fine, which is exactly how the enemy
+            // kept choosing the same walk into the same doorway.
+            if (engagement != null &&
+                engagement.IsRouteRejected(
+                    route,
+                    route.Fingerprint,
+                    tactics.failedRouteAvoidRadius))
+            {
+                anyPreviouslyFailedRoute = true;
+                continue;
+            }
+
+            anyFreshRouteFound = true;
+
             // The route ends where the agent can stand, which is not always
             // the point asked for: planning samples the destination again with
             // the navigator's radius rather than this fan's, and the posture
@@ -254,19 +301,29 @@ internal sealed class EnemyFlankPlanner
                         candidate,
                         tactics.claimSpacing))
                 {
+                    int chosenFingerprint = route.Fingerprint;
                     ResetSearch();
+                    LastChosenRouteFingerprint = chosenFingerprint;
                     point = candidate;
-                    return EnemyTacticalPlanResult.Found;
+                    pointIsUsable = true;
+                    return EnemyStealthPlanOutcome.FoundHiddenRoute;
                 }
 
+                // Somewhere worth going that somebody else is already going
+                // to. Nothing about the level or the players is wrong, so it
+                // must not be reported as either.
+                anySlotBlocked = true;
                 continue;
             }
 
             // A hidden place to stand, reached by a route that is seen for
             // part of the way, still ends with the enemy behind the player.
-            // Insisting on a wholly hidden route found nothing at all in a
-            // real level - the log for that build is Flank falling straight
-            // back to Stalk over and over - so it is preferred, not required.
+            // No longer an ordinary fallback: walking a watched route is not a
+            // flank, and handing it back as one is what made a player's gaze
+            // free to redirect the enemy indefinitely. It is kept for the one
+            // case where it costs nothing - the enemy has already been seen,
+            // so there is no stealth left to spend on it - and the state
+            // decides that, not this.
             if (!hasFallbackPoint &&
                 !EnemyTacticalSlotRegistry.IsClaimedByAnother(
                     context.TacticalOwnerId,
@@ -275,6 +332,7 @@ internal sealed class EnemyFlankPlanner
             {
                 hasFallbackPoint = true;
                 fallbackPoint = candidate;
+                fallbackRouteFingerprint = route.Fingerprint;
             }
         }
 
@@ -284,7 +342,7 @@ internal sealed class EnemyFlankPlanner
         if (searchedThisPass < total)
         {
             point = fallbackPoint;
-            return EnemyTacticalPlanResult.Deferred;
+            return EnemyStealthPlanOutcome.DeferredByBudget;
         }
 
         // The fallback was free when it was found, several ticks ago. Whether
@@ -293,14 +351,28 @@ internal sealed class EnemyFlankPlanner
                        EnemyTacticalSlotRegistry.TryClaim(
                            context.TacticalOwnerId,
                            fallbackPoint,
-                           context.Config.StealthTactics.claimSpacing);
+                           tactics.claimSpacing);
+
+        bool reachedFreshRoute = anyFreshRouteFound;
+        bool reachedPreviouslyFailedRoute = anyPreviouslyFailedRoute;
+        bool slotBlocked = anySlotBlocked;
+        int fallbackFingerprint = fallbackRouteFingerprint;
 
         point = fallbackPoint;
+        pointIsUsable = claimed;
         ResetSearch();
 
-        return claimed
-            ? EnemyTacticalPlanResult.Found
-            : EnemyTacticalPlanResult.NotFound;
+        if (claimed)
+        {
+            LastChosenRouteFingerprint = fallbackFingerprint;
+            return EnemyStealthPlanOutcome.AllRoutesObserved;
+        }
+
+        return ClassifyUnclaimedPass(
+            reachedFreshRoute,
+            reachedPreviouslyFailedRoute,
+            slotBlocked
+        );
     }
 
     public void ReleaseClaim()
@@ -322,7 +394,39 @@ internal sealed class EnemyFlankPlanner
         searchedThisPass = 0;
         hasFallbackPoint = false;
         fallbackPoint = default;
+        fallbackRouteFingerprint = 0;
+        anyFreshRouteFound = false;
+        anyPreviouslyFailedRoute = false;
+        anySlotBlocked = false;
         routeScanCandidate = -1;
         routeScan = default;
+    }
+
+    // A complete pass with no claimed destination still needs to preserve why
+    // it failed. In particular, a route rejected from engagement history is
+    // reachable but is not "observed": waiting for gaze to change cannot make
+    // retrying the same doorway useful.
+    internal static EnemyStealthPlanOutcome ClassifyUnclaimedPass(
+        bool reachedFreshRoute,
+        bool reachedPreviouslyFailedRoute,
+        bool slotBlocked
+    )
+    {
+        if (slotBlocked)
+        {
+            return EnemyStealthPlanOutcome.SlotOccupied;
+        }
+
+        if (reachedFreshRoute)
+        {
+            return EnemyStealthPlanOutcome.AllRoutesObserved;
+        }
+
+        if (reachedPreviouslyFailedRoute)
+        {
+            return EnemyStealthPlanOutcome.OnlyPreviouslyFailedRoutes;
+        }
+
+        return EnemyStealthPlanOutcome.NoReachablePoint;
     }
 }

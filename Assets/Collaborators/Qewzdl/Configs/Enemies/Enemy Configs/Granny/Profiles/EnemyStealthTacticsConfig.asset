@@ -17,6 +17,14 @@ MonoBehaviour:
   chaseWithoutStalkingDistance: 7.5
   stalkInsteadOfChasingDistance: 10.5
   stalkNoticedDuration: 0.4
+  stalkUnwatchedFlankDelay: 2
+  maxFlankExposureRetries: 1
+  maxStealthAttemptsPerEngagement: 2
+  assaultCommitDuration: 10
+  noOpeningWaitDuration: 3
+  noOpeningReplanInterval: 1
+  noEscapeTimeout: 2
+  failedRouteAvoidRadius: 2.5
   retreatBrokenSightDuration: 1.2
   retreatTimeout: 8
   retreatDistance: 8

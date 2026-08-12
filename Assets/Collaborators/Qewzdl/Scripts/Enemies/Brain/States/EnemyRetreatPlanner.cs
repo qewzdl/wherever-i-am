@@ -88,7 +88,11 @@ internal sealed class EnemyRetreatPlanner
             : EnemyTacticalPlanResult.Found;
     }
 
-    public EnemyTacticalPlanResult TryFindRetreatPoint(
+    // Three endings rather than two. Somewhere out of sight, somewhere that
+    // only puts distance between the enemy and the people looking at it, and
+    // nothing at all - and the state waits out the second, because the room
+    // may open up, but not the third.
+    public EnemyStealthPlanOutcome TryFindRetreatPoint(
         Vector3 selfPosition,
         IReadOnlyList<Vector3> threats,
         ref int pathBudget,
@@ -207,7 +211,7 @@ internal sealed class EnemyRetreatPlanner
             {
                 Restart();
                 point = candidate;
-                return EnemyTacticalPlanResult.Found;
+                return EnemyStealthPlanOutcome.FoundHiddenRoute;
             }
 
             // Nowhere out of sight yet. Remember the first reachable spot so
@@ -226,16 +230,20 @@ internal sealed class EnemyRetreatPlanner
         if (searchedThisPass < total)
         {
             point = fallbackPoint;
-            return EnemyTacticalPlanResult.Deferred;
+            return EnemyStealthPlanOutcome.DeferredByBudget;
         }
 
         bool hadFallback = hasFallbackPoint;
         point = fallbackPoint;
         Restart();
 
+        // A reachable spot that is still in somebody's view is worth walking
+        // to - it is further away, and distance is most of what breaking off
+        // is - but it is not the outcome this state exists for, and the state
+        // starts counting how long it has been settling for it.
         return hadFallback
-            ? EnemyTacticalPlanResult.Found
-            : EnemyTacticalPlanResult.NotFound;
+            ? EnemyStealthPlanOutcome.AllRoutesObserved
+            : EnemyStealthPlanOutcome.NoReachablePoint;
     }
 
     // ponytail: compared by index. The watcher list comes back in registration

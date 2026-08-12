@@ -30,6 +30,9 @@ public sealed class EnemyBrainContext
 
     public EnemyStealthManeuver Maneuver => Blackboard.StealthManeuver;
 
+    public EnemyEngagementTacticsRuntime EngagementTactics =>
+        Blackboard.EngagementTactics;
+
     public EnemyTargetMemory TargetMemory => Blackboard.TargetMemory;
     public EnemyPerceptionMemory PerceptionMemory => Blackboard.PerceptionMemory;
     public EnemyInvestigationMemory InvestigationMemory => Blackboard.InvestigationMemory;
@@ -125,13 +128,72 @@ public sealed class EnemyBrainContext
             // Sneaking has had its chance. Coming at them is the same answer
             // each phase's own timeout reaches, for the same reason.
             case EnemyStealthManeuverStatus.Expired:
-                ChangeState(EnemyState.Chase);
+                GiveUpOnStealth(EnemyStealthFailureReason.Timeout);
                 return false;
 
             default:
                 ChangeState(EnemyState.Investigate);
                 return false;
         }
+    }
+
+    // Sneaking is off, and the chase that follows is not allowed to be talked
+    // back into stalking by the next distance check. Every phase that used to
+    // answer a dead end with a bare ChangeState(Chase) comes through here, so
+    // the reason survives and the commitment is what ends the loop rather than
+    // the enemy simply drifting far enough away to start it again.
+    public void GiveUpOnStealth(EnemyStealthFailureReason reason)
+    {
+        EnemyStealthTacticsConfig tactics =
+            Config != null ? Config.StealthTactics : null;
+
+        EngagementTactics.CommitToAssault(
+            reason,
+            Time.time,
+            tactics != null ? tactics.assaultCommitDuration : 10f,
+            GetRelevantGazeTopologySignature()
+        );
+
+        ChangeState(EnemyState.Chase);
+    }
+
+    // A tactical change is local to the engagement. The raw gaze registry is
+    // match-wide, so hashing it directly made an unrelated player walking in
+    // another room release this enemy's Assault commitment.
+    public int GetRelevantGazeTopologySignature()
+    {
+        Vector3 focusPosition = Navigator != null
+            ? Navigator.Position
+            : Vector3.zero;
+
+        if (TargetMemory.HasTarget && TargetMemory.IsCurrentTargetValid)
+        {
+            focusPosition = GetTargetNavigationPosition(
+                TargetMemory.CurrentTarget
+            );
+        }
+        else if (Maneuver.Observation.IsValid)
+        {
+            focusPosition = Maneuver.Observation.Position;
+        }
+        else if (InvestigationMemory.HasLastKnownTargetPosition)
+        {
+            focusPosition = InvestigationMemory.LastKnownTargetPosition;
+        }
+
+        return GetRelevantGazeTopologySignature(focusPosition);
+    }
+
+    public int GetRelevantGazeTopologySignature(Vector3 focusPosition)
+    {
+        float relevanceRadius = Config != null
+            ? Config.loseTargetDistance
+            : 30f;
+
+        return EnemyEngagementTacticsRuntime.GazeTopologySignature(
+            focusPosition,
+            relevanceRadius
+        );
     }
 
     // Identifies this enemy to anything shared between enemies - the query
@@ -250,6 +312,7 @@ public sealed class EnemyBrainContext
         TargetMemory.ClearAll();
         PerceptionMemory.ClearAll();
         InvestigationMemory.ClearAll();
+        EngagementTactics.Clear();
         SyncTarget();
     }
 

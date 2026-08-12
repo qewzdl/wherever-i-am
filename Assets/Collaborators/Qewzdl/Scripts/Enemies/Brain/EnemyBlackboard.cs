@@ -15,6 +15,16 @@ public sealed class EnemyBlackboard
     // change instead of being reset by it.
     public EnemyStealthManeuver StealthManeuver { get; } = new();
 
+    // What the enemy has learned about this pursuit, as opposed to about this
+    // attempt. Outlives the manoeuvre above on purpose: a manoeuvre is thrown
+    // away every time the enemy drops out of the stealth states, so nothing
+    // that lives there can count how many times sneaking has been tried.
+    //
+    // Server only, like everything else here. No new NetworkVariable: clients
+    // see the outcome through EnemyState, the target identity and the attack
+    // phase they already replicate.
+    public EnemyEngagementTacticsRuntime EngagementTactics { get; } = new();
+
     public EnemyInvestigationDebugData InvestigationDebugData
     {
         get
@@ -104,6 +114,7 @@ public sealed class EnemyBlackboard
         PerceptionMemory.ClearAll();
         InvestigationMemory.ClearAll();
         StealthManeuver.End();
+        EngagementTactics.Clear();
         investigationDebugData?.Clear();
     }
 }

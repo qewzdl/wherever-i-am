@@ -692,14 +692,15 @@ public sealed class EnemyTargetBoundGazeTests
                     ref noPathQueries,
                     ref noVisibilityQueries,
                     out _),
-                Is.EqualTo(EnemyTacticalPlanResult.Deferred),
+                Is.EqualTo(EnemyStealthPlanOutcome.DeferredByBudget),
                 $"tick {tick} claimed candidates it never checked");
         }
 
         // With budget, every candidate reaches an answer - there is no NavMesh
         // in an edit-mode test, so the answer is "nowhere" - and the fan does
         // finish rather than deferring for ever.
-        EnemyTacticalPlanResult result = EnemyTacticalPlanResult.Deferred;
+        EnemyStealthPlanOutcome result =
+            EnemyStealthPlanOutcome.DeferredByBudget;
 
         for (int tick = 0; tick < ticksToWalkTheWholeFan; tick++)
         {
@@ -714,7 +715,7 @@ public sealed class EnemyTargetBoundGazeTests
                 out _);
         }
 
-        Assert.That(result, Is.EqualTo(EnemyTacticalPlanResult.NotFound));
+        Assert.That(result, Is.EqualTo(EnemyStealthPlanOutcome.NoReachablePoint));
 
         Object.DestroyImmediate(config);
         Object.DestroyImmediate(tactics);
@@ -780,6 +781,284 @@ public sealed class EnemyTargetBoundGazeTests
         Assert.That(grantedAgain, Is.EqualTo(4));
 
         EnemyServerPerceptionScheduler.ResetForTests();
+    }
+
+    // The loop this whole object exists to break: sneaking fails, the enemy
+    // charges, the charge puts distance between them, and the distance sends
+    // it back to sneaking. A commitment that any passing frame could release
+    // would just run the loop a little slower.
+    [Test]
+    public void AssaultCommitment_ClockAloneNeverRestartsTheFailedApproach()
+    {
+        EnemyEngagementTacticsRuntime engagement = new();
+
+        Vector3[] failedRoute = { Vector3.zero, new(0f, 0f, -6f) };
+
+        engagement.RememberFailedRoute(
+            routeFingerprint: 42,
+            detectedAt: new Vector3(0f, 0f, -3f),
+            targetPosition: Vector3.zero,
+            targetForward: Vector3.forward);
+
+        engagement.CommitToAssault(
+            EnemyStealthFailureReason.AllRoutesObserved,
+            serverTime: 100f,
+            minimumCommitDuration: 10f,
+            gazeSignature: 42);
+
+        Assert.That(engagement.Intent, Is.EqualTo(EnemyPursuitIntent.Assault));
+        Assert.That(engagement.RetryNotBefore, Is.EqualTo(110f));
+        Assert.That(engagement.IsAssaultCommitted(100.5f, 42), Is.True);
+        Assert.That(engagement.IsAssaultCommitted(109f, 99), Is.True);
+
+        // The minimum elapsed, but nothing relevant changed. A timer-only
+        // release is the old infinite loop with ten seconds inserted into it.
+        Assert.That(engagement.IsAssaultCommitted(110f, 42), Is.True);
+        Assert.That(engagement.IsAssaultCommitted(1000f, 42), Is.True);
+
+        // A coarse but relevant tactical change after the minimum is what
+        // actually puts stealth back on the table.
+        Assert.That(engagement.IsAssaultCommitted(1000f, 99), Is.False);
+        Assert.That(engagement.Intent, Is.EqualTo(EnemyPursuitIntent.Stealth));
+
+        // Released means sneaking is genuinely back on the table, counters and
+        // all - otherwise the first flank after it gives up immediately.
+        Assert.That(engagement.StealthAttempts, Is.EqualTo(0));
+        Assert.That(engagement.FlankExposures, Is.EqualTo(0));
+
+        // The routes go too. The release says the gaze topology changed, and
+        // "this corridor gets seen" is a fact about that topology: keeping it
+        // let the fresh attempt answer OnlyPreviouslyFailedRoutes on its first
+        // pass and commit to another assault immediately.
+        Assert.That(
+            engagement.IsRouteRejected(failedRoute, 42, 2.5f),
+            Is.False);
+        Assert.That(engagement.HasSidePreference, Is.False);
+
+        Assert.That(
+            engagement.LastFailure,
+            Is.EqualTo(EnemyStealthFailureReason.AllRoutesObserved));
+    }
+
+    [Test]
+    public void GazeSignature_SeparatesMeaningfulHorizontalTurns()
+    {
+        int forward = EnemyEngagementTacticsRuntime.GazeYawBucket(
+            Vector3.forward
+        );
+        int right = EnemyEngagementTacticsRuntime.GazeYawBucket(
+            Vector3.right
+        );
+        int back = EnemyEngagementTacticsRuntime.GazeYawBucket(
+            Vector3.back
+        );
+
+        Assert.That(right, Is.Not.EqualTo(forward));
+        Assert.That(back, Is.Not.EqualTo(forward));
+        Assert.That(back, Is.Not.EqualTo(right));
+    }
+
+    [Test]
+    public void GazeSignature_TreatsTheYawSeamAsOneDirection()
+    {
+        Vector3 justRightOfBack = Quaternion.Euler(0f, 179f, 0f) *
+                                  Vector3.forward;
+        Vector3 justLeftOfBack = Quaternion.Euler(0f, -179f, 0f) *
+                                 Vector3.forward;
+
+        Assert.That(
+            EnemyEngagementTacticsRuntime.GazeYawBucket(justRightOfBack),
+            Is.EqualTo(
+                EnemyEngagementTacticsRuntime.GazeYawBucket(justLeftOfBack)
+            ),
+            "A two-degree turn across the yaw seam changed the topology."
+        );
+    }
+
+    [Test]
+    public void FlankPlanner_DoesNotCallPreviouslyFailedRoutesObserved()
+    {
+        Assert.That(
+            EnemyFlankPlanner.ClassifyUnclaimedPass(
+                reachedFreshRoute: false,
+                reachedPreviouslyFailedRoute: true,
+                slotBlocked: false),
+            Is.EqualTo(
+                EnemyStealthPlanOutcome.OnlyPreviouslyFailedRoutes
+            )
+        );
+
+        Assert.That(
+            EnemyFlankPlanner.ClassifyUnclaimedPass(
+                reachedFreshRoute: true,
+                reachedPreviouslyFailedRoute: true,
+                slotBlocked: false),
+            Is.EqualTo(EnemyStealthPlanOutcome.AllRoutesObserved),
+            "A fresh but watched route must remain eligible for gaze waiting."
+        );
+    }
+
+    [Test]
+    public void ClearingAllTargetMemory_EndsTheEngagementToo()
+    {
+        EnemyBlackboard blackboard = new();
+        EnemyBrainContext context = new(
+            config: null,
+            navigator: null,
+            targetDetector: null,
+            patrolController: null,
+            attackController: null,
+            postureController: null,
+            blackboard: blackboard,
+            changeState: _ => { },
+            syncTarget: () => { });
+
+        blackboard.EngagementTactics.NoteStealthAttempt();
+        blackboard.EngagementTactics.CommitToAssault(
+            EnemyStealthFailureReason.Detected,
+            serverTime: 5f,
+            minimumCommitDuration: 10f,
+            gazeSignature: 7);
+
+        context.ClearAllTargetMemory();
+
+        Assert.That(
+            blackboard.EngagementTactics.Intent,
+            Is.EqualTo(EnemyPursuitIntent.Stealth));
+        Assert.That(blackboard.EngagementTactics.StealthAttempts, Is.Zero);
+        Assert.That(
+            blackboard.EngagementTactics.LastFailure,
+            Is.EqualTo(EnemyStealthFailureReason.None));
+    }
+
+    [Test]
+    public void EngagementTactics_CountsAttemptsAndExposuresUntilTheyAreSpent()
+    {
+        EnemyEngagementTacticsRuntime engagement = new();
+
+        engagement.NoteStealthAttempt();
+        Assert.That(engagement.CanStartAnotherStealthAttempt(2), Is.True);
+        Assert.That(engagement.HasSpentStealthAttempts(2), Is.False);
+
+        engagement.NoteStealthAttempt();
+        Assert.That(engagement.CanStartAnotherStealthAttempt(2), Is.False);
+        Assert.That(engagement.HasSpentStealthAttempts(2), Is.False);
+
+        engagement.NoteStealthAttempt();
+        Assert.That(engagement.HasSpentStealthAttempts(2), Is.True);
+
+        engagement.NoteFlankExposure();
+        Assert.That(engagement.HasSpentFlankExposures(1), Is.False);
+        engagement.NoteFlankExposure();
+        Assert.That(engagement.HasSpentFlankExposures(1), Is.True);
+    }
+
+    // Spotted coming round one side, so try the other. The fan's positive
+    // angles run to the target's left, so a failure on the left is answered by
+    // the mirrored fan and one on the right is not.
+    [Test]
+    public void FailedApproach_PrefersTheOtherSideOfTheTarget()
+    {
+        EnemyEngagementTacticsRuntime engagement = new();
+
+        engagement.RememberFailedRoute(
+            routeFingerprint: 1234,
+            detectedAt: new Vector3(-4f, 0f, -2f),
+            targetPosition: Vector3.zero,
+            targetForward: Vector3.forward);
+
+        Assert.That(engagement.HasSidePreference, Is.True);
+        Assert.That(engagement.PrefersMirroredFan, Is.True);
+
+        engagement.RememberFailedRoute(
+            routeFingerprint: 5678,
+            detectedAt: new Vector3(4f, 0f, -2f),
+            targetPosition: Vector3.zero,
+            targetForward: Vector3.forward);
+
+        Assert.That(engagement.PrefersMirroredFan, Is.False);
+    }
+
+    // Remembering only the route it walked let the next attempt pick a route a
+    // metre to the side, through the same doorway, and be seen from the same
+    // place. Both the route and where it was caught are what has to be avoided.
+    [Test]
+    public void FailedApproach_RejectsTheSameRouteAndTheSameDoorway()
+    {
+        EnemyEngagementTacticsRuntime engagement = new();
+
+        Vector3[] failedRoute = { Vector3.zero, new(0f, 0f, -6f) };
+        Vector3[] routeThroughTheSameDoorway =
+        {
+            new(1f, 0f, 0f),
+            new(1f, 0f, -6f),
+        };
+        Vector3[] routeRoundTheOtherSide =
+        {
+            new(-6f, 0f, 0f),
+            new(-6f, 0f, -6f),
+        };
+
+        engagement.RememberFailedRoute(
+            routeFingerprint: 42,
+            detectedAt: new Vector3(0f, 0f, -3f),
+            targetPosition: Vector3.zero,
+            targetForward: Vector3.forward);
+
+        Assert.That(
+            engagement.IsRouteRejected(failedRoute, 42, 2.5f),
+            Is.True);
+        Assert.That(
+            engagement.IsRouteRejected(routeThroughTheSameDoorway, 99, 2.5f),
+            Is.True);
+        Assert.That(
+            engagement.IsRouteRejected(routeRoundTheOtherSide, 99, 2.5f),
+            Is.False);
+
+        // The history is about the corridors behind one pose. A target that
+        // has walked off has different ones behind it.
+        engagement.ForgetFailedRoutesIfTargetMoved(
+            new Vector3(0f, 0f, 1f),
+            Vector3.forward);
+        Assert.That(
+            engagement.IsRouteRejected(failedRoute, 42, 2.5f),
+            Is.True);
+
+        engagement.ForgetFailedRoutesIfTargetMoved(
+            new Vector3(0f, 0f, 9f),
+            Vector3.forward);
+        Assert.That(
+            engagement.IsRouteRejected(failedRoute, 42, 2.5f),
+            Is.False);
+    }
+
+    // A new person is a new problem. Carrying a commitment across meant an
+    // enemy that gave up sneaking on one player charged the next one it saw.
+    [Test]
+    public void EngagementTactics_StartOverWhenThePursuitChangesPerson()
+    {
+        EnemyEngagementTacticsRuntime engagement = new();
+
+        EnemyTargetIdentity first = new(true, default, 3ul);
+        EnemyTargetIdentity second = new(true, default, 4ul);
+
+        engagement.BeginEngagement(first);
+        engagement.NoteStealthAttempt();
+        engagement.CommitToAssault(
+            EnemyStealthFailureReason.Detected,
+            serverTime: 5f,
+            minimumCommitDuration: 10f,
+            gazeSignature: 13);
+
+        // Perception confirms the same person several times a second, and each
+        // of those says "begin". None of them may reset anything.
+        engagement.BeginEngagement(first);
+        Assert.That(engagement.IsAssaultCommitted(6f, 13), Is.True);
+        Assert.That(engagement.StealthAttempts, Is.EqualTo(1));
+
+        engagement.BeginEngagement(second);
+        Assert.That(engagement.IsAssaultCommitted(6f, 13), Is.False);
+        Assert.That(engagement.StealthAttempts, Is.EqualTo(0));
     }
 
     private static bool Switch(

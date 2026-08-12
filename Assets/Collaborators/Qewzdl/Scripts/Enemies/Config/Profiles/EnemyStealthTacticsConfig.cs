@@ -43,6 +43,45 @@ public class EnemyStealthTacticsConfig : ScriptableObject
              "as having been noticed.")]
     [Min(0f)] public float stalkNoticedDuration = 0.4f;
 
+    [Tooltip("How long nobody may be looking at the enemy before watching " +
+             "becomes going round. Standing there until the whole manoeuvre " +
+             "times out wastes the opening the player just gave it.")]
+    [Min(0.1f)] public float stalkUnwatchedFlankDelay = 2f;
+
+    [Header("Giving up on sneaking")]
+    [Tooltip("How many times one flank may be spotted and retried before the " +
+             "enemy stops sneaking and comes at the target.")]
+    [Min(0)] public int maxFlankExposureRetries = 1;
+
+    [Tooltip("How many complete stealth attempts one pursuit gets.")]
+    [Min(1)] public int maxStealthAttemptsPerEngagement = 2;
+
+    [Tooltip("Minimum time the enemy stays committed to coming straight at " +
+             "the target once sneaking has failed. After this, stealth is " +
+             "still reconsidered only when the relevant players move or " +
+             "turn; the clock alone never restarts the same failed route.")]
+    [Min(1f)] public float assaultCommitDuration = 10f;
+
+    [Tooltip("How long the enemy waits in cover when every route round is " +
+             "being watched, before giving up on sneaking. This is the " +
+             "counterplay: looking at the enemy denies it the flank, but " +
+             "cannot hold it there forever.")]
+    [Min(0.1f)] public float noOpeningWaitDuration = 3f;
+
+    [Tooltip("How often to look for an opening while waiting one out, when " +
+             "nothing about where the players are looking has changed. The " +
+             "search is only worth repeating when its inputs move.")]
+    [Min(0.1f)] public float noOpeningReplanInterval = 1f;
+
+    [Tooltip("How long a retreat with nowhere to hide keeps searching before " +
+             "it turns into an assault. Recomputing the same fan for the " +
+             "whole retreat timeout is eight seconds of shuffling.")]
+    [Min(0.1f)] public float noEscapeTimeout = 2f;
+
+    [Tooltip("How near the place the enemy was last spotted a route may pass " +
+             "before it counts as the same failed approach.")]
+    [Min(0f)] public float failedRouteAvoidRadius = 2.5f;
+
     [Header("Retreat")]
     [Tooltip("How long out of sight before a retreat is over.")]
     [Min(0f)] public float retreatBrokenSightDuration = 1.2f;
@@ -127,8 +166,19 @@ public class EnemyStealthTacticsConfig : ScriptableObject
         );
 
         stalkNoticedDuration = Mathf.Max(0f, stalkNoticedDuration);
+        stalkUnwatchedFlankDelay = Mathf.Max(0.1f, stalkUnwatchedFlankDelay);
         retreatBrokenSightDuration =
             Mathf.Max(0f, retreatBrokenSightDuration);
+
+        maxFlankExposureRetries = Mathf.Max(0, maxFlankExposureRetries);
+        maxStealthAttemptsPerEngagement =
+            Mathf.Max(1, maxStealthAttemptsPerEngagement);
+        assaultCommitDuration = Mathf.Max(1f, assaultCommitDuration);
+
+        noOpeningWaitDuration = Mathf.Max(0.1f, noOpeningWaitDuration);
+        noOpeningReplanInterval = Mathf.Max(0.1f, noOpeningReplanInterval);
+        noEscapeTimeout = Mathf.Max(0.1f, noEscapeTimeout);
+        failedRouteAvoidRadius = Mathf.Max(0f, failedRouteAvoidRadius);
 
         // Has to outlast the wait for sight to break, or the retreat gives up
         // before the outcome it exists to reach can happen at all.

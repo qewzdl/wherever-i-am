@@ -75,6 +75,11 @@ public sealed class EnemyServerBrain
         );
 
         RegisterStateHandlers();
+
+        if (attackController != null)
+        {
+            attackController.AttackResolved += HandleAttackResolved;
+        }
     }
 
     public void Start()
@@ -133,6 +138,11 @@ public sealed class EnemyServerBrain
 
     public void Dispose()
     {
+        if (attackController != null)
+        {
+            attackController.AttackResolved -= HandleAttackResolved;
+        }
+
         attackController?.Interrupt();
 
         currentHandler?.Exit();
@@ -148,6 +158,21 @@ public sealed class EnemyServerBrain
         SyncTarget();
 
         HasStarted = false;
+    }
+
+    // A landed attack is the pursuit having got what it came for. Everything
+    // the engagement remembers - the failed approaches, the count of them, a
+    // commitment to charging because sneaking did not work - was in service of
+    // reaching this, so it goes, and the next approach on the same person
+    // starts from sneaking again rather than from a grudge.
+    private void HandleAttackResolved(EnemyAttackResult result)
+    {
+        if (result.Type != EnemyAttackResultType.Hit)
+        {
+            return;
+        }
+
+        blackboard.EngagementTactics.Clear();
     }
 
     private void RegisterStateHandlers()
@@ -245,6 +270,15 @@ public sealed class EnemyServerBrain
             !EnemyStateRules.IsEngagedWithTarget(toState))
         {
             context.TargetDetector?.ResetTargetSelection();
+
+            // What was learned about how to approach this person goes with the
+            // pursuit of them. Investigating is still that pursuit - the enemy
+            // is looking for the same person and may well find them - so the
+            // memory outlives a lost sighting and dies when the search does.
+            if (toState != EnemyState.Investigate)
+            {
+                blackboard.EngagementTactics.Clear();
+            }
         }
     }
 
@@ -300,11 +334,33 @@ public sealed class EnemyServerBrain
     // cannot flip the enemy back and forth.
     private void ApplyConfirmedTarget()
     {
+        // Everything the enemy has learned is about one person. A perception
+        // refresh that hands it somebody else starts again from nothing.
+        EnemyEngagementTacticsRuntime engagement = blackboard.EngagementTactics;
+        engagement.BeginEngagement(blackboard.TargetMemory.CurrentTargetIdentity);
+
         // Chase is the only engaged state the fork may still change - the
         // rest run their own sequence and say when they are done.
         if (EnemyStateRules.IsEngagedWithTarget(currentState) &&
             currentState != EnemyState.Chase)
         {
+            return;
+        }
+
+        // Sneaking was tried against this person and did not work. Distance is
+        // what used to decide this, and distance is exactly what a failed
+        // flank produces - the enemy backs off, crosses the stalk threshold,
+        // and is sent round again on the strength of it. While the commitment
+        // holds, a confirmed target means walk at them, whatever the range.
+        if (engagement.IsAssaultCommitted(
+                Time.time,
+                context.GetRelevantGazeTopologySignature()))
+        {
+            if (currentState != EnemyState.Chase)
+            {
+                ChangeState(EnemyState.Chase);
+            }
+
             return;
         }
 

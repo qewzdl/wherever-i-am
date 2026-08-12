@@ -18,6 +18,8 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     private float repathTimer;
     private float unseenTimer;
     private float giveUpTimer;
+    private float noEscapeTimer;
+    private bool hasNoEscape;
     private Vector3 retreatPoint;
     private bool hasRetreatPoint;
 
@@ -34,6 +36,8 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         repathTimer = 0f;
         unseenTimer = 0f;
         giveUpTimer = 0f;
+        noEscapeTimer = 0f;
+        hasNoEscape = false;
         hasRetreatPoint = false;
         planner.Restart();
     }
@@ -51,6 +55,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         }
 
         Vector3 selfPosition = context.Navigator.Position;
+        EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
 
         giveUpTimer += deltaTime;
 
@@ -62,7 +67,7 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
         // the same answer the flank reaches for the same reason.
         if (giveUpTimer >= context.Config.retreatTimeout)
         {
-            context.ChangeState(EnemyState.Chase);
+            context.GiveUpOnStealth(EnemyStealthFailureReason.Timeout);
             return;
         }
 
@@ -81,9 +86,43 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
             // back to watching: returning to stalking made a closed loop -
             // watch, be seen, back off, watch again - which is what the first
             // build did, seven times over, and it reads as aimless wandering.
+            //
+            // Only if the pursuit has an attempt left in it. Handing over
+            // regardless let Flank enter, count the attempt it cannot have and
+            // give up on its first tick, which clients saw as a frame of
+            // flanking that never happened.
             if (unseenTimer >= context.Config.retreatBrokenSightDuration)
             {
-                context.ChangeState(EnemyState.Flank);
+                if (context.EngagementTactics.CanStartAnotherStealthAttempt(
+                        tactics.maxStealthAttemptsPerEngagement))
+                {
+                    context.ChangeState(EnemyState.Flank);
+                    return;
+                }
+
+                context.GiveUpOnStealth(
+                    EnemyStealthFailureReason.AttemptsSpent
+                );
+
+                return;
+            }
+        }
+
+        // The room has already been searched once with nothing out of sight in
+        // it. Rooms do change - a door opens, the watcher walks on - so this
+        // keeps trying, but only for a couple of seconds. Spending the whole
+        // retreat timeout recomputing the same fan is what made an enemy with
+        // nowhere to go shuffle in the open for eight seconds.
+        //
+        // Checked after the sighting has had its chance to break, because
+        // getting away is the outcome this state wants and giving up is not.
+        if (hasNoEscape)
+        {
+            noEscapeTimer += deltaTime;
+
+            if (noEscapeTimer >= tactics.noEscapeTimeout)
+            {
+                context.GiveUpOnStealth(EnemyStealthFailureReason.NoEscape);
                 return;
             }
         }
@@ -95,7 +134,6 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
             return;
         }
 
-        EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
         repathTimer = tactics.retreatRepathInterval;
 
         // At least one path query per candidate, because a candidate is only
@@ -165,22 +203,37 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
                     ref visibilityBudget,
                     out Vector3 nextRetreatPoint))
         {
-            case EnemyTacticalPlanResult.Found:
+            case EnemyStealthPlanOutcome.FoundHiddenRoute:
                 retreatPoint = nextRetreatPoint;
                 hasRetreatPoint = true;
+                hasNoEscape = false;
+                noEscapeTimer = 0f;
                 context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
                 return;
 
             // Half a fan searched. Anything still held got here either checked
             // or already underfoot, so it is kept and the search finishes next
             // tick rather than being thrown away and started again.
-            case EnemyTacticalPlanResult.Deferred:
+            case EnemyStealthPlanOutcome.DeferredByBudget:
                 repathTimer = 0f;
                 KeepMovingOrStop();
                 return;
 
+            // A whole fan searched and nowhere in it is out of sight. Worth
+            // walking to anyway - it is further off - but the room has no
+            // cover in it, and recomputing the same fan for the whole retreat
+            // timeout is eight seconds of shuffling in the open. Give it a
+            // couple of seconds, then stop pretending to sneak.
+            case EnemyStealthPlanOutcome.AllRoutesObserved:
+                retreatPoint = nextRetreatPoint;
+                hasRetreatPoint = true;
+                hasNoEscape = true;
+                context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+                return;
+
             default:
                 hasRetreatPoint = false;
+                hasNoEscape = true;
 
                 // Nothing to move to that leads away. Standing still beats
                 // walking in the one direction this state exists to avoid.

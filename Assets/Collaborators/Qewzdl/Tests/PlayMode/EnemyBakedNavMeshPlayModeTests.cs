@@ -3102,7 +3102,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             enemyPrefab,
             out int standingAgentTypeId,
             out int crawlingAgentTypeId);
-        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+        BakeLargeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
 
         GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
 
@@ -3152,16 +3152,52 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "The ambush position is in the target's view.");
 
         // Turning round on something standing behind you is the beat the whole
-        // sequence exists to deliver. Chase rather than Attack: closing the
-        // last stride and swinging is chasing's job, and this hands over to it.
-        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        // sequence exists to deliver. Open the gap on the same frame as well:
+        // an Ambush used to hand over to an ordinary Chase, whose next distance
+        // refresh immediately chose Stalk again here.
+        Vector3 escapeDirection = target.transform.position -
+                                  enemy.transform.position;
+        escapeDirection.y = 0f;
+        escapeDirection.Normalize();
+
+        Vector3 escapedPosition = enemy.transform.position +
+                                  escapeDirection * 16f;
+
+        target.transform.position = escapedPosition;
+        target.transform.rotation = Quaternion.LookRotation(
+            enemy.transform.position - escapedPosition,
+            Vector3.up
+        );
         Physics.SyncTransforms();
+
+        Assert.That(
+            Vector3.Distance(
+                enemy.transform.position,
+                target.transform.position),
+            Is.GreaterThan(enemyConfig.stalkInsteadOfChasingDistance),
+            "The target did not open enough distance to exercise the " +
+            "Chase-to-Stalk fork."
+        );
 
         yield return WaitForCondition(
             () => enemy.CurrentState == EnemyState.Chase ||
                   enemy.CurrentState == EnemyState.Attack,
             "The target turned round onto the ambush and the enemy did not " +
             "come at it.");
+
+        float assaultDeadline = Time.realtimeSinceStartup + 1f;
+
+        while (Time.realtimeSinceStartup < assaultDeadline)
+        {
+            Assert.That(
+                EnemyStateRules.IsStealthManeuver(enemy.CurrentState),
+                Is.False,
+                "A triggered ambush restarted the stealth manoeuvre when the " +
+                "target opened the gap."
+            );
+
+            yield return null;
+        }
     }
 
     // Backing away is measured against the target, not against the compass.
@@ -3218,9 +3254,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             enemy.transform.position,
             target.transform.position);
         float closest = startDistance;
-        float deadline = Time.realtimeSinceStartup + 3f;
+        float deadline = Time.realtimeSinceStartup + 5f;
 
-        while (Time.realtimeSinceStartup < deadline)
+        while (Time.realtimeSinceStartup < deadline &&
+               enemy.CurrentState == EnemyState.Retreat)
         {
             closest = Mathf.Min(
                 closest,
@@ -3231,18 +3268,19 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             yield return null;
         }
 
-        Assert.That(
-            enemy.CurrentState,
-            Is.EqualTo(EnemyState.Retreat),
-            "The enemy left the retreat, so this measured something else.");
-
-        // Standing still is a fine answer here - there is nowhere to back
-        // away to. Walking in is not.
+        // Standing still is a fine retreat answer here - there is nowhere to
+        // back away to. Walking in before admitting that stealth has failed is
+        // not.
         Assert.That(
             closest,
             Is.GreaterThan(startDistance - 1f),
-            $"The enemy closed on a target watching it, from " +
+            $"The enemy closed while retreating from a target watching it, from " +
             $"{startDistance:F2} to {closest:F2}.");
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(EnemyState.Chase).Or.EqualTo(EnemyState.Attack),
+            "A retreat with no safe escape did not escalate to assault.");
     }
 
     // Being watched used to be one bool for the whole server, so a retreat was
@@ -3308,9 +3346,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             watcher.transform.position);
         float closestToTarget = startToTarget;
         float closestToWatcher = startToWatcher;
-        float deadline = Time.realtimeSinceStartup + 3f;
+        float deadline = Time.realtimeSinceStartup + 5f;
 
-        while (Time.realtimeSinceStartup < deadline)
+        while (Time.realtimeSinceStartup < deadline &&
+               enemy.CurrentState == EnemyState.Retreat)
         {
             closestToTarget = Mathf.Min(
                 closestToTarget,
@@ -3327,22 +3366,22 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         }
 
         Assert.That(
-            enemy.CurrentState,
-            Is.EqualTo(EnemyState.Retreat),
-            "The enemy left the retreat, so this measured something else.");
-
-        Assert.That(
             closestToWatcher,
             Is.GreaterThan(startToWatcher - 1.5f),
-            "The enemy backed away from its target straight into the second " +
+            "While retreating, the enemy backed away from its target straight into the second " +
             $"player watching it, from {startToWatcher:F2} to " +
             $"{closestToWatcher:F2}.");
 
         Assert.That(
             closestToTarget,
             Is.GreaterThan(startToTarget - 1.5f),
-            $"The enemy closed on the target it was breaking off from, from " +
+            $"While retreating, the enemy closed on the target it was breaking off from, from " +
             $"{startToTarget:F2} to {closestToTarget:F2}.");
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(EnemyState.Chase).Or.EqualTo(EnemyState.Attack),
+            "A retreat blocked by two watchers did not escalate to assault.");
     }
 
     // The manoeuvre's target leaving the level, at each phase of it, with
@@ -3715,6 +3754,22 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Arena floor",
             new Vector3(0f, -0.1f, 0f),
             new Vector3(16f, 0.2f, 24f),
+            root.transform);
+        BakeSurfaces(
+            root,
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+    }
+
+    private void BakeLargeOpenArena(
+        int standingAgentTypeId,
+        int crawlingAgentTypeId)
+    {
+        GameObject root = Track(new GameObject("Large prebuilt NavMesh arena"));
+        CreateGeometry(
+            "Large arena floor",
+            new Vector3(0f, -0.1f, 0f),
+            new Vector3(40f, 0.2f, 40f),
             root.transform);
         BakeSurfaces(
             root,

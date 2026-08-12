@@ -88,6 +88,18 @@ public static class EnemyStateRules
                toWatcher.sqrMagnitude;
     }
 
+    // Whether the walk passes within a given distance of somewhere. Asked of
+    // the place a flank was last spotted from: a different route through the
+    // same doorway is the same approach, and doing it again gets seen again.
+    public static bool RouteComesWithin(
+        IReadOnlyList<Vector3> routeCorners,
+        Vector3 point,
+        float radius
+    )
+    {
+        return ClosestRouteApproachSqr(routeCorners, point) <= radius * radius;
+    }
+
     // How close the walk comes to a watcher at its nearest point, squared.
     // Flat, because a stairwell overhead is not the enemy closing in.
     private static float ClosestRouteApproachSqr(
