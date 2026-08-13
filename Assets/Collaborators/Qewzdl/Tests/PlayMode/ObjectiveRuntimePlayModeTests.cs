@@ -145,6 +145,28 @@ public sealed class ObjectiveRuntimePlayModeTests
         Assert.That(objectiveFlow.IsServerReady, Is.True);
     }
 
+    // A finished match used to leave everyone standing in the game scene with
+    // nothing left to do and no way out but the pause menu.
+    [UnityTest]
+    public IEnumerator FinishedMatch_TakesTheSessionOutOfTheGameOnItsOwn()
+    {
+        yield return StartHostedMatchAndWaitForActiveObjective();
+
+        NetworkManager networkManager = runtimeContext.NetworkManager;
+
+        Assert.That(
+            objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveFlow.CurrentObjective.ObjectiveId.ToString(),
+                LocalClientId),
+            Is.True);
+
+        yield return WaitForCondition(
+            () => runtimeContext.StateMachine.CurrentState == GameState.MainMenu &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.MainMenu &&
+                  !networkManager.IsListening,
+            "A finished match never took the session out of the game scene.");
+    }
+
     [UnityTest]
     public IEnumerator MatchCompletion_IsRefusedOutsidePlayingAndResolvesOnlyOnce()
     {

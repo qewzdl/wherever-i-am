@@ -13,6 +13,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     [SerializeField] private bool startOnServerSpawn = true;
     [SerializeField] private string startReason = "Game scene network spawn completed";
     private bool isSubscribed;
+    private bool matchFinishedSubscribed;
     private IGameMapSessionService mapSessionService;
     private IGameStateService gameStateService;
 
@@ -27,6 +28,8 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             return;
         }
 
+        SubscribeMatchFinished();
+
         if (!startOnServerSpawn)
         {
             return;
@@ -39,11 +42,13 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         UnsubscribeReadinessEvents();
+        UnsubscribeMatchFinished();
     }
 
     private void OnDisable()
     {
         UnsubscribeReadinessEvents();
+        UnsubscribeMatchFinished();
     }
 
     private void OnValidate()
@@ -141,6 +146,58 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
         }
 
         isSubscribed = false;
+    }
+
+    private void SubscribeMatchFinished()
+    {
+        if (matchFinishedSubscribed || gameFlow == null)
+        {
+            return;
+        }
+
+        gameFlow.MatchFinished += HandleMatchFinished;
+        matchFinishedSubscribed = true;
+    }
+
+    private void UnsubscribeMatchFinished()
+    {
+        if (!matchFinishedSubscribed)
+        {
+            return;
+        }
+
+        if (gameFlow != null)
+        {
+            gameFlow.MatchFinished -= HandleMatchFinished;
+        }
+
+        matchFinishedSubscribed = false;
+    }
+
+    // A finished match used to leave everyone standing in the game scene: the
+    // phases ran their course and nothing was listening at the end of them,
+    // which a caught player watching the survivors feels most of all - there
+    // was no way out of watching. The scene flow has no route from the game
+    // back to the lobby, so the match ends the session the same way leaving
+    // from the pause menu does.
+    private void HandleMatchFinished(GameResultData result)
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        if (!G.TryResolve(out INetworkSessionService sessionService))
+        {
+            Debug.LogError(
+                $"{nameof(NetworkGameFlowSceneStarter)} cannot leave a finished " +
+                $"match without {nameof(INetworkSessionService)}.",
+                this);
+
+            return;
+        }
+
+        sessionService.ShutdownToMainMenu();
     }
 
     private void HandleDependencyReady()
