@@ -28,7 +28,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     private IGameMapSessionService gameMapService;
     private bool subscribedToGameMap;
     private bool serverReady;
-    private bool failureReported;
+    private bool faultReported;
     private bool matchCompletionCommitted;
 
     public event Action ServerReady;
@@ -47,14 +47,14 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         serverReady = false;
-        failureReported = false;
+        faultReported = false;
         matchCompletionCommitted = false;
         currentObjective.OnValueChanged += HandleObjectiveStateChanged;
         lastObjectiveReason.OnValueChanged += HandleObjectiveReasonChanged;
 
         if (!ValidateStaticSetup())
         {
-            FailObjectiveFlowServer(
+            FaultObjectiveFlowServer(
                 $"{nameof(NetworkObjectiveFlow)} static setup validation failed.");
             enabled = false;
             return;
@@ -85,7 +85,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (!ValidateRuntimeSetup())
         {
-            FailObjectiveFlowServer(
+            FaultObjectiveFlowServer(
                 $"{nameof(NetworkObjectiveFlow)} runtime setup validation failed.");
             enabled = false;
             return;
@@ -94,7 +94,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         if (!sceneBindingRegistry.TryBindAll(this, out string bindingError))
         {
             Debug.LogError(bindingError, this);
-            FailObjectiveFlowServer(bindingError);
+            FaultObjectiveFlowServer(bindingError);
             enabled = false;
             return;
         }
@@ -133,7 +133,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         activeBinding = null;
         serverReady = false;
-        failureReported = false;
+        faultReported = false;
         matchCompletionCommitted = false;
     }
 
@@ -169,7 +169,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return true;
         }
 
-        return FailObjectiveFlowServer(error);
+        return FaultObjectiveFlowServer(error);
     }
 
     public bool ReportObjectiveProgressServerOnly(string objectiveId, float progress01, ulong instigatorClientId)
@@ -209,6 +209,23 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         return CompleteObjectiveServerOnly(state, objective, instigatorClientId);
     }
 
+    public bool FailObjectiveServerOnly(string objectiveId, ulong instigatorClientId)
+    {
+        if (!TryGetActiveObjective(objectiveId, out ObjectiveNetworkState state, out ObjectiveDefinition objective))
+        {
+            return false;
+        }
+
+        return ResolveObjectiveServerOnly(
+            state,
+            objective,
+            ObjectiveRuntimeState.Failed,
+            objective.FailsGame,
+            objective.FailureResult,
+            objective.FailureReason,
+            instigatorClientId);
+    }
+
     private bool ApplyObjectiveProgressServerOnly(
         ObjectiveNetworkState state,
         ObjectiveDefinition objective,
@@ -241,64 +258,91 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         ObjectiveDefinition objective,
         ulong instigatorClientId)
     {
-        int nextIndex = state.SequenceIndex + 1;
+        return ResolveObjectiveServerOnly(
+            state,
+            objective,
+            ObjectiveRuntimeState.Completed,
+            objective.CompletesGame,
+            objective.CompletionResult,
+            objective.CompletionReason,
+            instigatorClientId);
+    }
 
-        if (nextIndex < activeObjectiveSequence.Count)
+    // A game-ending objective ends the match wherever it sits in the sequence:
+    // its position is not what decides the match, its policy is.
+    private bool ResolveObjectiveServerOnly(
+        ObjectiveNetworkState state,
+        ObjectiveDefinition objective,
+        ObjectiveRuntimeState resolvedState,
+        bool endsMatch,
+        GameResultType matchResult,
+        string matchReason,
+        ulong instigatorClientId)
+    {
+        string resolutionReason = resolvedState == ObjectiveRuntimeState.Completed
+            ? $"Objective '{objective.ObjectiveId}' completed"
+            : $"Objective '{objective.ObjectiveId}' failed";
+
+        state.State = resolvedState;
+
+        if (resolvedState == ObjectiveRuntimeState.Completed)
         {
+            state.Progress01 = 1f;
+        }
+
+        if (!endsMatch)
+        {
+            int nextIndex = state.SequenceIndex + 1;
+
+            if (nextIndex >= activeObjectiveSequence.Count)
+            {
+                string sequenceError =
+                    $"{nameof(NetworkObjectiveFlow)} sequence ended with objective " +
+                    $"'{objective.ObjectiveId}' but it does not end the match.";
+                Debug.LogError(sequenceError, this);
+                return FaultObjectiveFlowServer(sequenceError);
+            }
+
             if (!TryPrepareObjectiveActivation(
                     nextIndex,
                     out ObjectiveDefinition nextObjective,
                     out ObjectiveSceneBinding nextBinding,
                     out string activationError))
             {
-                return FailObjectiveFlowServer(activationError);
+                return FaultObjectiveFlowServer(activationError);
             }
 
-            state.State = ObjectiveRuntimeState.Completed;
-            state.Progress01 = 1f;
             currentObjective.Value = state;
-            lastObjectiveReason.Value =
-                $"Objective '{objective.ObjectiveId}' completed";
+            lastObjectiveReason.Value = resolutionReason;
 
             CommitObjectiveActivation(
                 nextIndex,
                 nextObjective,
                 nextBinding,
-                $"Objective '{objective.ObjectiveId}' completed");
+                resolutionReason);
             return true;
-        }
-
-        if (!objective.CompletesGame)
-        {
-            string error =
-                $"{nameof(NetworkObjectiveFlow)} sequence ended with objective " +
-                $"'{objective.ObjectiveId}' but it does not complete the game.";
-            Debug.LogError(error, this);
-            return FailObjectiveFlowServer(error);
         }
 
         if (matchCompletionCommitted)
             return false;
 
         GameResultData result = GameResultData.Create(
-            objective.CompletionResult,
+            matchResult,
             MatchResultSource.Objective,
             objective.ObjectiveId,
-            objective.CompletionReason,
+            matchReason,
             instigatorClientId);
 
         bool matchCompleted;
 
         try
         {
-            matchCompleted = gameFlow.CompleteMatchServerOnly(
-                result,
-                objective.CompletionReason);
+            matchCompleted = gameFlow.CompleteMatchServerOnly(result, matchReason);
         }
         catch (Exception exception)
         {
             Debug.LogException(exception, this);
-            return FailObjectiveFlowServer(
+            return FaultObjectiveFlowServer(
                 $"{nameof(NetworkObjectiveFlow)} match completion threw for " +
                 $"objective '{objective.ObjectiveId}': {exception.Message}");
         }
@@ -309,15 +353,12 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
                 $"{nameof(NetworkObjectiveFlow)} could not commit match completion " +
                 $"for objective '{objective.ObjectiveId}'.";
             Debug.LogError(error, this);
-            return FailObjectiveFlowServer(error);
+            return FaultObjectiveFlowServer(error);
         }
 
         matchCompletionCommitted = true;
-        state.State = ObjectiveRuntimeState.Completed;
-        state.Progress01 = 1f;
         currentObjective.Value = state;
-        lastObjectiveReason.Value =
-            $"Objective '{objective.ObjectiveId}' completed";
+        lastObjectiveReason.Value = resolutionReason;
         DeactivateActiveBinding();
         return true;
     }
@@ -581,29 +622,31 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         }
     }
 
-    private bool FailObjectiveFlowServer(string details)
+    // Configuration or invariant error - not a lost objective. This tears the
+    // session down; gameplay failure goes through FailObjectiveServerOnly.
+    private bool FaultObjectiveFlowServer(string details)
     {
-        if (!IsServer || failureReported)
+        if (!IsServer || faultReported)
             return false;
 
-        failureReported = true;
+        faultReported = true;
         serverReady = false;
 
-        ObjectiveNetworkState failedState = currentObjective.Value;
-        failedState.State = ObjectiveRuntimeState.Failed;
-        currentObjective.Value = failedState;
+        ObjectiveNetworkState faultedState = currentObjective.Value;
+        faultedState.State = ObjectiveRuntimeState.Faulted;
+        currentObjective.Value = faultedState;
 
-        string failureDetails = string.IsNullOrWhiteSpace(details)
-            ? "Objective flow failed."
+        string faultDetails = string.IsNullOrWhiteSpace(details)
+            ? "Objective flow faulted."
             : details;
-        lastObjectiveReason.Value = failureDetails;
+        lastObjectiveReason.Value = faultDetails;
 
         DeactivateActiveBinding();
         sceneBindingRegistry?.UnbindAll();
 
         _ = NetworkObjectServiceContext.ReportSessionReadinessFailureAsync(
             this,
-            failureDetails);
+            faultDetails);
         return false;
     }
 

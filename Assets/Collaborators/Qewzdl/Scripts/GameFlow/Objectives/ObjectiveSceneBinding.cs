@@ -86,6 +86,16 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
         return objectiveFlow.CompleteObjectiveServerOnly(ObjectiveId, instigatorClientId);
     }
 
+    public bool TryFailServerOnly(ulong instigatorClientId = 0)
+    {
+        if (!ValidateCanReportServerOnly())
+        {
+            return false;
+        }
+
+        return objectiveFlow.FailObjectiveServerOnly(ObjectiveId, instigatorClientId);
+    }
+
     private bool ValidateCanReportServerOnly()
     {
         if (objectiveFlow == null)

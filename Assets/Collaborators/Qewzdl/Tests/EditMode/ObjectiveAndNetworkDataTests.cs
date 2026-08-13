@@ -91,6 +91,38 @@ public sealed class ObjectiveAndNetworkDataTests
     }
 
     [Test]
+    public void ObjectiveDefinition_ValidatesFailureResultOnlyWhenFailureEndsGame()
+    {
+        ObjectiveDefinition objective = CreateObjective(
+            "escape",
+            1f,
+            ObjectiveCompletionPolicy.CompletesGame,
+            GameResultType.Victory);
+
+        try
+        {
+            Assert.That(objective.FailsGame, Is.True);
+            Assert.That(objective.FailureResult, Is.EqualTo(GameResultType.Defeat));
+            Assert.That(objective.IsValid(out string error), Is.True, error);
+
+            TestReflection.SetField(objective, "failureResult", GameResultType.None);
+            Assert.That(objective.IsValid(out error), Is.False);
+            StringAssert.Contains("invalid failure result", error);
+
+            TestReflection.SetField(
+                objective,
+                "failurePolicy",
+                ObjectiveFailurePolicy.ObjectiveOnly);
+            Assert.That(objective.FailsGame, Is.False);
+            Assert.That(objective.IsValid(out error), Is.True, error);
+        }
+        finally
+        {
+            Object.DestroyImmediate(objective);
+        }
+    }
+
+    [Test]
     public void ObjectiveSequence_RejectsMissingNullAndDuplicateDefinitions()
     {
         ObjectiveSequenceDefinition sequence =

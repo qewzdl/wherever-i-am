@@ -657,14 +657,24 @@ public sealed class NetworkSessionShutdownPlayModeTests
             PlayModeTestReflection.GetField<ObjectiveSequenceDefinition>(
                 objectiveFlow,
                 "objectiveSequence");
-        ObjectiveDefinition activeObjective =
-            defaultSequence.GetObjective(0);
+        // A game-ending objective now resolves the match wherever it sits, so
+        // the broken tail is only reachable when the active one hands over.
+        ObjectiveDefinition handingOverObjective =
+            UnityEngine.Object.Instantiate(defaultSequence.GetObjective(0));
+        PlayModeTestReflection.SetField(
+            handingOverObjective,
+            "completionPolicy",
+            ObjectiveCompletionPolicy.ObjectiveOnly);
+        PlayModeTestReflection.SetField(
+            handingOverObjective,
+            "completionResult",
+            GameResultType.None);
         ObjectiveSequenceDefinition brokenSequence =
             ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
         PlayModeTestReflection.SetField(
             brokenSequence,
             "objectives",
-            new ObjectiveDefinition[] { activeObjective, null });
+            new ObjectiveDefinition[] { handingOverObjective, null });
         PlayModeTestReflection.SetField(
             objectiveFlow,
             "activeObjectiveSequence",
@@ -696,7 +706,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
             Is.False);
         Assert.That(
             objectiveFlow.CurrentObjective.State,
-            Is.EqualTo(ObjectiveRuntimeState.Failed));
+            Is.EqualTo(ObjectiveRuntimeState.Faulted));
 
         yield return WaitForCondition(
             () => runtimeContext.StateMachine.CurrentState ==
@@ -712,6 +722,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
         Assert.That(sessionServices.IsDisposed, Is.True);
 
         UnityEngine.Object.Destroy(brokenSequence);
+        UnityEngine.Object.Destroy(handingOverObjective);
         yield return null;
     }
 

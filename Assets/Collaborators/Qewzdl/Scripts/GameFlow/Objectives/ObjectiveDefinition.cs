@@ -28,6 +28,11 @@ public class ObjectiveDefinition : ScriptableObject
     [SerializeField] private GameResultType completionResult = GameResultType.Victory;
     [SerializeField] private string completionReason = "Objective completed";
 
+    [Header("Failure")]
+    [SerializeField] private ObjectiveFailurePolicy failurePolicy = ObjectiveFailurePolicy.FailsGame;
+    [SerializeField] private GameResultType failureResult = GameResultType.Defeat;
+    [SerializeField] private string failureReason = "Objective failed";
+
     public string ObjectiveId => objectiveId;
     public string Title => title;
     public string Description => description;
@@ -40,6 +45,10 @@ public class ObjectiveDefinition : ScriptableObject
     public GameResultType ResultType => CompletesGame ? completionResult : GameResultType.None;
     public GameResultType CompletionResult => completionResult;
     public string CompletionReason => completionReason;
+    public ObjectiveFailurePolicy FailurePolicy => failurePolicy;
+    public bool FailsGame => failurePolicy == ObjectiveFailurePolicy.FailsGame;
+    public GameResultType FailureResult => failureResult;
+    public string FailureReason => failureReason;
 
     public bool IsValid(out string error)
     {
@@ -67,6 +76,12 @@ public class ObjectiveDefinition : ScriptableObject
             return false;
         }
 
+        if (FailsGame && failureResult == GameResultType.None)
+        {
+            error = $"{nameof(ObjectiveDefinition)} '{objectiveId}' fails game but has invalid failure result.";
+            return false;
+        }
+
         error = string.Empty;
         return true;
     }
@@ -78,6 +93,11 @@ public class ObjectiveDefinition : ScriptableObject
         if (!CompletesGame)
         {
             completionResult = GameResultType.None;
+        }
+
+        if (!FailsGame)
+        {
+            failureResult = GameResultType.None;
         }
     }
 }

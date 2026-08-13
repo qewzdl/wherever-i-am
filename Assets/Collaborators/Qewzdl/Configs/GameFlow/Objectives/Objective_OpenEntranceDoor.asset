@@ -20,3 +20,6 @@ MonoBehaviour:
   completionPolicy: 1
   completionResult: 1
   completionReason: Entrance door opened
+  failurePolicy: 1
+  failureResult: 2
+  failureReason: Entrance door was not opened
