@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine;
 
 public sealed class PlayerEnemyAttackReceiverTests
 {
@@ -20,11 +22,128 @@ public sealed class PlayerEnemyAttackReceiverTests
     }
 
     private PlayerEnemyAttackCompletionGate completionGate;
+    private readonly List<GameObject> createdPlayers = new();
 
     [SetUp]
     public void SetUp()
     {
         completionGate = new PlayerEnemyAttackCompletionGate();
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        for (int i = createdPlayers.Count - 1; i >= 0; i--)
+        {
+            if (createdPlayers[i] != null)
+                Object.DestroyImmediate(createdPlayers[i]);
+        }
+
+        createdPlayers.Clear();
+    }
+
+    // Being caught used to end the match for everyone. It takes one player out
+    // now, and only the last one still playing loses it.
+    [Test]
+    public void MatchIsLostOnlyWhenNobodyIsLeftInPlay()
+    {
+        PlayerEnemyAttackReceiver first = CreatePlayer();
+        PlayerEnemyAttackReceiver second = CreatePlayer();
+        List<PlayerEnemyAttackReceiver> players = new() { first, second };
+
+        Assert.That(PlayerEnemyAttackReceiver.HasPlayerInPlay(players), Is.True);
+
+        Eliminate(first);
+        Assert.That(
+            PlayerEnemyAttackReceiver.HasPlayerInPlay(players),
+            Is.True,
+            "One caught player must not end the match for the survivors.");
+
+        Eliminate(second);
+        Assert.That(PlayerEnemyAttackReceiver.HasPlayerInPlay(players), Is.False);
+
+        Assert.That(
+            PlayerEnemyAttackReceiver.HasPlayerInPlay(
+                new List<PlayerEnemyAttackReceiver> { null }),
+            Is.False);
+        Assert.That(PlayerEnemyAttackReceiver.HasPlayerInPlay(null), Is.False);
+    }
+
+    [Test]
+    public void CaughtPlayerCannotHideAnyMore()
+    {
+        PlayerEnemyAttackReceiver player = CreatePlayer();
+
+        Assert.That(player.CanEnterHiding, Is.True);
+
+        Eliminate(player);
+
+        Assert.That(player.CanEnterHiding, Is.False);
+    }
+
+    [Test]
+    public void SpectatorCyclesThroughEveryoneStillPlayingAndWrapsRound()
+    {
+        PlayerEnemyAttackReceiver caught = CreatePlayer();
+        PlayerEnemyAttackReceiver first = CreatePlayer();
+        PlayerEnemyAttackReceiver second = CreatePlayer();
+        PlayerEnemyAttackReceiver alsoCaught = CreatePlayer();
+        List<PlayerEnemyAttackReceiver> players = new()
+        {
+            caught,
+            first,
+            second,
+            alsoCaught
+        };
+
+        Eliminate(caught);
+        Eliminate(alsoCaught);
+
+        PlayerEnemyAttackReceiver watched =
+            PlayerSpectatorView.NextTarget(players, caught, null);
+        Assert.That(watched, Is.SameAs(first), "Watching starts with a survivor.");
+
+        watched = PlayerSpectatorView.NextTarget(players, caught, watched);
+        Assert.That(watched, Is.SameAs(second));
+
+        watched = PlayerSpectatorView.NextTarget(players, caught, watched);
+        Assert.That(
+            watched,
+            Is.SameAs(first),
+            "The list wraps round instead of running out.");
+
+        Eliminate(first);
+        Eliminate(second);
+
+        Assert.That(
+            PlayerSpectatorView.NextTarget(players, caught, watched),
+            Is.Null,
+            "Nobody is left to watch once every survivor is caught.");
+    }
+
+    [Test]
+    public void SpectatorNeverWatchesItsOwnCaughtBody()
+    {
+        PlayerEnemyAttackReceiver caught = CreatePlayer();
+        List<PlayerEnemyAttackReceiver> players = new() { caught };
+
+        Eliminate(caught);
+
+        Assert.That(
+            PlayerSpectatorView.NextTarget(players, caught, null),
+            Is.Null);
+    }
+
+    private PlayerEnemyAttackReceiver CreatePlayer()
+    {
+        GameObject playerObject = new($"Player {createdPlayers.Count}");
+        createdPlayers.Add(playerObject);
+        return playerObject.AddComponent<PlayerEnemyAttackReceiver>();
+    }
+
+    private static void Eliminate(PlayerEnemyAttackReceiver player)
+    {
+        TestReflection.SetField(player, "isEliminated", true);
     }
 
     [Test]

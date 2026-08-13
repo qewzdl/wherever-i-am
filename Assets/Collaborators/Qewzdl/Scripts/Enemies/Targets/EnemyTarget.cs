@@ -27,6 +27,13 @@ public class EnemyTarget : MonoBehaviour
     public bool CanBeDetected =>
         canBeDetected && (hidingState == null || !hidingState.IsHidden);
 
+    // A player who is out of the match is not prey any more: without this the
+    // enemy keeps hunting a body nobody is playing.
+    public void SetDetectable(bool value)
+    {
+        canBeDetected = value;
+    }
+
     public NetworkObject NetworkObject
     {
         get
