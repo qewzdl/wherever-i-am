@@ -243,6 +243,75 @@ public sealed class MapLobbyAndGameplayLogicTests
         }
     }
 
+    // A cancelled load is one nobody waits for any more: its completion is
+    // dropped rather than reported, and the load it was cancelled from still
+    // finishes on Unity's side afterwards.
+    [Test]
+    public void MapService_CancelledLoadDropsItsCompletionAndIgnoresWhatFinishesLate()
+    {
+        GameObject serviceObject = new("Cancelled map service");
+        GameObject rootObject = new("Cancelled map root");
+        GameMapDefinition map = CreateMap(4, "Prototype");
+
+        try
+        {
+            GameMapService service = serviceObject.AddComponent<GameMapService>();
+            GameMapRoot mapRoot = rootObject.AddComponent<GameMapRoot>();
+            int completionCount = 0;
+            int mapReadyCount = 0;
+
+            service.MapReady += () => mapReadyCount++;
+
+            TestReflection.SetField(service, "selectedMap", map);
+            TestReflection.SetField(service, "activeMap", map);
+            TestReflection.SetField(service, "activeMapRoot", mapRoot);
+            TestReflection.SetField(service, "readyForMatch", true);
+            TestReflection.SetField(service, "localLoadRequested", true);
+            TestReflection.SetField(
+                service,
+                "pendingCompletion",
+                (Action<bool>)(_ => completionCount++));
+
+            int cancelledOperationVersion =
+                TestReflection.GetField<int>(service, "operationVersion");
+
+            service.CancelPending(ProjectOperationCancelReason.SessionShutdown);
+
+            Assert.That(
+                completionCount,
+                Is.Zero,
+                "A cancelled map load must not report back to a caller that gave up.");
+            Assert.That(service.IsReadyForMatch, Is.False);
+            Assert.That(service.ActiveMap, Is.Null);
+            Assert.That(service.ActiveMapRoot, Is.Null);
+
+            TestReflection.Invoke(
+                service,
+                "HandleLocalLoadOperationCompleted",
+                cancelledOperationVersion,
+                map);
+
+            Assert.That(
+                completionCount,
+                Is.Zero,
+                "The cancelled load finished late and still reported in.");
+            Assert.That(mapReadyCount, Is.Zero);
+            Assert.That(service.IsReadyForMatch, Is.False);
+            Assert.That(service.ActiveMap, Is.Null);
+
+            service.CancelPending(ProjectOperationCancelReason.SessionShutdown);
+
+            Assert.That(completionCount, Is.Zero);
+            Assert.That(mapReadyCount, Is.Zero);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(map);
+            UnityEngine.Object.DestroyImmediate(rootObject);
+            UnityEngine.Object.DestroyImmediate(serviceObject);
+        }
+    }
+
     private static GameMapDefinition CreateMap(int id, string displayName)
     {
         GameMapDefinition map = ScriptableObject.CreateInstance<GameMapDefinition>();

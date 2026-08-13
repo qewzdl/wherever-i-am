@@ -146,6 +146,7 @@ public sealed class HostClientReadinessTransportPlayModeTests
 
     private readonly List<Endpoint> endpoints = new();
     private readonly List<IDisposable> disposables = new();
+    private readonly List<GameObject> testObjects = new();
     private GameObject networkPrefab;
 
     [UnityTearDown]
@@ -176,11 +177,135 @@ public sealed class HostClientReadinessTransportPlayModeTests
 
         endpoints.Clear();
 
+        for (int i = testObjects.Count - 1; i >= 0; i--)
+        {
+            if (testObjects[i] != null)
+                UnityEngine.Object.DestroyImmediate(testObjects[i]);
+        }
+
+        testObjects.Clear();
+
         if (networkPrefab != null)
             UnityEngine.Object.DestroyImmediate(networkPrefab);
 
         networkPrefab = null;
         yield return null;
+    }
+
+    // Only the local client losing its connection ends a session. A remote
+    // client dropping out of a running match is the host's problem to survive,
+    // not a reason to tear the match down.
+    [UnityTest]
+    public IEnumerator RemoteClientDisconnect_LeavesTheHostedMatchRunning()
+    {
+        Endpoint host = CreateEndpoint("Disconnect host");
+        Endpoint client = CreateEndpoint("Disconnect client");
+        CreateAndRegisterNetworkPrefab(host, client);
+        CreateSession(client);
+
+        Assert.That(host.Manager.StartHost(), Is.True);
+        yield return WaitForCondition(
+            () => host.Manager.IsHost &&
+                  host.Transport.GetLocalEndpoint().Port != 0,
+            "Host did not start.");
+
+        client.Transport.SetConnectionData(
+            "127.0.0.1",
+            host.Transport.GetLocalEndpoint().Port);
+        Assert.That(client.Manager.StartClient(), Is.True);
+        yield return WaitForCondition(
+            () => client.Manager.IsConnectedClient &&
+                  host.Manager.ConnectedClientsIds.Count == 2,
+            "Client did not join the host.");
+
+        DriveHostSessionToInGame(host);
+
+        GameObject spawnedObject = UnityEngine.Object.Instantiate(networkPrefab);
+        spawnedObject.name = "Hosted match probe";
+        testObjects.Add(spawnedObject);
+        NetworkObject networkObject = spawnedObject.GetComponent<NetworkObject>();
+        SetNetworkObjectField(networkObject, "NetworkManagerOwner", host.Manager);
+        networkObject.Spawn();
+
+        // Wired with an unconfigured failure handler on purpose: if the remote
+        // disconnect ever reaches it, it logs and fails this test.
+        NetworkSessionDisconnectHandler disconnectHandler = StartDisconnectHandler(host);
+
+        client.Manager.Shutdown(discardMessageQueue: false);
+
+        yield return WaitForCondition(
+            () => !client.Manager.IsListening &&
+                  host.Manager.ConnectedClientsIds.Count == 1,
+            "The host never saw the remote client leave.");
+
+        Assert.That(host.Manager.IsListening, Is.True);
+        Assert.That(host.Manager.IsHost, Is.True);
+        Assert.That(
+            host.SessionState.CurrentState,
+            Is.EqualTo(NetworkSessionState.InGame));
+        Assert.That(networkObject.IsSpawned, Is.True);
+        Assert.That(
+            spawnedObject.GetComponent<ClientReadinessNetworkProbe>().IsMatchRunning,
+            Is.True);
+
+        // The host losing its own connection is a real failure; teardown does
+        // exactly that, so the handler stops listening here.
+        disconnectHandler.StopListening();
+    }
+
+    private static void DriveHostSessionToInGame(Endpoint host)
+    {
+        Assert.That(
+            host.SessionState.TryChangeState(
+                NetworkSessionState.StartingHost,
+                "Host bootstrap started."),
+            Is.True);
+        Assert.That(
+            host.SessionState.TryChangeState(
+                NetworkSessionState.Lobby,
+                "Host lobby committed."),
+            Is.True);
+        Assert.That(
+            host.SessionState.TryChangeState(
+                NetworkSessionState.LoadingGame,
+                "Host started loading the match."),
+            Is.True);
+        Assert.That(
+            host.SessionState.TryChangeState(
+                NetworkSessionState.InGame,
+                "Host match committed."),
+            Is.True);
+    }
+
+    private NetworkSessionDisconnectHandler StartDisconnectHandler(Endpoint host)
+    {
+        GameObject handlerHost = new("Host disconnect handler");
+        handlerHost.SetActive(false);
+        testObjects.Add(handlerHost);
+
+        GameObject failureHost = new("Unconfigured failure handler");
+        failureHost.SetActive(false);
+        testObjects.Add(failureHost);
+        NetworkSessionFailureHandler failureHandler =
+            failureHost.AddComponent<NetworkSessionFailureHandler>();
+
+        NetworkSessionDisconnectHandler disconnectHandler =
+            handlerHost.AddComponent<NetworkSessionDisconnectHandler>();
+        SetPrivateField(disconnectHandler, "networkManager", host.Manager);
+        SetPrivateField(disconnectHandler, "sessionStateMachine", host.SessionState);
+        SetPrivateField(disconnectHandler, "failureHandler", failureHandler);
+        handlerHost.SetActive(true);
+        disconnectHandler.StartListening();
+        return disconnectHandler;
+    }
+
+    private static void SetPrivateField(object target, string fieldName, object value)
+    {
+        FieldInfo field = target.GetType().GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, $"Missing field '{fieldName}'.");
+        field.SetValue(target, value);
     }
 
     [UnityTest]
