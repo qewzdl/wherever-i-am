@@ -235,6 +235,19 @@ public class LobbyController : NetworkBehaviour
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void RequestSetDifficultyRpc(int difficultyId, RpcParams rpcParams = default)
+    {
+        if (!IsConstructed()) return;
+
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (!ownershipService.CanChangeSettings(senderClientId)) return;
+
+        settingsService.SetDifficulty(difficultyId);
+        startService.RefreshCanStartGame();
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestStartGameRpc(RpcParams rpcParams = default)
     {
         if (!IsConstructed()) return;

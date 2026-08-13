@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -12,14 +13,18 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
     [SerializeField] private Button leaveButton;
+    [SerializeField] private TMP_Dropdown difficultyDropdown;
+    [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
 
     private ILobbyReadService readService;
+    private int[] difficultyIds = Array.Empty<int>();
 
     public event Action ReadyClicked;
     public event Action StartGameClicked;
     public event Action LeaveLobbyClicked;
+    public event Action<int> DifficultySelected;
 
     public void Construct(ILobbyReadService readService)
     {
@@ -45,6 +50,10 @@ public class LobbyUI : MonoBehaviour
     private void Awake()
     {
         CacheReadyButtonLabel();
+        PopulateDifficultyDropdown();
+
+        if (difficultyDropdown != null)
+            difficultyDropdown.onValueChanged.AddListener(HandleDifficultySelected);
 
         if (readyButton != null)
             readyButton.onClick.AddListener(HandleReadyClicked);
@@ -63,6 +72,9 @@ public class LobbyUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (difficultyDropdown != null)
+            difficultyDropdown.onValueChanged.RemoveListener(HandleDifficultySelected);
+
         if (readyButton != null)
             readyButton.onClick.RemoveListener(HandleReadyClicked);
 
@@ -90,6 +102,14 @@ public class LobbyUI : MonoBehaviour
         LeaveLobbyClicked?.Invoke();
     }
 
+    private void HandleDifficultySelected(int optionIndex)
+    {
+        if (optionIndex < 0 || optionIndex >= difficultyIds.Length)
+            return;
+
+        DifficultySelected?.Invoke(difficultyIds[optionIndex]);
+    }
+
     private void Refresh()
     {
         if (readService == null)
@@ -97,6 +117,62 @@ public class LobbyUI : MonoBehaviour
 
         RefreshPlayers();
         RefreshButtons();
+        RefreshDifficulty();
+    }
+
+    private void PopulateDifficultyDropdown()
+    {
+        if (difficultyDropdown == null)
+            return;
+
+        if (difficultyCatalog == null)
+        {
+            difficultyDropdown.gameObject.SetActive(false);
+            return;
+        }
+
+        int count = difficultyCatalog.Count;
+        difficultyIds = new int[count];
+        List<string> optionLabels = new List<string>(count);
+
+        for (int i = 0; i < count; i++)
+        {
+            if (!difficultyCatalog.TryGetEntryAt(
+                    i,
+                    out EnemyDifficultyCatalog.EnemyDifficultyEntry entry))
+            {
+                continue;
+            }
+
+            difficultyIds[i] = entry.DifficultyId;
+            optionLabels.Add(entry.DisplayName);
+        }
+
+        difficultyDropdown.ClearOptions();
+        difficultyDropdown.AddOptions(optionLabels);
+    }
+
+    // Everyone sees the choice, only the owner can move it. SetValueWithoutNotify
+    // keeps the replicated value from bouncing straight back as a new command.
+    private void RefreshDifficulty()
+    {
+        if (difficultyDropdown == null || difficultyIds.Length == 0)
+            return;
+
+        difficultyDropdown.interactable =
+            readService.Phase == LobbyPhase.Open && readService.IsLocalPlayerRoomOwner;
+
+        int selectedDifficultyId = readService.Settings.DifficultyId;
+
+        for (int i = 0; i < difficultyIds.Length; i++)
+        {
+            if (difficultyIds[i] != selectedDifficultyId)
+                continue;
+
+            difficultyDropdown.SetValueWithoutNotify(i);
+            difficultyDropdown.RefreshShownValue();
+            return;
+        }
     }
 
     private void RefreshPlayers()

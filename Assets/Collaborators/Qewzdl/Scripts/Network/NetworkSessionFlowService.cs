@@ -164,6 +164,16 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
     public void StartGame(int mapId)
     {
+        StartGame(mapId, difficultyId: null);
+    }
+
+    public void StartGame(int mapId, int difficultyId)
+    {
+        StartGame(mapId, (int?)difficultyId);
+    }
+
+    private void StartGame(int mapId, int? difficultyId)
+    {
         if (!HasRequiredReferences())
             return;
 
@@ -182,6 +192,18 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
                 ConnectionErrorCode.Unknown,
                 "Failed to select the game map.",
                 $"Invalid game map id: {mapId}.",
+                true
+            ));
+            return;
+        }
+
+        if (difficultyId.HasValue &&
+            !gameMapService.SelectDifficulty(difficultyId.Value))
+        {
+            _ = FailAsync(ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to select the difficulty.",
+                $"Invalid enemy difficulty id: {difficultyId.Value}.",
                 true
             ));
             return;

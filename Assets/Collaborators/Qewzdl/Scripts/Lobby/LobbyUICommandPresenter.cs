@@ -72,6 +72,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.ReadyClicked += HandleReadyClicked;
         lobbyUI.StartGameClicked += HandleStartGameClicked;
         lobbyUI.LeaveLobbyClicked += HandleLeaveLobbyClicked;
+        lobbyUI.DifficultySelected += HandleDifficultySelected;
 
         isSubscribed = true;
     }
@@ -84,6 +85,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.ReadyClicked -= HandleReadyClicked;
         lobbyUI.StartGameClicked -= HandleStartGameClicked;
         lobbyUI.LeaveLobbyClicked -= HandleLeaveLobbyClicked;
+        lobbyUI.DifficultySelected -= HandleDifficultySelected;
 
         isSubscribed = false;
     }
@@ -114,6 +116,17 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
             return;
 
         commandService.StartGame();
+    }
+
+    private void HandleDifficultySelected(int difficultyId)
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (readService.Phase != LobbyPhase.Open)
+            return;
+
+        commandService.SetDifficulty(difficultyId);
     }
 
     private void HandleLeaveLobbyClicked()

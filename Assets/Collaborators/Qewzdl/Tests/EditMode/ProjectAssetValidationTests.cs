@@ -19,6 +19,10 @@ public sealed class ProjectAssetValidationTests
         "Assets/Collaborators/Qewzdl/Settings/ProjectSceneFlow.asset";
     private const string GameMapCatalogPath =
         "Assets/Collaborators/Qewzdl/Configs/Maps/GameMapCatalog.asset";
+    private const string LobbyConfigPath =
+        "Assets/Collaborators/Qewzdl/Configs/Lobby/LobbyConfig.asset";
+    private const string EnemyDifficultyCatalogPath =
+        "Assets/Collaborators/Qewzdl/Configs/Enemies/EnemyDifficultyCatalog.asset";
     private const string SceneAudioRegistryPath =
         "Assets/Collaborators/Qewzdl/Audio/Scenes/SceneAudioRegistry.asset";
     private const string UiSoundThemePath =
@@ -167,6 +171,38 @@ public sealed class ProjectAssetValidationTests
                 enabledBuildScenes.Contains(scenePath),
                 Is.True,
                 $"Map scene '{scenePath}' is not enabled in build settings.");
+        }
+    }
+
+    [Test]
+    public void EnemyDifficultyCatalog_IsValidAndEveryDifficultyIsSelectable()
+    {
+        EnemyDifficultyCatalog catalog =
+            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+
+        Assert.That(catalog.IsValid(out string catalogError), Is.True, catalogError);
+        Assert.That(catalog.Count, Is.GreaterThan(0));
+        Assert.That(catalog.IsValidDifficultyId(catalog.DefaultDifficultyId), Is.True);
+
+        LobbyConfig lobbyConfig = LoadRequiredAsset<LobbyConfig>(LobbyConfigPath);
+
+        Assert.That(
+            lobbyConfig.DifficultyCatalog,
+            Is.SameAs(catalog),
+            "Lobby offers difficulties from a different catalog than the one under test.");
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            Assert.That(
+                catalog.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry),
+                Is.True,
+                $"Missing difficulty entry at index {i}.");
+
+            // A difficulty the lobby refuses is one nobody can ever pick.
+            Assert.That(
+                lobbyConfig.IsValidDifficultyId(entry.DifficultyId),
+                Is.True,
+                $"Difficulty '{entry.DisplayName}' is not selectable in the lobby.");
         }
     }
 

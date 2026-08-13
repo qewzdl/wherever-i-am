@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20a02acfc5d4fa342bcc1582cded2099, type: 3}
+  m_Name: EnemyInvestigationConfig_Hard
+  m_EditorClassIdentifier: 
+  investigationReachDistance: 0.75
+  investigationRepathInterval: 0.25
+  investigationBranchRadius: 3.5
+  investigationBranchPointCount: 4
+  investigationLeafRadius: 2
+  investigationLeafPointCountPerBranch: 4
+  investigationSearchSpeed: 2.1

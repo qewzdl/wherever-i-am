@@ -46,6 +46,7 @@ public class NetworkEnemyController : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         CacheComponents();
+        ApplyLobbyDifficultyServerOnly();
 
         if (targetDetector != null &&
             NetworkObjectServiceContext.TryResolveSessionService(
@@ -88,6 +89,28 @@ public class NetworkEnemyController : NetworkBehaviour
 
         EnableServerRuntimeComponents();
         shouldStartServerRuntime = true;
+    }
+
+    // The difficulty the host chose only ever changes how the enemy thinks,
+    // which is server work. Clients keep the prefab config, and the catalog
+    // makes sure every difficulty describes the same body, so the collider
+    // they build from it stays right.
+    private void ApplyLobbyDifficultyServerOnly()
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        if (!NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IGameMapSessionService mapSession) ||
+            mapSession.SelectedEnemyConfig == null)
+        {
+            return;
+        }
+
+        config = mapSession.SelectedEnemyConfig;
     }
 
     public override void OnNetworkDespawn()

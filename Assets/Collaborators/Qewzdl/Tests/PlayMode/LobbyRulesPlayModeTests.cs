@@ -9,6 +9,7 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
 {
     internal int StartGameCount { get; private set; }
     internal int LastMapId { get; private set; } = -1;
+    internal int LastDifficultyId { get; private set; } = -1;
 
     public Task HostLanAsync()
     {
@@ -24,6 +25,12 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
     {
         StartGameCount++;
         LastMapId = mapId;
+    }
+
+    public void StartGame(int mapId, int difficultyId)
+    {
+        StartGame(mapId);
+        LastDifficultyId = difficultyId;
     }
 
     public void ShutdownToMainMenu()
@@ -156,6 +163,10 @@ public sealed class LobbyRulesPlayModeTests
         LobbyConfig config = ScriptableObject.CreateInstance<LobbyConfig>();
         GameMapCatalog catalog = ScriptableObject.CreateInstance<GameMapCatalog>();
         GameMapDefinition map = ScriptableObject.CreateInstance<GameMapDefinition>();
+        EnemyDifficultyCatalog difficulties =
+            ScriptableObject.CreateInstance<EnemyDifficultyCatalog>();
+        EnemyConfig easyEnemy = ScriptableObject.CreateInstance<EnemyConfig>();
+        EnemyConfig hardEnemy = ScriptableObject.CreateInstance<EnemyConfig>();
 
         try
         {
@@ -176,6 +187,16 @@ public sealed class LobbyRulesPlayModeTests
                 "gameModeIds",
                 new[] { 2, 3 });
             PlayModeTestReflection.SetField(config, "mapCatalog", catalog);
+            PlayModeTestReflection.SetField(
+                difficulties,
+                "difficulties",
+                new[]
+                {
+                    new EnemyDifficultyCatalog.EnemyDifficultyEntry(0, "Test easy", easyEnemy),
+                    new EnemyDifficultyCatalog.EnemyDifficultyEntry(4, "Test hard", hardEnemy)
+                });
+            PlayModeTestReflection.SetField(difficulties, "defaultDifficultyId", 4);
+            PlayModeTestReflection.SetField(config, "difficultyCatalog", difficulties);
 
             yield return null;
 
@@ -184,6 +205,19 @@ public sealed class LobbyRulesPlayModeTests
             Assert.That(state.Phase.Value, Is.EqualTo(LobbyPhase.Open));
             Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(2));
             Assert.That(state.Settings.Value.MapId, Is.EqualTo(7));
+            Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(4));
+
+            LogAssert.Expect(
+                LogType.Warning,
+                "Rejected invalid lobby difficulty id: 99.");
+            settings.SetDifficulty(99);
+            Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(4));
+
+            settings.SetDifficulty(0);
+            Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(0));
+
+            Assert.That(difficulties.TryGetConfig(0, out EnemyConfig selected), Is.True);
+            Assert.That(selected, Is.SameAs(easyEnemy));
 
             LogAssert.Expect(
                 LogType.Warning,
@@ -216,6 +250,9 @@ public sealed class LobbyRulesPlayModeTests
             Object.Destroy(config);
             Object.Destroy(catalog);
             Object.Destroy(map);
+            Object.Destroy(difficulties);
+            Object.Destroy(easyEnemy);
+            Object.Destroy(hardEnemy);
         }
     }
 

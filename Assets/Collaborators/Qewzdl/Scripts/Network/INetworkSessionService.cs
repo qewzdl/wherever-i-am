@@ -6,6 +6,10 @@ public interface INetworkSessionService
     Task JoinLanAsync(string ip);
 
     void StartGame(int mapId);
+
+    // Same start, with the difficulty the host picked. The overload without it
+    // keeps whatever difficulty the catalog defaults to.
+    void StartGame(int mapId, int difficultyId);
     void ShutdownToMainMenu();
 
     /// <summary>

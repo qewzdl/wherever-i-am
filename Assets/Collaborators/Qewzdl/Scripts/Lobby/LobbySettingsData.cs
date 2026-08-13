@@ -9,6 +9,7 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
 
     public int GameModeId;
     public int MapId;
+    public int DifficultyId;
 
     public LobbySettingsData(
         int minPlayersToStart,
@@ -22,6 +23,7 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
         RequireAllPlayersReady = requireAllPlayersReady;
         GameModeId = gameModeId;
         MapId = mapId;
+        DifficultyId = 0;
     }
 
     public static LobbySettingsData CreateDefault()
@@ -46,7 +48,10 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
             config.RequireAllPlayersReady,
             config.DefaultGameModeId,
             config.DefaultMapId
-        );
+        )
+        {
+            DifficultyId = config.DefaultDifficultyId
+        };
     }
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
@@ -56,6 +61,7 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
         serializer.SerializeValue(ref RequireAllPlayersReady);
         serializer.SerializeValue(ref GameModeId);
         serializer.SerializeValue(ref MapId);
+        serializer.SerializeValue(ref DifficultyId);
     }
 
     public bool Equals(LobbySettingsData other)
@@ -64,6 +70,7 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
                MaxPlayers == other.MaxPlayers &&
                RequireAllPlayersReady == other.RequireAllPlayersReady &&
                GameModeId == other.GameModeId &&
-               MapId == other.MapId;
+               MapId == other.MapId &&
+               DifficultyId == other.DifficultyId;
     }
 }

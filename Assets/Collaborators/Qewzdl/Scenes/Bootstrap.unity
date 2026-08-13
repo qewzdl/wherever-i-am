@@ -640,6 +640,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   catalog: {fileID: 11400000, guid: 2582fe9c6f7445d3a79d8f6fb8491304, type: 2}
+  difficultyCatalog: {fileID: 11400000, guid: ad8721df252ddf04e99e6d550037f2fc, type: 2}
 --- !u!114 &481143006
 MonoBehaviour:
   m_ObjectHideFlags: 0
