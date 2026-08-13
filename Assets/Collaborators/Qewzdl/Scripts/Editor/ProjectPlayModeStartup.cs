@@ -117,7 +117,10 @@ public static class ProjectPlayModeStartup
         SessionState.EraseString(PreviousPlayModeStartScenePathKey);
     }
 
-    private static ProjectSettings LoadProjectSettings()
+    // Internal so the menu that opens the bootstrap scene resolves it here
+    // rather than keeping a second copy of the path: the scene it opens is
+    // then always the scene play mode boots through.
+    internal static ProjectSettings LoadProjectSettings()
     {
         ProjectSettings settings = AssetDatabase.LoadAssetAtPath<ProjectSettings>(ProjectSettingsAssetPath);
 
@@ -128,7 +131,7 @@ public static class ProjectPlayModeStartup
         return null;
     }
 
-    private static string GetBootstrapScenePath(ProjectSettings settings)
+    internal static string GetBootstrapScenePath(ProjectSettings settings)
     {
         if (!settings.TryGetScene(settings.BootstrapScene, out ProjectSceneDefinition bootstrapScene))
         {
