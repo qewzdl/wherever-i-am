@@ -2334,6 +2334,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             new Vector3(0f, 0f, -5f));
         EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
         NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+        EnemyPostureController posture =
+            enemy.GetComponent<EnemyPostureController>();
 
         yield return WaitForCondition(
             () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
@@ -2402,13 +2404,16 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 framesBelowThreshold++;
             }
 
-            // Standing still is correct in two states now. Attacking has
-            // always been one; stalking is the other, and its whole purpose is
+            // Standing still is correct in three states now. Attacking has
+            // always been one; stalking is the second, and its whole purpose is
             // to stop and watch, so counting it as a stall would test the
-            // opposite of what is wanted.
+            // opposite of what is wanted. Lying in ambush is the third - it
+            // stops navigation on entry and waits for the target to turn
+            // round, so every ambush is a halt by design.
             bool shouldBeMoving =
                 enemy.CurrentState != EnemyState.Attack &&
-                enemy.CurrentState != EnemyState.Stalk;
+                enemy.CurrentState != EnemyState.Stalk &&
+                enemy.CurrentState != EnemyState.Ambush;
 
             bool halting = !isMoving && shouldBeMoving;
 
@@ -2424,7 +2429,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                         $"speed={speed:0.###} isStopped={agent.isStopped} " +
                         $"pathPending={agent.pathPending} " +
                         $"hasPath={agent.hasPath} status={agent.pathStatus} " +
-                        $"remaining={agent.remainingDistance:0.##}";
+                        $"remaining={agent.remainingDistance:0.##} " +
+                        $"state={enemy.CurrentState} " +
+                        $"posture={posture.CurrentPosture} " +
+                        $"transitioning={posture.IsPostureTransitionInProgress}";
                 }
 
                 haltSeconds += Time.unscaledDeltaTime;
