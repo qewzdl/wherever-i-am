@@ -7,12 +7,14 @@ public sealed class PlayerEnemyAttackReceiverTests
         public bool IsMatchRunning { get; set; }
         public bool CompletionResult { get; set; }
         public int CompletionCount { get; private set; }
+        public GameResultData LastResult { get; private set; }
 
         public bool CompleteMatchServerOnly(
             GameResultData matchResult,
             string reason)
         {
             CompletionCount++;
+            LastResult = matchResult;
             return CompletionResult;
         }
     }
@@ -38,6 +40,7 @@ public sealed class PlayerEnemyAttackReceiverTests
             completionGate.TryComplete(
                 service,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.False);
         Assert.That(service.CompletionCount, Is.Zero);
@@ -48,10 +51,13 @@ public sealed class PlayerEnemyAttackReceiverTests
             completionGate.TryComplete(
                 service,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.True);
         Assert.That(service.CompletionCount, Is.EqualTo(1));
         Assert.That(completionGate.CanAttempt, Is.False);
+        Assert.That(service.LastResult.Source, Is.EqualTo(MatchResultSource.PlayerCaught));
+        Assert.That(service.LastResult.InstigatorClientId, Is.EqualTo(7));
     }
 
     [Test]
@@ -67,12 +73,14 @@ public sealed class PlayerEnemyAttackReceiverTests
             completionGate.TryComplete(
                 null,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.False);
         Assert.That(
             completionGate.TryComplete(
                 service,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.True);
         Assert.That(service.CompletionCount, Is.EqualTo(1));
@@ -92,12 +100,14 @@ public sealed class PlayerEnemyAttackReceiverTests
             completionGate.TryComplete(
                 service,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.True);
         Assert.That(
             completionGate.TryComplete(
                 service,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.False);
         Assert.That(service.CompletionCount, Is.EqualTo(1));
@@ -116,6 +126,7 @@ public sealed class PlayerEnemyAttackReceiverTests
             completionGate.TryComplete(
                 service,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.False);
         Assert.That(service.CompletionCount, Is.EqualTo(1));
@@ -126,6 +137,7 @@ public sealed class PlayerEnemyAttackReceiverTests
             completionGate.TryComplete(
                 service,
                 GameResultType.Defeat,
+                7,
                 "enemy hit"),
             Is.True);
         Assert.That(service.CompletionCount, Is.EqualTo(2));
