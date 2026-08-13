@@ -193,6 +193,30 @@ public sealed class ProjectAssetValidationTests
             Assert.That(sequence.IsValid(out string error), Is.True, $"{path}: {error}");
         }
 
+        // A map may swap in its own objective sequence. Nothing loads it until
+        // the match is already starting, so a broken override only shows up as
+        // a faulted flow mid-session unless it is checked here.
+        string[] mapGuids = AssetDatabase.FindAssets(
+            $"t:{nameof(GameMapDefinition)}",
+            new[] { CollaboratorsRoot });
+
+        for (int i = 0; i < mapGuids.Length; i++)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(mapGuids[i]);
+            GameMapDefinition map =
+                AssetDatabase.LoadAssetAtPath<GameMapDefinition>(path);
+
+            Assert.That(map, Is.Not.Null, path);
+
+            if (map.ObjectiveSequenceOverride == null)
+                continue;
+
+            Assert.That(
+                map.ObjectiveSequenceOverride.IsValid(out string overrideError),
+                Is.True,
+                $"{path}: {overrideError}");
+        }
+
         for (int i = 0; i < enemyConfigGuids.Length; i++)
         {
             string path = AssetDatabase.GUIDToAssetPath(enemyConfigGuids[i]);
