@@ -49,6 +49,7 @@ public sealed class PlayerEnemyAttackReceiver :
             !completionGate.TryComplete(
                 matchCompletionService,
                 hitResult,
+                networkObject.OwnerClientId,
                 hitReason))
         {
             return false;
@@ -89,6 +90,7 @@ internal sealed class PlayerEnemyAttackCompletionGate
     internal bool TryComplete(
         IMatchCompletionService matchCompletionService,
         GameResultType hitResult,
+        ulong caughtClientId,
         string hitReason)
     {
         if (!CanAttempt ||
@@ -98,8 +100,9 @@ internal sealed class PlayerEnemyAttackCompletionGate
             return false;
         }
 
-        MatchOutcome outcome = MatchOutcomeFactory.FromAllPlayersDead(
+        MatchOutcome outcome = MatchOutcomeFactory.FromPlayerCaught(
             hitResult,
+            caughtClientId,
             hitReason
         );
         if (!outcome.HasResult)

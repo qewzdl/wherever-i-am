@@ -4,7 +4,7 @@ public static class MatchOutcomeFactory
 {
     private const string TimeoutSourceId = "timeout";
     private const string AdminSourceId = "admin";
-    private const string AllPlayersDeadSourceId = "all_players_dead";
+    private const string PlayerCaughtSourceId = "player_caught";
 
     public static MatchOutcome FromObjective(
         ObjectiveDefinition definition,
@@ -70,15 +70,22 @@ public static class MatchOutcomeFactory
             disconnectedClientId);
     }
 
-    public static MatchOutcome FromAllPlayersDead(
+    public static MatchOutcome FromPlayerCaught(
         GameResultType resultType,
+        ulong caughtClientId,
         string reason)
     {
-        return FromSystemSource(
+        if (resultType == GameResultType.None)
+        {
+            return default;
+        }
+
+        return new MatchOutcome(
             resultType,
-            MatchResultSource.AllPlayersDead,
-            AllPlayersDeadSourceId,
-            reason);
+            MatchResultSource.PlayerCaught,
+            PlayerCaughtSourceId,
+            reason,
+            caughtClientId);
     }
 
     private static MatchOutcome FromSystemSource(

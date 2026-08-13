@@ -63,7 +63,7 @@ public struct GameResultData : INetworkSerializable, IEquatable<GameResultData>
             case MatchResultSource.Disconnect:
                 return !string.IsNullOrWhiteSpace(sourceId);
 
-            case MatchResultSource.AllPlayersDead:
+            case MatchResultSource.PlayerCaught:
                 return true;
 
             default:

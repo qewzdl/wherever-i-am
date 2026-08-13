@@ -5,5 +5,5 @@ public enum MatchResultSource
     Timeout = 2,
     Admin = 3,
     Disconnect = 4,
-    AllPlayersDead = 5
+    PlayerCaught = 5
 }

@@ -125,7 +125,7 @@ public sealed class GameplayNoiseAndMatchLogicTests
     [TestCase(GameResultType.Draw, MatchResultSource.Admin, "", true)]
     [TestCase(GameResultType.Defeat, MatchResultSource.Disconnect, "", false)]
     [TestCase(GameResultType.Defeat, MatchResultSource.Disconnect, "12", true)]
-    [TestCase(GameResultType.Defeat, MatchResultSource.AllPlayersDead, "", true)]
+    [TestCase(GameResultType.Defeat, MatchResultSource.PlayerCaught, "", true)]
     public void GameResultValidation_EnforcesSourceSpecificIdentity(
         GameResultType result,
         MatchResultSource source,
@@ -151,9 +151,10 @@ public sealed class GameplayNoiseAndMatchLogicTests
             GameResultType.Defeat,
             8,
             "Owner left");
-        MatchOutcome allDead = MatchOutcomeFactory.FromAllPlayersDead(
+        MatchOutcome caught = MatchOutcomeFactory.FromPlayerCaught(
             GameResultType.Defeat,
-            "No survivors");
+            5,
+            "A player was caught by an enemy");
 
         Assert.That(timeout.HasResult, Is.True);
         Assert.That(timeout.Source, Is.EqualTo(MatchResultSource.Timeout));
@@ -167,8 +168,10 @@ public sealed class GameplayNoiseAndMatchLogicTests
         Assert.That(disconnect.SourceId, Is.EqualTo("8"));
         Assert.That(disconnect.InstigatorClientId, Is.EqualTo(8));
 
-        Assert.That(allDead.HasResult, Is.True);
-        Assert.That(allDead.SourceId, Is.EqualTo("all_players_dead"));
+        Assert.That(caught.HasResult, Is.True);
+        Assert.That(caught.Source, Is.EqualTo(MatchResultSource.PlayerCaught));
+        Assert.That(caught.SourceId, Is.EqualTo("player_caught"));
+        Assert.That(caught.InstigatorClientId, Is.EqualTo(5));
     }
 
     [Test]
