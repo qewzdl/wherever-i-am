@@ -430,7 +430,7 @@ public abstract class DraggableObject : InteractableObject
         }
 
         draggableContext = context;
-        RequestOwnershipServerRpc();
+        context.PlayerInteraction.RequestDrag(this);
     }
 
     public void OnUninteract()
@@ -490,31 +490,27 @@ public abstract class DraggableObject : InteractableObject
 
     #region ServerLogic
 
-    //RPC
-
-    [Rpc(SendTo.Server)]
-    private void RequestOwnershipServerRpc(RpcParams rpcParams = default)
+    internal bool TryStartDraggingServer(ulong clientId)
     {
-        ulong senderClientId = rpcParams.Receive.SenderClientId;
-
-        if (netIsDragging.Value ||
+        if (!IsServer ||
+            netIsDragging.Value ||
             !CanStartDragging() ||
             !PlayerActionGateContext.TryBegin(
                 NetworkManager,
-                senderClientId,
+                clientId,
                 PlayerActionKind.Drag,
                 this,
                 out IPlayerActionGate actionGate))
         {
-            DenyDraggingRpc(RpcTarget.Single(senderClientId, RpcTargetUse.Temp));
-            return;
+            return false;
         }
 
         try
         {
-            GetComponent<NetworkObject>().ChangeOwnership(senderClientId);
+            NetworkObject.ChangeOwnership(clientId);
             netIsDragging.Value = true;
             StartDraggingOwnerRpc();
+            return true;
         }
         catch
         {
@@ -527,12 +523,6 @@ public abstract class DraggableObject : InteractableObject
     protected virtual bool CanStartDragging()
     {
         return true;
-    }
-
-    [Rpc(SendTo.SpecifiedInParams)]
-    private void DenyDraggingRpc(RpcParams rpcParams = default)
-    {
-        draggableContext.PlayerInteraction.DenyDragging();
     }
 
     [Rpc(SendTo.Server)]

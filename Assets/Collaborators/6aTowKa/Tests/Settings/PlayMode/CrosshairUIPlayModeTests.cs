@@ -44,6 +44,7 @@ public sealed class CrosshairUIPlayModeTests
             typeof(CrosshairUI)
                 .GetField("crosshairImage", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(crosshair, image);
+            crosshair.Construct(service);
             hud.SetActive(true);
 
             service.SetCrosshairSize(1.5f);
@@ -59,9 +60,6 @@ public sealed class CrosshairUIPlayModeTests
         }
         finally
         {
-            // SettingsService is a singleton that only releases its static
-            // instance in OnDestroy. A deferred Destroy leaves it alive into
-            // the next test, which then logs "Only one SettingsService".
             UnityEngine.Object.DestroyImmediate(hud);
             UnityEngine.Object.DestroyImmediate(serviceObject);
             if (Directory.Exists(directory))

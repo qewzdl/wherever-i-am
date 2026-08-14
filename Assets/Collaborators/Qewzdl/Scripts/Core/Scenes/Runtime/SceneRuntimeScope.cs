@@ -21,6 +21,7 @@ internal sealed class SceneRuntimeScope : IDisposable
     private readonly SceneRuntimeFeature[] features;
     private readonly Func<ServiceScope, bool> readyValidator;
     private AudioServiceComposition audioComposition;
+    private SettingsServiceComposition settingsComposition;
     private readonly List<Exception> cleanupFailures = new();
     private int installedFeatureCount;
     private bool disposed;
@@ -148,6 +149,17 @@ internal sealed class SceneRuntimeScope : IDisposable
                     throw new InvalidOperationException(
                         $"Failed to compose audio consumers in scene '{sceneLabel}'.");
                 }
+
+                ISettingsService settingsService = serviceScope.Resolve<ISettingsService>();
+
+                if (!SettingsServiceComposition.TryCompose(
+                        scene,
+                        settingsService,
+                        out settingsComposition))
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to compose settings consumers in scene '{sceneLabel}'.");
+                }
             }
         }
         catch (Exception exception)
@@ -233,6 +245,7 @@ internal sealed class SceneRuntimeScope : IDisposable
         ready = false;
         featureContext.DetachScopeLifetime();
         RollbackInstalledFeatures();
+        DisposeSettingsComposition();
         DisposeAudioComposition();
         DisposeServiceScope();
     }
@@ -244,6 +257,7 @@ internal sealed class SceneRuntimeScope : IDisposable
         ready = false;
         featureContext.DetachScopeLifetime();
         RollbackInstalledFeatures();
+        DisposeSettingsComposition();
         DisposeAudioComposition();
         RollbackRegistrations(registrationTransaction);
         DisposeServiceScope();
@@ -285,6 +299,21 @@ internal sealed class SceneRuntimeScope : IDisposable
     {
         AudioServiceComposition composition = audioComposition;
         audioComposition = null;
+
+        try
+        {
+            composition?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            cleanupFailures.Add(exception);
+        }
+    }
+
+    private void DisposeSettingsComposition()
+    {
+        SettingsServiceComposition composition = settingsComposition;
+        settingsComposition = null;
 
         try
         {

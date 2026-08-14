@@ -10,6 +10,8 @@ public class AudioManager : MonoBehaviour, IAudioService
     [SerializeField] private UiSoundManager ui;
     [SerializeField] private GameplaySoundManager gameplay;
 
+    private SettingsServiceComposition settingsComposition;
+
     public MusicManager Music => music;
     public UiSoundManager UI => ui;
     public GameplaySoundManager Gameplay => gameplay;
@@ -27,9 +29,22 @@ public class AudioManager : MonoBehaviour, IAudioService
         ValidateManagers();
     }
 
-    public bool Construct(IProjectSceneRegistry sceneRegistry)
+    public bool Construct(
+        IProjectSceneRegistry sceneRegistry,
+        ISettingsService settingsService)
     {
         FindMissingManagers();
+        settingsComposition?.Dispose();
+        settingsComposition = null;
+
+        if (!SettingsServiceComposition.TryCompose(
+                gameObject,
+                settingsService,
+                out settingsComposition))
+        {
+            Debug.LogError($"{nameof(AudioManager)} failed to compose settings consumers.", this);
+            return false;
+        }
 
         SceneAudioDirector director = GetComponentInChildren<SceneAudioDirector>(true);
 
@@ -39,12 +54,27 @@ public class AudioManager : MonoBehaviour, IAudioService
                 $"{nameof(AudioManager)} requires a child {nameof(SceneAudioDirector)}.",
                 this);
 
+            settingsComposition.Dispose();
+            settingsComposition = null;
             return false;
         }
 
         director.Construct(this, sceneRegistry);
-        music?.BindSettings();
-        return music != null && ui != null && gameplay != null;
+        bool valid = music != null && ui != null && gameplay != null;
+
+        if (!valid)
+        {
+            settingsComposition.Dispose();
+            settingsComposition = null;
+        }
+
+        return valid;
+    }
+
+    private void OnDestroy()
+    {
+        settingsComposition?.Dispose();
+        settingsComposition = null;
     }
 
     private void ApplyLowLatencyConfiguration()

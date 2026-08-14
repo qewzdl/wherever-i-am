@@ -1,6 +1,7 @@
+using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
+public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
 {
     // Interaction settings
     [SerializeField] private float interactionRange = 2f;
@@ -29,14 +30,22 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private bool dragRequestPending;
     private bool pickupRequestPending;
+    private bool hasLocalControl;
 
     private GameObject HitPoint;
     private bool crosshairIsDefualt;
 
     private RaycastHit hit;
 
-    protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
+    protected override void OnPostInit(PlayerOrchestrator orch)
     {
+        bool isMultiplayer =
+            IsSpawned && NetworkManager != null && NetworkManager.IsListening;
+        hasLocalControl = !isMultiplayer || IsOwner;
+
+        if (!hasLocalControl)
+            return;
+
         ResolvePlayerServices();
 
         HitPoint = new GameObject();
@@ -51,6 +60,9 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     public void Cleanup()
     {
+        if (!hasLocalControl)
+            return;
+
         ReleaseInteractionActions();
 
         if (signals != null)
@@ -67,6 +79,9 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
 
     private void Update()
     {
+        if (!hasLocalControl)
+            return;
+
         Raycast();
     }
 
@@ -200,6 +215,131 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
             PlayerInteraction = this,
         };
     }
+
+    public void RequestDrag(DraggableObject target)
+    {
+        if (!hasLocalControl || !IsSpawned || target == null || !target.IsSpawned)
+        {
+            DenyDragging();
+            return;
+        }
+
+        RequestDragServerRpc(target.NetworkObject);
+    }
+
+    public void RequestPickup(PickupItem target)
+    {
+        if (!hasLocalControl || !IsSpawned || target == null || !target.IsSpawned)
+        {
+            DenyPickup();
+            return;
+        }
+
+        RequestPickupServerRpc(target.NetworkObject);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+    private void RequestDragServerRpc(NetworkObjectReference targetReference)
+    {
+        if (!targetReference.TryGet(out NetworkObject targetObject, NetworkManager) ||
+            targetObject.GetComponent<DraggableObject>() is not DraggableObject target ||
+            !CanReach(target) ||
+            !target.TryStartDraggingServer(OwnerClientId))
+        {
+            DenyDraggingOwnerRpc();
+        }
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+    private void RequestPickupServerRpc(NetworkObjectReference targetReference)
+    {
+        if (!targetReference.TryGet(out NetworkObject targetObject, NetworkManager) ||
+            targetObject.GetComponent<PickupItem>() is not PickupItem target ||
+            !CanReach(target) ||
+            !target.TryPickUpServer(OwnerClientId))
+        {
+            DenyPickupOwnerRpc();
+        }
+    }
+
+    private bool CanReach(DraggableObject target)
+    {
+        if (!IsServer || target == null || rayOrigin == null || target.Colliders == null)
+            return false;
+
+        Vector3 origin = rayOrigin.position;
+        float maxDistanceSqr = interactionRange * interactionRange;
+        int lineOfSightMask =
+            Physics.DefaultRaycastLayers & ~LayerMask.GetMask("Player");
+
+        foreach (Collider targetCollider in target.Colliders)
+        {
+            if (targetCollider == null ||
+                !targetCollider.enabled ||
+                !targetCollider.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            Vector3 offset = targetCollider.ClosestPoint(origin) - origin;
+
+            if (offset.sqrMagnitude > maxDistanceSqr)
+                continue;
+
+            float distance = offset.magnitude;
+
+            if (distance < 0.001f)
+                return true;
+
+            RaycastHit[] hits = Physics.RaycastAll(
+                origin,
+                offset / distance,
+                distance + 0.02f,
+                lineOfSightMask,
+                QueryTriggerInteraction.Ignore);
+            RaycastHit closestHit = default;
+            float closestDistance = float.PositiveInfinity;
+
+            foreach (RaycastHit candidate in hits)
+            {
+                NetworkObject hitNetworkObject =
+                    candidate.collider.GetComponentInParent<NetworkObject>();
+
+                if (hitNetworkObject != null &&
+                    hitNetworkObject.NetworkManager != NetworkManager)
+                {
+                    continue;
+                }
+
+                if (candidate.distance >= closestDistance)
+                    continue;
+
+                closestHit = candidate;
+                closestDistance = candidate.distance;
+            }
+
+            if (closestDistance == float.PositiveInfinity ||
+                closestHit.collider.GetComponentInParent<DraggableObject>() == target)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    [Rpc(SendTo.Owner)]
+    private void DenyDraggingOwnerRpc()
+    {
+        DenyDragging();
+    }
+
+    [Rpc(SendTo.Owner)]
+    private void DenyPickupOwnerRpc()
+    {
+        DenyPickup();
+    }
+
     //Undragging
     public void Undrag()
     {
@@ -310,7 +450,10 @@ public class PlayerInteraction : PlayerComponent, IPlayerSignalListener
         pendingPickup = null;
 
         if (rejected != null)
+        {
+            rejected.ClearPendingPickup(this);
             playerActionGate?.End(PlayerActionKind.Pickup, rejected);
+        }
     }
 
     public void HandleDraggableUnavailable(DraggableObject draggable)

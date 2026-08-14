@@ -10,7 +10,7 @@ using UnityEngine.UI;
 /// этот класс только связывает уже существующие контролы с SettingsService.
 /// </summary>
 [DisallowMultipleComponent]
-public sealed class SettingsWindow : MonoBehaviour
+public sealed class SettingsWindow : MonoBehaviour, ISettingsServiceConsumer
 {
     [Header("Prefab references")]
     [SerializeField] private GameObject overlay;
@@ -163,7 +163,28 @@ public sealed class SettingsWindow : MonoBehaviour
 
     private void OnDestroy()
     {
+        ReleaseSettingsService();
+    }
+
+    public void Construct(ISettingsService settingsService)
+    {
+        if (settingsService == null)
+            throw new ArgumentNullException(nameof(settingsService));
+
+        if (ReferenceEquals(service, settingsService))
+            return;
+
+        ReleaseSettingsService();
+        service = settingsService;
+    }
+
+    public void ReleaseSettingsService()
+    {
+        if (service != null && service.IsDisplayConfirmationPending)
+            service.RevertDisplayChanges();
+
         CancelEdit();
+        service = null;
     }
 
     public void Open()
@@ -171,7 +192,7 @@ public sealed class SettingsWindow : MonoBehaviour
         if (overlay != null && overlay.activeSelf)
             return;
 
-        if (!SettingsService.TryGet(out service))
+        if (service == null)
         {
             Debug.LogWarning("Settings service is not ready.", this);
             return;

@@ -2,11 +2,12 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class CrosshairUI : MonoBehaviour
+public class CrosshairUI : MonoBehaviour, ISettingsServiceConsumer
 {
     [SerializeField] private Image crosshairImage;
     private Vector2 baseSize;
-    private int appliedSettingsRevision = -1;
+    private bool baseSizeCaptured;
+    private ISettingsService settingsService;
 
     public static CrosshairUI Active { get; private set; }
     public static event Action<CrosshairUI> ActiveChanged;
@@ -15,8 +16,7 @@ public class CrosshairUI : MonoBehaviour
     {
         // Unscaled prefab size: must be read before Update() ever scales sizeDelta,
         // otherwise re-enabling the HUD would treat the scaled size as the new base.
-        if (crosshairImage != null)
-            baseSize = crosshairImage.rectTransform.sizeDelta;
+        CaptureBaseSize();
     }
 
     private void OnEnable()
@@ -32,18 +32,32 @@ public class CrosshairUI : MonoBehaviour
             Debug.LogWarning($"Replacing active {nameof(CrosshairUI)} '{Active.name}' with '{name}'.", this);
 
         Active = this;
-        appliedSettingsRevision = -1; // Update() was not running while hidden; re-apply the current size.
         ActiveChanged?.Invoke(this);
+        ApplySettings();
     }
 
-    private void Update()
+    public void Construct(ISettingsService settings)
     {
-        if (!SettingsService.TryGet(out ISettingsService settings) ||
-            settings.Revision == appliedSettingsRevision)
+        if (settings == null)
+            throw new ArgumentNullException(nameof(settings));
+
+        if (ReferenceEquals(settingsService, settings))
             return;
 
-        crosshairImage.rectTransform.sizeDelta = baseSize * settings.Current.crosshairSize;
-        appliedSettingsRevision = settings.Revision;
+        ReleaseSettingsService();
+        settingsService = settings;
+        settingsService.SettingsChanged += ApplySettings;
+        CaptureBaseSize();
+        ApplySettings();
+    }
+
+    public void ReleaseSettingsService()
+    {
+        if (settingsService == null)
+            return;
+
+        settingsService.SettingsChanged -= ApplySettings;
+        settingsService = null;
     }
 
     private void OnDisable()
@@ -53,6 +67,29 @@ public class CrosshairUI : MonoBehaviour
 
         Active = null;
         ActiveChanged?.Invoke(null);
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseSettingsService();
+    }
+
+    private void CaptureBaseSize()
+    {
+        if (baseSizeCaptured || crosshairImage == null)
+            return;
+
+        baseSize = crosshairImage.rectTransform.sizeDelta;
+        baseSizeCaptured = true;
+    }
+
+    private void ApplySettings()
+    {
+        if (settingsService == null || crosshairImage == null)
+            return;
+
+        CaptureBaseSize();
+        crosshairImage.rectTransform.sizeDelta = baseSize * settingsService.Current.crosshairSize;
     }
 
     public void UpdateCrosshairSprite(Sprite sprite)
