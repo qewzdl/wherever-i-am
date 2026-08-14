@@ -220,6 +220,39 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         }
     }
 
+    // The players and everything else the match built belong to the Game scene
+    // and go down with it: player objects are spawned with destroyWithScene, so
+    // a caught player watching through somebody else's camera loses that view
+    // along with the body it was attached to.
+    public void ReturnToLobby()
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (!networkManager.IsServer)
+        {
+            Debug.LogWarning("Only server can take the session back to the lobby.", this);
+            return;
+        }
+
+        if (!sessionStateMachine.TryChangeState(
+                NetworkSessionState.Lobby,
+                "Match finished; returning to the lobby."))
+        {
+            return;
+        }
+
+        if (!sceneFlowService.LoadScene(ProjectSceneKind.Lobby))
+        {
+            _ = FailAsync(ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to return to the lobby.",
+                "Failed to load the lobby scene after the match.",
+                true
+            ));
+        }
+    }
+
     public void ShutdownToMainMenu()
     {
         _ = ShutdownToMainMenuAsync();

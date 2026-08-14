@@ -174,12 +174,10 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
         matchFinishedSubscribed = false;
     }
 
-    // A finished match used to leave everyone standing in the game scene: the
-    // phases ran their course and nothing was listening at the end of them,
-    // which a caught player watching the survivors feels most of all - there
-    // was no way out of watching. The scene flow has no route from the game
-    // back to the lobby, so the match ends the session the same way leaving
-    // from the pause menu does.
+    // A finished match goes back to the lobby with everyone still connected, so
+    // another round costs a press of start rather than hosting and rejoining.
+    // It used to end the session instead, which was the only way out of the
+    // game scene at the time.
     private void HandleMatchFinished(GameResultData result)
     {
         if (!IsServer)
@@ -197,7 +195,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             return;
         }
 
-        sessionService.ShutdownToMainMenu();
+        sessionService.ReturnToLobby();
     }
 
     private void HandleDependencyReady()

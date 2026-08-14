@@ -34,6 +34,10 @@ internal sealed class PendingSessionServiceStub : INetworkSessionService
     {
     }
 
+    public void ReturnToLobby()
+    {
+    }
+
     public void ShutdownToMainMenu()
     {
     }

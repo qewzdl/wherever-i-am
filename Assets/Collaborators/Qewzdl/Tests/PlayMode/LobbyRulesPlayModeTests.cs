@@ -10,6 +10,7 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
     internal int StartGameCount { get; private set; }
     internal int LastMapId { get; private set; } = -1;
     internal int LastDifficultyId { get; private set; } = -1;
+    internal int ReturnToLobbyCount { get; private set; }
 
     public Task HostLanAsync()
     {
@@ -31,6 +32,11 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
     {
         StartGame(mapId);
         LastDifficultyId = difficultyId;
+    }
+
+    public void ReturnToLobby()
+    {
+        ReturnToLobbyCount++;
     }
 
     public void ShutdownToMainMenu()

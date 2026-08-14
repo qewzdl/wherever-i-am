@@ -142,7 +142,7 @@ public sealed class ObjectiveRuntimePlayModeTests
     // A finished match used to leave everyone standing in the game scene with
     // nothing left to do and no way out but the pause menu.
     [UnityTest]
-    public IEnumerator FinishedMatch_TakesTheSessionOutOfTheGameOnItsOwn()
+    public IEnumerator FinishedMatch_ReturnsToTheLobbyWithTheSessionStillUp()
     {
         yield return StartHostedMatchAndWaitForActiveObjective();
 
@@ -155,10 +155,23 @@ public sealed class ObjectiveRuntimePlayModeTests
             Is.True);
 
         yield return WaitForCondition(
-            () => runtimeContext.StateMachine.CurrentState == GameState.MainMenu &&
-                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.MainMenu &&
-                  !networkManager.IsListening,
-            "A finished match never took the session out of the game scene.");
+            () => runtimeContext.StateMachine.CurrentState == GameState.Lobby &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Lobby,
+            "A finished match never took the session back to the lobby.");
+
+        // The point of going back rather than out: another round costs a press
+        // of start, not hosting and rejoining.
+        Assert.That(
+            networkManager.IsListening,
+            Is.True,
+            "The session went down with the match.");
+
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        Assert.That(
+            sessionStateMachine.CurrentState,
+            Is.EqualTo(NetworkSessionState.Lobby));
+        Assert.That(sessionStateMachine.CanStartGame, Is.True);
     }
 
     [UnityTest]

@@ -51,6 +51,14 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         sessionFlowService.StartGame(mapId, difficultyId);
     }
 
+    public void ReturnToLobby()
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        sessionFlowService.ReturnToLobby();
+    }
+
     public void ShutdownToMainMenu()
     {
         if (!HasRequiredReferences())

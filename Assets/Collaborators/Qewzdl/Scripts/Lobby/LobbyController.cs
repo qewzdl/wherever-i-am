@@ -116,7 +116,15 @@ public class LobbyController : NetworkBehaviour
         settingsService.InitializeFromConfig();
         SubscribeToNetworkCallbacks();
 
-        playerRegistry.TryAddPlayer(NetworkManager.LocalClientId);
+        // Everyone who is already here, not just the host. Coming back from a
+        // finished match, nobody reconnects, so OnClientConnected never fires
+        // again and a lobby built from that callback alone would list one
+        // player while three stood in it.
+        foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
+        {
+            playerRegistry.TryAddPlayer(clientId);
+        }
+
         startService.RefreshCanStartGame();
     }
 
