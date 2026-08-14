@@ -8,9 +8,9 @@ using UnityEngine.AI;
 public class EnemyPrefabContractValidator : AssetPostprocessor
 {
     private const string EnemyPrefabSearchRoot = "Assets/Collaborators/Qewzdl";
-    private const string MenuPath = "Tools/Wherever I Am/Enemies/Validate Enemy Prefab Contracts";
+    private const string MenuPath = "Tools/Wherever I Am/Validate Enemy Prefab Contracts";
 
-    [MenuItem(MenuPath)]
+    [MenuItem(MenuPath, false, 120)]
     private static void ValidateAllEnemyPrefabs()
     {
         string[] prefabGuids = AssetDatabase.FindAssets(

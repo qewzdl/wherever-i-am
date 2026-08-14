@@ -8,12 +8,12 @@ using UnityEngine;
 // game shell.
 public static class ProjectSceneMenu
 {
-    // Sits below everything else, one section of its own. Consecutive numbers
-    // keep the four together; Unity only draws a separator where neighbouring
-    // priorities differ by 11 or more.
-    private const int MenuPriority = 2000;
+    // Every item under Tools/Wherever I Am sets its priority, so the order is
+    // decided rather than inherited from Unity's default of 1000. Consecutive
+    // numbers keep a group together; a gap of 11 or more draws a separator.
+    private const int MenuPriority = 140;
 
-    [MenuItem("Tools/Wherever I Am/Open Bootstrap Scene", false, MenuPriority)]
+    [MenuItem("Tools/Wherever I Am/Scenes/Bootstrap", false, MenuPriority)]
     private static void OpenBootstrapScene()
     {
         ProjectSettings settings = ProjectPlayModeStartup.LoadProjectSettings();
@@ -26,19 +26,19 @@ public static class ProjectSceneMenu
         Open(settings, settings.BootstrapScene);
     }
 
-    [MenuItem("Tools/Wherever I Am/Open Main Menu Scene", false, MenuPriority + 1)]
+    [MenuItem("Tools/Wherever I Am/Scenes/Main Menu", false, MenuPriority + 1)]
     private static void OpenMainMenuScene()
     {
         Open(ProjectSceneKind.MainMenu);
     }
 
-    [MenuItem("Tools/Wherever I Am/Open Lobby Scene", false, MenuPriority + 2)]
+    [MenuItem("Tools/Wherever I Am/Scenes/Lobby", false, MenuPriority + 2)]
     private static void OpenLobbyScene()
     {
         Open(ProjectSceneKind.Lobby);
     }
 
-    [MenuItem("Tools/Wherever I Am/Open Game Scene", false, MenuPriority + 3)]
+    [MenuItem("Tools/Wherever I Am/Scenes/Game", false, MenuPriority + 3)]
     private static void OpenGameScene()
     {
         Open(ProjectSceneKind.Game);

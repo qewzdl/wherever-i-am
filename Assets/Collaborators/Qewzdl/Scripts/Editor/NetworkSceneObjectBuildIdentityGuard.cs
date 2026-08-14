@@ -17,7 +17,7 @@ using UnityEngine.SceneManagement;
 public sealed class NetworkSceneObjectBuildIdentityGuard : IPreprocessBuildWithReport
 {
     private const string NormalizeMenuPath =
-        "Tools/Wherever I Am/Networking/Normalize Build-Unstable Scene NetworkObjects";
+        "Tools/Wherever I Am/Normalize Build-Unstable Scene NetworkObjects";
 
     private static readonly MethodInfo NetworkObjectOnValidate = typeof(NetworkObject).GetMethod(
         "OnValidate",
@@ -50,7 +50,7 @@ public sealed class NetworkSceneObjectBuildIdentityGuard : IPreprocessBuildWithR
         throw new BuildFailedException(message.ToString());
     }
 
-    [MenuItem(NormalizeMenuPath)]
+    [MenuItem(NormalizeMenuPath, false, 121)]
     public static void NormalizeBuildUnstableSceneNetworkObjects()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)

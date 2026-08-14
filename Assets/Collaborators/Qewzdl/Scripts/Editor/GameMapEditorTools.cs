@@ -18,7 +18,7 @@ public sealed class GameMapManagerWindow : EditorWindow
     private readonly List<MapValidationEntry> validationEntries = new List<MapValidationEntry>();
     private string catalogError;
 
-    [MenuItem("Tools/Wherever I Am/Maps/Map Manager")]
+    [MenuItem("Tools/Wherever I Am/Map Manager", false, 100)]
     private static void OpenWindow()
     {
         GameMapManagerWindow window = GetWindow<GameMapManagerWindow>("Map Manager");

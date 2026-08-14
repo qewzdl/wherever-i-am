@@ -13,10 +13,9 @@ internal static class TestingMenu
     private const string Root = "Tools/Wherever I Am/Tests/";
     private const string SmokeVariable = "WIA_NETWORK_SOAK_SMOKE";
 
-    // The other sections sit on the default 1000 and Open Bootstrap Scene on
-    // 2000. Sitting between them puts a separator on both sides, because Unity
-    // draws one wherever consecutive priorities differ by 11 or more.
-    private const int Priority = 1500;
+    // Last, and a section of its own: everything here builds a Player and
+    // takes minutes.
+    private const int Priority = 160;
 
     [MenuItem(Root + "Run Network Soak (smoke, ~90 s)", false, Priority)]
     private static void RunNetworkSoakSmoke()
@@ -42,7 +41,7 @@ internal static class TestingMenu
         }
     }
 
-    [MenuItem(Root + "Run Network Soak (full, ~15 min)", false, Priority)]
+    [MenuItem(Root + "Run Network Soak (full, ~15 min)", false, Priority + 1)]
     private static void RunNetworkSoakFull()
     {
         if (!Confirm(
@@ -57,7 +56,7 @@ internal static class TestingMenu
         NetworkSoakCi.Run();
     }
 
-    [MenuItem(Root + "Run Production Bootstrap", false, Priority)]
+    [MenuItem(Root + "Run Production Bootstrap", false, Priority + 2)]
     private static void RunProductionBootstrap()
     {
         if (!Confirm(

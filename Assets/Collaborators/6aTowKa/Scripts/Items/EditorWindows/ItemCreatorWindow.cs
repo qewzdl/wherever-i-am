@@ -141,7 +141,7 @@ public partial class ItemCreatorWindow : EditorWindow
     private bool _stylesInitialized;
 
     // ── Open ─────────────────────────────────────────────────────────────────
-    [MenuItem("Tools/Wherever I Am/Item Creator")]
+    [MenuItem("Tools/Wherever I Am/Item Creator", false, 101)]
     public static void Open()
     {
         var w = GetWindow<ItemCreatorWindow>("Item Creator");
