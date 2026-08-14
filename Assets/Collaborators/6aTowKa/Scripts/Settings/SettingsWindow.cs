@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -35,8 +36,7 @@ public sealed class SettingsWindow : MonoBehaviour
     [SerializeField] private TMP_Text qualityText;
     [SerializeField] private Button vsyncButton;
     [SerializeField] private TMP_Text vsyncText;
-    [SerializeField] private Slider frameRateSlider;
-    [SerializeField] private TMP_Text frameRateText;
+    [SerializeField] private TMP_Dropdown frameRateDropdown;
     [SerializeField] private Slider fovSlider;
     [SerializeField] private Button smoothingButton;
     [SerializeField] private TMP_Text smoothingText;
@@ -62,12 +62,74 @@ public sealed class SettingsWindow : MonoBehaviour
     private string selectedTab = "Graphics";
     private bool showingDefaultsConfirmation;
 
+    /// <summary>Подпись строки служит и заголовком, и индикатором: «Музыка: 75%».</summary>
+    private readonly List<(Slider slider, TMP_Text label, string title, Func<float, string> format)> sliderValues = new();
+
     private void Awake()
     {
         if (overlay == null || tabPages == null || tabPages.Length == 0)
             Debug.LogError("SettingsWindow prefab references are incomplete.", this);
         else
             overlay.SetActive(false);
+
+        // Диапазон задан в коде и в Sanitize, поэтому prefab не должен с ним расходиться.
+        if (sensitivitySlider != null)
+        {
+            sensitivitySlider.minValue = GameSettingsData.MinMouseSensitivity;
+            sensitivitySlider.maxValue = GameSettingsData.MaxMouseSensitivity;
+        }
+
+        if (frameRateDropdown != null)
+        {
+            List<string> labels = new(GameSettingsData.FrameRateLimits.Length);
+            foreach (int limit in GameSettingsData.FrameRateLimits)
+                labels.Add(limit < 0 ? "Unlimited" : $"{limit} FPS");
+
+            frameRateDropdown.ClearOptions();
+            frameRateDropdown.AddOptions(labels);
+        }
+
+        BindSliderValue(masterSlider, Percent);
+        BindSliderValue(musicSlider, Percent);
+        BindSliderValue(effectsSlider, Percent);
+        BindSliderValue(interfaceSlider, Percent);
+        BindSliderValue(interfaceOpacitySlider, Percent);
+        BindSliderValue(smoothingIntensitySlider, Percent);
+        BindSliderValue(sensitivitySlider, Whole);
+        BindSliderValue(fovSlider, Whole);
+        BindSliderValue(crosshairSizeSlider, Multiplier);
+        UpdateSliderValues();
+    }
+
+    private static string Percent(float value) => $"{Mathf.RoundToInt(value * 100f)}%";
+
+    private static string Whole(float value) => Mathf.RoundToInt(value).ToString();
+
+    private static string Multiplier(float value) => $"×{value:0.0}";
+
+    /// <summary>
+    /// Заголовок запоминается один раз: если перечитывать его после дописывания значения,
+    /// подпись начнёт наращивать «Музыка: 75%: 80%».
+    /// </summary>
+    private void BindSliderValue(Slider slider, Func<float, string> format)
+    {
+        if (slider == null || slider.transform.parent == null)
+            return;
+
+        // Окно свёрнуто на старте, поэтому неактивные объекты тоже нужно просматривать.
+        TMP_Text label = slider.transform.parent.GetComponentInChildren<TMP_Text>(true);
+
+        if (label != null)
+            sliderValues.Add((slider, label, label.text, format));
+    }
+
+    private void UpdateSliderValues()
+    {
+        for (int i = 0; i < sliderValues.Count; i++)
+        {
+            var entry = sliderValues[i];
+            entry.label.text = $"{entry.title}: {entry.format(entry.slider.value)}";
+        }
     }
 
     private void OnEnable()
@@ -95,7 +157,7 @@ public sealed class SettingsWindow : MonoBehaviour
         if (service != null && service.IsDisplayConfirmationPending && !showingDefaultsConfirmation)
         {
             confirmationPanel.SetActive(true);
-            confirmationText.text = $"Сохранить новое разрешение? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} с";
+            confirmationText.text = $"Keep the new resolution? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} s";
         }
     }
 
@@ -146,7 +208,7 @@ public sealed class SettingsWindow : MonoBehaviour
         if (service.IsDisplayConfirmationPending)
         {
             showingDefaultsConfirmation = false;
-            confirmationText.text = $"Сохранить новое разрешение? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} с";
+            confirmationText.text = $"Keep the new resolution? {Mathf.CeilToInt(service.DisplayConfirmationRemaining)} s";
             confirmationPanel.SetActive(true);
         }
     }
@@ -154,7 +216,7 @@ public sealed class SettingsWindow : MonoBehaviour
     private void AskForDefaults()
     {
         showingDefaultsConfirmation = true;
-        confirmationText.text = "Вернуть настройки по умолчанию?";
+        confirmationText.text = "Reset all settings to defaults?";
         confirmationPanel.SetActive(true);
     }
 
@@ -256,14 +318,12 @@ public sealed class SettingsWindow : MonoBehaviour
         RefreshFromDraft();
     }
 
-    private void SetFrameRate(float value)
+    private void SetFrameRate(int optionIndex)
     {
-        if (session == null)
+        if (session == null || optionIndex < 0 || optionIndex >= GameSettingsData.FrameRateLimits.Length)
             return;
 
-        int valueAsInt = Mathf.RoundToInt(value);
-        session.Draft.frameRateLimit = valueAsInt >= 1001 ? -1 : valueAsInt;
-        RefreshFromDraft();
+        session.Draft.frameRateLimit = GameSettingsData.FrameRateLimits[optionIndex];
     }
 
     private void ToggleSmoothing()
@@ -294,7 +354,8 @@ public sealed class SettingsWindow : MonoBehaviour
         interfaceOpacitySlider?.SetValueWithoutNotify(draft.interfaceOpacity);
         crosshairSizeSlider?.SetValueWithoutNotify(draft.crosshairSize);
         sensitivitySlider?.SetValueWithoutNotify(draft.mouseSensitivity);
-        frameRateSlider?.SetValueWithoutNotify(draft.frameRateLimit < 0 ? 1001f : draft.frameRateLimit);
+        frameRateDropdown?.SetValueWithoutNotify(
+            Mathf.Max(0, Array.IndexOf(GameSettingsData.FrameRateLimits, draft.frameRateLimit)));
         fovSlider?.SetValueWithoutNotify(draft.fieldOfView);
         smoothingIntensitySlider?.SetValueWithoutNotify(draft.cameraSmoothingIntensity);
 
@@ -303,21 +364,23 @@ public sealed class SettingsWindow : MonoBehaviour
         {
             displayModeText.text = draft.fullScreenMode switch
             {
-                (int)FullScreenMode.Windowed => "Оконный",
-                (int)FullScreenMode.FullScreenWindow => "Полноэкранный без рамки",
-                (int)FullScreenMode.ExclusiveFullScreen => "Полный экран",
-                _ => "Оконный"
+                (int)FullScreenMode.Windowed => "Windowed",
+                (int)FullScreenMode.FullScreenWindow => "Borderless",
+                (int)FullScreenMode.ExclusiveFullScreen => "Fullscreen",
+                _ => "Windowed"
             };
         }
         if (qualityText != null)
         {
             string[] names = QualitySettings.names;
-            qualityText.text = names.Length == 0 ? "Нет уровней" : names[Mathf.Clamp(draft.qualityLevel, 0, names.Length - 1)];
+            qualityText.text = names.Length == 0 ? "No levels" : names[Mathf.Clamp(draft.qualityLevel, 0, names.Length - 1)];
         }
-        if (vsyncText != null) vsyncText.text = draft.verticalSync ? "Вкл." : "Выкл.";
-        if (frameRateText != null) frameRateText.text = draft.frameRateLimit < 0 ? "Лимит кадров: Без лимита" : $"Лимит кадров: {draft.frameRateLimit} FPS";
-        if (smoothingText != null) smoothingText.text = draft.cameraSmoothing ? "Вкл." : "Выкл.";
-        if (invertText != null) invertText.text = draft.invertVerticalLook ? "Вкл." : "Выкл.";
+        if (vsyncText != null) vsyncText.text = draft.verticalSync ? "On" : "Off";
+        if (smoothingText != null) smoothingText.text = draft.cameraSmoothing ? "On" : "Off";
+        if (invertText != null) invertText.text = draft.invertVerticalLook ? "On" : "Off";
+
+        // SetValueWithoutNotify выше не поднимает onValueChanged, поэтому подписи обновляем вручную.
+        UpdateSliderValues();
     }
 
     private void SelectTab(string id)
@@ -357,7 +420,9 @@ public sealed class SettingsWindow : MonoBehaviour
         crosshairSizeSlider?.onValueChanged.AddListener(value => service?.SetCrosshairSize(value));
         sensitivitySlider?.onValueChanged.AddListener(value => service?.SetMouseSensitivity(value));
         fovSlider?.onValueChanged.AddListener(value => service?.SetFieldOfView(value));
-        frameRateSlider?.onValueChanged.AddListener(SetFrameRate);
+        frameRateDropdown?.onValueChanged.AddListener(SetFrameRate);
+        for (int i = 0; i < sliderValues.Count; i++)
+            sliderValues[i].slider.onValueChanged.AddListener(_ => UpdateSliderValues());
         smoothingIntensitySlider?.onValueChanged.AddListener(value => { if (session != null) session.Draft.cameraSmoothingIntensity = value; });
     }
 
@@ -371,7 +436,8 @@ public sealed class SettingsWindow : MonoBehaviour
         // Prefab is scene-owned; removing all listeners also clears the lambdas above.
         ClearButtonListeners(tabButtons);
         ClearButtonListeners(new[] { previousResolutionButton, nextResolutionButton, displayModeButton, previousQualityButton, nextQualityButton, vsyncButton, smoothingButton, invertButton });
-        ClearSliderListeners(new[] { masterSlider, musicSlider, effectsSlider, interfaceSlider, interfaceOpacitySlider, crosshairSizeSlider, sensitivitySlider, frameRateSlider, fovSlider, smoothingIntensitySlider });
+        ClearSliderListeners(new[] { masterSlider, musicSlider, effectsSlider, interfaceSlider, interfaceOpacitySlider, crosshairSizeSlider, sensitivitySlider, fovSlider, smoothingIntensitySlider });
+        frameRateDropdown?.onValueChanged.RemoveAllListeners();
     }
 
     private static void ClearButtonListeners(Button[] buttons)
@@ -413,8 +479,7 @@ public sealed class SettingsWindow : MonoBehaviour
         TMP_Text qualityText,
         Button vsyncButton,
         TMP_Text vsyncText,
-        Slider frameRateSlider,
-        TMP_Text frameRateText,
+        TMP_Dropdown frameRateDropdown,
         Slider fovSlider,
         Button smoothingButton,
         TMP_Text smoothingText,
@@ -450,8 +515,7 @@ public sealed class SettingsWindow : MonoBehaviour
         this.qualityText = qualityText;
         this.vsyncButton = vsyncButton;
         this.vsyncText = vsyncText;
-        this.frameRateSlider = frameRateSlider;
-        this.frameRateText = frameRateText;
+        this.frameRateDropdown = frameRateDropdown;
         this.fovSlider = fovSlider;
         this.smoothingButton = smoothingButton;
         this.smoothingText = smoothingText;

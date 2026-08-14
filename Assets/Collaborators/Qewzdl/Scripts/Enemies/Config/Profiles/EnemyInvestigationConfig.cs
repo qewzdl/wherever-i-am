@@ -21,6 +21,21 @@ public class EnemyInvestigationConfig : ScriptableObject
 
     [Min(0f)] public float investigationSearchSpeed = 1.7f;
 
+    [Tooltip(
+        "Seconds the enemy stands at each reached point. EnemyGazeScanner " +
+        "sweeps the vision cone whenever the enemy is not chasing, and the " +
+        "sweep only covers ground the walk would have missed while the body " +
+        "is stationary. Zero restores the old walk-through behaviour.")]
+    [Min(0f)] public float investigationPointDwellDuration = 1.4f;
+
+    [Tooltip(
+        "Degrees the body turns to each side while standing at a point. The " +
+        "dwell is split evenly between the two sides, and a turn that does " +
+        "not fit simply stops short rather than snapping.")]
+    [Range(0f, 120f)] public float investigationLookAroundAngle = 45f;
+
+    [Min(1f)] public float investigationLookAroundSpeed = 140f;
+
     public void Validate(float stoppingDistance = 0f)
     {
         investigationReachDistance = Mathf.Max(investigationReachDistance, stoppingDistance);
@@ -30,6 +45,12 @@ public class EnemyInvestigationConfig : ScriptableObject
         investigationLeafRadius = Mathf.Max(0f, investigationLeafRadius);
         investigationLeafPointCountPerBranch = Mathf.Max(0, investigationLeafPointCountPerBranch);
         investigationSearchSpeed = Mathf.Max(0f, investigationSearchSpeed);
+        investigationPointDwellDuration =
+            Mathf.Max(0f, investigationPointDwellDuration);
+        investigationLookAroundAngle =
+            Mathf.Clamp(investigationLookAroundAngle, 0f, 120f);
+        investigationLookAroundSpeed =
+            Mathf.Max(1f, investigationLookAroundSpeed);
     }
 
     private void OnValidate()

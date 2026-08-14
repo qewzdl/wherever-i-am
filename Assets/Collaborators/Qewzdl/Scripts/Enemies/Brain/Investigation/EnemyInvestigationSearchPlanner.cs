@@ -6,19 +6,34 @@ public sealed class EnemyInvestigationSearchPlanner
 {
     private const float MinAngleStep = 1f;
     private const float NavMeshSampleRadiusMultiplier = 0.65f;
+    private const float OriginRoomLookupLift = 1f;
 
     private readonly List<EnemyInvestigationSearchPoint> points = new();
+
+    private RoomVolume originRoom;
 
     public IReadOnlyList<EnemyInvestigationSearchPoint> Points => points;
     public int PointCount => points.Count;
 
+    // Null when the route was not held to a room - either the level has none
+    // marked up there, or the room was tighter than the route and the
+    // fallback dropped it. Both look identical from outside, which is why
+    // this is worth reporting.
+    public RoomVolume OriginRoom => originRoom;
+
+    // Deliberately no overload that picks an agent type for you. There used
+    // to be one, defaulting to the project's first, which is not the agent
+    // that will walk the route on a level with more than one - so it sampled
+    // a NavMesh the enemy cannot use and quietly returned points from the
+    // wrong surface, or none at all.
     public void BuildHierarchicalSearchPlan(
         Vector3 origin,
         Vector3 enemyPosition,
         float branchRadius,
         int branchPointCount,
         float leafRadius,
-        int leafPointCountPerBranch
+        int leafPointCountPerBranch,
+        NavMeshQueryFilter filter
     )
     {
         points.Clear();
@@ -28,6 +43,55 @@ public sealed class EnemyInvestigationSearchPlanner
             return;
         }
 
+        // Keep the route inside the room the stimulus came from. A branch
+        // point two and a half metres out reaches through a doorway easily,
+        // and NavMesh sampling will pull one straight through a wall onto the
+        // floor next door - so the enemy walks off to search a spot the noise
+        // could not have come from. Levels with no rooms marked up are
+        // unaffected: no room, no filtering.
+        TryResolveOriginRoom(origin);
+
+        BuildBranchPoints(
+            origin,
+            enemyPosition,
+            branchRadius,
+            branchPointCount,
+            leafRadius,
+            leafPointCountPerBranch,
+            filter
+        );
+
+        if (points.Count > 0 || originRoom == null)
+        {
+            return;
+        }
+
+        // Nothing fitted - the room is tighter than the route, or the noise
+        // came from a corner of it. Searching a little outside beats an empty
+        // plan, which abandons the search on the spot.
+        originRoom = null;
+
+        BuildBranchPoints(
+            origin,
+            enemyPosition,
+            branchRadius,
+            branchPointCount,
+            leafRadius,
+            leafPointCountPerBranch,
+            filter
+        );
+    }
+
+    private void BuildBranchPoints(
+        Vector3 origin,
+        Vector3 enemyPosition,
+        float branchRadius,
+        int branchPointCount,
+        float leafRadius,
+        int leafPointCountPerBranch,
+        NavMeshQueryFilter filter
+    )
+    {
         float branchAngleStep = Mathf.Max(MinAngleStep, 360f / branchPointCount);
         float branchStartAngle = GetFlatAngle(origin, enemyPosition) + 45f;
         int validBranchIndex = 0;
@@ -38,7 +102,11 @@ public sealed class EnemyInvestigationSearchPlanner
             Vector3 branchDirection = GetDirectionFromAngle(angle);
             Vector3 rawBranchPoint = origin + branchDirection * branchRadius;
 
-            if (!TrySampleNavMeshPoint(rawBranchPoint, branchRadius, out Vector3 branchPoint))
+            if (!TrySampleNavMeshPoint(
+                    rawBranchPoint,
+                    branchRadius,
+                    filter,
+                    out Vector3 branchPoint))
             {
                 continue;
             }
@@ -59,7 +127,8 @@ public sealed class EnemyInvestigationSearchPlanner
                 origin,
                 leafRadius,
                 leafPointCountPerBranch,
-                validBranchIndex
+                validBranchIndex,
+                filter
             );
 
             validBranchIndex++;
@@ -84,7 +153,8 @@ public sealed class EnemyInvestigationSearchPlanner
         Vector3 origin,
         float leafRadius,
         int leafPointCount,
-        int branchIndex
+        int branchIndex,
+        NavMeshQueryFilter filter
     )
     {
         if (leafPointCount <= 0 || leafRadius <= 0f)
@@ -102,7 +172,11 @@ public sealed class EnemyInvestigationSearchPlanner
             Vector3 leafDirection = GetDirectionFromAngle(angle);
             Vector3 rawLeafPoint = branchPoint + leafDirection * leafRadius;
 
-            if (!TrySampleNavMeshPoint(rawLeafPoint, leafRadius, out Vector3 leafPoint))
+            if (!TrySampleNavMeshPoint(
+                    rawLeafPoint,
+                    leafRadius,
+                    filter,
+                    out Vector3 leafPoint))
             {
                 continue;
             }
@@ -119,18 +193,76 @@ public sealed class EnemyInvestigationSearchPlanner
         }
     }
 
-    private bool TrySampleNavMeshPoint(Vector3 rawPoint, float radius, out Vector3 sampledPoint)
+    private bool TrySampleNavMeshPoint(
+        Vector3 rawPoint,
+        float radius,
+        NavMeshQueryFilter filter,
+        out Vector3 sampledPoint)
     {
         float sampleRadius = Mathf.Max(0.5f, radius * NavMeshSampleRadiusMultiplier);
 
-        if (NavMesh.SamplePosition(rawPoint, out NavMeshHit hit, sampleRadius, NavMesh.AllAreas))
+        sampledPoint = default;
+
+        if (!NavMesh.SamplePosition(
+                rawPoint,
+                out NavMeshHit hit,
+                sampleRadius,
+                filter))
         {
-            sampledPoint = hit.position;
+            return false;
+        }
+
+        if (!IsInsideOriginRoom(hit.position))
+        {
+            return false;
+        }
+
+        sampledPoint = hit.position;
+
+        return true;
+    }
+
+    // A noise happens on the floor, and a room volume dragged into place by
+    // eye starts a little off the ground often enough. Asked strictly, the
+    // room lookup then finds nothing at the stimulus, no room is bound, and
+    // the whole filter quietly does nothing - which is far worse than being
+    // slightly wrong, because it looks like the feature is broken.
+    //
+    // Standing height off the floor is still unambiguously the same storey.
+    private void TryResolveOriginRoom(Vector3 origin)
+    {
+        if (RoomVolume.TryGetRoomAt(origin, out originRoom))
+        {
+            return;
+        }
+
+        RoomVolume.TryGetRoomAt(
+            origin + Vector3.up * OriginRoomLookupLift,
+            out originRoom
+        );
+    }
+
+    // A room is a footprint as far as the search is concerned. Search points
+    // sit on the NavMesh, at floor level, while a room volume is dragged into
+    // place by eye - its underside lands above the floor easily, and a typed
+    // height need not reach down to it at all. Judged strictly in three
+    // dimensions, such a room rejects every candidate, the plan comes back
+    // empty, the fallback drops the room, and the search spills everywhere:
+    // the exact opposite of what marking the room up was for.
+    //
+    // Lifting the point into the room's own vertical span keeps storeys
+    // apart, because it still has to land inside the footprint to pass.
+    private bool IsInsideOriginRoom(Vector3 point)
+    {
+        if (originRoom == null)
+        {
             return true;
         }
 
-        sampledPoint = default;
-        return false;
+        Bounds bounds = originRoom.Bounds;
+        point.y = Mathf.Clamp(point.y, bounds.min.y, bounds.max.y);
+
+        return originRoom.Contains(point);
     }
 
     private Vector3 GetDirectionFromAngle(float angle)

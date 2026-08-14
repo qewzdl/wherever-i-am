@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -5,17 +6,21 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyNavigator : MonoBehaviour
 {
-    private const float NavMeshSampleRadius = 2f;
-    private const float MinimumStandingWaypointDistance = 0.1f;
-
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private EnemyPostureController postureController;
     [SerializeField] private EnemyDoorInteractor doorInteractor;
+    [SerializeField] private EnemyItemPusher itemPusher;
 
+    private const float MinimumFacingSqrMagnitude = 0.0001f;
+
+    private Rigidbody body;
     private NavMeshPath pathBuffer;
-    private NavMeshPath posturePathBuffer;
-    private NavMeshPath crawlingRouteBuffer;
-    private NavMeshPath standingCandidatePathBuffer;
+    private EnemyNavigationQueryTelemetry queryTelemetry;
+    private EnemyNavigationQueryService queryService;
+    private EnemyNavigationRepathScheduler repathScheduler;
+    private EnemyNavigationRecoveryController recoveryController;
+    private EnemyDoorTraversalHandler doorTraversal;
+    private EnemyPostureTraversalPlanner postureTraversal;
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
@@ -23,19 +28,79 @@ public class EnemyNavigator : MonoBehaviour
     private bool hasRequestedNavigation;
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
+    private bool requestedAllowPushThrough;
+    private float forcefulPushStopUntil = -1f;
 
-    private float nextStandingRecoveryCheckTime;
+    private readonly HashSet<ItemNavigationObstacle> pushThroughHolds = new();
+    private readonly List<ItemNavigationObstacle> pushThroughCandidates = new();
 
     public Vector3 Position => transform.position;
+    public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
+        queryTelemetry != null
+            ? queryTelemetry.Snapshot
+            : default;
+
+    public bool IsDirectApproachBlockedByItem(Vector3 destination)
+    {
+        return itemPusher != null &&
+               itemPusher.IsDirectApproachBlockedByItem(destination);
+    }
+
+    // Turns the body toward a direction. Only safe to call at a standstill, and
+    // only because nothing else writes rotation there: EnemyPhysicsMotor bails
+    // out before rotating when it has no facing direction, and NavMeshAgent's
+    // own updateRotation needs a velocity it does not have. While moving, both
+    // of those own the rotation and this would fight them.
+    public void FaceDirection(
+        Vector3 direction,
+        float degreesPerSecond,
+        float deltaTime
+    )
+    {
+        Vector3 flatDirection = new(direction.x, 0f, direction.z);
+
+        if (flatDirection.sqrMagnitude < MinimumFacingSqrMagnitude)
+        {
+            return;
+        }
+
+        Quaternion target = Quaternion.LookRotation(flatDirection, Vector3.up);
+        Quaternion next = Quaternion.RotateTowards(
+            transform.rotation,
+            target,
+            Mathf.Max(0f, degreesPerSecond) * Mathf.Max(0f, deltaTime)
+        );
+
+        // Matches how EnemyPhysicsMotor writes rotation when it is driving, so
+        // the two never disagree about who moved the body.
+        if (body != null && !body.isKinematic)
+        {
+            body.MoveRotation(next);
+            return;
+        }
+
+        transform.rotation = next;
+    }
 
     private void Awake()
     {
         CacheComponents();
 
+        queryTelemetry = new EnemyNavigationQueryTelemetry();
+        queryService = new EnemyNavigationQueryService(queryTelemetry);
+        repathScheduler = new EnemyNavigationRepathScheduler();
+        recoveryController = new EnemyNavigationRecoveryController(
+            repathScheduler.Invalidate,
+            queryTelemetry.RecordStuckRecovery);
+        doorTraversal = new EnemyDoorTraversalHandler(doorInteractor);
+        postureTraversal = new EnemyPostureTraversalPlanner(
+            transform,
+            agent,
+            postureController,
+            queryService,
+            HasNavigationBlockerOnPath);
+
         pathBuffer = new NavMeshPath();
-        posturePathBuffer = new NavMeshPath();
-        crawlingRouteBuffer = new NavMeshPath();
-        standingCandidatePathBuffer = new NavMeshPath();
     }
 
     public void Configure(EnemyConfig config)
@@ -45,8 +110,10 @@ public class EnemyNavigator : MonoBehaviour
         CacheComponents();
 
         hasRequestedNavigation = false;
-        nextStandingRecoveryCheckTime = 0f;
-        doorInteractor?.CancelActiveInteraction();
+        repathScheduler?.Invalidate();
+        recoveryController?.Configure(config);
+        queryTelemetry?.Reset();
+        doorTraversal?.Cancel();
 
         if (config == null)
         {
@@ -54,6 +121,7 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         postureController?.Configure(config);
+        postureTraversal?.Configure(config);
 
         if (agent == null)
         {
@@ -64,11 +132,14 @@ public class EnemyNavigator : MonoBehaviour
         agent.acceleration = config.acceleration;
         agent.angularSpeed = config.angularSpeed;
         agent.stoppingDistance = config.stoppingDistance;
+        agent.autoRepath = false;
+        agent.avoidancePriority = 25 +
+            Mathf.Abs(GetInstanceID() % 50);
 
         if (postureController != null)
         {
             postureController.TrySetServerPosture(EnemyPosture.Standing);
-            nextStandingRecoveryCheckTime = 0f;
+            postureTraversal?.NotifyPostureChanged(EnemyPosture.Standing);
         }
     }
 
@@ -77,7 +148,11 @@ public class EnemyNavigator : MonoBehaviour
         CacheComponents();
 
         hasRequestedNavigation = false;
-        doorInteractor?.CancelActiveInteraction();
+        repathScheduler?.Invalidate();
+        recoveryController?.Reset();
+        doorTraversal?.Cancel();
+        ReleaseAllPushThroughHolds();
+        forcefulPushStopUntil = -1f;
 
         if (agent != null)
         {
@@ -85,11 +160,25 @@ public class EnemyNavigator : MonoBehaviour
         }
     }
 
-    public bool TryMoveTo(Vector3 destination, float speed)
+    private void OnDisable()
     {
-        RememberRequestedNavigation(destination, speed);
+        ReleaseAllPushThroughHolds();
+    }
 
-        if (TryResolveDoorNavigation(destination, out EnemyDoorNavigationResult doorResult))
+    public bool TryMoveTo(Vector3 destination, float speed, bool allowPushThrough = false)
+    {
+        RememberRequestedNavigation(destination, speed, allowPushThrough);
+
+        if (Time.time < forcefulPushStopUntil)
+        {
+            StopForForcefulPush();
+            return true;
+        }
+
+        if (TryResolveDoorNavigation(
+                destination,
+                GetActiveRouteCorners(),
+                out EnemyDoorNavigationResult doorResult))
         {
             if (doorResult.ShouldStop)
             {
@@ -108,22 +197,23 @@ public class EnemyNavigator : MonoBehaviour
 
     public void TickNavigationGate()
     {
-        if (doorInteractor == null)
+        if (doorTraversal == null)
         {
             return;
         }
 
         if (!hasRequestedNavigation)
         {
-            doorInteractor.CancelActiveInteraction();
+            doorTraversal.Cancel();
             return;
         }
 
-        bool hadActiveInteraction = doorInteractor.HasActiveInteraction;
+        bool hadActiveInteraction = doorTraversal.IsActive;
         Vector3 probeDestination = GetDoorNavigationProbeDestination();
-        EnemyDoorNavigationResult doorResult = doorInteractor.EvaluateNavigation(
+        EnemyDoorNavigationResult doorResult = doorTraversal.Evaluate(
             transform.position,
-            probeDestination
+            probeDestination,
+            GetActiveRouteCorners()
         );
 
         if (doorResult.ShouldStop)
@@ -136,7 +226,8 @@ public class EnemyNavigator : MonoBehaviour
         {
             TryMoveAfterDoorNavigation(
                 doorResult.OverrideDestination,
-                requestedNavigationSpeed
+                requestedNavigationSpeed,
+                forceRepath: true
             );
 
             return;
@@ -146,12 +237,16 @@ public class EnemyNavigator : MonoBehaviour
         {
             TryMoveAfterDoorNavigation(
                 requestedNavigationDestination,
-                requestedNavigationSpeed
+                requestedNavigationSpeed,
+                forceRepath: true
             );
         }
     }
 
-    private bool TryMoveAfterDoorNavigation(Vector3 destination, float speed)
+    private bool TryMoveAfterDoorNavigation(
+        Vector3 destination,
+        float speed,
+        bool forceRepath = false)
     {
         if (postureController != null && postureController.IsPostureTransitionInProgress)
         {
@@ -159,18 +254,114 @@ public class EnemyNavigator : MonoBehaviour
             return false;
         }
 
-        if (config != null && config.crawlingEnabled && postureController != null)
+        forceRepath |= TryRecoverStalledNavigation();
+
+        EnemyNavigationConfig navigationConfig = config != null
+            ? config.NavigationProfile
+            : null;
+
+        if (!repathScheduler.ShouldRepath(
+                destination,
+                agent,
+                navigationConfig,
+                EnemyNavigationTopology.Revision,
+                forceRepath))
         {
-            return TryMoveWithPosturePriority(destination, speed);
+            if (agent != null && agent.enabled && agent.isOnNavMesh)
+            {
+                agent.speed = Mathf.Max(0f, speed);
+
+                // Every halt above (door interaction, posture transition,
+                // barricade shove) latches agent.isStopped, and only a
+                // successful repath ever cleared it. Reusing a still-valid
+                // path skips the repath, so an enemy that stopped for a door
+                // stayed frozen until the destination moved far enough to
+                // force one - a barricaded, standing-still player never did.
+                agent.isStopped = false;
+            }
+
+            queryTelemetry.RecordDeferredRepath();
+            queryTelemetry.RecordReusedPath();
+            return true;
         }
 
-        return TryMoveToWithCurrentPosture(destination, speed);
+        repathScheduler.RecordAttempt(
+            destination,
+            navigationConfig,
+            EnemyNavigationTopology.Revision);
+        queryService.BeginRepath(
+            navigationConfig != null
+                ? navigationConfig.maximumPathQueriesPerRepath
+                : 24);
+
+        if (!requestedAllowPushThrough)
+        {
+            ReleaseAllPushThroughHolds();
+        }
+
+        if (config != null && config.crawlingEnabled && postureController != null)
+        {
+            bool moved = TryMoveWithPosturePriority(destination, speed);
+
+            if (!moved && !postureController.IsPostureTransitionInProgress)
+            {
+                StopAtBlockedRoute();
+            }
+
+            return moved;
+        }
+
+        bool movedWithCurrentPosture = TryMoveToWithCurrentPosture(
+            destination,
+            speed);
+
+        if (!movedWithCurrentPosture)
+        {
+            StopAtBlockedRoute();
+        }
+
+        return movedWithCurrentPosture;
+    }
+
+    private bool TryRecoverStalledNavigation()
+    {
+        if (recoveryController == null ||
+            agent == null ||
+            !agent.enabled ||
+            !agent.isOnNavMesh ||
+            agent.pathPending ||
+            agent.isStopped ||
+            !agent.hasPath ||
+            agent.remainingDistance <=
+            Mathf.Max(0.1f, agent.stoppingDistance + 0.05f))
+        {
+            recoveryController?.Reset();
+            return false;
+        }
+
+        recoveryController.EnsureTracking(transform.position);
+
+        if (!recoveryController.TryRecover(transform.position))
+        {
+            return false;
+        }
+
+        if (agent.enabled && agent.isOnNavMesh)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+        }
+
+        return true;
     }
 
     public void Stop()
     {
         hasRequestedNavigation = false;
-        doorInteractor?.CancelActiveInteraction();
+        doorTraversal?.Cancel();
+        repathScheduler?.Invalidate();
+        recoveryController?.Reset();
+        ReleaseAllPushThroughHolds();
 
         if (!TryEnsureOnNavMesh())
         {
@@ -183,7 +374,10 @@ public class EnemyNavigator : MonoBehaviour
     public void ResetPath()
     {
         hasRequestedNavigation = false;
-        doorInteractor?.CancelActiveInteraction();
+        doorTraversal?.Cancel();
+        repathScheduler?.Invalidate();
+        recoveryController?.Reset();
+        ReleaseAllPushThroughHolds();
 
         if (!TryEnsureOnNavMesh())
         {
@@ -195,7 +389,7 @@ public class EnemyNavigator : MonoBehaviour
 
     public bool HasReached(float reachDistance)
     {
-        if (doorInteractor != null && doorInteractor.HasActiveInteraction)
+        if (doorTraversal != null && doorTraversal.IsActive)
         {
             return false;
         }
@@ -212,9 +406,14 @@ public class EnemyNavigator : MonoBehaviour
     {
         CacheComponents();
 
-        if (agent == null || !agent.enabled || !agent.gameObject.activeInHierarchy)
+        if (agent == null || !agent.gameObject.activeInHierarchy)
         {
             return false;
+        }
+
+        if (!agent.enabled)
+        {
+            agent.enabled = true;
         }
 
         if (agent.isOnNavMesh)
@@ -267,27 +466,61 @@ public class EnemyNavigator : MonoBehaviour
         return true;
     }
 
-    private void RememberRequestedNavigation(Vector3 destination, float speed)
+    private void RememberRequestedNavigation(
+        Vector3 destination,
+        float speed,
+        bool allowPushThrough)
     {
         requestedNavigationDestination = destination;
         requestedNavigationSpeed = speed;
+        requestedAllowPushThrough = allowPushThrough;
         hasRequestedNavigation = true;
     }
 
     private bool TryResolveDoorNavigation(
         Vector3 destination,
+        System.Collections.Generic.IReadOnlyList<Vector3> routeCorners,
         out EnemyDoorNavigationResult doorResult
     )
     {
         doorResult = EnemyDoorNavigationResult.None;
 
-        if (doorInteractor == null)
+        if (doorTraversal == null)
         {
             return false;
         }
 
-        doorResult = doorInteractor.EvaluateNavigation(transform.position, destination);
+        doorResult = doorTraversal.Evaluate(
+            transform.position,
+            destination,
+            routeCorners);
         return doorResult.IsHandled;
+    }
+
+    private Vector3[] GetActiveRouteCorners()
+    {
+        if (agent == null ||
+            !agent.enabled ||
+            !agent.isOnNavMesh ||
+            !agent.hasPath)
+        {
+            NavMeshPath posturePath = postureTraversal?.LastPlannedPath;
+
+            if (config != null &&
+                config.crawlingEnabled &&
+                posturePath != null &&
+                posturePath.status != NavMeshPathStatus.PathInvalid)
+            {
+                return posturePath.corners;
+            }
+
+            return pathBuffer != null &&
+                   pathBuffer.status != NavMeshPathStatus.PathInvalid
+                    ? pathBuffer.corners
+                    : null;
+        }
+
+        return agent.path.corners;
     }
 
     private Vector3 GetDoorNavigationProbeDestination()
@@ -320,157 +553,45 @@ public class EnemyNavigator : MonoBehaviour
         agent.isStopped = true;
     }
 
-    private bool TryMoveWithPosturePriority(Vector3 destination, float speed)
-    {
-        bool canTryStanding = !postureController.IsCrawling || CanAttemptStandingRecovery();
-
-        if (canTryStanding && TryMoveStandingFirst(destination, speed))
-        {
-            return true;
-        }
-
-        if (postureController.IsPostureTransitionInProgress)
-        {
-            StopForPostureTransition();
-            return false;
-        }
-
-        return TryMoveToWithPosture(destination, speed, EnemyPosture.Crawling);
-    }
-
-    private bool TryMoveStandingFirst(Vector3 destination, float speed)
-    {
-        if (!postureController.CanUsePostureAtCurrentPosition(EnemyPosture.Standing))
-        {
-            return false;
-        }
-
-        if (TryMoveToWithPosture(destination, speed, EnemyPosture.Standing))
-        {
-            return true;
-        }
-
-        if (postureController.IsPostureTransitionInProgress)
-        {
-            StopForPostureTransition();
-            return false;
-        }
-
-        if (!TryFindStandingWaypointTowards(destination, out Vector3 standingWaypoint))
-        {
-            return false;
-        }
-
-        return TryMoveToWithPosture(standingWaypoint, speed, EnemyPosture.Standing);
-    }
-
-    private bool TryFindStandingWaypointTowards(Vector3 destination, out Vector3 waypoint)
-    {
-        waypoint = transform.position;
-
-        if (agent == null || postureController == null)
-        {
-            return false;
-        }
-
-        if (!postureController.CanUsePostureAtCurrentPosition(EnemyPosture.Standing))
-        {
-            return false;
-        }
-
-        if (!TryBuildCompletePathForPosture(
-                destination,
-                EnemyPosture.Crawling,
-                crawlingRouteBuffer
-            ))
-        {
-            return false;
-        }
-
-        Vector3[] corners = crawlingRouteBuffer.corners;
-
-        if (corners == null || corners.Length < 2)
-        {
-            return false;
-        }
-
-        float sampleStep = config != null
-            ? Mathf.Max(0.1f, config.postureNavMeshSampleRadius)
-            : 1f;
-
-        float minimumWaypointDistance = agent != null
-            ? Mathf.Max(agent.stoppingDistance, MinimumStandingWaypointDistance)
-            : MinimumStandingWaypointDistance;
-
-        float minimumWaypointSqrDistance = minimumWaypointDistance * minimumWaypointDistance;
-
-        for (int segmentIndex = corners.Length - 2; segmentIndex >= 0; segmentIndex--)
-        {
-            Vector3 segmentStart = corners[segmentIndex];
-            Vector3 segmentEnd = corners[segmentIndex + 1];
-
-            float segmentLength = Vector3.Distance(segmentStart, segmentEnd);
-            int sampleCount = Mathf.Max(1, Mathf.CeilToInt(segmentLength / sampleStep));
-
-            for (int sampleIndex = sampleCount; sampleIndex >= 0; sampleIndex--)
-            {
-                float t = sampleIndex / (float)sampleCount;
-                Vector3 candidate = Vector3.Lerp(segmentStart, segmentEnd, t);
-
-                Vector3 flatDelta = candidate - transform.position;
-                flatDelta.y = 0f;
-
-                if (flatDelta.sqrMagnitude <= minimumWaypointSqrDistance)
-                {
-                    continue;
-                }
-
-                if (!TryBuildCompletePathForPosture(
-                        candidate,
-                        EnemyPosture.Standing,
-                        standingCandidatePathBuffer
-                    ))
-                {
-                    continue;
-                }
-
-                waypoint = candidate;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void StopForPostureTransition()
-    {
-        if (!TryEnsureOnNavMesh())
-        {
-            return;
-        }
-
-        agent.isStopped = true;
-    }
-
-    private bool TryMoveToWithPosture(
+    private bool TryMoveWithPosturePriority(
         Vector3 destination,
-        float baseSpeed,
-        EnemyPosture posture
-    )
+        float speed)
     {
-        if (postureController == null)
+        if (postureTraversal == null)
         {
             return false;
         }
 
-        if (!TryBuildCompletePathForPosture(destination, posture, posturePathBuffer))
+        if (postureTraversal.TryBuildPlan(destination, out EnemyPostureTraversalPlan plan) &&
+            plan.IsComplete)
+        {
+            return ApplyPosturePlan(plan, speed);
+        }
+
+        if (!requestedAllowPushThrough)
         {
             return false;
         }
+
+        // Same barricade fallback as the standing-only path below, just
+        // re-asking the posture planner (which may route standing or
+        // crawling) once the blocking items' carving has been requested off.
+        RequestPushThroughOnBlockingItems();
+
+        return postureTraversal.TryBuildPlan(destination, out EnemyPostureTraversalPlan retryPlan) &&
+               retryPlan.IsComplete &&
+               ApplyPosturePlan(retryPlan, speed);
+    }
+
+    private bool ApplyPosturePlan(EnemyPostureTraversalPlan plan, float speed)
+    {
+        float postureSpeed = postureController.GetSpeedForPosture(
+            speed,
+            plan.Posture);
 
         EnemyPosture previousPosture = postureController.CurrentPosture;
 
-        if (!postureController.TrySetServerPosture(posture))
+        if (!postureController.TrySetServerPosture(plan.Posture))
         {
             return false;
         }
@@ -483,29 +604,164 @@ public class EnemyNavigator : MonoBehaviour
 
         if (previousPosture != postureController.CurrentPosture)
         {
-            HandlePostureChanged(postureController.CurrentPosture);
+            postureTraversal.NotifyPostureChanged(
+                postureController.CurrentPosture);
         }
 
-        float postureSpeed = postureController.GetSpeedForPosture(baseSpeed, posture);
-        return TryMoveToWithCurrentPosture(destination, postureSpeed);
+        return queryService.TryApplyPath(
+            agent,
+            plan.Path,
+            postureSpeed);
     }
 
-    private bool TryMoveToWithCurrentPosture(Vector3 destination, float speed)
+    private void StopForPostureTransition()
+    {
+        if (!TryEnsureOnNavMesh())
+        {
+            return;
+        }
+
+        agent.isStopped = true;
+    }
+
+    private bool TryMoveToWithCurrentPosture(
+        Vector3 destination,
+        float speed)
     {
         if (!TryEnsureOnNavMesh())
         {
             return false;
         }
 
-        if (!TryBuildCompletePath(destination, out Vector3 sampledDestination))
+        if (TryBuildCompletePath(destination, out _))
         {
-            return false;
+            return queryService.TryApplyPath(agent, pathBuffer, speed);
         }
 
-        agent.isStopped = false;
-        agent.speed = speed;
+        return requestedAllowPushThrough && TryPushThrough(destination, speed);
+    }
 
-        return agent.SetDestination(sampledDestination);
+    // ponytail: no candidate scoring, no direct-movement mode - just lift
+    // the blocking items' obstacle carving so the normal path rebuild can
+    // route straight through them, and let the enemy's existing rigidbody
+    // physically shove them aside on the way. Falls back to a stopped tick
+    // while carving catches up; the repath scheduler retries on its own.
+    private bool TryPushThrough(Vector3 destination, float speed)
+    {
+        RequestPushThroughOnBlockingItems();
+
+        return TryBuildCompletePath(destination, out _) &&
+               queryService.TryApplyPath(agent, pathBuffer, speed);
+    }
+
+    // Reaching here means every item-respecting route already failed, so the
+    // rule is "path as if the items weren't there": lift carving on all of
+    // them, not just one guessed from a straight line to the target. A
+    // barricade off the sight line (a doorway needing a turn) was never
+    // found by that scan, which left the enemy standing still forever.
+    private void RequestPushThroughOnBlockingItems()
+    {
+        // Snapshot: RequestPushThrough mutates the live registry.
+        pushThroughCandidates.Clear();
+        pushThroughCandidates.AddRange(ItemNavigationObstacle.BlockingInstances);
+
+        foreach (ItemNavigationObstacle blockingItem in pushThroughCandidates)
+        {
+            if (blockingItem == null || !pushThroughHolds.Add(blockingItem))
+            {
+                continue;
+            }
+
+            blockingItem.RequestPushThrough();
+
+            if (Time.time >= forcefulPushStopUntil)
+            {
+                TryRollForcefulPush(blockingItem);
+            }
+        }
+    }
+
+    // Occasional alternative to just walking through the barricade: stop
+    // dead and shove it out of the way instead.
+    private void TryRollForcefulPush(ItemNavigationObstacle blockingItem)
+    {
+        float chance = config != null ? config.barricadeShoveChance : 0f;
+
+        if (chance <= 0f)
+        {
+            return;
+        }
+
+        // The blocking item is found by scanning the full corridor toward
+        // the (possibly distant) destination, not just the enemy's
+        // immediate surroundings - without this, a chasing enemy could
+        // shove a barricade from clear across the level.
+        float distanceToItem = Vector3.Distance(
+            transform.position,
+            blockingItem.transform.position);
+
+        if (distanceToItem > config.barricadeShoveReach || Random.value > chance)
+        {
+            return;
+        }
+
+        blockingItem.ApplyForcefulPush(transform.position, config.barricadeShoveForce);
+        forcefulPushStopUntil = Time.time + config.barricadeShoveStopDuration;
+        StopForForcefulPush();
+    }
+
+    private void StopForForcefulPush()
+    {
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+        agent.isStopped = true;
+    }
+
+    private void ReleaseAllPushThroughHolds()
+    {
+        if (pushThroughHolds.Count == 0)
+        {
+            return;
+        }
+
+        foreach (ItemNavigationObstacle held in pushThroughHolds)
+        {
+            if (held != null)
+            {
+                held.ReleasePushThrough();
+            }
+        }
+
+        pushThroughHolds.Clear();
+    }
+
+    private void StopAtBlockedRoute()
+    {
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+        // A single failed rebuild against a live, moving destination
+        // (chasing a player) isn't proof the route is actually gone —
+        // NavMesh sampling near a shifting target routinely misses by a
+        // hair for one cycle. Only actually halt when there's no path
+        // left to coast on; otherwise keep following the last
+        // known-good path and let the next repath cycle try again.
+        // Resetting on every transient miss caused a full stop-and-go
+        // every few seconds during chase.
+        if (agent.hasPath &&
+            !agent.isPathStale &&
+            agent.pathStatus != NavMeshPathStatus.PathInvalid)
+        {
+            return;
+        }
+
+        agent.isStopped = true;
+        agent.ResetPath();
     }
 
     private bool TryBuildCompletePath(Vector3 destination, out Vector3 sampledDestination)
@@ -518,20 +774,45 @@ public class EnemyNavigator : MonoBehaviour
         }
 
         pathBuffer ??= new NavMeshPath();
+        NavMeshQueryFilter filter = new()
+        {
+            agentTypeID = agent.agentTypeID,
+            areaMask = agent.areaMask
+        };
 
-        if (!TrySamplePositionForCurrentAgent(destination, out NavMeshHit hit))
+        float sampleRadius = GetNavigationSampleRadius();
+
+        if (!queryService.TryBuildPath(
+                transform.position,
+                destination,
+                sampleRadius,
+                sampleRadius,
+                filter,
+                pathBuffer,
+                out sampledDestination))
         {
             return false;
         }
 
-        sampledDestination = hit.position;
+        return IsSampledDestinationAcceptable(
+                   destination,
+                   sampledDestination) &&
+               pathBuffer.status == NavMeshPathStatus.PathComplete &&
+               !HasNavigationBlockerOnPath(pathBuffer);
+    }
 
-        if (!agent.CalculatePath(sampledDestination, pathBuffer))
-        {
-            return false;
-        }
-
-        return pathBuffer.status == NavMeshPathStatus.PathComplete;
+    private bool IsSampledDestinationAcceptable(
+        Vector3 requestedDestination,
+        Vector3 sampledDestination)
+    {
+        Vector3 delta = sampledDestination - requestedDestination;
+        delta.y = 0f;
+        float tolerance = config != null
+            ? Mathf.Max(
+                config.navigationDestinationRepathDistance,
+                agent != null ? agent.stoppingDistance : 0f)
+            : 0.3f;
+        return delta.sqrMagnitude <= tolerance * tolerance;
     }
 
     private bool TrySamplePositionForCurrentAgent(Vector3 sourcePosition, out NavMeshHit hit)
@@ -548,136 +829,25 @@ public class EnemyNavigator : MonoBehaviour
             areaMask = agent.areaMask
         };
 
-        return NavMesh.SamplePosition(sourcePosition, out hit, NavMeshSampleRadius, filter);
+        return queryService.TrySamplePosition(
+            sourcePosition,
+            GetNavigationSampleRadius(),
+            filter,
+            out hit);
     }
 
-    private bool TryBuildCompletePathForPosture(
-        Vector3 destination,
-        EnemyPosture posture,
-        NavMeshPath targetPath
-    )
+    private bool HasNavigationBlockerOnPath(NavMeshPath path)
     {
-        if (agent == null || postureController == null || targetPath == null)
-        {
-            return false;
-        }
-
-        if (!postureController.CanUsePostureAtCurrentPosition(posture))
-        {
-            return false;
-        }
-
-        NavMeshQueryFilter filter = new()
-        {
-            agentTypeID = postureController.GetAgentTypeIdForPosture(posture),
-            areaMask = agent.areaMask
-        };
-
-        float sourceSampleRadius = config != null
-            ? Mathf.Max(0.05f, config.postureSwitchSampleRadius)
-            : 0.25f;
-
-        if (!NavMesh.SamplePosition(transform.position, out NavMeshHit sourceHit, sourceSampleRadius, filter))
-        {
-            return false;
-        }
-
-        float destinationSampleRadius = GetDestinationSampleRadiusForPosture(posture);
-
-        if (!postureController.TryGetUsablePosturePosition(
-                posture,
-                destination,
-                destinationSampleRadius,
-                out NavMeshHit destinationHit
-            ))
-        {
-            return false;
-        }
-
-        if (!NavMesh.CalculatePath(sourceHit.position, destinationHit.position, filter, targetPath))
-        {
-            return false;
-        }
-
-        return targetPath.status == NavMeshPathStatus.PathComplete;
+        return itemPusher != null &&
+               path != null &&
+               itemPusher.HasNavigationBlockerOnRoute(path.corners);
     }
 
-    private float GetDestinationSampleRadiusForPosture(EnemyPosture posture)
+    private float GetNavigationSampleRadius()
     {
-        if (config == null)
-        {
-            return NavMeshSampleRadius;
-        }
-
-        if (posture == EnemyPosture.Standing)
-        {
-            return Mathf.Max(0.05f, config.postureSwitchSampleRadius);
-        }
-
-        return Mathf.Max(0.1f, config.postureNavMeshSampleRadius);
-    }
-
-    private bool CanAttemptStandingRecovery()
-    {
-        if (config == null || postureController == null)
-        {
-            return false;
-        }
-
-        if (postureController.IsPostureTransitionInProgress)
-        {
-            return false;
-        }
-
-        if (!postureController.IsCrawling)
-        {
-            return true;
-        }
-
-        float now = Time.time;
-        float minPostureDuration = Mathf.Max(0f, config.minPostureDuration);
-        float nextAllowedByDuration = postureController.LastPostureChangedTime + minPostureDuration;
-
-        if (now < nextAllowedByDuration)
-        {
-            nextStandingRecoveryCheckTime = Mathf.Max(
-                nextStandingRecoveryCheckTime,
-                nextAllowedByDuration
-            );
-
-            return false;
-        }
-
-        if (now < nextStandingRecoveryCheckTime)
-        {
-            return false;
-        }
-
-        nextStandingRecoveryCheckTime = now + Mathf.Max(
-            0.05f,
-            config.standingRecoveryCheckInterval
-        );
-
-        return true;
-    }
-
-    private void HandlePostureChanged(EnemyPosture posture)
-    {
-        if (config == null)
-        {
-            nextStandingRecoveryCheckTime = 0f;
-            return;
-        }
-
-        float now = Time.time;
-
-        if (posture == EnemyPosture.Crawling)
-        {
-            nextStandingRecoveryCheckTime = now + Mathf.Max(0f, config.minPostureDuration);
-            return;
-        }
-
-        nextStandingRecoveryCheckTime = 0f;
+        return config != null
+            ? Mathf.Max(0.1f, config.navigationNavMeshSampleRadius)
+            : 2f;
     }
 
     private void CacheComponents()
@@ -695,6 +865,16 @@ public class EnemyNavigator : MonoBehaviour
         if (doorInteractor == null)
         {
             doorInteractor = GetComponent<EnemyDoorInteractor>();
+        }
+
+        if (itemPusher == null)
+        {
+            itemPusher = GetComponent<EnemyItemPusher>();
+        }
+
+        if (body == null)
+        {
+            body = GetComponent<Rigidbody>();
         }
     }
 

@@ -73,20 +73,11 @@ public class EnemyVisionSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        HidingPlaceInteractable observedHidingPlace = null;
-        if (bestTarget.IsEnteringHiding)
-        {
-            bestTarget.TryGetCurrentHidingPlace(
-                out observedHidingPlace
-            );
-        }
-
         stimulus = EnemyPerceptionStimulus.ForConfirmedTarget(
             bestTarget,
             visiblePoint,
             bestScore,
-            EnemyPerceptionSource.Vision,
-            observedHidingPlace
+            EnemyPerceptionSource.Vision
         );
 
         return true;

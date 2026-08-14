@@ -36,6 +36,9 @@ public sealed class TwoClientHidingPlacePlayModeTests
     private GameObject playerPrefab;
     private GameObject hidingPlacePrefab;
 
+    private int playerLayer = -1;
+    private bool previousPlayerLayerCollision;
+
     [UnityTearDown]
     public IEnumerator TearDown()
     {
@@ -73,6 +76,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
         }
 
         cleanup.Clear();
+        RestoreReplicaCollisions();
         server = null;
         clientA = null;
         clientB = null;
@@ -300,17 +304,6 @@ public sealed class TwoClientHidingPlacePlayModeTests
             "Client A did not occupy the hiding place."
         );
 
-        clientA.Manager.Shutdown(discardMessageQueue: false);
-
-        yield return WaitForCondition(
-            () => !clientA.Manager.IsListening &&
-                  !server.Manager.SpawnManager.SpawnedObjects.ContainsKey(
-                      playerAId
-                  ) &&
-                  !serverPlace.IsOccupied,
-            "Disconnect did not despawn the occupant and release the place."
-        );
-
         PlayerHidingController playerB = GetComponent<PlayerHidingController>(
             clientB,
             playerBId
@@ -320,6 +313,18 @@ public sealed class TwoClientHidingPlacePlayModeTests
                 clientB,
                 hidingPlaceId
             );
+
+        clientA.Manager.Shutdown(discardMessageQueue: false);
+
+        yield return WaitForCondition(
+            () => !clientA.Manager.IsListening &&
+                  !server.Manager.SpawnManager.SpawnedObjects.ContainsKey(
+                      playerAId
+                  ) &&
+                  !serverPlace.IsOccupied &&
+                  placeB.IsAvailable,
+            "Disconnect did not despawn the occupant and release the place."
+        );
 
         Assert.That(placeB.TryRequestEnter(playerB), Is.True);
 
@@ -337,6 +342,20 @@ public sealed class TwoClientHidingPlacePlayModeTests
                   ) &&
                   !playerB.IsHidden,
             "Hiding place despawn did not release its active occupant."
+        );
+
+        Rigidbody recoveredBody = GetComponent<PlayerHidingController>(
+            server,
+            playerBId
+        ).GetComponent<Rigidbody>();
+
+        // A hard teleport onto the floor takes a few physics steps to
+        // settle (small penetration-correction bounce either way).
+        // Wait for the body to actually stop moving instead of guessing
+        // a fixed delay.
+        yield return WaitForCondition(
+            () => recoveredBody.linearVelocity.sqrMagnitude < 0.0001f,
+            "Recovered player did not settle after runtime destruction."
         );
 
         Vector3 recoveredPosition =
@@ -408,12 +427,39 @@ public sealed class TwoClientHidingPlacePlayModeTests
         yield return null;
         Physics.SyncTransforms();
 
+        // This assertion has a history of failing intermittently in full runs
+        // and never in isolation, and "the server stayed Available" on its own
+        // says nothing about which of TryEnterServer's three checks refused.
+        // Capture the inputs to those checks up front so the next occurrence
+        // explains itself instead of costing another bisect.
+        PlayerHidingController serverPlayer =
+            GetComponent<PlayerHidingController>(server, playerId);
+        Vector3 serverPlayerPosition = serverPlayer.transform.position;
+        Vector3 clientPlayerPosition = player.transform.position;
+
         Assert.That(clientPlace.TryRequestEnter(player), Is.True);
 
-        yield return WaitForCondition(
-            () => serverPlace.State ==
-                  HidingTransitionState.Entering,
-            "Server did not expose the entering transition."
+        float enteringTimeout = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (serverPlace.State != HidingTransitionState.Entering &&
+               Time.realtimeSinceStartup < enteringTimeout)
+        {
+            yield return null;
+        }
+
+        Assert.That(
+            serverPlace.State == HidingTransitionState.Entering,
+            Is.True,
+            "Server did not expose the entering transition. " +
+            $"serverPlayerPos={serverPlayerPosition} " +
+            $"clientPlayerPos={clientPlayerPosition} " +
+            $"placePos={serverPlace.transform.position} " +
+            $"anchorPos={serverPlace.EnemyInvestigationPosition} " +
+            $"maxInteractionDistance={serverPlace.Configuration.MaxInteractionDistance} " +
+            $"serverState={serverPlace.State} " +
+            $"serverAvailable={serverPlace.IsAvailable} " +
+            $"serverPlayerNow={serverPlayer.transform.position} " +
+            $"clientPlayerNow={player.transform.position}"
         );
 
         Assert.That(serverPlace.IsAvailable, Is.False);
@@ -859,6 +905,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
             "A floor-level exit anchor incorrectly blocked hiding exit."
         );
 
+        Physics.SyncTransforms();
+
         CapsuleCollider playerCollider =
             player.GetComponent<CapsuleCollider>();
         Assert.That(
@@ -905,8 +953,47 @@ public sealed class TwoClientHidingPlacePlayModeTests
         return groundPosition + Vector3.up;
     }
 
+    // Three NetworkManagers share one physics scene, so every networked object
+    // exists three times at identical coordinates - the server's copy and one
+    // per client, capsules exactly inside each other. Penetration resolution
+    // shoves them apart, and with useGravity off nothing brings them back: the
+    // replicas climb away from the spawn point for the rest of the test.
+    //
+    // Left alone this randomly pushed the server's copy of the player out of
+    // MaxInteractionDistance before it could enter a hiding place, which is
+    // where this fixture's intermittent failures came from. Replicas of one
+    // object have no business colliding with each other.
+    private void SuppressReplicaCollisions()
+    {
+        playerLayer = LayerMask.NameToLayer("Player");
+
+        if (playerLayer < 0)
+        {
+            return;
+        }
+
+        previousPlayerLayerCollision =
+            Physics.GetIgnoreLayerCollision(playerLayer, playerLayer);
+        Physics.IgnoreLayerCollision(playerLayer, playerLayer, true);
+    }
+
+    private void RestoreReplicaCollisions()
+    {
+        if (playerLayer < 0)
+        {
+            return;
+        }
+
+        Physics.IgnoreLayerCollision(
+            playerLayer,
+            playerLayer,
+            previousPlayerLayerCollision);
+        playerLayer = -1;
+    }
+
     private IEnumerator StartNetwork()
     {
+        SuppressReplicaCollisions();
         CreateNetworkPrefabs();
 
         server = CreateEndpoint("Hiding dedicated server");
@@ -962,6 +1049,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
         body.useGravity = false;
         CapsuleCollider bodyCollider =
             playerPrefab.AddComponent<CapsuleCollider>();
+        bodyCollider.height = 2f;
         playerPrefab.AddComponent<MeshRenderer>();
         playerPrefab.AddComponent<HidingEntryEligibilityProbe>();
 
@@ -1014,6 +1102,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
         HidingPlaceData hidingData =
             Track(ScriptableObject.CreateInstance<HidingPlaceData>());
+        PlayModeTestReflection.SetField(hidingData, "enterDuration", 0.2f);
+        PlayModeTestReflection.SetField(hidingData, "exitDuration", 0.2f);
 
         hidingPlacePrefab = Track(
             new GameObject("Hiding place prefab")
@@ -1029,7 +1119,9 @@ public sealed class TwoClientHidingPlacePlayModeTests
             placeNetworkObject,
             HidingPlacePrefabHash
         );
-        hidingPlacePrefab.AddComponent<BoxCollider>();
+        BoxCollider hidingPlaceCollider =
+            hidingPlacePrefab.AddComponent<BoxCollider>();
+        hidingPlaceCollider.size = new Vector3(0.8f, 0.8f, 0.8f);
 
         Transform hidingPoint = CreateChild(
             hidingPlacePrefab.transform,
@@ -1196,6 +1288,13 @@ public sealed class TwoClientHidingPlacePlayModeTests
             },
             "Hiding objects were not spawned on every endpoint."
         );
+
+        // Newly spawned/positioned colliders (e.g. a player's body
+        // capsule) aren't guaranteed to be reflected in Physics queries
+        // (Collider.bounds, raycasts) until the physics world syncs.
+        // Callers immediately run line-of-sight/overlap checks against
+        // these objects, so force the sync here once for everyone.
+        Physics.SyncTransforms();
     }
 
     private static bool HasSpawnedObject(

@@ -37,13 +37,13 @@ public static class SettingsWindowPrefabBuilder
         windowLayout.childControlHeight = true;
         windowLayout.childForceExpandHeight = false;
 
-        CreateText("Настройки", window, 32f, TextAlignmentOptions.Center);
+        CreateText("Settings", window, 32f, TextAlignmentOptions.Center);
         HorizontalLayoutGroup tabRow = Row(window, 38f);
         List<Button> tabButtons = new();
-        AddTab(tabRow.transform, tabButtons, "Графика", "Graphics", styleSource);
-        AddTab(tabRow.transform, tabButtons, "Звук", "Sound", styleSource);
-        AddTab(tabRow.transform, tabButtons, "Управление", "Controls", styleSource);
-        AddTab(tabRow.transform, tabButtons, "Интерфейс", "Interface", styleSource);
+        AddTab(tabRow.transform, tabButtons, "Graphics", "Graphics", styleSource);
+        AddTab(tabRow.transform, tabButtons, "Sound", "Sound", styleSource);
+        AddTab(tabRow.transform, tabButtons, "Controls", "Controls", styleSource);
+        AddTab(tabRow.transform, tabButtons, "Interface", "Interface", styleSource);
 
         RectTransform pagesRoot = Rect("Pages", window);
         pagesRoot.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
@@ -51,39 +51,38 @@ public static class SettingsWindowPrefabBuilder
         List<string> ids = new();
 
         GameObject graphics = Page(pagesRoot, pages, ids, "Graphics");
-        Section(graphics.transform, "Экран");
-        ChoiceRow(graphics.transform, "Разрешение", styleSource, out TMP_Text resolution, out Button previousResolution, out Button nextResolution);
-        ActionRow(graphics.transform, "Режим окна", styleSource, out TMP_Text displayMode, out Button displayModeButton);
-        ChoiceRow(graphics.transform, "Качество", styleSource, out TMP_Text quality, out Button previousQuality, out Button nextQuality);
+        Section(graphics.transform, "Display");
+        ChoiceRow(graphics.transform, "Resolution", styleSource, out TMP_Text resolution, out Button previousResolution, out Button nextResolution);
+        ActionRow(graphics.transform, "Window mode", styleSource, out TMP_Text displayMode, out Button displayModeButton);
+        ChoiceRow(graphics.transform, "Quality", styleSource, out TMP_Text quality, out Button previousQuality, out Button nextQuality);
         ActionRow(graphics.transform, "VSync", styleSource, out TMP_Text vsync, out Button vsyncButton);
-        Slider frameRateSlider = SliderRow(graphics.transform, "Лимит кадров", 30f, 1001f, out TMP_Text frameRate);
-        frameRateSlider.wholeNumbers = true;
-        Section(graphics.transform, "Кино");
+        TMP_Dropdown frameRateDropdown = DropdownRow(graphics.transform, "Frame rate limit");
+        Section(graphics.transform, "Cinematic");
         Slider fov = SliderRow(graphics.transform, "FOV", 50f, 110f);
-        ActionRow(graphics.transform, "Сглаживание камеры", styleSource, out TMP_Text smoothing, out Button smoothingButton);
-        Slider smoothingIntensity = SliderRow(graphics.transform, "Интенсивность сглаживания", 0f, 1f);
+        ActionRow(graphics.transform, "Camera smoothing", styleSource, out TMP_Text smoothing, out Button smoothingButton);
+        Slider smoothingIntensity = SliderRow(graphics.transform, "Smoothing intensity", 0f, 1f);
 
         GameObject sound = Page(pagesRoot, pages, ids, "Sound");
-        Section(sound.transform, "Звук применяется сразу");
-        Slider master = SliderRow(sound.transform, "Общая громкость", 0f, 1f);
-        Slider music = SliderRow(sound.transform, "Музыка", 0f, 1f);
-        Slider effects = SliderRow(sound.transform, "Эффекты", 0f, 1f);
-        Slider interfaceVolume = SliderRow(sound.transform, "Громкость интерфейса", 0f, 1f);
+        Section(sound.transform, "Sound applies immediately");
+        Slider master = SliderRow(sound.transform, "Master volume", 0f, 1f);
+        Slider music = SliderRow(sound.transform, "Music", 0f, 1f);
+        Slider effects = SliderRow(sound.transform, "Effects", 0f, 1f);
+        Slider interfaceVolume = SliderRow(sound.transform, "Interface volume", 0f, 1f);
 
         GameObject controls = Page(pagesRoot, pages, ids, "Controls");
-        Section(controls.transform, "Управление");
-        Slider sensitivity = SliderRow(controls.transform, "Чувствительность", 10f, 300f);
-        ActionRow(controls.transform, "Инверсия Y", styleSource, out TMP_Text invert, out Button invertButton);
+        Section(controls.transform, "Controls");
+        Slider sensitivity = SliderRow(controls.transform, "Sensitivity", GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
+        ActionRow(controls.transform, "Invert Y", styleSource, out TMP_Text invert, out Button invertButton);
 
         GameObject ui = Page(pagesRoot, pages, ids, "Interface");
-        Section(ui.transform, "Интерфейс");
-        Slider interfaceOpacity = SliderRow(ui.transform, "Прозрачность интерфейса", 0f, 1f);
-        Slider crosshairSize = SliderRow(ui.transform, "Размер прицела", 0.5f, 2f);
+        Section(ui.transform, "Interface");
+        Slider interfaceOpacity = SliderRow(ui.transform, "Interface opacity", 0f, 1f);
+        Slider crosshairSize = SliderRow(ui.transform, "Crosshair size", 0.5f, 2f);
 
         HorizontalLayoutGroup bottom = Row(window, 42f);
-        Button defaults = Button("По умолчанию", bottom.transform, styleSource);
-        Button close = Button("Закрыть", bottom.transform, styleSource);
-        Button apply = Button("Применить", bottom.transform, styleSource);
+        Button defaults = Button("Defaults", bottom.transform, styleSource);
+        Button close = Button("Close", bottom.transform, styleSource);
+        Button apply = Button("Apply", bottom.transform, styleSource);
 
         GameObject confirmation = CreateConfirmation(overlayRect, styleSource, out TMP_Text confirmationText, out Button confirm, out Button cancel);
         confirmation.SetActive(false);
@@ -94,7 +93,7 @@ public static class SettingsWindowPrefabBuilder
             overlayRect.gameObject, confirmation, confirmationText, close, apply, defaults, confirm, cancel,
             tabButtons.ToArray(), pages.ToArray(), ids.ToArray(),
             previousResolution, nextResolution, resolution, displayModeButton, displayMode,
-            previousQuality, nextQuality, quality, vsyncButton, vsync, frameRateSlider, frameRate,
+            previousQuality, nextQuality, quality, vsyncButton, vsync, frameRateDropdown,
             fov, smoothingButton, smoothing, smoothingIntensity, master, music, effects,
             sensitivity, invertButton, invert, interfaceVolume, interfaceOpacity, crosshairSize);
 
@@ -153,7 +152,7 @@ public static class SettingsWindowPrefabBuilder
         HorizontalLayoutGroup row = Row(parent, 34f);
         TMP_Text label = CreateText(title, row.transform, 18f, TextAlignmentOptions.Left);
         label.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-        button = Button("Изменить", row.transform, styleSource);
+        button = Button("Change", row.transform, styleSource);
         value = button.GetComponentInChildren<TMP_Text>();
         value.fontSize = 16f;
     }
@@ -161,6 +160,20 @@ public static class SettingsWindowPrefabBuilder
     private static Slider SliderRow(Transform parent, string title, float min, float max)
     {
         return SliderRow(parent, title, min, max, out _);
+    }
+
+    /// <summary>Пункты списка наполняет SettingsWindow из GameSettingsData, здесь только сам контрол.</summary>
+    private static TMP_Dropdown DropdownRow(Transform parent, string title)
+    {
+        HorizontalLayoutGroup row = Row(parent, 38f);
+        TMP_Text label = CreateText(title, row.transform, 18f, TextAlignmentOptions.Left);
+        label.gameObject.AddComponent<LayoutElement>().preferredWidth = 280f;
+
+        GameObject dropdownObject = TMP_DefaultControls.CreateDropdown(new TMP_DefaultControls.Resources());
+        dropdownObject.name = title + " Dropdown";
+        dropdownObject.transform.SetParent(row.transform, false);
+        dropdownObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        return dropdownObject.GetComponent<TMP_Dropdown>();
     }
 
     private static Slider SliderRow(Transform parent, string title, float min, float max, out TMP_Text label)
@@ -209,8 +222,8 @@ public static class SettingsWindowPrefabBuilder
         text = CreateText("", dialog, 22f, TextAlignmentOptions.Center);
         text.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
         HorizontalLayoutGroup buttons = Row(dialog, 36f);
-        cancel = Button("Отмена", buttons.transform, styleSource);
-        confirm = Button("Подтвердить", buttons.transform, styleSource);
+        cancel = Button("Cancel", buttons.transform, styleSource);
+        confirm = Button("Confirm", buttons.transform, styleSource);
         return dialog.gameObject;
     }
 

@@ -67,6 +67,13 @@ public abstract class DraggableObject : InteractableObject
         get { return originalMass; }
     }
 
+    public void ApplyImpulse(Vector3 impulse)
+    {
+        if (rb == null) return;
+
+        rb.AddForce(impulse, ForceMode.Impulse);
+    }
+
     private Collider[] itemColliders;
     private int playerLayerMask;
     private readonly List<(Collider item, Collider player)> ignoredCollisionPairs = new(16);

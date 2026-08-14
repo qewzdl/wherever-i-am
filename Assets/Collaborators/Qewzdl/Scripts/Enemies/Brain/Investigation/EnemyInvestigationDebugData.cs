@@ -16,6 +16,10 @@ public sealed class EnemyInvestigationDebugData
 
     public int ActiveRouteIndex { get; private set; } = -1;
 
+    // The room the search route was held inside, or empty when it was not
+    // held to one at all.
+    public string BoundRoomId { get; private set; } = string.Empty;
+
     public void Begin(Vector3 origin)
     {
         Clear();
@@ -38,6 +42,11 @@ public sealed class EnemyInvestigationDebugData
         {
             searchPoints.Add(points[i]);
         }
+    }
+
+    public void SetBoundRoom(RoomVolume room)
+    {
+        BoundRoomId = room != null ? room.RoomId : string.Empty;
     }
 
     public void SetActiveRouteIndex(int routeIndex)

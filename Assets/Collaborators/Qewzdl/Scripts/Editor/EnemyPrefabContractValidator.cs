@@ -111,6 +111,10 @@ public class EnemyPrefabContractValidator : AssetPostprocessor
         ValidateRequiredRootComponent<EnemyNetworkState>(prefabRoot, errors);
         ValidateRequiredRootComponent<EnemyServerRuntime>(prefabRoot, errors);
         ValidateRequiredRootComponent<EnemyNavigator>(prefabRoot, errors);
+        ValidateRequiredRootComponent<EnemyPhysicsMotor>(prefabRoot, errors);
+        ValidateRequiredRootComponent<EnemyItemPusher>(prefabRoot, errors);
+        ValidateRequiredRootComponent<Rigidbody>(prefabRoot, errors);
+        ValidateRequiredRootComponent<CapsuleCollider>(prefabRoot, errors);
         ValidateRequiredRootComponent<NavMeshAgent>(prefabRoot, errors);
         ValidateNavMeshAgentStartsDisabled(prefabRoot, errors);
 

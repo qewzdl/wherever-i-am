@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -110,6 +111,22 @@ public class EnemyInvestigationGizmos : MonoBehaviour
         return true;
     }
 
+    // The preview is only honest if it samples the same NavMesh the enemy
+    // walks on, so the agent type comes off this enemy's own agent rather
+    // than from whatever the project happens to list first.
+    private NavMeshQueryFilter GetPreviewQueryFilter()
+    {
+        NavMeshAgent agent = GetComponent<NavMeshAgent>();
+
+        return new NavMeshQueryFilter
+        {
+            agentTypeID = agent != null
+                ? agent.agentTypeID
+                : NavMesh.GetSettingsByIndex(0).agentTypeID,
+            areaMask = NavMesh.AllAreas
+        };
+    }
+
     private void DrawEditorPreview(EnemyConfig config)
     {
         Vector3 previewOrigin = transform.position + transform.forward * editorPreviewOriginDistance;
@@ -120,7 +137,8 @@ public class EnemyInvestigationGizmos : MonoBehaviour
             config.investigationBranchRadius,
             config.investigationBranchPointCount,
             config.investigationLeafRadius,
-            config.investigationLeafPointCountPerBranch
+            config.investigationLeafPointCountPerBranch,
+            GetPreviewQueryFilter()
         );
 
         DrawPlan(

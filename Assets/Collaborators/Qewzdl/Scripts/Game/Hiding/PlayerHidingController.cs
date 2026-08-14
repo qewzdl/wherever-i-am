@@ -42,6 +42,7 @@ public sealed class PlayerHidingController :
     private PlayerHidingEffects hidingEffects;
     private MonoBehaviour[] entryEligibilityProviders;
     private bool listensToHidingState;
+    private bool missingEligibilityProviderLogged;
     private bool hidingRequestPending;
     private bool hasRecoveryPose;
     private Pose recoveryPose;
@@ -370,7 +371,33 @@ public sealed class PlayerHidingController :
             }
         }
 
-        return hasEligibilityProvider;
+        if (!hasEligibilityProvider)
+        {
+            LogMissingEligibilityProvider();
+            return false;
+        }
+
+        missingEligibilityProviderLogged = false;
+        return true;
+    }
+
+    // Without a provider every entry is refused, and it used to be refused in
+    // total silence - the one failure mode in this file that said nothing.
+    private void LogMissingEligibilityProvider()
+    {
+        if (missingEligibilityProviderLogged)
+        {
+            return;
+        }
+
+        missingEligibilityProviderLogged = true;
+
+        Debug.LogError(
+            $"{nameof(PlayerHidingController)} on player {NetworkObjectId} " +
+            $"carries no {nameof(IHidingEntryEligibility)} component, so " +
+            "every hiding entry is refused. Add one to the player prefab.",
+            this
+        );
     }
 
     internal bool TryGetRecoveryPose(out Pose pose)

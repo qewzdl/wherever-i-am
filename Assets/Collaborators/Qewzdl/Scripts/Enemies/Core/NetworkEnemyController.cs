@@ -7,6 +7,8 @@ using UnityEngine;
 [RequireComponent(typeof(EnemyNetworkState))]
 [RequireComponent(typeof(EnemyServerRuntime))]
 [RequireComponent(typeof(EnemyNavigator))]
+[RequireComponent(typeof(EnemyPhysicsMotor))]
+[RequireComponent(typeof(EnemyItemPusher))]
 public class NetworkEnemyController : NetworkBehaviour
 {
     [Header("Config")]
@@ -24,6 +26,8 @@ public class NetworkEnemyController : NetworkBehaviour
     [SerializeField] private EnemyNavigator navigator;
     [SerializeField] private EnemyAttackController attackController;
     [SerializeField] private EnemyNavMeshStartupGate navMeshStartupGate;
+    [SerializeField] private EnemyPhysicsMotor physicsMotor;
+    [SerializeField] private EnemyItemPusher itemPusher;
 
     private bool shouldStartServerRuntime;
     private IEnemyClientPresentation clientPresentation;
@@ -92,6 +96,16 @@ public class NetworkEnemyController : NetworkBehaviour
 
         clientPresentation?.ShutdownPresentation();
         serverRuntime?.ShutdownServer();
+
+        if (itemPusher != null)
+        {
+            itemPusher.enabled = false;
+        }
+
+        if (physicsMotor != null)
+        {
+            physicsMotor.enabled = false;
+        }
     }
 
     private void Update()
@@ -130,6 +144,16 @@ public class NetworkEnemyController : NetworkBehaviour
             navigator.enabled = true;
         }
 
+        if (itemPusher != null)
+        {
+            itemPusher.enabled = true;
+        }
+
+        if (physicsMotor != null)
+        {
+            physicsMotor.enabled = true;
+        }
+
         if (attackController != null)
         {
             attackController.enabled = true;
@@ -159,6 +183,16 @@ public class NetworkEnemyController : NetworkBehaviour
         if (navigator != null)
         {
             navigator.enabled = false;
+        }
+
+        if (itemPusher != null)
+        {
+            itemPusher.enabled = false;
+        }
+
+        if (physicsMotor != null)
+        {
+            physicsMotor.enabled = false;
         }
 
         if (attackController != null)
@@ -205,6 +239,16 @@ public class NetworkEnemyController : NetworkBehaviour
         if (navigator == null)
         {
             navigator = GetComponent<EnemyNavigator>();
+        }
+
+        if (itemPusher == null)
+        {
+            itemPusher = GetComponent<EnemyItemPusher>();
+        }
+
+        if (physicsMotor == null)
+        {
+            physicsMotor = GetComponent<EnemyPhysicsMotor>();
         }
 
         if (attackController == null)
@@ -260,6 +304,24 @@ public class NetworkEnemyController : NetworkBehaviour
             return false;
         }
 
+        if (itemPusher == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires {nameof(EnemyItemPusher)}.",
+                this
+            );
+            return false;
+        }
+
+        if (physicsMotor == null)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} requires {nameof(EnemyPhysicsMotor)}.",
+                this
+            );
+            return false;
+        }
+
         if (clientPresentation == null)
         {
             Debug.LogError(
@@ -305,6 +367,16 @@ public class NetworkEnemyController : NetworkBehaviour
         if (navigator != null)
         {
             navigator.enabled = false;
+        }
+
+        if (itemPusher != null)
+        {
+            itemPusher.enabled = false;
+        }
+
+        if (physicsMotor != null)
+        {
+            physicsMotor.enabled = false;
         }
 
         if (attackController != null)

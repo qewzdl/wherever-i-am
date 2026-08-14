@@ -124,6 +124,13 @@ public sealed class EnemyPerceptionMemory
         return target != null && target.IsValidNetworkTarget;
     }
 
+    // Deliberate: this hands out the target's live position, not the position
+    // where it was last seen. For visualTargetMemoryDuration after line of
+    // sight breaks, Chase and Attack therefore track the target exactly,
+    // through walls. That is the intended feel - the grace period doubles as
+    // the window in which the enemy cannot be shaken off - so do not "fix" it
+    // into a frozen last-known point. The balance dial is
+    // visualTargetMemoryDuration on EnemyVisionConfig, not this method.
     private Vector3 GetTargetPosition(EnemyTarget target)
     {
         if (target == null)

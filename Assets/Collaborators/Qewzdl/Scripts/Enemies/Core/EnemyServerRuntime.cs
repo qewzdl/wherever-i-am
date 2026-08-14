@@ -12,6 +12,7 @@ public class EnemyServerRuntime : MonoBehaviour
     [SerializeField] private EnemyAttackController attackController;
     [SerializeField] private EnemyNavMeshStartupGate navMeshStartupGate;
     [SerializeField] private EnemyPostureController postureController;
+    [SerializeField] private EnemyGazeScanner gazeScanner;
 
     private readonly EnemyBlackboard blackboard = new();
 
@@ -92,6 +93,9 @@ public class EnemyServerRuntime : MonoBehaviour
         }
 
         brain.Tick(deltaTime);
+
+        // After the brain, so the gaze reacts to the state it just settled on.
+        gazeScanner?.TickServer(deltaTime, networkState.CurrentState);
     }
 
     public void ShutdownServer()
@@ -146,6 +150,11 @@ public class EnemyServerRuntime : MonoBehaviour
         if (postureController == null)
         {
             postureController = GetComponent<EnemyPostureController>();
+        }
+
+        if (gazeScanner == null)
+        {
+            gazeScanner = GetComponent<EnemyGazeScanner>();
         }
     }
 

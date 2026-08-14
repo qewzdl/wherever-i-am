@@ -36,6 +36,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
     private bool networkSceneUnloadInProgress;
     private bool listensToNetworkSceneUnload;
     private bool transitionPending;
+    private bool blockedExitLogged;
     private double transitionCompletesAt;
     private Pose pendingExitPose;
     private bool pendingExitTeleport;
@@ -229,6 +230,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
                  includeRecoveryPose: true,
                  out exitPose)))
         {
+            LogBlockedExit(playerHiding);
             return false;
         }
 
@@ -487,6 +489,28 @@ public sealed class HidingPlaceInteractable : InteractableObject
         occupantNetworkObjectId.Value =
             NoOccupantNetworkObjectId;
         SetStateServer(HidingTransitionState.Available);
+        blockedExitLogged = false;
+    }
+
+    // Every exit route being occupied is a legitimate state - the occupant
+    // simply stays put - but it looks identical to a broken interact key from
+    // the outside. The enemy check retries this every tick, so say it once
+    // per occupancy instead of once per frame.
+    private void LogBlockedExit(PlayerHidingController playerHiding)
+    {
+        if (blockedExitLogged)
+        {
+            return;
+        }
+
+        blockedExitLogged = true;
+
+        Debug.LogWarning(
+            $"{nameof(HidingPlaceInteractable)} '{name}' is keeping player " +
+            $"{playerHiding.NetworkObjectId} inside: no exit anchor, fallback " +
+            "or recovery pose is currently collision-free.",
+            this
+        );
     }
 
     private bool TryGetOccupant(

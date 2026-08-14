@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   behaviorMode: 0
   movementProfile: {fileID: 11400000, guid: 6f99476c13b6ade46bfe2993f8e280d6, type: 2}
+  navigationProfile: {fileID: 11400000, guid: b568284f5c464da4882631e34320d19d, type: 2}
   visionProfile: {fileID: 11400000, guid: bcbded8c22ee45a4e875f723753d083f, type: 2}
   hearingProfile: {fileID: 11400000, guid: a2d93308a73276548adedc078c7bcd1f, type: 2}
   investigationProfile: {fileID: 11400000, guid: 3727f94b1b18ec04fa47b04bce674644, type: 2}

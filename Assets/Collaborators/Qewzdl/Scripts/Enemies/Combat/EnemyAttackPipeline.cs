@@ -176,6 +176,34 @@ public sealed class EnemyAttackPipeline
         );
     }
 
+    public bool TryValidateAttackTarget(
+        EnemyTarget target,
+        EnemyConfig config,
+        Vector3 attackerPosition,
+        Component logContext,
+        out EnemyAttackResultType failureType
+    )
+    {
+        Component resolvedLogContext = logContext != null
+            ? logContext
+            : defaultLogContext;
+
+        if (!contextFactory.TryCreate(
+                target,
+                config,
+                attackerPosition,
+                resolvedLogContext,
+                config != null ? config.attackDistance : 0f,
+                out EnemyAttackContext context,
+                out failureType
+            ))
+        {
+            return false;
+        }
+
+        return lineOfHitValidator.TryValidate(context, out failureType);
+    }
+
     public void Interrupt(
         EnemyAttackResultType reason,
         Vector3 attackerPosition
