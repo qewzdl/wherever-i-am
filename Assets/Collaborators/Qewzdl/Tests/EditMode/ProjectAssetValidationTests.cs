@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Netcode;
@@ -204,6 +205,129 @@ public sealed class ProjectAssetValidationTests
                 Is.True,
                 $"Difficulty '{entry.DisplayName}' is not selectable in the lobby.");
         }
+    }
+
+    // Fields that are the same on every difficulty on purpose. A profile
+    // authored once per difficulty is a claim that its numbers are a lever;
+    // anything in it that never moves is either one of these or was forgotten
+    // in a copy, and the difference between those two is a decision worth
+    // writing down.
+    private static readonly HashSet<string> SharedDifficultyFields = new(StringComparer.Ordinal)
+    {
+        // Anatomy and wiring, not difficulty.
+        "EnemyVisionConfig.targetHeightOffset",
+        "EnemyHearingConfig.hearingEnabled",
+
+        // The chase is balanced around following a target through walls for
+        // the memory duration; turning it off for one difficulty would be a
+        // different game, not an easier one.
+        "EnemyVisionConfig.visualMemoryTracksLiveTarget",
+
+        // A floor for inaudible sources. hearingSensitivity is the lever.
+        "EnemyHearingConfig.minimumNoiseLoudness",
+
+        // How close counts as having reached a search point.
+        "EnemyInvestigationConfig.investigationReachDistance",
+
+        // Retreat and flank geometry: the shape of a manoeuvre, not how hard
+        // she is. What varies is when she chooses one - see the stalk and
+        // ambush fields, which are not on this list.
+        "EnemyStealthTacticsConfig.noEscapeTimeout",
+        "EnemyStealthTacticsConfig.failedRouteAvoidRadius",
+        "EnemyStealthTacticsConfig.retreatBrokenSightDuration",
+        "EnemyStealthTacticsConfig.retreatTimeout",
+        "EnemyStealthTacticsConfig.retreatDistance",
+        "EnemyStealthTacticsConfig.retreatRepathInterval",
+        "EnemyStealthTacticsConfig.flankBehindDistance",
+
+        // Planner budget. Raising it for one difficulty buys frame time, not
+        // difficulty.
+        "EnemyStealthTacticsConfig.claimSpacing",
+        "EnemyStealthTacticsConfig.arrivalDistance",
+        "EnemyStealthTacticsConfig.routeSampleSpacing",
+        "EnemyStealthTacticsConfig.routeSampleBudget",
+        "EnemyStealthTacticsConfig.candidatesPerTick",
+    };
+
+    // acceleration and angularSpeed sat at 12 and 360 on all four difficulties
+    // while only top speed varied, and in a house that is most of what a chase
+    // is. Nothing said so until it was played. This says so.
+    [Test]
+    public void EnemyDifficultyProfiles_HaveNoFieldThatNeverMoves()
+    {
+        EnemyDifficultyCatalog catalog =
+            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+
+        List<EnemyConfig> configs = new();
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            Assert.That(catalog.TryGetEntryAt(i, out var entry), Is.True);
+            Assert.That(entry.Config, Is.Not.Null, $"Difficulty '{entry.DisplayName}' has no config.");
+            configs.Add(entry.Config);
+        }
+
+        Assert.That(configs.Count, Is.GreaterThan(1), "One difficulty cannot have levers.");
+
+        List<string> deadFields = new();
+
+        foreach (FieldInfo profileField in ProfileFields())
+        {
+            ScriptableObject[] profiles = configs
+                .Select(config => (ScriptableObject)profileField.GetValue(config))
+                .ToArray();
+
+            // Every difficulty pointing at one asset is a single deliberate
+            // decision to share, not a field-by-field oversight.
+            if (profiles.Any(profile => profile == null) ||
+                profiles.Distinct().Count() == 1)
+            {
+                continue;
+            }
+
+            foreach (FieldInfo field in profiles[0].GetType()
+                         .GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                // Arrays hold the shape of a manoeuvre and compare by
+                // reference here, so they are left out rather than wrongly
+                // reported as differing.
+                if (field.FieldType.IsArray)
+                {
+                    continue;
+                }
+
+                string id = $"{field.DeclaringType?.Name}.{field.Name}";
+
+                if (SharedDifficultyFields.Contains(id))
+                {
+                    continue;
+                }
+
+                object first = field.GetValue(profiles[0]);
+
+                if (profiles.Skip(1).All(profile => Equals(field.GetValue(profile), first)))
+                {
+                    deadFields.Add($"{id} = {first} on every difficulty");
+                }
+            }
+        }
+
+        Assert.That(
+            deadFields,
+            Is.Empty,
+            "These look tuned per difficulty but never change, so they are not levers. " +
+            "Give them different values or add them to " +
+            $"{nameof(SharedDifficultyFields)} with a reason:\n  " +
+            string.Join("\n  ", deadFields));
+    }
+
+    private static IEnumerable<FieldInfo> ProfileFields()
+    {
+        return typeof(EnemyConfig)
+            .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Where(field =>
+                field.IsDefined(typeof(SerializeField), inherit: false) &&
+                typeof(ScriptableObject).IsAssignableFrom(field.FieldType));
     }
 
     // The bug this guards: hearing radius is capped by how far each noise
