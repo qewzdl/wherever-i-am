@@ -16,12 +16,12 @@ MonoBehaviour:
   observationMaxAge: 10
   chaseWithoutStalkingDistance: 5
   stalkInsteadOfChasingDistance: 8
-  stalkNoticedDuration: 0.4
-  stalkUnwatchedFlankDelay: 1.2
+  stalkNoticedDuration: 0.3
+  stalkUnwatchedFlankDelay: 1.4
   maxFlankExposureRetries: 2
   maxStealthAttemptsPerEngagement: 3
   assaultCommitDuration: 10
-  noOpeningWaitDuration: 3
+  noOpeningWaitDuration: 2.5
   noOpeningReplanInterval: 1
   noEscapeTimeout: 2
   failedRouteAvoidRadius: 2.5

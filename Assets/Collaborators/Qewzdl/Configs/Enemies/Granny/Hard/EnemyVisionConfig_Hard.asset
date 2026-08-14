@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: EnemyVisionConfig_Hard
   m_EditorClassIdentifier: 
   detectionRadius: 40
-  horizontalViewAngle: 200
+  horizontalViewAngle: 210
   verticalViewAngle: 90
   loseTargetDistance: 44
   targetHeightOffset: 1.2
-  targetRefreshInterval: 0.25
-  visualTargetMemoryDuration: 3.5
-  stealthVisibilityRefreshInterval: 0.125
+  targetRefreshInterval: 0.18
+  visualTargetMemoryDuration: 4.5
+  stealthVisibilityRefreshInterval: 0.1
   visualMemoryTracksLiveTarget: 1

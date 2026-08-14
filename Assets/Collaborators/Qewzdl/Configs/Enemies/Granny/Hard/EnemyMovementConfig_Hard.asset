@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2836ed5c13a8f67469f35b39469ae5f0, type: 3}
   m_Name: EnemyMovementConfig_Hard
   m_EditorClassIdentifier: 
-  patrolSpeed: 1.9
-  chaseSpeed: 3.2
-  acceleration: 12
-  angularSpeed: 360
+  patrolSpeed: 2.2
+  chaseSpeed: 3.4
+  acceleration: 20
+  angularSpeed: 520
   stoppingDistance: 0.2

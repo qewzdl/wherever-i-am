@@ -17,7 +17,7 @@ MonoBehaviour:
   verticalViewAngle: 100
   loseTargetDistance: 60
   targetHeightOffset: 1.2
-  targetRefreshInterval: 0.15
-  visualTargetMemoryDuration: 6
-  stealthVisibilityRefreshInterval: 0.08
+  targetRefreshInterval: 0.1
+  visualTargetMemoryDuration: 7
+  stealthVisibilityRefreshInterval: 0.06
   visualMemoryTracksLiveTarget: 1

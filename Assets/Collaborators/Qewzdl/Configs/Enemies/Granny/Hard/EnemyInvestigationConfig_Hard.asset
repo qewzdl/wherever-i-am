@@ -19,3 +19,6 @@ MonoBehaviour:
   investigationLeafRadius: 2
   investigationLeafPointCountPerBranch: 4
   investigationSearchSpeed: 2.1
+  investigationPointDwellDuration: 1.5
+  investigationLookAroundAngle: 65
+  investigationLookAroundSpeed: 175

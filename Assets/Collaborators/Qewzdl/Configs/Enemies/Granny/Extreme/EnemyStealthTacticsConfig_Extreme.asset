@@ -14,15 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   maneuverTimeout: 35
   observationMaxAge: 20
-  chaseWithoutStalkingDistance: 3.5
-  stalkInsteadOfChasingDistance: 6
-  stalkNoticedDuration: 0.25
-  stalkUnwatchedFlankDelay: 0.8
+  chaseWithoutStalkingDistance: 5
+  stalkInsteadOfChasingDistance: 9
+  stalkNoticedDuration: 0.2
+  stalkUnwatchedFlankDelay: 0.6
   maxFlankExposureRetries: 3
   maxStealthAttemptsPerEngagement: 4
-  assaultCommitDuration: 14
-  noOpeningWaitDuration: 4
-  noOpeningReplanInterval: 1
+  assaultCommitDuration: 12
+  noOpeningWaitDuration: 2
+  noOpeningReplanInterval: 0.6
   noEscapeTimeout: 2
   failedRouteAvoidRadius: 2.5
   retreatBrokenSightDuration: 1.2
@@ -43,7 +43,7 @@ MonoBehaviour:
   - 0.35
   flankBehindDistance: 3.5
   flankTimeout: 18
-  flankRepathInterval: 0.5
+  flankRepathInterval: 0.35
   flankBehindAngles:
   - 0
   - -35
@@ -56,7 +56,7 @@ MonoBehaviour:
   - 1
   - 0.65
   - 0.4
-  ambushPatience: 25
+  ambushPatience: 16
   claimSpacing: 2
   arrivalDistance: 1.2
   routeSampleSpacing: 1.5

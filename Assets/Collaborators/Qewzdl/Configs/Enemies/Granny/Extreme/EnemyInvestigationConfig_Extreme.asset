@@ -13,12 +13,12 @@ MonoBehaviour:
   m_Name: EnemyInvestigationConfig_Extreme
   m_EditorClassIdentifier: 
   investigationReachDistance: 0.75
-  investigationRepathInterval: 0.2
+  investigationRepathInterval: 0.15
   investigationBranchRadius: 4.5
   investigationBranchPointCount: 5
   investigationLeafRadius: 2.5
   investigationLeafPointCountPerBranch: 5
-  investigationSearchSpeed: 2.4
-  investigationPointDwellDuration: 1.8
-  investigationLookAroundAngle: 80
-  investigationLookAroundSpeed: 200
+  investigationSearchSpeed: 2.8
+  investigationPointDwellDuration: 1.1
+  investigationLookAroundAngle: 95
+  investigationLookAroundSpeed: 260
