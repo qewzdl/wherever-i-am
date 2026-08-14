@@ -9,6 +9,17 @@ public class MainMenuUI : MonoBehaviour
     private INetworkSessionService sessionService;
     private IUiErrorService errorService;
 
+    // A Unity button needs async void, and async void hands the click straight
+    // back the moment the first await is reached. The session service does
+    // refuse the second attempt, but only after it has been made - and on a
+    // join that is timing out, that is a screenful of errors for a player
+    // doing the obvious thing and clicking again. Hosting and joining share
+    // the flag: both end in one session, and starting one while the other is
+    // in flight is the same mistake.
+    private bool isRequestInFlight;
+
+    public bool IsRequestInFlight => isRequestInFlight;
+
     public void Construct(INetworkSessionService sessionService, IUiErrorService errorService)
     {
         this.sessionService = sessionService;
@@ -19,30 +30,59 @@ public class MainMenuUI : MonoBehaviour
     {
         sessionService = null;
         errorService = null;
+        isRequestInFlight = false;
     }
 
     public async void OnCreateLobbyButtonClicked()
     {
-        HideError();
-
-        if (!HasSessionService())
+        if (!TryBeginRequest())
             return;
 
-        await sessionService.HostLanAsync();
+        try
+        {
+            if (!HasSessionService())
+                return;
+
+            await sessionService.HostLanAsync();
+        }
+        finally
+        {
+            isRequestInFlight = false;
+        }
     }
 
     public async void OnJoinLobbyButtonClicked()
     {
-        HideError();
-
-        if (!HasSessionService())
+        if (!TryBeginRequest())
             return;
 
-        string ip = ipInputField != null
-            ? ipInputField.text
-            : string.Empty;
+        try
+        {
+            if (!HasSessionService())
+                return;
 
-        await sessionService.JoinLanAsync(ip);
+            string ip = ipInputField != null
+                ? ipInputField.text
+                : string.Empty;
+
+            await sessionService.JoinLanAsync(ip);
+        }
+        finally
+        {
+            isRequestInFlight = false;
+        }
+    }
+
+    // Released in a finally, so a service that throws leaves the menu usable
+    // rather than dead until the scene reloads.
+    private bool TryBeginRequest()
+    {
+        if (isRequestInFlight)
+            return false;
+
+        isRequestInFlight = true;
+        HideError();
+        return true;
     }
 
     public void OnQuitButtonClicked()

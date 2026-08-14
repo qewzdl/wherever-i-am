@@ -1,8 +1,48 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+
+// Hands back a task nobody completes, which is what a host or join looks like
+// while it is still going.
+internal sealed class PendingSessionServiceStub : INetworkSessionService
+{
+    private readonly TaskCompletionSource<bool> pending = new();
+
+    public int HostCallCount { get; private set; }
+    public int JoinCallCount { get; private set; }
+
+    public Task HostLanAsync()
+    {
+        HostCallCount++;
+        return pending.Task;
+    }
+
+    public Task JoinLanAsync(string ip)
+    {
+        JoinCallCount++;
+        return pending.Task;
+    }
+
+    public void StartGame(int mapId)
+    {
+    }
+
+    public void StartGame(int mapId, int difficultyId)
+    {
+    }
+
+    public void ShutdownToMainMenu()
+    {
+    }
+
+    public Task<NetworkShutdownResult> ShutdownToMainMenuAsync()
+    {
+        return Task.FromResult(NetworkShutdownResult.Success());
+    }
+}
 
 internal sealed class GameStateServiceStub : IGameStateService
 {
@@ -132,6 +172,40 @@ public sealed class MapLobbyAndGameplayLogicTests
 
         second.MapId = 10;
         Assert.That(first.Equals(second), Is.False);
+    }
+
+    [Test]
+    public void MainMenu_IgnoresClicksWhileAHostOrJoinIsStillRunning()
+    {
+        GameObject menuObject = new(nameof(MainMenuUI));
+
+        try
+        {
+            MainMenuUI menu = menuObject.AddComponent<MainMenuUI>();
+            PendingSessionServiceStub session = new();
+            menu.Construct(session, errorService: null);
+
+            menu.OnCreateLobbyButtonClicked();
+            menu.OnCreateLobbyButtonClicked();
+
+            Assert.That(menu.IsRequestInFlight, Is.True);
+            Assert.That(session.HostCallCount, Is.EqualTo(1), "Hosting was requested twice.");
+
+            // Joining while a host is still going would be the same session
+            // started from both ends.
+            menu.OnJoinLobbyButtonClicked();
+
+            Assert.That(session.JoinCallCount, Is.EqualTo(0), "Joining slipped past a running host.");
+
+            // Disposing releases the menu, so a reopened one is not stuck.
+            menu.Dispose();
+
+            Assert.That(menu.IsRequestInFlight, Is.False);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(menuObject);
+        }
     }
 
     [Test]
