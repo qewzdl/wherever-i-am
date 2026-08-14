@@ -251,6 +251,7 @@ GameObject:
   - component: {fileID: 212283892}
   - component: {fileID: 212283901}
   - component: {fileID: 212283902}
+  - component: {fileID: 212283903}
   m_Layer: 0
   m_Name: SceneRuntime
   m_TagString: Untagged
@@ -325,6 +326,7 @@ MonoBehaviour:
   sceneKind: 4
   features:
   - {fileID: 212283892}
+  - {fileID: 212283903}
 --- !u!114 &212283892
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -458,6 +460,23 @@ MonoBehaviour:
   backgroundColor: {r: 0, g: 0, b: 0, a: 0.78}
   textColor: {r: 1, g: 1, b: 1, a: 1}
   fontSize: 18
+--- !u!114 &212283903
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 212283884}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c6745b0401040838b8ffab6e511259a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mode: 1
+  profile: {fileID: 11400000, guid: 741a50ced37236b428fe2a0f56b61645, type: 2}
+  uiRoot: {fileID: 367437490}
+  lobbyChatPrefab: {fileID: 0}
+  phoneChatPrefab: {fileID: 580301795716557312, guid: 531fc2ecdc954bbdbdc1cea9d3dcc24f, type: 3}
 --- !u!1 &213257118
 GameObject:
   m_ObjectHideFlags: 0
@@ -927,9 +946,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_UiScaleMode: 1
+  m_UiScaleMode: 0
   m_ReferencePixelsPerUnit: 100
-  m_ScaleFactor: 1
+  m_ScaleFactor: 2.45
   m_ReferenceResolution: {x: 2400, y: 600}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0.5
@@ -2257,7 +2276,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 666650312399659520}
-  - component: {fileID: 805603765285911296}
   m_Layer: 0
   m_Name: ChatUiManager
   m_TagString: Untagged
@@ -2265,23 +2283,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &805603765285911296
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 683694227872091520}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5c6745b0401040838b8ffab6e511259a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  mode: 1
-  profile: {fileID: 11400000, guid: 741a50ced37236b428fe2a0f56b61645, type: 2}
-  uiRoot: {fileID: 367437490}
-  lobbyChatPrefab: {fileID: 0}
-  phoneChatPrefab: {fileID: 580301795716557312, guid: 531fc2ecdc954bbdbdc1cea9d3dcc24f, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
