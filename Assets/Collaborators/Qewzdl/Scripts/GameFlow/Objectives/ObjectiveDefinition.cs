@@ -22,17 +22,6 @@ public class ObjectiveDefinition : ScriptableObject
     [FormerlySerializedAs("targetValue")]
     [SerializeField] [Min(0.0001f)] private float requiredProgress = 1f;
 
-    [Header("Completion")]
-    [SerializeField] private ObjectiveCompletionPolicy completionPolicy = ObjectiveCompletionPolicy.CompletesGame;
-    [FormerlySerializedAs("resultType")]
-    [SerializeField] private GameResultType completionResult = GameResultType.Victory;
-    [SerializeField] private string completionReason = "Objective completed";
-
-    [Header("Failure")]
-    [SerializeField] private ObjectiveFailurePolicy failurePolicy = ObjectiveFailurePolicy.FailsGame;
-    [SerializeField] private GameResultType failureResult = GameResultType.Defeat;
-    [SerializeField] private string failureReason = "Objective failed";
-
     public string ObjectiveId => objectiveId;
     public string Title => title;
     public string Description => description;
@@ -40,15 +29,6 @@ public class ObjectiveDefinition : ScriptableObject
     public bool RequiresSceneBinding => requiresSceneBinding;
     public float RequiredProgress => Mathf.Max(0.0001f, requiredProgress);
     public int TargetValue => Mathf.Max(1, Mathf.CeilToInt(requiredProgress));
-    public ObjectiveCompletionPolicy CompletionPolicy => completionPolicy;
-    public bool CompletesGame => completionPolicy == ObjectiveCompletionPolicy.CompletesGame;
-    public GameResultType ResultType => CompletesGame ? completionResult : GameResultType.None;
-    public GameResultType CompletionResult => completionResult;
-    public string CompletionReason => completionReason;
-    public ObjectiveFailurePolicy FailurePolicy => failurePolicy;
-    public bool FailsGame => failurePolicy == ObjectiveFailurePolicy.FailsGame;
-    public GameResultType FailureResult => failureResult;
-    public string FailureReason => failureReason;
 
     public bool IsValid(out string error)
     {
@@ -70,18 +50,6 @@ public class ObjectiveDefinition : ScriptableObject
             return false;
         }
 
-        if (CompletesGame && completionResult == GameResultType.None)
-        {
-            error = $"{nameof(ObjectiveDefinition)} '{objectiveId}' completes game but has invalid completion result.";
-            return false;
-        }
-
-        if (FailsGame && failureResult == GameResultType.None)
-        {
-            error = $"{nameof(ObjectiveDefinition)} '{objectiveId}' fails game but has invalid failure result.";
-            return false;
-        }
-
         error = string.Empty;
         return true;
     }
@@ -89,15 +57,5 @@ public class ObjectiveDefinition : ScriptableObject
     protected virtual void OnValidate()
     {
         requiredProgress = Mathf.Max(0.0001f, requiredProgress);
-
-        if (!CompletesGame)
-        {
-            completionResult = GameResultType.None;
-        }
-
-        if (!FailsGame)
-        {
-            failureResult = GameResultType.None;
-        }
     }
 }

@@ -17,9 +17,3 @@ MonoBehaviour:
   description: Find a way to open the entrance door.
   requiresSceneBinding: 1
   requiredProgress: 1
-  completionPolicy: 1
-  completionResult: 1
-  completionReason: Entrance door opened
-  failurePolicy: 1
-  failureResult: 2
-  failureReason: Entrance door was not opened

@@ -657,18 +657,10 @@ public sealed class NetworkSessionShutdownPlayModeTests
             PlayModeTestReflection.GetField<ObjectiveSequenceDefinition>(
                 objectiveFlow,
                 "objectiveSequence");
-        // A game-ending objective now resolves the match wherever it sits, so
-        // the broken tail is only reachable when the active one hands over.
+        // Only the last objective resolves the match, so an objective with a
+        // broken tail behind it hands over rather than ending anything.
         ObjectiveDefinition handingOverObjective =
             UnityEngine.Object.Instantiate(defaultSequence.GetObjective(0));
-        PlayModeTestReflection.SetField(
-            handingOverObjective,
-            "completionPolicy",
-            ObjectiveCompletionPolicy.ObjectiveOnly);
-        PlayModeTestReflection.SetField(
-            handingOverObjective,
-            "completionResult",
-            GameResultType.None);
         ObjectiveSequenceDefinition brokenSequence =
             ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
         PlayModeTestReflection.SetField(

@@ -220,9 +220,6 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             state,
             objective,
             ObjectiveRuntimeState.Failed,
-            objective.FailsGame,
-            objective.FailureResult,
-            objective.FailureReason,
             instigatorClientId);
     }
 
@@ -262,47 +259,58 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             state,
             objective,
             ObjectiveRuntimeState.Completed,
-            objective.CompletesGame,
-            objective.CompletionResult,
-            objective.CompletionReason,
             instigatorClientId);
     }
 
-    // A game-ending objective ends the match wherever it sits in the sequence:
-    // its position is not what decides the match, its policy is.
+    // The sequence decides what the match does about one of its objectives,
+    // because it is the sequence that knows which one is last. Losing one ends
+    // the match when losing is declared to cost it; otherwise the sequence
+    // simply carries on, and running out of objectives is what wins.
     private bool ResolveObjectiveServerOnly(
         ObjectiveNetworkState state,
         ObjectiveDefinition objective,
         ObjectiveRuntimeState resolvedState,
-        bool endsMatch,
-        GameResultType matchResult,
-        string matchReason,
         ulong instigatorClientId)
     {
-        string resolutionReason = resolvedState == ObjectiveRuntimeState.Completed
+        bool completed = resolvedState == ObjectiveRuntimeState.Completed;
+
+        string resolutionReason = completed
             ? $"Objective '{objective.ObjectiveId}' completed"
             : $"Objective '{objective.ObjectiveId}' failed";
 
         state.State = resolvedState;
 
-        if (resolvedState == ObjectiveRuntimeState.Completed)
+        if (completed)
         {
             state.Progress01 = 1f;
         }
 
-        if (!endsMatch)
+        int nextIndex = state.SequenceIndex + 1;
+        bool sequenceFinished = nextIndex >= activeObjectiveSequence.Count;
+
+        GameResultType matchResult;
+        string matchReason;
+
+        if (!completed && activeObjectiveSequence.LosingAnObjectiveEndsMatch)
         {
-            int nextIndex = state.SequenceIndex + 1;
+            matchResult = activeObjectiveSequence.FailureResult;
+            matchReason = activeObjectiveSequence.FailureReason;
+        }
+        else if (sequenceFinished)
+        {
+            // Nothing left to do. A losable objective lost on the last step
+            // still gets here, which is what "losing it costs nothing" means.
+            matchResult = activeObjectiveSequence.CompletionResult;
+            matchReason = activeObjectiveSequence.CompletionReason;
+        }
+        else
+        {
+            matchResult = GameResultType.None;
+            matchReason = string.Empty;
+        }
 
-            if (nextIndex >= activeObjectiveSequence.Count)
-            {
-                string sequenceError =
-                    $"{nameof(NetworkObjectiveFlow)} sequence ended with objective " +
-                    $"'{objective.ObjectiveId}' but it does not end the match.";
-                Debug.LogError(sequenceError, this);
-                return FaultObjectiveFlowServer(sequenceError);
-            }
-
+        if (matchResult == GameResultType.None)
+        {
             if (!TryPrepareObjectiveActivation(
                     nextIndex,
                     out ObjectiveDefinition nextObjective,

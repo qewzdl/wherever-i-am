@@ -8,7 +8,34 @@ public sealed class ObjectiveSequenceDefinition : ScriptableObject
 {
     [SerializeField] private ObjectiveDefinition[] objectives;
 
+    // What the match does about this list lives here rather than on each
+    // objective, because it is the list that knows which one is last. An
+    // objective asset then means the same thing wherever it is used, and the
+    // same "open the door" can end one map and lead further into another.
+    [Header("Result")]
+    [Tooltip("What working through every objective does to the match.")]
+    [SerializeField] private GameResultType completionResult = GameResultType.Victory;
+
+    [SerializeField] private string completionReason = "All objectives completed";
+
+    [Tooltip(
+        "What losing one of these costs. None makes them all losable: the " +
+        "sequence carries on to the next objective instead of ending.")]
+    [SerializeField] private GameResultType failureResult = GameResultType.Defeat;
+
+    [SerializeField] private string failureReason = "Objective failed";
+
     public int Count => objectives == null ? 0 : objectives.Length;
+    public GameResultType CompletionResult => completionResult;
+    public string CompletionReason => completionReason;
+    public GameResultType FailureResult => failureResult;
+    public string FailureReason => failureReason;
+    public bool LosingAnObjectiveEndsMatch => failureResult != GameResultType.None;
+
+    public bool IsLastObjective(int index)
+    {
+        return index >= 0 && index == Count - 1;
+    }
 
     public ObjectiveDefinition GetObjective(int index)
     {
@@ -25,6 +52,16 @@ public sealed class ObjectiveSequenceDefinition : ScriptableObject
         if (objectives == null || objectives.Length == 0)
         {
             error = $"{nameof(ObjectiveSequenceDefinition)} '{name}' has no objectives.";
+            return false;
+        }
+
+        // Finishing the list has to mean something, or the match would run out
+        // of objectives with nothing to show for it.
+        if (completionResult == GameResultType.None)
+        {
+            error =
+                $"{nameof(ObjectiveSequenceDefinition)} '{name}' has no completion result, " +
+                "so working through it would decide nothing.";
             return false;
         }
 

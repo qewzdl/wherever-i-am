@@ -14,3 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   objectives:
   - {fileID: 11400000, guid: b5ab6b493cb32464582ae2c1c044264a, type: 2}
+  completionResult: 1
+  completionReason: Entrance door opened
+  failureResult: 2
+  failureReason: Entrance door was not opened

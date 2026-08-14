@@ -148,16 +148,6 @@ public sealed class ObjectiveBindingAndMapRootTests
         TestReflection.SetField(objective, "objectiveId", id);
         TestReflection.SetField(objective, "requiredProgress", 1f);
         TestReflection.SetField(objective, "requiresSceneBinding", requiresSceneBinding);
-        TestReflection.SetField(
-            objective,
-            "completionPolicy",
-            ObjectiveCompletionPolicy.CompletesGame);
-        TestReflection.SetField(objective, "completionResult", GameResultType.Victory);
-        TestReflection.SetField(
-            objective,
-            "failurePolicy",
-            ObjectiveFailurePolicy.ObjectiveOnly);
-        TestReflection.SetField(objective, "failureResult", GameResultType.None);
         return objective;
     }
 
@@ -166,6 +156,8 @@ public sealed class ObjectiveBindingAndMapRootTests
         ObjectiveSequenceDefinition sequence =
             Track(ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>());
         TestReflection.SetField(sequence, "objectives", objectives);
+        TestReflection.SetField(sequence, "completionResult", GameResultType.Victory);
+        TestReflection.SetField(sequence, "failureResult", GameResultType.Defeat);
         return sequence;
     }
 

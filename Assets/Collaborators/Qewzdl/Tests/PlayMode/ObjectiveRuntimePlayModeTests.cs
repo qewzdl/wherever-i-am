@@ -61,36 +61,38 @@ public sealed class ObjectiveRuntimePlayModeTests
         yield return null;
     }
 
-    // The sequence used to decide the match: only the last objective could end
-    // it, so a game-ending objective in the middle was silently ignored and the
-    // next one started anyway.
+    // What a match does about an objective belongs to the list it sits in, so
+    // the same objective hands over in the middle of one and wins at the end of
+    // another. Nothing about the asset says which.
     [UnityTest]
-    public IEnumerator GameEndingObjective_ResolvesMatchWhereverItSitsInTheSequence()
+    public IEnumerator ObjectiveEndsTheMatchOnlyWhenTheSequenceRunsOut()
     {
         yield return StartHostedMatchAndWaitForActiveObjective();
 
-        ObjectiveDefinition endingObjective = GetProductionObjective(0);
-        Assert.That(endingObjective.CompletesGame, Is.True);
+        ObjectiveDefinition first = GetProductionObjective(0);
+        ObjectiveDefinition second = CloneObjective(first);
+        PlayModeTestReflection.SetField(second, "objectiveId", "second_step");
+        PlayModeTestReflection.SetField(second, "requiresSceneBinding", false);
+        UseObjectiveSequence(first, second);
 
-        ObjectiveDefinition trailingObjective = CloneObjective(endingObjective);
-        PlayModeTestReflection.SetField(
-            trailingObjective,
-            "objectiveId",
-            "unreachable_tail");
-        PlayModeTestReflection.SetField(
-            trailingObjective,
-            "requiresSceneBinding",
-            false);
-        UseObjectiveSequence(endingObjective, trailingObjective);
-
-        string objectiveId = objectiveFlow.CurrentObjective.ObjectiveId.ToString();
+        string firstId = objectiveFlow.CurrentObjective.ObjectiveId.ToString();
         Assert.That(
-            objectiveFlow.CompleteObjectiveServerOnly(objectiveId, LocalClientId),
+            objectiveFlow.CompleteObjectiveServerOnly(firstId, LocalClientId),
             Is.True);
 
+        // Something is still left, so completing this one only moves along.
+        Assert.That(objectiveFlow.CurrentObjective.SequenceIndex, Is.EqualTo(1));
         Assert.That(
-            objectiveFlow.CurrentObjective.ObjectiveId.ToString(),
-            Is.EqualTo(objectiveId));
+            objectiveFlow.CurrentObjective.State,
+            Is.EqualTo(ObjectiveRuntimeState.Active));
+        Assert.That(gameFlow.IsMatchRunning, Is.True);
+
+        Assert.That(
+            objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveFlow.CurrentObjective.ObjectiveId.ToString(),
+                LocalClientId),
+            Is.True);
+
         Assert.That(
             objectiveFlow.CurrentObjective.State,
             Is.EqualTo(ObjectiveRuntimeState.Completed));
@@ -99,7 +101,7 @@ public sealed class ObjectiveRuntimePlayModeTests
             Is.EqualTo(MatchResultSource.Objective));
         Assert.That(
             gameFlow.CurrentResult.ResultType,
-            Is.EqualTo(endingObjective.CompletionResult));
+            Is.EqualTo(ProductionSequence.CompletionResult));
     }
 
     // A lost objective is a gameplay result, not a broken flow: it resolves the
@@ -110,19 +112,10 @@ public sealed class ObjectiveRuntimePlayModeTests
         yield return StartHostedMatchAndWaitForActiveObjective();
 
         ObjectiveDefinition losableObjective = CloneObjective(GetProductionObjective(0));
-        PlayModeTestReflection.SetField(
-            losableObjective,
-            "failurePolicy",
-            ObjectiveFailurePolicy.FailsGame);
-        PlayModeTestReflection.SetField(
-            losableObjective,
-            "failureResult",
-            GameResultType.Defeat);
-        PlayModeTestReflection.SetField(
-            losableObjective,
-            "failureReason",
-            "Objective timer ran out");
-        UseObjectiveSequence(losableObjective);
+        UseObjectiveSequence(
+            GameResultType.Defeat,
+            "Objective timer ran out",
+            losableObjective);
 
         Assert.That(
             objectiveFlow.FailObjectiveServerOnly(
@@ -227,7 +220,7 @@ public sealed class ObjectiveRuntimePlayModeTests
             Is.EqualTo(ObjectiveRuntimeState.Completed));
         Assert.That(
             gameFlow.CurrentResult.ResultType,
-            Is.EqualTo(GetProductionObjective(0).CompletionResult));
+            Is.EqualTo(ProductionSequence.CompletionResult));
     }
 
     // Reporting full progress completes an objective by itself, so a timer that
@@ -379,9 +372,7 @@ public sealed class ObjectiveRuntimePlayModeTests
 
     private ObjectiveDefinition GetProductionObjective(int index)
     {
-        return PlayModeTestReflection
-            .GetField<ObjectiveSequenceDefinition>(objectiveFlow, "objectiveSequence")
-            .GetObjective(index);
+        return ProductionSequence.GetObjective(index);
     }
 
     private ObjectiveDefinition CloneObjective(ObjectiveDefinition source)
@@ -391,14 +382,36 @@ public sealed class ObjectiveRuntimePlayModeTests
 
     private void UseObjectiveSequence(params ObjectiveDefinition[] objectives)
     {
+        UseObjectiveSequence(GameResultType.Defeat, "Objective failed", objectives);
+    }
+
+    private void UseObjectiveSequence(
+        GameResultType failureResult,
+        string failureReason,
+        params ObjectiveDefinition[] objectives)
+    {
         ObjectiveSequenceDefinition sequence =
             Track(ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>());
         PlayModeTestReflection.SetField(sequence, "objectives", objectives);
+        PlayModeTestReflection.SetField(
+            sequence,
+            "completionResult",
+            ProductionSequence.CompletionResult);
+        PlayModeTestReflection.SetField(
+            sequence,
+            "completionReason",
+            ProductionSequence.CompletionReason);
+        PlayModeTestReflection.SetField(sequence, "failureResult", failureResult);
+        PlayModeTestReflection.SetField(sequence, "failureReason", failureReason);
         PlayModeTestReflection.SetField(
             objectiveFlow,
             "activeObjectiveSequence",
             sequence);
     }
+
+    private ObjectiveSequenceDefinition ProductionSequence =>
+        PlayModeTestReflection
+            .GetField<ObjectiveSequenceDefinition>(objectiveFlow, "objectiveSequence");
 
     private IEnumerator StartHostedMatchAndWaitForActiveObjective()
     {
