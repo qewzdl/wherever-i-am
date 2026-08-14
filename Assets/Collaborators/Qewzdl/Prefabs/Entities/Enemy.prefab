@@ -690,7 +690,6 @@ MonoBehaviour:
   attackController: {fileID: 7387159276498090581}
   navMeshStartupGate: {fileID: 4840997165000147843}
   postureController: {fileID: 1705734711893662682}
-  gazeScanner: {fileID: 0}
 --- !u!114 &6129419102609731285
 MonoBehaviour:
   m_ObjectHideFlags: 0

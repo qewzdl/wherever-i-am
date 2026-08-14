@@ -22,10 +22,9 @@ public class EnemyInvestigationConfig : ScriptableObject
     [Min(0f)] public float investigationSearchSpeed = 1.7f;
 
     [Tooltip(
-        "Seconds the enemy stands at each reached point. EnemyGazeScanner " +
-        "sweeps the vision cone whenever the enemy is not chasing, and the " +
-        "sweep only covers ground the walk would have missed while the body " +
-        "is stationary. Zero restores the old walk-through behaviour.")]
+        "Seconds the enemy stands at each reached point, turning to look " +
+        "around by investigationLookAroundAngle. Zero restores the old " +
+        "walk-through behaviour and no look around happens at all.")]
     [Min(0f)] public float investigationPointDwellDuration = 1.4f;
 
     [Tooltip(
