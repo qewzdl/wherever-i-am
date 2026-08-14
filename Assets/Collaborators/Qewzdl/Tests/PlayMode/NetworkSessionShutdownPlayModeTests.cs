@@ -689,11 +689,10 @@ public sealed class NetworkSessionShutdownPlayModeTests
                 "NetworkObjectiveFlow: NetworkObjectiveFlow cannot activate " +
                 "objective at index 1: definition is null\\."));
 
-        string objectiveId =
-            objectiveFlow.CurrentObjective.ObjectiveId.ToString();
+        ObjectiveDefinition activeObjective = objectiveFlow.ActiveObjective;
         Assert.That(
             objectiveFlow.CompleteObjectiveServerOnly(
-                objectiveId,
+                activeObjective,
                 networkManager.LocalClientId),
             Is.False);
         Assert.That(

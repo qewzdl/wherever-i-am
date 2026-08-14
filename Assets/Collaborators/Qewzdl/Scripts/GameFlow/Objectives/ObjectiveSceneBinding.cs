@@ -8,11 +8,10 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
     private bool isActive;
 
     public ObjectiveDefinition Objective => objective;
-    public string ObjectiveId => objective == null ? string.Empty : objective.ObjectiveId;
     public bool IsActive => isActive;
     public bool IsBound => objectiveFlow != null;
     public bool IsServerBound => objectiveFlow != null && objectiveFlow.IsServer;
-    public bool CanReportServerOnly => IsServerBound && isActive && !string.IsNullOrWhiteSpace(ObjectiveId);
+    public bool CanReportServerOnly => IsServerBound && isActive && objective != null;
 
     public bool IsConfigured(out string error)
     {
@@ -63,7 +62,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
             return false;
         }
 
-        return objectiveFlow.ReportObjectiveProgressNormalizedServerOnly(ObjectiveId, progress01, instigatorClientId);
+        return objectiveFlow.ReportObjectiveProgressNormalizedServerOnly(objective, progress01, instigatorClientId);
     }
 
     public bool TryReportProgressAmountServerOnly(float progressAmount, ulong instigatorClientId = 0)
@@ -73,7 +72,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
             return false;
         }
 
-        return objectiveFlow.ReportObjectiveProgressAmountServerOnly(ObjectiveId, progressAmount, instigatorClientId);
+        return objectiveFlow.ReportObjectiveProgressAmountServerOnly(objective, progressAmount, instigatorClientId);
     }
 
     public bool TryCompleteServerOnly(ulong instigatorClientId = 0)
@@ -83,7 +82,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
             return false;
         }
 
-        return objectiveFlow.CompleteObjectiveServerOnly(ObjectiveId, instigatorClientId);
+        return objectiveFlow.CompleteObjectiveServerOnly(objective, instigatorClientId);
     }
 
     public bool TryFailServerOnly(ulong instigatorClientId = 0)
@@ -93,7 +92,7 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
             return false;
         }
 
-        return objectiveFlow.FailObjectiveServerOnly(ObjectiveId, instigatorClientId);
+        return objectiveFlow.FailObjectiveServerOnly(objective, instigatorClientId);
     }
 
     private bool ValidateCanReportServerOnly()
@@ -115,9 +114,9 @@ public sealed class ObjectiveSceneBinding : MonoBehaviour
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(ObjectiveId))
+        if (objective == null)
         {
-            Debug.LogError($"{nameof(ObjectiveSceneBinding)} '{name}' has empty objective id.", this);
+            Debug.LogError($"{nameof(ObjectiveSceneBinding)} '{name}' has no objective.", this);
             return false;
         }
 

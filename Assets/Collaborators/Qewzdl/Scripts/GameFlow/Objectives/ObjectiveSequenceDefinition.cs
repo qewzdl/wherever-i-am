@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 [CreateAssetMenu(
@@ -79,22 +78,6 @@ public sealed class ObjectiveSequenceDefinition : ScriptableObject
             {
                 error = $"{nameof(ObjectiveSequenceDefinition)} '{name}' has invalid objective at index {i}: {error}";
                 return false;
-            }
-
-            for (int j = i + 1; j < objectives.Length; j++)
-            {
-                ObjectiveDefinition other = objectives[j];
-
-                if (other == null)
-                {
-                    continue;
-                }
-
-                if (string.Equals(objective.ObjectiveId, other.ObjectiveId, StringComparison.Ordinal))
-                {
-                    error = $"{nameof(ObjectiveSequenceDefinition)} '{name}' has duplicate objective id '{objective.ObjectiveId}'.";
-                    return false;
-                }
             }
         }
 

@@ -37,9 +37,11 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
                     continue;
                 }
 
-                if (string.Equals(binding.ObjectiveId, other.ObjectiveId, StringComparison.Ordinal))
+                if (other.Objective == binding.Objective)
                 {
-                    error = $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has duplicate scene binding for objective '{binding.ObjectiveId}'.";
+                    error =
+                        $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has two scene " +
+                        $"bindings for objective '{binding.Objective.name}'.";
                     return false;
                 }
             }
@@ -60,9 +62,11 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
                 continue;
             }
 
-            if (!TryGetBinding(objective.ObjectiveId, out _))
+            if (!TryGetBinding(objective, out _))
             {
-                error = $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has no scene binding for required objective '{objective.ObjectiveId}'.";
+                error =
+                    $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has no scene " +
+                    $"binding for required objective '{objective.name}'.";
                 return false;
             }
         }
@@ -157,11 +161,11 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
         }
     }
 
-    public bool TryGetBinding(string objectiveId, out ObjectiveSceneBinding binding)
+    public bool TryGetBinding(ObjectiveDefinition objective, out ObjectiveSceneBinding binding)
     {
         binding = null;
 
-        if (bindings == null || string.IsNullOrWhiteSpace(objectiveId))
+        if (bindings == null || objective == null)
         {
             return false;
         }
@@ -175,7 +179,7 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
                 continue;
             }
 
-            if (string.Equals(candidate.ObjectiveId, objectiveId, StringComparison.Ordinal))
+            if (candidate.Objective == objective)
             {
                 binding = candidate;
                 return true;

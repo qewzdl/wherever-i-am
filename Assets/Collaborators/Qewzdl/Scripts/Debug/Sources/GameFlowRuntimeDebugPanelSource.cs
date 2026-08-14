@@ -70,7 +70,6 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
             .Row("Is Match Finished", ToYesNo(gameFlow.IsMatchFinished))
             .Row("Last GameFlow Transition", lastGameFlowTransition)
             .Row("GameFlow Reason", gameFlow.LastTransitionReason)
-            .Row("Objective Id", GetObjectiveId(objectiveState))
             .Row("Sequence Index", objectiveState.SequenceIndex)
             .Row("Objective State", objectiveState.State)
             .Row("Objective Progress", FormatProgress(objectiveState.Progress01))
@@ -151,10 +150,10 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
 
     private void HandleObjectiveStateChanged(ObjectiveNetworkState previousState, ObjectiveNetworkState newState)
     {
-        string previousObjectiveId = GetObjectiveId(previousState);
-        string newObjectiveId = GetObjectiveId(newState);
+        string previousIndex = previousState.SequenceIndex.ToString();
+        string newIndex = newState.SequenceIndex.ToString();
 
-        lastObjectiveTransition = $"{previousObjectiveId} [{previousState.State}] -> {newObjectiveId} [{newState.State}]";
+        lastObjectiveTransition = $"{previousIndex} [{previousState.State}] -> {newIndex} [{newState.State}]";
 
         RequestRefresh();
     }
@@ -199,11 +198,6 @@ public sealed class GameFlowRuntimeDebugPanelSource : RuntimeDebugPanelSource
         }
 
         return networkManager.LocalClientId.ToString();
-    }
-
-    private string GetObjectiveId(ObjectiveNetworkState objectiveState)
-    {
-        return ToDisplayText(objectiveState.ObjectiveId.ToString());
     }
 
     private string FormatProgress(float progress01)

@@ -12,7 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5a8e775a082ce054aa4c009dce5bb672, type: 3}
   m_Name: Objective_OpenEntranceDoor
   m_EditorClassIdentifier: 
-  objectiveId: open_entrance_door
   title: Open entrance door
   description: Find a way to open the entrance door.
   requiresSceneBinding: 1

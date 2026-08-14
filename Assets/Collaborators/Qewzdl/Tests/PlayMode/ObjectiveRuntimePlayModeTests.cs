@@ -71,13 +71,14 @@ public sealed class ObjectiveRuntimePlayModeTests
 
         ObjectiveDefinition first = GetProductionObjective(0);
         ObjectiveDefinition second = CloneObjective(first);
-        PlayModeTestReflection.SetField(second, "objectiveId", "second_step");
+        second.name = "Second step";
         PlayModeTestReflection.SetField(second, "requiresSceneBinding", false);
         UseObjectiveSequence(first, second);
 
-        string firstId = objectiveFlow.CurrentObjective.ObjectiveId.ToString();
         Assert.That(
-            objectiveFlow.CompleteObjectiveServerOnly(firstId, LocalClientId),
+            objectiveFlow.CompleteObjectiveServerOnly(
+                objectiveFlow.ActiveObjective,
+                LocalClientId),
             Is.True);
 
         // Something is still left, so completing this one only moves along.
@@ -89,7 +90,7 @@ public sealed class ObjectiveRuntimePlayModeTests
 
         Assert.That(
             objectiveFlow.CompleteObjectiveServerOnly(
-                objectiveFlow.CurrentObjective.ObjectiveId.ToString(),
+                objectiveFlow.ActiveObjective,
                 LocalClientId),
             Is.True);
 
@@ -119,7 +120,7 @@ public sealed class ObjectiveRuntimePlayModeTests
 
         Assert.That(
             objectiveFlow.FailObjectiveServerOnly(
-                objectiveFlow.CurrentObjective.ObjectiveId.ToString(),
+                objectiveFlow.ActiveObjective,
                 LocalClientId),
             Is.True);
 
@@ -149,7 +150,7 @@ public sealed class ObjectiveRuntimePlayModeTests
 
         Assert.That(
             objectiveFlow.CompleteObjectiveServerOnly(
-                objectiveFlow.CurrentObjective.ObjectiveId.ToString(),
+                objectiveFlow.ActiveObjective,
                 LocalClientId),
             Is.True);
 
@@ -179,7 +180,7 @@ public sealed class ObjectiveRuntimePlayModeTests
 
         Assert.That(
             objectiveFlow.CompleteObjectiveServerOnly(
-                objectiveFlow.CurrentObjective.ObjectiveId.ToString(),
+                objectiveFlow.ActiveObjective,
                 LocalClientId),
             Is.True);
         Assert.That(gameFlow.CurrentPhase, Is.EqualTo(GamePhase.MatchResolved));

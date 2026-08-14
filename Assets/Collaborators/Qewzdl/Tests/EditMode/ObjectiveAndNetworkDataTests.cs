@@ -29,18 +29,19 @@ public sealed class ObjectiveAndNetworkDataTests
     [Test]
     public void ObjectiveDefinition_RejectsEveryInvalidShape()
     {
-        ObjectiveDefinition objective = CreateObjective("", 1f);
+        ObjectiveDefinition objective = CreateObjective("escape", 1f);
 
         try
         {
-            Assert.That(objective.IsValid(out string error), Is.False);
-            StringAssert.Contains("empty objective id", error);
+            Assert.That(objective.IsValid(out string error), Is.True, error);
 
-            TestReflection.SetField(objective, "objectiveId", new string('я', 31));
+            // The asset name is what a finished match reports, and the result
+            // carries it in a FixedString64Bytes.
+            objective.name = new string('я', 31);
             Assert.That(objective.IsValid(out error), Is.False);
             StringAssert.Contains("too long", error);
 
-            TestReflection.SetField(objective, "objectiveId", "escape");
+            objective.name = "escape";
             TestReflection.SetField(objective, "requiredProgress", 0f);
             Assert.That(objective.IsValid(out error), Is.False);
             StringAssert.Contains("greater than zero", error);
@@ -86,11 +87,10 @@ public sealed class ObjectiveAndNetworkDataTests
     }
 
     [Test]
-    public void ObjectiveSequence_RejectsMissingNullAndDuplicateDefinitions()
+    public void ObjectiveSequence_RejectsMissingAndNullDefinitionsButAllowsRepeats()
     {
         ObjectiveSequenceDefinition sequence = CreateSequence(GameResultType.Victory);
         ObjectiveDefinition first = CreateObjective("door", 1f);
-        ObjectiveDefinition duplicate = CreateObjective("door", 1f);
 
         try
         {
@@ -105,18 +105,17 @@ public sealed class ObjectiveAndNetworkDataTests
             Assert.That(sequence.IsValid(out error), Is.False);
             StringAssert.Contains("null objective", error);
 
-            TestReflection.SetField(
-                sequence,
-                "objectives",
-                new[] { first, duplicate });
-            Assert.That(sequence.IsValid(out error), Is.False);
-            StringAssert.Contains("duplicate objective id", error);
+            // The position is the identity, so the same objective twice is two
+            // steps rather than a clash. It had to be rejected while a shared
+            // id was what the lookup went by.
+            TestReflection.SetField(sequence, "objectives", new[] { first, first });
+            Assert.That(sequence.IsValid(out error), Is.True, error);
+            Assert.That(sequence.IsLastObjective(1), Is.True);
         }
         finally
         {
             Object.DestroyImmediate(sequence);
             Object.DestroyImmediate(first);
-            Object.DestroyImmediate(duplicate);
         }
     }
 
@@ -174,7 +173,6 @@ public sealed class ObjectiveAndNetworkDataTests
 
         ObjectiveNetworkState objective = new()
         {
-            ObjectiveId = "escape",
             SequenceIndex = 2,
             State = ObjectiveRuntimeState.Active,
             Progress01 = 0.75f
@@ -235,7 +233,7 @@ public sealed class ObjectiveAndNetworkDataTests
     {
         ObjectiveDefinition objective =
             ScriptableObject.CreateInstance<ObjectiveDefinition>();
-        TestReflection.SetField(objective, "objectiveId", id);
+        objective.name = id;
         TestReflection.SetField(objective, "requiredProgress", requiredProgress);
         TestReflection.SetField(objective, "requiresSceneBinding", false);
         return objective;

@@ -38,7 +38,7 @@ public sealed class ObjectiveBindingAndMapRootTests
 
         registry.ConfigureEditor(new[] { CreateBinding(door), CreateBinding(door) });
         Assert.That(registry.IsValidForSequence(sequence, out error), Is.False);
-        StringAssert.Contains("duplicate scene binding for objective 'door'", error);
+        StringAssert.Contains("two scene bindings for objective 'door'", error);
 
         registry.ConfigureEditor(new[] { CreateBinding(door), CreateBinding(escape) });
         Assert.That(registry.IsValidForSequence(sequence, out error), Is.True, error);
@@ -86,16 +86,19 @@ public sealed class ObjectiveBindingAndMapRootTests
     }
 
     [Test]
-    public void BindingRegistry_LooksUpBindingsByExactObjectiveId()
+    public void BindingRegistry_LooksUpBindingsByTheObjectiveAssetItself()
     {
         ObjectiveDefinition door = CreateObjective("door", requiresSceneBinding: true);
         ObjectiveSceneBinding binding = CreateBinding(door);
         ObjectiveSceneBindingRegistry registry = CreateRegistry(binding);
 
-        Assert.That(registry.TryGetBinding("door", out ObjectiveSceneBinding found), Is.True);
+        Assert.That(registry.TryGetBinding(door, out ObjectiveSceneBinding found), Is.True);
         Assert.That(found, Is.SameAs(binding));
-        Assert.That(registry.TryGetBinding("Door", out _), Is.False);
-        Assert.That(registry.TryGetBinding(" ", out _), Is.False);
+
+        // A different asset that happens to be named the same is a different
+        // objective, which a name lookup could not tell apart.
+        ObjectiveDefinition sameName = CreateObjective("door", requiresSceneBinding: true);
+        Assert.That(registry.TryGetBinding(sameName, out _), Is.False);
         Assert.That(registry.TryGetBinding(null, out _), Is.False);
 
         binding.SetActiveState(true);
@@ -145,7 +148,7 @@ public sealed class ObjectiveBindingAndMapRootTests
     {
         ObjectiveDefinition objective =
             Track(ScriptableObject.CreateInstance<ObjectiveDefinition>());
-        TestReflection.SetField(objective, "objectiveId", id);
+        objective.name = id;
         TestReflection.SetField(objective, "requiredProgress", 1f);
         TestReflection.SetField(objective, "requiresSceneBinding", requiresSceneBinding);
         return objective;
@@ -163,7 +166,7 @@ public sealed class ObjectiveBindingAndMapRootTests
 
     private ObjectiveSceneBinding CreateBinding(ObjectiveDefinition objective)
     {
-        GameObject host = Track(new GameObject($"Binding {objective.ObjectiveId}"));
+        GameObject host = Track(new GameObject($"Binding {objective.name}"));
         ObjectiveSceneBinding binding = host.AddComponent<ObjectiveSceneBinding>();
         TestReflection.SetField(binding, "objective", objective);
         return binding;
