@@ -164,6 +164,42 @@ public sealed class ObjectiveBindingAndMapRootTests
         return sequence;
     }
 
+    // The array was kept by hand, and a binding left out of it failed the map
+    // at runtime with "no scene binding for required objective" - for a binding
+    // sitting right there in the scene.
+    [Test]
+    public void BindingRegistry_CollectsItsOwnBindingsWhenNothingIsListed()
+    {
+        ObjectiveDefinition door = CreateObjective("door", requiresSceneBinding: true);
+        ObjectiveSceneBindingRegistry registry = CreateRegistry();
+        ObjectiveSceneBinding binding = CreateBinding(door);
+        binding.transform.SetParent(registry.transform, false);
+
+        Assert.That(registry.TryGetBinding(door, out ObjectiveSceneBinding found), Is.True);
+        Assert.That(found, Is.SameAs(binding));
+
+        ObjectiveSequenceDefinition sequence = CreateSequence(door);
+        Assert.That(registry.IsValidForSequence(sequence, out string error), Is.True, error);
+    }
+
+    // A filled-in list is a deliberate choice of what to bind, so it wins and
+    // whatever else is under the object stays out.
+    [Test]
+    public void BindingRegistry_ListedBindingsOverrideWhatIsUnderIt()
+    {
+        ObjectiveDefinition listed = CreateObjective("listed", requiresSceneBinding: true);
+        ObjectiveDefinition unlisted = CreateObjective("unlisted", requiresSceneBinding: true);
+
+        ObjectiveSceneBinding listedBinding = CreateBinding(listed);
+        ObjectiveSceneBindingRegistry registry = CreateRegistry(listedBinding);
+
+        ObjectiveSceneBinding unlistedBinding = CreateBinding(unlisted);
+        unlistedBinding.transform.SetParent(registry.transform, false);
+
+        Assert.That(registry.TryGetBinding(listed, out _), Is.True);
+        Assert.That(registry.TryGetBinding(unlisted, out _), Is.False);
+    }
+
     private ObjectiveSceneBinding CreateBinding(ObjectiveDefinition objective)
     {
         GameObject host = Track(new GameObject($"Binding {objective.name}"));
