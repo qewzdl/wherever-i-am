@@ -34,6 +34,18 @@ if (-not (Test-Path -LiteralPath $UnityEditorPath -PathType Leaf)) {
     throw "Unity Editor was not found at '$UnityEditorPath'. Set UNITY_EDITOR_PATH."
 }
 
+# A driver that crashes or is killed never runs its own cleanup, so its player
+# processes keep going and hold the LAN port the next run needs. That run then
+# fails for a reason that has nothing to do with what changed, which is a bad
+# way to spend an afternoon. Clear them before starting.
+$leftoverPlayers = Get-Process "WhereverIAm-ProductionBootstrap" -ErrorAction SilentlyContinue
+
+if ($leftoverPlayers) {
+    Write-Host "Stopping $($leftoverPlayers.Count) leftover player process(es) from an earlier run."
+    $leftoverPlayers | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+}
+
 $editorLog = Join-Path $ArtifactRoot "editor.log"
 $env:WIA_BOOTSTRAP_ARTIFACTS = $ArtifactRoot
 
@@ -42,15 +54,23 @@ $unityArguments = @(
     "-nographics"
     "-quit"
     "-projectPath"
-    $projectRoot
+    "`"$projectRoot`""
     "-executeMethod"
     "ProductionBootstrapCi.Run"
     "-logFile"
-    $editorLog
+    "`"$editorLog`""
 )
 
-& $UnityEditorPath @unityArguments
-$unityExitCode = $LASTEXITCODE
+# Waiting on the process and reading its own ExitCode, the way the soak script
+# does. Calling the editor with & left $LASTEXITCODE empty, and empty is not
+# zero, so a run that had passed was reported as a failure.
+$unityProcess = Start-Process `
+    -FilePath $UnityEditorPath `
+    -ArgumentList $unityArguments `
+    -Wait `
+    -PassThru `
+    -WindowStyle Hidden
+$unityExitCode = $unityProcess.ExitCode
 
 if ($unityExitCode -ne 0) {
     Write-Error "Production bootstrap failed with Unity exit code $unityExitCode. See '$editorLog'."
