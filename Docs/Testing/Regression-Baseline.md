@@ -12,8 +12,8 @@ Run these checks before merging runtime changes:
    assemblies without errors.
 2. All EditMode tests pass.
 3. All PlayMode tests pass.
-4. The real Multiplayer Play Mode scenario passes with `GHost`, `GClient`, and
-   `GLateClient`.
+4. The production bootstrap acceptance check passes. It runs on every pull
+   request, so this is normally read rather than run.
 5. Complete the manual smoke route:
    `Bootstrap -> MainMenu -> Host -> Lobby -> Game -> shutdown -> MainMenu`.
 
@@ -22,18 +22,23 @@ it. A baseline is only valid for the exact source revision that was tested.
 
 ## Verified local baseline
 
-The current working tree was verified with Unity `6000.0.73f1`:
+Revision `28c06ee` was verified with Unity `6000.0.73f1`:
 
 | Suite | Passed | Failed | Skipped |
 |---|---:|---:|---:|
-| EditMode | 161 | 0 | 0 |
-| PlayMode | 45 | 0 | 0 |
+| EditMode | 256 | 0 | 0 |
+| PlayMode | 132 | 0 | 0 |
 
 The PlayMode run includes real UTP host/client/late-client transport, a
 dedicated server with two item clients, NGO spawn/despawn and ownership paths,
 coordinated shutdown, scene lifecycle, and deterministic Unity physics/UI
-lifecycle tests. The separate `GRealBootstrap` Multiplayer Play Mode scenario
-remains the production multi-process acceptance check.
+lifecycle tests. Its largest single fixture is `EnemyBakedNavMeshPlayModeTests`,
+which drives perception, the attack pipeline, navigation around items, doors and
+hiding places, and the investigation search on a prebuilt NavMesh.
+
+The multi-process acceptance checks are not part of either suite. They build a
+Player and drive several real processes, and they run from CI rather than from
+the Test Runner - see the section below.
 
 ## Coverage matrix
 
@@ -57,7 +62,7 @@ remains the production multi-process acceptance check.
 | Doors and item requirements | Yes | Physics/lifecycle | Server rules | Covered deterministically |
 | Item pickup/drag/drop ownership | Data helpers | Physics/lifecycle | Dedicated server + 2 clients | Covered |
 | UI state, layout and events | Yes | Yes | N/A | Manual visual check remains |
-| Full production bootstrap | N/A | Host | Manual scenario | Needs automated multi-process CI |
+| Full production bootstrap | N/A | Host | Built Player, 3 processes | Automated in CI |
 
 ## Test policy for future changes
 
@@ -73,14 +78,25 @@ remains the production multi-process acceptance check.
 - New scenes, prefabs, maps, objectives, audio configs, and network prefabs must
   remain covered by project asset validation.
 
+## Multi-process acceptance checks
+
+Both build a Player and drive several real processes, so neither belongs to the
+Test Runner. They are reached from CI, and by hand through
+`./ci/run-production-bootstrap.ps1` and `./ci/run-network-soak.ps1`, which call
+Unity with `-executeMethod`. Results land under `artifacts/`.
+
+| Check | What it drives | Runs on |
+|---|---|---|
+| `ProductionBootstrapCi` | Host, client and a late client from bootstrap through a match to shutdown | Pull request, push, manually |
+| `NetworkSoakCi` | Cycles of host, two clients, a fault during map load and a reconnect, on a link with 80 ms latency, 20 ms jitter and 2% loss | Push, nightly, manually |
+
+The soak also has a ninety second smoke form for the editor. Both are behind
+`Tools/Wherever I Am/Tests/`.
+
 ## Remaining high-value automation
 
-1. Run `GRealBootstrap.unity` automatically in separate Unity processes in CI.
-2. Add enemy perception, attack, and objective progression tests on a baked
-   NavMesh test scene.
-3. Add screenshot/audio-routing smoke checks only where deterministic assertions
+1. Add screenshot/audio-routing smoke checks only where deterministic assertions
    are possible; keep subjective presentation in the manual smoke route.
 
-These items are not gaps in unit-testable pure logic. They need a real
-multi-process player, baked scene data, rendered frames, audio devices, or
-human perception and therefore belong to integration/acceptance testing.
+This is not a gap in unit-testable pure logic. It needs rendered frames, audio
+devices or human perception, and therefore belongs to acceptance testing.
