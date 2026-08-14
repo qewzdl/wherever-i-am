@@ -190,6 +190,7 @@ public class EnemyConfig : ScriptableObject
 
     public bool hearingEnabled => hearingProfile.hearingEnabled;
     public float hearingRadius => hearingProfile.hearingRadius;
+    public float hearingSensitivity => hearingProfile.hearingSensitivity;
     public float hearingMemoryDuration => hearingProfile.hearingMemoryDuration;
     public float minimumNoiseLoudness => hearingProfile.minimumNoiseLoudness;
 

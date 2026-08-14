@@ -179,6 +179,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
     public bool TryFindBestNoise(
         Vector3 listenerPosition,
         float hearingRadius,
+        float hearingSensitivity,
         float memoryDuration,
         float minimumLoudness,
         out GameplayNoiseEvent bestNoise,
@@ -189,6 +190,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
         bestScore = 0f;
 
         hearingRadius = Mathf.Max(0f, hearingRadius);
+        hearingSensitivity = Mathf.Max(0.01f, hearingSensitivity);
         memoryDuration = Mathf.Max(0f, memoryDuration);
         minimumLoudness = Mathf.Max(0f, minimumLoudness);
 
@@ -217,7 +219,11 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
             }
 
             float distance = Vector3.Distance(listenerPosition, noise.Position);
-            float effectiveRadius = Mathf.Min(hearingRadius, noise.Radius);
+
+            float effectiveRadius = ResolveEffectiveRadius(
+                hearingRadius,
+                hearingSensitivity,
+                noise.Radius);
 
             if (distance > effectiveRadius)
             {
@@ -256,6 +262,19 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
     //
     // Internal rather than private so the scoring can be checked without
     // standing up a server; TryFindBestNoise needs one.
+    // How far this listener notices a noise that carries noiseRadius on its
+    // own. Sharper ears carry it further, up to the listener's own ceiling; at
+    // sensitivity 1 this is the plain radius, which is what it always was.
+    internal static float ResolveEffectiveRadius(
+        float hearingRadius,
+        float hearingSensitivity,
+        float noiseRadius)
+    {
+        return Mathf.Min(
+            Mathf.Max(0f, hearingRadius),
+            Mathf.Max(0f, noiseRadius) * Mathf.Max(0.01f, hearingSensitivity));
+    }
+
     internal static float ScoreNoise(
         float loudness,
         float distance,

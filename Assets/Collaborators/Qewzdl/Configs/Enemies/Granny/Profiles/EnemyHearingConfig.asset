@@ -14,5 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hearingEnabled: 1
   hearingRadius: 32
+  hearingSensitivity: 1
   hearingMemoryDuration: 3
-  minimumNoiseLoudness: 0.1
+  minimumNoiseLoudness: 0.05

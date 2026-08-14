@@ -63,6 +63,7 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
         if (!noiseWorldService.TryFindBestNoise(
                 transform.position,
                 config.hearingRadius,
+                config.hearingSensitivity,
                 config.hearingMemoryDuration,
                 config.minimumNoiseLoudness,
                 out GameplayNoiseEvent noiseEvent,

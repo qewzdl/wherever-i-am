@@ -206,6 +206,71 @@ public sealed class ProjectAssetValidationTests
         }
     }
 
+    // The bug this guards: hearing radius is capped by how far each noise
+    // carries, so raising it past the loudest noise in the project changed
+    // nothing and three of the four difficulties heard identically.
+    [Test]
+    public void EnemyDifficulties_HearNoLessAsTheyGetHarder()
+    {
+        EnemyDifficultyCatalog catalog =
+            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+
+        List<EnemyDifficultyCatalog.EnemyDifficultyEntry> entries = new();
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            Assert.That(catalog.TryGetEntryAt(i, out var entry), Is.True);
+            entries.Add(entry);
+        }
+
+        entries.Sort((left, right) => left.DifficultyId.CompareTo(right.DifficultyId));
+
+        float[] noiseRadii = AssetDatabase.FindAssets("t:GameplayNoisePreset")
+            .Select(AssetDatabase.GUIDToAssetPath)
+            .Select(AssetDatabase.LoadAssetAtPath<GameplayNoisePreset>)
+            .Where(preset => preset != null)
+            .Select(preset => preset.Radius)
+            .ToArray();
+
+        Assert.That(noiseRadii, Is.Not.Empty, "No noise presets to measure hearing against.");
+
+        bool anyDifference = false;
+
+        foreach (float noiseRadius in noiseRadii)
+        {
+            for (int i = 1; i < entries.Count; i++)
+            {
+                float previous = EffectiveHearing(entries[i - 1], noiseRadius);
+                float current = EffectiveHearing(entries[i], noiseRadius);
+
+                Assert.That(
+                    current,
+                    Is.GreaterThanOrEqualTo(previous),
+                    $"'{entries[i].DisplayName}' hears a noise of radius {noiseRadius} " +
+                    $"from {current}, less than '{entries[i - 1].DisplayName}' at {previous}.");
+
+                anyDifference |= !Mathf.Approximately(current, previous);
+            }
+        }
+
+        Assert.That(
+            anyDifference,
+            Is.True,
+            "Every difficulty hears every noise from the same distance, so hearing is not a difficulty lever at all.");
+    }
+
+    private static float EffectiveHearing(
+        EnemyDifficultyCatalog.EnemyDifficultyEntry entry,
+        float noiseRadius)
+    {
+        EnemyConfig config = entry.Config;
+
+        return GameplayNoiseWorldService.ResolveEffectiveRadius(
+            config.hearingRadius,
+            config.hearingSensitivity,
+            noiseRadius);
+    }
+
     [Test]
     public void ObjectiveAndEnemyConfigs_AreComplete()
     {

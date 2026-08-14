@@ -19,6 +19,7 @@ public interface IGameplayNoiseService
     bool TryFindBestNoise(
         Vector3 listenerPosition,
         float hearingRadius,
+        float hearingSensitivity,
         float memoryDuration,
         float minimumLoudness,
         out GameplayNoiseEvent bestNoise,
