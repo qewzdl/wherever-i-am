@@ -138,40 +138,32 @@ public sealed class MapLobbyAndGameplayLogicTests
         Assert.That(error, Does.Contain("schema"));
     }
 
+    // The id used to come from a file in persistentDataPath, which the editor
+    // and a build on one machine share. Both then sent the same id and the
+    // second was refused as a duplicate, so hosting and joining on one PC -
+    // the way anybody tests this - could not work.
     [Test]
-    public void ClientIdentityStorage_PersistsGeneratedPlayerId()
+    public void ClientIdentity_DiffersBetweenRunsOnTheSameMachine()
     {
-        string directory = Path.Combine(
-            Path.GetTempPath(),
-            "WhereverIAmTests",
-            Guid.NewGuid().ToString("N"));
-        string identityPath = Path.Combine(directory, "identity.json");
+        NetworkClientIdentityProvider first = new();
+        NetworkClientIdentityProvider second = new();
 
-        try
-        {
-            string createdId =
-                new NetworkClientIdentityStorage(identityPath).LoadOrCreate();
-            string loadedId =
-                new NetworkClientIdentityStorage(identityPath).LoadOrCreate();
+        string firstId = first.GetOrCreatePlayerId();
+        string secondId = second.GetOrCreatePlayerId();
 
-            Assert.That(
-                NetworkConnectionPayloadCodec.TryNormalizePlayerId(
-                    createdId,
-                    out _),
-                Is.True);
-            Assert.That(loadedId, Is.EqualTo(createdId));
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, true);
-        }
+        Assert.That(
+            NetworkConnectionPayloadCodec.TryNormalizePlayerId(firstId, out _),
+            Is.True);
+        Assert.That(
+            secondId,
+            Is.Not.EqualTo(firstId),
+            "Two games running on one machine would be refused as one player.");
+
+        // Stable while the game runs, so a reconnect within the grace period
+        // is recognised as the same player.
+        Assert.That(first.GetOrCreatePlayerId(), Is.EqualTo(firstId));
     }
 
-    // A dropped connection is only known once the transport notices, which on
-    // a timeout takes seconds. Somebody who pulls the cable and plugs it back
-    // in arrives before that, and refusing them as a duplicate would lock them
-    // out of their own session until it caught up.
     [Test]
     public void Admission_LetsAPlayerReplaceTheirOwnConnectionThatIsAlreadyGone()
     {
