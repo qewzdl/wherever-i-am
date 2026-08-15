@@ -419,7 +419,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   networkManager: {fileID: 481142982}
   stateMachine: {fileID: 481142978}
+  connectionConfig: {fileID: 11400000, guid: beb199e8898ed1a4c98f5c4cc163236d, type: 2}
   approvalConfig: {fileID: 11400000, guid: b7a541658d8b9b444afb810aaa0c459d, type: 2}
+  lobbyConfig: {fileID: 11400000, guid: 5e52acb9d45e4574d8da45cc4d35d9d6, type: 2}
 --- !u!114 &481142992
 MonoBehaviour:
   m_ObjectHideFlags: 0

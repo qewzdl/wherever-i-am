@@ -196,6 +196,8 @@ public static class NetworkSoakCi
             QuoteArgument(role),
             "-gNetworkSoakRunDirectory",
             QuoteArgument(runDirectory),
+            "-wiaPlayerId",
+            QuoteArgument(Guid.NewGuid().ToString("N")),
             "-gNetworkSoakDurationSeconds",
             durationSeconds.ToString(
                 CultureInfo.InvariantCulture),

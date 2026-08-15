@@ -49,6 +49,59 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
     }
 }
 
+internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionService
+{
+    private readonly Dictionary<ulong, string> playerIds = new();
+    private readonly HashSet<ulong> reconnectingClients = new();
+    private readonly HashSet<string> reservations = new();
+    private readonly HashSet<ulong> deniedClients = new();
+
+    internal void Deny(ulong clientId)
+    {
+        deniedClients.Add(clientId);
+    }
+
+    public bool TryGetPlayerId(ulong clientId, out string playerId)
+    {
+        if (deniedClients.Contains(clientId))
+        {
+            playerId = string.Empty;
+            return false;
+        }
+
+        if (playerIds.TryGetValue(clientId, out playerId))
+            return true;
+
+        playerId = $"test-player-{clientId}";
+        playerIds.Add(clientId, playerId);
+        return true;
+    }
+
+    public bool IsReconnect(ulong clientId)
+    {
+        return reconnectingClients.Contains(clientId);
+    }
+
+    public bool HasReconnectReservation(string playerId)
+    {
+        return reservations.Contains(playerId);
+    }
+
+    public void RecordDisconnect(ulong clientId)
+    {
+        if (TryGetPlayerId(clientId, out string playerId))
+            reservations.Add(playerId);
+    }
+
+    internal void ReconnectAs(ulong previousClientId, ulong newClientId)
+    {
+        TryGetPlayerId(previousClientId, out string playerId);
+        playerIds[newClientId] = playerId;
+        reconnectingClients.Add(newClientId);
+        reservations.Remove(playerId);
+    }
+}
+
 [Category("Baseline")]
 public sealed class LobbyRulesPlayModeTests
 {
@@ -111,12 +164,23 @@ public sealed class LobbyRulesPlayModeTests
             mapId: 0);
         state.Phase.Value = LobbyPhase.Open;
 
+        LobbyAdmissionServiceProbe admission = new();
         LobbyOwnershipService ownership = new(state);
-        LobbyPlayerRegistry registry = new(state, ownership);
+        LobbyPlayerRegistry registry = new(state, ownership, admission);
 
         Assert.That(registry.TryAddPlayer(10), Is.True);
         Assert.That(registry.TryAddPlayer(20), Is.True);
+
+        // Capacity is admission's job now - it turns a client away before the
+        // connection exists, where this could only turn it away afterwards.
+        // What is left here is that an unadmitted client never reaches the
+        // lobby list.
+        admission.Deny(30);
+        LogAssert.Expect(
+            LogType.Warning,
+            "Rejected lobby registration for unadmitted client '30'.");
         Assert.That(registry.TryAddPlayer(30), Is.False);
+
         Assert.That(state.Players.Count, Is.EqualTo(2));
         Assert.That(ownership.IsRoomOwner(10), Is.True);
 
@@ -131,6 +195,43 @@ public sealed class LobbyRulesPlayModeTests
         Assert.That(
             state.RoomOwnerClientId.Value,
             Is.EqualTo(LobbyState.NoRoomOwner));
+    }
+
+    [UnityTest]
+    public IEnumerator PlayerRegistry_RestoresLobbyStateForApprovedReconnect()
+    {
+        LobbyState state = CreateLobbyState();
+        yield return null;
+
+        state.Settings.Value = new LobbySettingsData(
+            minPlayersToStart: 1,
+            maxPlayers: 1,
+            requireAllPlayersReady: true,
+            gameModeId: 0,
+            mapId: 0);
+        state.Phase.Value = LobbyPhase.Open;
+
+        LobbyAdmissionServiceProbe admission = new();
+        LobbyOwnershipService ownership = new(state);
+        LobbyPlayerRegistry registry = new(state, ownership, admission);
+
+        Assert.That(registry.TryAddPlayer(10), Is.True);
+        LobbyPlayerData original = state.Players[0];
+        original.PlayerName = "Persistent player";
+        original.IsReady = true;
+        state.Players[0] = original;
+
+        admission.RecordDisconnect(10);
+        registry.RemovePlayer(10);
+        admission.ReconnectAs(10, 42);
+
+        Assert.That(registry.TryAddPlayer(42), Is.True);
+        Assert.That(state.Players.Count, Is.EqualTo(1));
+        Assert.That(state.Players[0].ClientId, Is.EqualTo(42));
+        Assert.That(
+            state.Players[0].PlayerName.ToString(),
+            Is.EqualTo("Persistent player"));
+        Assert.That(state.Players[0].IsReady, Is.True);
     }
 
     [UnityTest]
@@ -235,7 +336,10 @@ public sealed class LobbyRulesPlayModeTests
             Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(3));
 
             LobbyOwnershipService ownership = new(state);
-            LobbyPlayerRegistry registry = new(state, ownership);
+            LobbyPlayerRegistry registry = new(
+                state,
+                ownership,
+                new LobbyAdmissionServiceProbe());
             registry.TryAddPlayer(10);
             LobbyPlayerCustomizationService customization = new(state);
             customization.SetReady(10, true);

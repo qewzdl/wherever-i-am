@@ -7,6 +7,7 @@ public class LobbyController : NetworkBehaviour
     [SerializeField] private LobbyConfig lobbyConfig;
 
     private INetworkSessionService sessionService;
+    private INetworkSessionAdmissionService admissionService;
 
     private LobbyOwnershipService ownershipService;
     private LobbyPlayerRegistry playerRegistry;
@@ -42,7 +43,9 @@ public class LobbyController : NetworkBehaviour
         return valid;
     }
 
-    public bool Construct(INetworkSessionService sessionService)
+    public bool Construct(
+        INetworkSessionService sessionService,
+        INetworkSessionAdmissionService admissionService)
     {
         if (!ValidateConfiguration())
             return false;
@@ -53,10 +56,21 @@ public class LobbyController : NetworkBehaviour
             return false;
         }
 
-        if (this.sessionService == sessionService && IsConstructed(false))
+        if (admissionService == null)
+        {
+            Debug.LogError("Network session admission service is missing.");
+            return false;
+        }
+
+        if (this.sessionService == sessionService &&
+            this.admissionService == admissionService &&
+            IsConstructed(false))
+        {
             return true;
+        }
 
         this.sessionService = sessionService;
+        this.admissionService = admissionService;
         CreateServices();
 
         if (IsSpawned && IsServer)
@@ -70,6 +84,7 @@ public class LobbyController : NetworkBehaviour
         UnsubscribeFromNetworkCallbacks();
 
         sessionService = null;
+        admissionService = null;
         ownershipService = null;
         playerRegistry = null;
         playerCustomizationService = null;
@@ -102,7 +117,10 @@ public class LobbyController : NetworkBehaviour
         LobbyStartRules startRules = new LobbyStartRules();
 
         ownershipService = new LobbyOwnershipService(lobbyState);
-        playerRegistry = new LobbyPlayerRegistry(lobbyState, ownershipService);
+        playerRegistry = new LobbyPlayerRegistry(
+            lobbyState,
+            ownershipService,
+            admissionService);
         playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState);
         settingsService = new LobbySettingsService(lobbyState, lobbyConfig);
         startService = new LobbyStartService(lobbyState, startRules, sessionService);
@@ -168,7 +186,9 @@ public class LobbyController : NetworkBehaviour
 
     private bool IsConstructed(bool logMissing)
     {
-        if (ownershipService != null &&
+        if (sessionService != null &&
+            admissionService != null &&
+            ownershipService != null &&
             playerRegistry != null &&
             playerCustomizationService != null &&
             settingsService != null &&
@@ -200,6 +220,10 @@ public class LobbyController : NetworkBehaviour
     {
         if (!IsConstructed()) return;
 
+        // Idempotent with the global callback. Doing this before removing the
+        // lobby entry guarantees the registry can capture reconnect state
+        // regardless of NetworkManager callback subscription order.
+        admissionService.RecordDisconnect(clientId);
         playerRegistry.RemovePlayer(clientId);
         startService.RefreshCanStartGame();
     }

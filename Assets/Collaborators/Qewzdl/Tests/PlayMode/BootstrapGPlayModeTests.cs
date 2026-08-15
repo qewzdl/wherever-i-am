@@ -202,6 +202,9 @@ public sealed class BootstrapGPlayModeTests
         Assert.That(G.TryResolve(out IGameStateService _), Is.True);
         Assert.That(G.TryResolve(out IProjectSceneFlowService _), Is.True);
         Assert.That(G.TryResolve(out INetworkSessionService _), Is.True);
+        Assert.That(
+            G.TryResolve(out INetworkSessionAdmissionService _),
+            Is.True);
         Assert.That(G.TryResolve(out IUiErrorService _), Is.True);
         Assert.That(G.TryResolve(out IAudioService _), Is.True);
         Assert.That(G.TryResolve(out IGameMapCatalog _), Is.True);

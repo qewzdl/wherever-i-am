@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
@@ -100,6 +102,199 @@ public sealed class MapLobbyAndGameplayLogicTests
         {
             UnityEngine.Object.DestroyImmediate(config);
         }
+    }
+
+    [Test]
+    public void ConnectionPayload_RoundTripsAndRejectsMalformedData()
+    {
+        string playerId = Guid.NewGuid().ToString("N");
+
+        Assert.That(
+            NetworkConnectionPayloadCodec.TryEncode(
+                7,
+                "1.4.2",
+                playerId,
+                out byte[] encoded,
+                out string error),
+            Is.True,
+            error);
+        Assert.That(
+            NetworkConnectionPayloadCodec.TryDecode(
+                encoded,
+                out NetworkConnectionPayload decoded,
+                out error),
+            Is.True,
+            error);
+        Assert.That(decoded.ProtocolVersion, Is.EqualTo(7));
+        Assert.That(decoded.BuildVersion, Is.EqualTo("1.4.2"));
+        Assert.That(decoded.PlayerId, Is.EqualTo(playerId));
+
+        Assert.That(
+            NetworkConnectionPayloadCodec.TryDecode(
+                Encoding.UTF8.GetBytes("{}"),
+                out _,
+                out error),
+            Is.False);
+        Assert.That(error, Does.Contain("schema"));
+    }
+
+    [Test]
+    public void ClientIdentityStorage_PersistsGeneratedPlayerId()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "WhereverIAmTests",
+            Guid.NewGuid().ToString("N"));
+        string identityPath = Path.Combine(directory, "identity.json");
+
+        try
+        {
+            string createdId =
+                new NetworkClientIdentityStorage(identityPath).LoadOrCreate();
+            string loadedId =
+                new NetworkClientIdentityStorage(identityPath).LoadOrCreate();
+
+            Assert.That(
+                NetworkConnectionPayloadCodec.TryNormalizePlayerId(
+                    createdId,
+                    out _),
+                Is.True);
+            Assert.That(loadedId, Is.EqualTo(createdId));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, true);
+        }
+    }
+
+    // A dropped connection is only known once the transport notices, which on
+    // a timeout takes seconds. Somebody who pulls the cable and plugs it back
+    // in arrives before that, and refusing them as a duplicate would lock them
+    // out of their own session until it caught up.
+    [Test]
+    public void Admission_LetsAPlayerReplaceTheirOwnConnectionThatIsAlreadyGone()
+    {
+        HashSet<ulong> connected = new() { 7 };
+        NetworkSessionAdmissionRegistry registry = new(
+            maxPlayers: 2,
+            protocolVersion: 4,
+            buildVersion: "0.1.0",
+            reconnectGracePeriodSeconds: 20d,
+            timeProvider: () => 0d,
+            isClientStillConnected: connected.Contains);
+        string playerId = Guid.NewGuid().ToString("N");
+        NetworkConnectionPayload payload = new(4, "0.1.0", playerId);
+
+        Assert.That(
+            registry.TryAdmit(7, payload).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Accepted));
+
+        // Still connected: a genuine second copy is refused.
+        Assert.That(
+            registry.TryAdmit(8, payload).Status,
+            Is.EqualTo(NetworkAdmissionStatus.DuplicatePlayer));
+
+        // The transport has since lost the old one, without the disconnect
+        // callback having run yet.
+        connected.Remove(7);
+
+        Assert.That(
+            registry.TryAdmit(8, payload).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Reconnected));
+        Assert.That(registry.ActivePlayerCount, Is.EqualTo(1));
+        Assert.That(registry.TryGetPlayerId(8, out string reclaimed), Is.True);
+        Assert.That(reclaimed, Is.EqualTo(playerId));
+
+        // The abandoned client id no longer stands for anybody.
+        Assert.That(registry.TryGetPlayerId(7, out _), Is.False);
+    }
+
+    [Test]
+    public void Admission_ReservesCapacityAndOnlyReclaimsMatchingPlayer()
+    {
+        double now = 0d;
+        NetworkSessionAdmissionRegistry registry = new(
+            maxPlayers: 2,
+            protocolVersion: 4,
+            buildVersion: "0.1.0",
+            reconnectGracePeriodSeconds: 20d,
+            timeProvider: () => now);
+        string hostId = Guid.NewGuid().ToString("N");
+        string reconnectingId = Guid.NewGuid().ToString("N");
+        string waitingId = Guid.NewGuid().ToString("N");
+
+        Assert.That(
+            registry.TryAdmit(
+                0,
+                new NetworkConnectionPayload(4, "0.1.0", hostId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Accepted));
+        Assert.That(
+            registry.TryAdmit(
+                1,
+                new NetworkConnectionPayload(4, "0.1.0", reconnectingId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Accepted));
+        Assert.That(
+            registry.TryAdmit(
+                2,
+                new NetworkConnectionPayload(4, "0.1.0", waitingId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.SessionFull));
+
+        registry.RecordDisconnect(1, reserveSlot: true);
+
+        Assert.That(registry.ActivePlayerCount, Is.EqualTo(1));
+        Assert.That(registry.ReservedPlayerCount, Is.EqualTo(1));
+        Assert.That(registry.HasReconnectReservation(reconnectingId), Is.True);
+        Assert.That(
+            registry.TryAdmit(
+                2,
+                new NetworkConnectionPayload(4, "0.1.0", waitingId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.SessionFull));
+        Assert.That(
+            registry.TryAdmit(
+                3,
+                new NetworkConnectionPayload(4, "0.1.0", reconnectingId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Reconnected));
+        Assert.That(registry.IsReconnect(3), Is.True);
+        Assert.That(
+            registry.TryAdmit(
+                4,
+                new NetworkConnectionPayload(4, "0.1.0", reconnectingId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.DuplicatePlayer));
+
+        registry.RecordDisconnect(3, reserveSlot: true);
+        now = 21d;
+
+        Assert.That(
+            registry.TryAdmit(
+                2,
+                new NetworkConnectionPayload(4, "0.1.0", waitingId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Accepted));
+        Assert.That(registry.ReservedPlayerCount, Is.Zero);
+    }
+
+    [Test]
+    public void Admission_RejectsProtocolAndBuildMismatchBeforeCapacity()
+    {
+        NetworkSessionAdmissionRegistry registry = new(
+            maxPlayers: 1,
+            protocolVersion: 5,
+            buildVersion: "2.0.0",
+            reconnectGracePeriodSeconds: 10d,
+            timeProvider: () => 0d);
+        string playerId = Guid.NewGuid().ToString("N");
+
+        Assert.That(
+            registry.TryAdmit(
+                1,
+                new NetworkConnectionPayload(4, "2.0.0", playerId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.ProtocolMismatch));
+        Assert.That(
+            registry.TryAdmit(
+                1,
+                new NetworkConnectionPayload(5, "2.0.1", playerId)).Status,
+            Is.EqualTo(NetworkAdmissionStatus.BuildMismatch));
+        Assert.That(registry.ActivePlayerCount, Is.Zero);
     }
 
     [Test]

@@ -552,6 +552,8 @@ public sealed class ProjectContext : MonoBehaviour
         globalServiceScope.Register<IGameStateService>(stateMachine);
         globalServiceScope.Register<IProjectSceneFlowService>(projectSceneFlowService);
         globalServiceScope.Register<INetworkSessionService>(sessionOrchestrator);
+        globalServiceScope.Register<INetworkSessionAdmissionService>(
+            connectionApprovalService);
         globalServiceScope.Register<IUiErrorService>(uiErrorManager);
         globalServiceScope.Register<ISettingsService>(settingsService);
         globalServiceScope.Register<IAudioService>(audioManager);

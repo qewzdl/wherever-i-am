@@ -319,7 +319,9 @@ public sealed class ServerAuthorityPlayModeTests
         instance.name = "Lobby spawned";
         sessionProbe = new LobbySessionServiceProbe();
         Assert.That(
-            instance.GetComponent<LobbyController>().Construct(sessionProbe),
+            instance.GetComponent<LobbyController>().Construct(
+                sessionProbe,
+                new LobbyAdmissionServiceProbe()),
             Is.True);
         lobbyObjectId = SpawnOnServer(instance);
 

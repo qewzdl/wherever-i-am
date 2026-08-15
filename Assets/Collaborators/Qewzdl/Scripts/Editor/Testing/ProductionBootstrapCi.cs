@@ -229,6 +229,8 @@ public static class ProductionBootstrapCi
             QuoteArgument(role),
             "-gBootstrapRunDirectory",
             QuoteArgument(runDirectory),
+            "-wiaPlayerId",
+            QuoteArgument(Guid.NewGuid().ToString("N")),
             "-gBootstrapTimeoutSeconds",
             timeoutSeconds.ToString(CultureInfo.InvariantCulture));
 

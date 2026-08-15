@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Netcode;
@@ -52,6 +53,27 @@ public sealed class ProjectAssetValidationTests
     private static readonly Regex GuidReferencePattern = new(
         @"guid:\s*([0-9a-fA-F]{32})",
         RegexOptions.Compiled);
+
+    // Connection approval refuses to configure itself without a build version,
+    // and without approval there is no networking at all. An empty version
+    // field is therefore not a release-day detail - it takes the whole session
+    // down, and it does it at runtime where the cause is far from the symptom.
+    [Test]
+    public void BuildVersion_IsSetAndFitsTheConnectionPayload()
+    {
+        Assert.That(
+            Application.version,
+            Is.Not.Null.And.Not.Empty,
+            "Player Settings has no version. Connection approval cannot start without one.");
+        Assert.That(
+            Application.version.Trim(),
+            Is.Not.Empty,
+            "Player Settings version is whitespace. Connection approval treats that as missing.");
+        Assert.That(
+            Encoding.UTF8.GetByteCount(Application.version.Trim()),
+            Is.LessThanOrEqualTo(64),
+            "The build version does not fit the connection approval payload.");
+    }
 
     [Test]
     public void ProjectScenes_AreUniqueResolvableAndEnabled()
