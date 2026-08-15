@@ -132,6 +132,7 @@ public class LobbyController : NetworkBehaviour
             return;
 
         settingsService.InitializeFromConfig();
+        PublishLobbyVisibility();
         SubscribeToNetworkCallbacks();
 
         // Everyone who is already here, not just the host. Coming back from a
@@ -144,6 +145,13 @@ public class LobbyController : NetworkBehaviour
         }
 
         startService.RefreshCanStartGame();
+    }
+
+    // The settings hold the truth clients can see; approval needs the same
+    // answer before a connection exists, so the server hands it over directly.
+    private void PublishLobbyVisibility()
+    {
+        admissionService.SetAcceptingNewPlayers(lobbyState.Settings.Value.IsPublic);
     }
 
     private void SubscribeToNetworkCallbacks()
@@ -277,6 +285,19 @@ public class LobbyController : NetworkBehaviour
 
         settingsService.SetDifficulty(difficultyId);
         startService.RefreshCanStartGame();
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void RequestSetLobbyPublicRpc(bool isPublic, RpcParams rpcParams = default)
+    {
+        if (!IsConstructed()) return;
+
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (!ownershipService.CanChangeSettings(senderClientId)) return;
+
+        settingsService.SetLobbyPublic(isPublic);
+        PublishLobbyVisibility();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]

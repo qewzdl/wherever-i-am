@@ -4,4 +4,5 @@ public interface INetworkSessionAdmissionService
     bool IsReconnect(ulong clientId);
     bool HasReconnectReservation(string playerId);
     void RecordDisconnect(ulong clientId);
+    void SetAcceptingNewPlayers(bool accepting);
 }

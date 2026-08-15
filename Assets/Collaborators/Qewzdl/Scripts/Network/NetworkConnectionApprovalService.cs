@@ -20,6 +20,9 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
     private bool approvalConfigured;
     private bool networkCallbacksSubscribed;
 
+    // A session starts private; the lobby opens it to strangers on request.
+    private bool acceptingNewPlayers;
+
     private void Awake()
     {
         Configure();
@@ -76,6 +79,11 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
     {
         return admissionRegistry != null &&
                admissionRegistry.HasReconnectReservation(playerId);
+    }
+
+    public void SetAcceptingNewPlayers(bool accepting)
+    {
+        acceptingNewPlayers = accepting;
     }
 
     public void RecordDisconnect(ulong clientId)
@@ -141,6 +149,22 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
         }
 
         EnsureAdmissionRegistry();
+
+        // A private lobby turns away newcomers only. Someone who dropped still
+        // holds a seat here, and taking it from them would make going private
+        // a punishment for a lost connection.
+        if (!isHostPlayer &&
+            !acceptingNewPlayers &&
+            !admissionRegistry.HasReconnectReservation(payload.PlayerId))
+        {
+            Reject(
+                request.ClientNetworkId,
+                response,
+                approvalConfig.LobbyPrivateReason,
+                "Lobby is private.");
+            return;
+        }
+
         NetworkAdmissionResult result = admissionRegistry.TryAdmit(
             request.ClientNetworkId,
             payload);
@@ -279,6 +303,7 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
     private void HandleServerStopped(bool wasHost)
     {
         admissionRegistry?.Reset();
+        acceptingNewPlayers = false;
     }
 
     private bool HasRequiredReferences()

@@ -21,3 +21,4 @@ MonoBehaviour:
   incompatibleBuildReason: The client build is incompatible with the host.
   sessionFullReason: The network session is full.
   duplicatePlayerReason: This player is already connected.
+  lobbyPrivateReason: The lobby is private.

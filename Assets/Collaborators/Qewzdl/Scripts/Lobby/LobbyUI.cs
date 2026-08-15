@@ -13,10 +13,14 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
     [SerializeField] private Button leaveButton;
+    [SerializeField] private Button lobbyVisibilityButton;
+    [SerializeField] private TMP_Text lobbyVisibilityButtonLabel;
     [SerializeField] private TMP_Dropdown difficultyDropdown;
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
+    [SerializeField] private string makePublicActionText = "Make public";
+    [SerializeField] private string makePrivateActionText = "Make private";
 
     private ILobbyReadService readService;
     private int[] difficultyIds = Array.Empty<int>();
@@ -25,6 +29,7 @@ public class LobbyUI : MonoBehaviour
     public event Action StartGameClicked;
     public event Action LeaveLobbyClicked;
     public event Action<int> DifficultySelected;
+    public event Action LobbyVisibilityToggleClicked;
 
     public void Construct(ILobbyReadService readService)
     {
@@ -50,6 +55,7 @@ public class LobbyUI : MonoBehaviour
     private void Awake()
     {
         CacheReadyButtonLabel();
+        CacheLobbyVisibilityButtonLabel();
         PopulateDifficultyDropdown();
 
         if (difficultyDropdown != null)
@@ -63,6 +69,9 @@ public class LobbyUI : MonoBehaviour
 
         if (leaveButton != null)
             leaveButton.onClick.AddListener(HandleLeaveLobbyClicked);
+
+        if (lobbyVisibilityButton != null)
+            lobbyVisibilityButton.onClick.AddListener(HandleLobbyVisibilityToggleClicked);
     }
 
     private void Start()
@@ -84,6 +93,9 @@ public class LobbyUI : MonoBehaviour
         if (leaveButton != null)
             leaveButton.onClick.RemoveListener(HandleLeaveLobbyClicked);
 
+        if (lobbyVisibilityButton != null)
+            lobbyVisibilityButton.onClick.RemoveListener(HandleLobbyVisibilityToggleClicked);
+
         Dispose();
     }
 
@@ -100,6 +112,11 @@ public class LobbyUI : MonoBehaviour
     private void HandleLeaveLobbyClicked()
     {
         LeaveLobbyClicked?.Invoke();
+    }
+
+    private void HandleLobbyVisibilityToggleClicked()
+    {
+        LobbyVisibilityToggleClicked?.Invoke();
     }
 
     private void HandleDifficultySelected(int optionIndex)
@@ -200,21 +217,50 @@ public class LobbyUI : MonoBehaviour
 
     private void RefreshButtons()
     {
-        bool isLobbyOpen = readService.Phase == LobbyPhase.Open;
+        bool isLobbyPhaseOpen = readService.Phase == LobbyPhase.Open;
 
         if (startGameButton != null)
         {
             startGameButton.gameObject.SetActive(readService.IsLocalPlayerRoomOwner);
-            startGameButton.interactable = isLobbyOpen && readService.CanStartGame;
+            startGameButton.interactable = isLobbyPhaseOpen && readService.CanStartGame;
         }
 
         if (readyButton != null)
         {
             bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
 
-            readyButton.interactable = isLobbyOpen && hasLocalPlayer;
+            readyButton.interactable = isLobbyPhaseOpen && hasLocalPlayer;
             SetReadyButtonLabel(hasLocalPlayer && localPlayer.IsReady);
         }
+
+        // Only the owner decides who may walk in, and only while the lobby is
+        // still a lobby - once the match is starting it takes nobody anyway.
+        if (lobbyVisibilityButton != null)
+        {
+            lobbyVisibilityButton.gameObject.SetActive(readService.IsLocalPlayerRoomOwner);
+            lobbyVisibilityButton.interactable = isLobbyPhaseOpen;
+            SetLobbyVisibilityButtonLabel(readService.Settings.IsPublic);
+        }
+    }
+
+    private void CacheLobbyVisibilityButtonLabel()
+    {
+        if (lobbyVisibilityButtonLabel != null || lobbyVisibilityButton == null)
+            return;
+
+        lobbyVisibilityButtonLabel =
+            lobbyVisibilityButton.GetComponentInChildren<TMP_Text>(true);
+    }
+
+    private void SetLobbyVisibilityButtonLabel(bool isPublic)
+    {
+        CacheLobbyVisibilityButtonLabel();
+
+        if (lobbyVisibilityButtonLabel == null)
+            return;
+
+        lobbyVisibilityButtonLabel.text =
+            isPublic ? makePrivateActionText : makePublicActionText;
     }
 
     private void CacheReadyButtonLabel()

@@ -20,6 +20,8 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
         "The network session is full.";
     [SerializeField] private string duplicatePlayerReason =
         "This player is already connected.";
+    [SerializeField] private string lobbyPrivateReason =
+        "The lobby is private.";
 
     public GameState RemoteClientAllowedState => remoteClientAllowedState;
     public bool AllowInGameLateJoin => allowInGameLateJoin;
@@ -30,6 +32,7 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
     public string IncompatibleBuildReason => incompatibleBuildReason;
     public string SessionFullReason => sessionFullReason;
     public string DuplicatePlayerReason => duplicatePlayerReason;
+    public string LobbyPrivateReason => lobbyPrivateReason;
 
     public bool CanAcceptRemoteClient(GameState currentState)
     {
@@ -60,6 +63,10 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
         valid &= ValidateReason(
             duplicatePlayerReason,
             nameof(duplicatePlayerReason),
+            context);
+        valid &= ValidateReason(
+            lobbyPrivateReason,
+            nameof(lobbyPrivateReason),
             context);
 
         return valid;

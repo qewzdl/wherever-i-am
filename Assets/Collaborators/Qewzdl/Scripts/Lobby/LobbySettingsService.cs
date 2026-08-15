@@ -46,6 +46,20 @@ public class LobbySettingsService
         lobbyState.Settings.Value = settings;
     }
 
+    public void SetLobbyPublic(bool isPublic)
+    {
+        if (!CanChangeSettings())
+            return;
+
+        LobbySettingsData settings = lobbyState.Settings.Value;
+
+        if (settings.IsPublic == isPublic)
+            return;
+
+        settings.IsPublic = isPublic;
+        lobbyState.Settings.Value = settings;
+    }
+
     public void SetDifficulty(int difficultyId)
     {
         if (!CanChangeSettings())

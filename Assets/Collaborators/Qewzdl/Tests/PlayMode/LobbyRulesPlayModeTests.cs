@@ -93,6 +93,13 @@ internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionServi
             reservations.Add(playerId);
     }
 
+    internal bool IsAcceptingNewPlayers { get; private set; } = true;
+
+    public void SetAcceptingNewPlayers(bool accepting)
+    {
+        IsAcceptingNewPlayers = accepting;
+    }
+
     internal void ReconnectAs(ulong previousClientId, ulong newClientId)
     {
         TryGetPlayerId(previousClientId, out string playerId);

@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -200,6 +201,108 @@ public sealed class MapLobbyAndGameplayLogicTests
 
         // The abandoned client id no longer stands for anybody.
         Assert.That(registry.TryGetPlayerId(7, out _), Is.False);
+    }
+
+    [Test]
+    public void Admission_PrivateLobbyRefusesNewcomersButLetsAReconnectBackIn()
+    {
+        GameObject serviceObject = new("Approval service test");
+
+        // Inactive, so Awake does not run before the references are in place.
+        serviceObject.SetActive(false);
+
+        NetworkConnectionConfig connectionConfig =
+            ScriptableObject.CreateInstance<NetworkConnectionConfig>();
+        NetworkConnectionApprovalConfig approvalConfig =
+            ScriptableObject.CreateInstance<NetworkConnectionApprovalConfig>();
+        LobbyConfig lobbyConfig = ScriptableObject.CreateInstance<LobbyConfig>();
+
+        try
+        {
+            NetworkConnectionApprovalService service =
+                serviceObject.AddComponent<NetworkConnectionApprovalService>();
+            GameStateMachine stateMachine =
+                serviceObject.AddComponent<GameStateMachine>();
+            stateMachine.ChangeState(GameState.Lobby);
+
+            TestReflection.SetField(
+                approvalConfig,
+                "remoteClientAllowedState",
+                GameState.Lobby);
+            TestReflection.SetField(service, "stateMachine", stateMachine);
+            TestReflection.SetField(service, "connectionConfig", connectionConfig);
+            TestReflection.SetField(service, "approvalConfig", approvalConfig);
+            TestReflection.SetField(service, "lobbyConfig", lobbyConfig);
+
+            string playerId = Guid.NewGuid().ToString("N");
+            string strangerId = Guid.NewGuid().ToString("N");
+
+            Assert.That(
+                RequestApproval(service, connectionConfig, 5, playerId).Approved,
+                Is.False,
+                "A lobby nobody made public yet must not take walk-ins.");
+
+            service.SetAcceptingNewPlayers(true);
+            Assert.That(
+                RequestApproval(service, connectionConfig, 5, playerId).Approved,
+                Is.True);
+
+            NetworkSessionAdmissionRegistry registry =
+                TestReflection.GetField<NetworkSessionAdmissionRegistry>(
+                    service,
+                    "admissionRegistry");
+            registry.RecordDisconnect(5, reserveSlot: true);
+            service.SetAcceptingNewPlayers(false);
+
+            // The seat is still theirs; going private behind their back
+            // would punish a lost connection.
+            Assert.That(
+                RequestApproval(service, connectionConfig, 6, playerId).Approved,
+                Is.True);
+
+            Assert.That(
+                RequestApproval(service, connectionConfig, 7, strangerId).Approved,
+                Is.False);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(serviceObject);
+            UnityEngine.Object.DestroyImmediate(connectionConfig);
+            UnityEngine.Object.DestroyImmediate(approvalConfig);
+            UnityEngine.Object.DestroyImmediate(lobbyConfig);
+        }
+    }
+
+    private static NetworkManager.ConnectionApprovalResponse RequestApproval(
+        NetworkConnectionApprovalService service,
+        NetworkConnectionConfig connectionConfig,
+        ulong clientId,
+        string playerId)
+    {
+        Assert.That(
+            NetworkConnectionPayloadCodec.TryEncode(
+                connectionConfig.ProtocolVersion,
+                Application.version,
+                playerId,
+                out byte[] payload,
+                out string encodeError),
+            Is.True,
+            encodeError);
+
+        NetworkManager.ConnectionApprovalRequest request = new()
+        {
+            ClientNetworkId = clientId,
+            Payload = payload
+        };
+        NetworkManager.ConnectionApprovalResponse response = new();
+
+        TestReflection.Invoke(
+            service,
+            "HandleConnectionApproval",
+            request,
+            response);
+
+        return response;
     }
 
     [Test]

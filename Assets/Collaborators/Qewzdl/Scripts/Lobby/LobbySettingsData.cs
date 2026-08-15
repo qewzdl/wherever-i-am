@@ -11,6 +11,10 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
     public int MapId;
     public int DifficultyId;
 
+    // A public lobby takes new players; a private one does not. Private to
+    // begin with, so a host sets the room up before anybody can walk into it.
+    public bool IsPublic;
+
     public LobbySettingsData(
         int minPlayersToStart,
         int maxPlayers,
@@ -24,6 +28,7 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
         GameModeId = gameModeId;
         MapId = mapId;
         DifficultyId = 0;
+        IsPublic = false;
     }
 
     public static LobbySettingsData CreateDefault()
@@ -62,6 +67,7 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
         serializer.SerializeValue(ref GameModeId);
         serializer.SerializeValue(ref MapId);
         serializer.SerializeValue(ref DifficultyId);
+        serializer.SerializeValue(ref IsPublic);
     }
 
     public bool Equals(LobbySettingsData other)
@@ -71,6 +77,7 @@ public struct LobbySettingsData : INetworkSerializable, IEquatable<LobbySettings
                RequireAllPlayersReady == other.RequireAllPlayersReady &&
                GameModeId == other.GameModeId &&
                MapId == other.MapId &&
-               DifficultyId == other.DifficultyId;
+               DifficultyId == other.DifficultyId &&
+               IsPublic == other.IsPublic;
     }
 }
