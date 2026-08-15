@@ -8,10 +8,34 @@ public sealed class GameMapRoot : MonoBehaviour
     [SerializeField] private Transform[] playerSpawnPoints;
     [SerializeField] private ObjectiveSceneBindingRegistry objectiveBindingRegistry;
 
+    [Tooltip(
+        "Leave empty to collect every spawn point under this map. Fill it in " +
+        "only to use a hand-picked set.")]
+    [SerializeField] private EnemySpawnPoint[] enemySpawnPoints;
+
     private readonly Dictionary<ulong, int> assignedSpawnIndices = new();
+
+    // Collected rather than written back into the serialized field, so a point
+    // added to the map later is still found. Same reason as the objective
+    // binding registry.
+    private EnemySpawnPoint[] resolvedEnemySpawnPoints;
 
     public ObjectiveSceneBindingRegistry ObjectiveBindingRegistry => objectiveBindingRegistry;
     public int PlayerSpawnPointCount => playerSpawnPoints == null ? 0 : playerSpawnPoints.Length;
+
+    public IReadOnlyList<EnemySpawnPoint> EnemySpawnPoints
+    {
+        get
+        {
+            if (enemySpawnPoints != null && enemySpawnPoints.Length > 0)
+            {
+                return enemySpawnPoints;
+            }
+
+            resolvedEnemySpawnPoints ??= GetComponentsInChildren<EnemySpawnPoint>(true);
+            return resolvedEnemySpawnPoints;
+        }
+    }
 
     public bool TryGetPlayerSpawn(ulong clientId, out Vector3 position, out Quaternion rotation)
     {

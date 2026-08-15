@@ -225,6 +225,31 @@ public sealed class ObjectiveBindingAndMapRootTests
         return host.AddComponent<NetworkObjectiveFlow>();
     }
 
+    // The map declares where enemies go, the same way it declares where players
+    // go. Leaving the list empty has to mean "the ones under me" or a point
+    // added to the map later would be spawned into by nothing.
+    [Test]
+    public void MapRoot_CollectsTheEnemySpawnPointsUnderItWhenNoneAreListed()
+    {
+        GameMapRoot mapRoot = CreateMapRoot(spawnPointCount: 0);
+
+        GameObject first = Track(new GameObject("Enemy spawn 1"));
+        first.transform.SetParent(mapRoot.transform, false);
+        EnemySpawnPoint firstPoint = first.AddComponent<EnemySpawnPoint>();
+
+        GameObject second = Track(new GameObject("Enemy spawn 2"));
+        second.transform.SetParent(mapRoot.transform, false);
+        second.transform.position = new Vector3(4f, 0f, 0f);
+        EnemySpawnPoint secondPoint = second.AddComponent<EnemySpawnPoint>();
+
+        Assert.That(mapRoot.EnemySpawnPoints, Is.EquivalentTo(new[] { firstPoint, secondPoint }));
+        Assert.That(secondPoint.Position, Is.EqualTo(new Vector3(4f, 0f, 0f)));
+
+        // A map with nowhere for enemies is a map without them, not an error.
+        GameMapRoot bare = CreateMapRoot(spawnPointCount: 0);
+        Assert.That(bare.EnemySpawnPoints, Is.Empty);
+    }
+
     private GameMapRoot CreateMapRoot(int spawnPointCount)
     {
         GameObject host = Track(new GameObject("Map root"));

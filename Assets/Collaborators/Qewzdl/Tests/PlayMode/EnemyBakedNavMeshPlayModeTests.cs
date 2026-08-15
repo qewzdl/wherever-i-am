@@ -27,6 +27,51 @@ internal sealed class BakedNavMeshAttackEffectProbe : IEnemyAttackEffect
 }
 
 [Category("Gameplay")]
+// Only the active map root matters to the spawner; the rest of the contract is
+// here because the interface asks for it.
+internal sealed class SpawnerMapSessionStub : IGameMapSessionService
+{
+    private readonly GameMapRoot mapRoot;
+
+    internal SpawnerMapSessionStub(GameMapRoot mapRoot)
+    {
+        this.mapRoot = mapRoot;
+    }
+
+    public IGameMapCatalog Catalog => null;
+    public GameMapDefinition SelectedMap => null;
+    public GameMapDefinition ActiveMap => null;
+    public GameMapRoot ActiveMapRoot => mapRoot;
+    public bool IsReadyForMatch => true;
+    public EnemyConfig SelectedEnemyConfig => null;
+
+    public event Action MapReady
+    {
+        add { }
+        remove { }
+    }
+
+    public bool SelectMap(int mapId)
+    {
+        return false;
+    }
+
+    public bool SelectDifficulty(int difficultyId)
+    {
+        return false;
+    }
+
+    public bool TryGetPlayerSpawn(
+        ulong clientId,
+        out Vector3 position,
+        out Quaternion rotation)
+    {
+        position = default;
+        rotation = default;
+        return false;
+    }
+}
+
 public sealed class EnemyBakedNavMeshPlayModeTests
 {
     private const string FixtureScenePath =
@@ -2467,6 +2512,117 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             string.Join(" ", stopReports));
     }
 
+    // An enemy standing in the scene before the match cannot be varied by
+    // difficulty or added partway through one, which the doll being picked up
+    // will need. This is that path: the spawner puts one into the world while
+    // the match is already running.
+    [UnityTest]
+    public IEnumerator Spawner_PutsALiveEnemyWhereTheSpawnPointSaysAndTakesItBack()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkEnemySpawner spawner = CreateSpawnedEnemySpawner();
+
+        GameObject pointObject = Track(new GameObject("Enemy spawn point"));
+        pointObject.transform.SetPositionAndRotation(
+            new Vector3(2f, 0f, -1f),
+            Quaternion.Euler(0f, 90f, 0f));
+        EnemySpawnPoint spawnPoint = pointObject.AddComponent<EnemySpawnPoint>();
+        spawnPoint.ConfigureEditor(
+            enemyPrefab.GetComponent<NetworkEnemyController>(),
+            route: null);
+
+        Assert.That(
+            spawner.TrySpawnServerOnly(spawnPoint, out NetworkEnemyController enemy),
+            Is.True);
+        Assert.That(enemy, Is.Not.Null);
+        Track(enemy.gameObject);
+
+        Assert.That(enemy.GetComponent<NetworkObject>().IsSpawned, Is.True);
+        Assert.That(
+            Vector3.Distance(enemy.transform.position, spawnPoint.Position),
+            Is.LessThan(0.01f));
+        Assert.That(spawner.SpawnedEnemies, Has.Count.EqualTo(1));
+
+        // The config comes from the prefab here; with a session running it
+        // would be the difficulty the host picked.
+        Assert.That(enemy.Config, Is.Not.Null);
+
+        spawner.DespawnAllServerOnly();
+        yield return null;
+
+        Assert.That(spawner.SpawnedEnemies, Is.Empty);
+    }
+
+    [UnityTest]
+    public IEnumerator Spawner_FillsEverySpawnPointTheMapDeclares()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameObject mapRootObject = Track(new GameObject("Map root"));
+        GameMapRoot mapRoot = mapRootObject.AddComponent<GameMapRoot>();
+
+        for (int i = 0; i < 2; i++)
+        {
+            GameObject point = new($"Enemy spawn {i}");
+            point.transform.SetParent(mapRootObject.transform, false);
+            point.transform.position = new Vector3(i * 3f, 0f, 2f);
+            point.AddComponent<EnemySpawnPoint>().ConfigureEditor(
+                enemyPrefab.GetComponent<NetworkEnemyController>(),
+                route: null);
+        }
+
+        NetworkEnemySpawner spawner = CreateSpawnedEnemySpawner();
+        PlayModeTestReflection.SetField(
+            spawner,
+            "gameMapService",
+            new SpawnerMapSessionStub(mapRoot));
+
+        Assert.That(spawner.SpawnMapEnemiesServerOnly(), Is.EqualTo(2));
+        Assert.That(spawner.SpawnedEnemies, Has.Count.EqualTo(2));
+
+        for (int i = 0; i < spawner.SpawnedEnemies.Count; i++)
+        {
+            NetworkEnemyController spawned = spawner.SpawnedEnemies[i];
+            Track(spawned.gameObject);
+            Assert.That(spawned.GetComponent<NetworkObject>().IsSpawned, Is.True);
+        }
+
+        spawner.DespawnAllServerOnly();
+        yield return null;
+    }
+
+    private NetworkEnemySpawner CreateSpawnedEnemySpawner()
+    {
+        GameObject host = Track(new GameObject("Enemy spawner"));
+        host.SetActive(false);
+
+        NetworkObject networkObject = host.AddComponent<NetworkObject>();
+        NetworkEnemySpawner spawner = host.AddComponent<NetworkEnemySpawner>();
+
+        // Off by default: this fixture has no session scope to resolve a map
+        // service from, so the tests drive the spawner directly.
+        PlayModeTestReflection.SetField(spawner, "spawnMapEnemiesWhenReady", false);
+
+        host.SetActive(true);
+        networkObject.Spawn(true);
+
+        Assert.That(networkObject.IsSpawned, Is.True);
+        return spawner;
+    }
+
     private IEnumerator StartHost()
     {
         GameObject root = Track(new GameObject("Enemy NavMesh host"));
@@ -2478,6 +2634,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             EnableSceneManagement = false,
             ProtocolVersion = 7
         };
+
+        // Registered so the enemy can be spawned at runtime rather than only
+        // placed in a scene beforehand.
+        manager.NetworkConfig.Prefabs.Add(new NetworkPrefab { Prefab = enemyPrefab });
         transport.SetConnectionData("127.0.0.1", 0, "127.0.0.1");
 
         Assert.That(manager.StartHost(), Is.True);

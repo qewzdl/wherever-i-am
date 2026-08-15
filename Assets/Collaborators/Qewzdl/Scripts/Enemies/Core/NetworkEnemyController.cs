@@ -43,6 +43,23 @@ public class NetworkEnemyController : NetworkBehaviour
         CacheComponents();
     }
 
+    // A spawned enemy comes from a prefab, and a prefab cannot hold a route
+    // that lives in the scene. The spawner hands one over between Instantiate
+    // and Spawn, while the runtime has not read it yet.
+    public void ConstructServerOnly(EnemyPatrolRoute route)
+    {
+        if (IsSpawned)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} cannot take a patrol route after spawning.",
+                this);
+
+            return;
+        }
+
+        patrolRoute = route;
+    }
+
     public override void OnNetworkSpawn()
     {
         CacheComponents();
