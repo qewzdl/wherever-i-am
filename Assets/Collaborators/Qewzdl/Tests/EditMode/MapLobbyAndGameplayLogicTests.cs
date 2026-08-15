@@ -306,6 +306,23 @@ public sealed class MapLobbyAndGameplayLogicTests
     }
 
     [Test]
+    public void DisconnectReason_KeepsWhatTheHostSaidAndDropsTransportNoise()
+    {
+        Assert.That(
+            NetworkDisconnectReason.UserFacing("The host removed you from the lobby."),
+            Is.EqualTo("The host removed you from the lobby."));
+
+        // Netcode's own note, which explains nothing to a player.
+        Assert.That(
+            NetworkDisconnectReason.UserFacing(
+                "[Disconnect Event] Client-2 disconnected by server."),
+            Is.Empty);
+
+        Assert.That(NetworkDisconnectReason.UserFacing(null), Is.Empty);
+        Assert.That(NetworkDisconnectReason.UserFacing("   "), Is.Empty);
+    }
+
+    [Test]
     public void Admission_KickedPlayerCannotComeBackOnTheirReconnectReservation()
     {
         NetworkSessionAdmissionRegistry registry = new(
