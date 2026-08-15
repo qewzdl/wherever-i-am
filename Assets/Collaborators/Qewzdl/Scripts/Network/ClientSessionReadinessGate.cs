@@ -16,8 +16,12 @@ internal static class ClientSessionReadinessGate
         switch (sceneKind)
         {
             case ProjectSceneKind.Lobby:
+                // InGame is a finished match coming back to the lobby. The
+                // state stays until Commit, because until the lobby's services
+                // are there the client has not arrived anywhere.
                 if (currentState == NetworkSessionState.StartingClient ||
-                    currentState == NetworkSessionState.Lobby)
+                    currentState == NetworkSessionState.Lobby ||
+                    currentState == NetworkSessionState.InGame)
                 {
                     error = string.Empty;
                     return true;
@@ -87,6 +91,14 @@ internal static class ClientSessionReadinessGate
                     stateMachine.TryChangeState(
                         NetworkSessionState.Lobby,
                         "Client Lobby scene and dynamic services are ready."))
+                {
+                    return true;
+                }
+
+                if (stateMachine.CurrentState == NetworkSessionState.InGame &&
+                    stateMachine.TryChangeState(
+                        NetworkSessionState.Lobby,
+                        "Client returned to the lobby after the match."))
                 {
                     return true;
                 }

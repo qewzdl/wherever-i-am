@@ -6,13 +6,18 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
     private readonly Func<GameState> stateProvider;
     private readonly Action<string> readinessLost;
     private readonly GameStateMachine stateMachine;
+
+    // Only the peer that owns the session judges its health. Null is treated
+    // as owning it, which is what a non-network fixture wants.
+    private readonly Func<bool> ownsSessionHealth;
     private bool failureRaised;
     private bool disposed;
 
     internal SessionServiceReadinessMonitor(
         ISessionServiceRegistry serviceRegistry,
         Func<GameState> currentStateProvider,
-        Action<string> readinessLostHandler)
+        Action<string> readinessLostHandler,
+        Func<bool> ownsSessionHealthProvider = null)
     {
         registry = serviceRegistry ??
                    throw new ArgumentNullException(nameof(serviceRegistry));
@@ -20,6 +25,8 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
                         throw new ArgumentNullException(nameof(currentStateProvider));
         readinessLost = readinessLostHandler ??
                         throw new ArgumentNullException(nameof(readinessLostHandler));
+
+        ownsSessionHealth = ownsSessionHealthProvider;
 
         if (registry.IsDisposed)
             throw new ObjectDisposedException(nameof(serviceRegistry));
@@ -30,11 +37,13 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
     internal SessionServiceReadinessMonitor(
         ISessionServiceRegistry serviceRegistry,
         GameStateMachine gameStateMachine,
-        Action<string> readinessLostHandler)
+        Action<string> readinessLostHandler,
+        Func<bool> ownsSessionHealthProvider = null)
         : this(
             serviceRegistry,
             CreateStateProvider(gameStateMachine),
-            readinessLostHandler)
+            readinessLostHandler,
+            ownsSessionHealthProvider)
     {
         stateMachine = gameStateMachine;
         stateMachine.StateChanged += HandleGameStateChanged;
@@ -66,6 +75,17 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
     {
         if (disposed || failureRaised)
             return false;
+
+        // A client sees dynamic Session contracts come and go entirely at the
+        // server's discretion: every scene the server loads despawns the ones
+        // belonging to the old scene. Returning to the lobby after a match
+        // removes IMatchCompletionService while the client is still nominally
+        // InGame, and treating that as a fault took the whole session down -
+        // for everybody - over the server doing something it meant to do. A
+        // client refuses to commit a state whose services are missing, in
+        // ClientSessionReadinessGate; it does not get to end the session.
+        if (ownsSessionHealth != null && !ownsSessionHealth.Invoke())
+            return true;
 
         GameState currentState = stateProvider.Invoke();
 

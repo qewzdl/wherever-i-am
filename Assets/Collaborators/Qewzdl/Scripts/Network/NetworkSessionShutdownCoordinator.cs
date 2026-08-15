@@ -618,7 +618,8 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             readinessMonitor = new SessionServiceReadinessMonitor(
                 registry,
                 stateMachine,
-                HandleSessionReadinessLost);
+                HandleSessionReadinessLost,
+                () => connectionService != null && connectionService.IsServer);
             nextReadinessHealthCheckTime = Time.unscaledTime;
             failure = null;
             return true;
