@@ -22,3 +22,4 @@ MonoBehaviour:
   sessionFullReason: The network session is full.
   duplicatePlayerReason: This player is already connected.
   lobbyPrivateReason: The lobby is private.
+  kickedReason: The host removed you from the lobby.

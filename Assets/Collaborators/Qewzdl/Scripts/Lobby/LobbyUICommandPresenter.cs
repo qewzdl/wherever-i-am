@@ -74,6 +74,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.LeaveLobbyClicked += HandleLeaveLobbyClicked;
         lobbyUI.DifficultySelected += HandleDifficultySelected;
         lobbyUI.LobbyVisibilityToggleClicked += HandleLobbyVisibilityToggleClicked;
+        lobbyUI.PlayerKickRequested += HandlePlayerKickRequested;
 
         isSubscribed = true;
     }
@@ -88,6 +89,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.LeaveLobbyClicked -= HandleLeaveLobbyClicked;
         lobbyUI.DifficultySelected -= HandleDifficultySelected;
         lobbyUI.LobbyVisibilityToggleClicked -= HandleLobbyVisibilityToggleClicked;
+        lobbyUI.PlayerKickRequested -= HandlePlayerKickRequested;
 
         isSubscribed = false;
     }
@@ -140,6 +142,17 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
             return;
 
         commandService.SetLobbyPublic(!readService.Settings.IsPublic);
+    }
+
+    private void HandlePlayerKickRequested(ulong clientId)
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (readService.Phase != LobbyPhase.Open)
+            return;
+
+        commandService.KickPlayer(clientId);
     }
 
     private void HandleLeaveLobbyClicked()

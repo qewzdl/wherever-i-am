@@ -5,6 +5,7 @@ public interface ILobbyCommandService
     void SetMap(int mapId);
     void SetDifficulty(int difficultyId);
     void SetLobbyPublic(bool isPublic);
+    void KickPlayer(ulong clientId);
     void StartGame();
     void LeaveLobby();
 }

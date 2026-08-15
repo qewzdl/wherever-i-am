@@ -86,6 +86,24 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
         acceptingNewPlayers = accepting;
     }
 
+    // Removing somebody is one act, not two: the session has to forget them
+    // and the connection has to go, or a kick lasts until they press join.
+    public bool KickPlayer(ulong clientId)
+    {
+        if (networkManager == null ||
+            !networkManager.IsServer ||
+            clientId == NetworkManager.ServerClientId)
+        {
+            return false;
+        }
+
+        if (admissionRegistry == null || !admissionRegistry.Kick(clientId))
+            return false;
+
+        networkManager.DisconnectClient(clientId, approvalConfig.KickedReason);
+        return true;
+    }
+
     public void RecordDisconnect(ulong clientId)
     {
         if (admissionRegistry == null)
@@ -213,6 +231,8 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
                 approvalConfig.DuplicatePlayerReason,
             NetworkAdmissionStatus.SessionFull =>
                 approvalConfig.SessionFullReason,
+            NetworkAdmissionStatus.Kicked =>
+                approvalConfig.KickedReason,
             _ => approvalConfig.InvalidPayloadReason
         };
     }

@@ -184,6 +184,17 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         lobbyController.RequestSetLobbyPublicRpc(isPublic);
     }
 
+    public void KickPlayer(ulong clientId)
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogError("LobbyController is missing.");
+            return;
+        }
+
+        lobbyController.RequestKickPlayerRpc(clientId);
+    }
+
     public void StartGame()
     {
         if (lobbyController == null)

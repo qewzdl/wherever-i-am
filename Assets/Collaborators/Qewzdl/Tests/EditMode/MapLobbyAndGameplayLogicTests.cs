@@ -306,6 +306,43 @@ public sealed class MapLobbyAndGameplayLogicTests
     }
 
     [Test]
+    public void Admission_KickedPlayerCannotComeBackOnTheirReconnectReservation()
+    {
+        NetworkSessionAdmissionRegistry registry = new(
+            maxPlayers: 4,
+            protocolVersion: 4,
+            buildVersion: "0.1.0",
+            reconnectGracePeriodSeconds: 20d,
+            timeProvider: () => 0d);
+        string playerId = Guid.NewGuid().ToString("N");
+        NetworkConnectionPayload payload = new(4, "0.1.0", playerId);
+
+        Assert.That(
+            registry.TryAdmit(9, payload).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Accepted));
+        Assert.That(registry.Kick(9), Is.True);
+
+        // Their seat goes back to the room rather than being held for them.
+        Assert.That(registry.ActivePlayerCount, Is.EqualTo(0));
+        Assert.That(registry.ReservedPlayerCount, Is.EqualTo(0));
+        Assert.That(registry.HasReconnectReservation(playerId), Is.False);
+
+        Assert.That(
+            registry.TryAdmit(10, payload).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Kicked),
+            "A kick that ends when they press join again is not a kick.");
+
+        // Nobody to throw out is not an error, just nothing to do.
+        Assert.That(registry.Kick(11), Is.False);
+
+        // A new session starts with nobody barred.
+        registry.Reset();
+        Assert.That(
+            registry.TryAdmit(12, payload).Status,
+            Is.EqualTo(NetworkAdmissionStatus.Accepted));
+    }
+
+    [Test]
     public void Admission_ReservesCapacityAndOnlyReclaimsMatchingPlayer()
     {
         double now = 0d;

@@ -22,6 +22,8 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
         "This player is already connected.";
     [SerializeField] private string lobbyPrivateReason =
         "The lobby is private.";
+    [SerializeField] private string kickedReason =
+        "The host removed you from the lobby.";
 
     public GameState RemoteClientAllowedState => remoteClientAllowedState;
     public bool AllowInGameLateJoin => allowInGameLateJoin;
@@ -33,6 +35,7 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
     public string SessionFullReason => sessionFullReason;
     public string DuplicatePlayerReason => duplicatePlayerReason;
     public string LobbyPrivateReason => lobbyPrivateReason;
+    public string KickedReason => kickedReason;
 
     public bool CanAcceptRemoteClient(GameState currentState)
     {
@@ -67,6 +70,10 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
         valid &= ValidateReason(
             lobbyPrivateReason,
             nameof(lobbyPrivateReason),
+            context);
+        valid &= ValidateReason(
+            kickedReason,
+            nameof(kickedReason),
             context);
 
         return valid;

@@ -301,6 +301,22 @@ public class LobbyController : NetworkBehaviour
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void RequestKickPlayerRpc(ulong targetClientId, RpcParams rpcParams = default)
+    {
+        if (!IsConstructed()) return;
+
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (!ownershipService.CanChangeSettings(senderClientId)) return;
+        if (targetClientId == senderClientId) return;
+
+        // Only somebody standing in this lobby can be thrown out of it.
+        if (!lobbyState.TryGetPlayerIndex(targetClientId, out _)) return;
+
+        admissionService.KickPlayer(targetClientId);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestStartGameRpc(RpcParams rpcParams = default)
     {
         if (!IsConstructed()) return;

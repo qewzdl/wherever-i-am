@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,7 +7,8 @@ using UnityEngine.UI;
 public class LobbyUI : MonoBehaviour
 {
     [Header("UI")]
-    [SerializeField] private TMP_Text playersText;
+    [SerializeField] private LobbyPlayerRow playerRowPrefab;
+    [SerializeField] private Transform playerListRoot;
     [SerializeField] private Button readyButton;
     [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
@@ -24,12 +24,14 @@ public class LobbyUI : MonoBehaviour
 
     private ILobbyReadService readService;
     private int[] difficultyIds = Array.Empty<int>();
+    private readonly List<LobbyPlayerRow> playerRows = new List<LobbyPlayerRow>();
 
     public event Action ReadyClicked;
     public event Action StartGameClicked;
     public event Action LeaveLobbyClicked;
     public event Action<int> DifficultySelected;
     public event Action LobbyVisibilityToggleClicked;
+    public event Action<ulong> PlayerKickRequested;
 
     public void Construct(ILobbyReadService readService)
     {
@@ -194,25 +196,57 @@ public class LobbyUI : MonoBehaviour
 
     private void RefreshPlayers()
     {
-        if (playersText == null)
+        if (playerRowPrefab == null || playerListRoot == null)
             return;
 
-        StringBuilder builder = new StringBuilder();
+        // Not knowing which player is us is reason enough to offer no kick at
+        // all; the server refuses a self-kick anyway, but a button that cannot
+        // work should not be there in the first place.
+        bool hasLocalPlayer =
+            readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
+        bool canKick = hasLocalPlayer &&
+                       readService.IsLocalPlayerRoomOwner &&
+                       readService.Phase == LobbyPhase.Open;
+        int playerCount = readService.PlayerCount;
 
-        builder.AppendLine($"Lobby phase: {readService.Phase}");
-        builder.AppendLine();
+        EnsurePlayerRowCount(playerCount);
 
-        for (int i = 0; i < readService.PlayerCount; i++)
+        for (int i = 0; i < playerRows.Count; i++)
         {
+            LobbyPlayerRow row = playerRows[i];
+
+            if (i >= playerCount)
+            {
+                row.gameObject.SetActive(false);
+                continue;
+            }
+
             LobbyPlayerData player = readService.GetPlayer(i);
 
-            string ownerText = player.ClientId == readService.RoomOwnerClientId ? "Owner" : "Player";
-            string readyText = player.IsReady ? "Ready" : "Not ready";
-
-            builder.AppendLine($"{player.PlayerName} | {ownerText} | {readyText}");
+            row.gameObject.SetActive(true);
+            row.Bind(
+                player,
+                player.ClientId == readService.RoomOwnerClientId,
+                canKick && player.ClientId != localPlayer.ClientId);
         }
+    }
 
-        playersText.text = builder.ToString();
+    // Rows are made once and reused. A lobby holds a handful of players, so
+    // hiding the spare rows costs less than rebuilding the list on every change.
+    private void EnsurePlayerRowCount(int playerCount)
+    {
+        while (playerRows.Count < playerCount)
+        {
+            LobbyPlayerRow row = Instantiate(playerRowPrefab, playerListRoot);
+
+            row.KickClicked += HandlePlayerKickRequested;
+            playerRows.Add(row);
+        }
+    }
+
+    private void HandlePlayerKickRequested(ulong clientId)
+    {
+        PlayerKickRequested?.Invoke(clientId);
     }
 
     private void RefreshButtons()

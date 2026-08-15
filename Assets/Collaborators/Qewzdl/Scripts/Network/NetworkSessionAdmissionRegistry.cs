@@ -8,7 +8,8 @@ internal enum NetworkAdmissionStatus
     ProtocolMismatch,
     BuildMismatch,
     DuplicatePlayer,
-    SessionFull
+    SessionFull,
+    Kicked
 }
 
 internal readonly struct NetworkAdmissionResult
@@ -42,6 +43,7 @@ internal sealed class NetworkSessionAdmissionRegistry
         new(StringComparer.Ordinal);
     private readonly Dictionary<ulong, string> activeClientIds = new();
     private readonly Dictionary<ulong, RecentClientRecord> recentClientIds = new();
+    private readonly HashSet<string> kickedPlayerIds = new(StringComparer.Ordinal);
     private readonly List<string> expiredPlayerIds = new();
     private readonly List<ulong> expiredClientIds = new();
 
@@ -115,6 +117,9 @@ internal sealed class NetworkSessionAdmissionRegistry
             return new NetworkAdmissionResult(
                 NetworkAdmissionStatus.BuildMismatch);
         }
+
+        if (kickedPlayerIds.Contains(payload.PlayerId))
+            return new NetworkAdmissionResult(NetworkAdmissionStatus.Kicked);
 
         if (records.TryGetValue(payload.PlayerId, out PlayerRecord existing))
         {
@@ -243,8 +248,26 @@ internal sealed class NetworkSessionAdmissionRegistry
                !record.IsActive;
     }
 
+    // Throwing somebody out has to outlive their connection, or they would
+    // walk straight back in - their reconnect reservation is exactly what a
+    // dropped player uses to return.
+    internal bool Kick(ulong clientId)
+    {
+        PurgeExpired();
+
+        if (!TryGetPlayerId(clientId, out string playerId))
+            return false;
+
+        kickedPlayerIds.Add(playerId);
+        RecordDisconnect(clientId, reserveSlot: false);
+        records.Remove(playerId);
+        recentClientIds.Remove(clientId);
+        return true;
+    }
+
     internal void Reset()
     {
+        kickedPlayerIds.Clear();
         records.Clear();
         activeClientIds.Clear();
         recentClientIds.Clear();

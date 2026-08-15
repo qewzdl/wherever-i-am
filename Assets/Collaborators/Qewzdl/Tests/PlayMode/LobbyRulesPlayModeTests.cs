@@ -100,6 +100,14 @@ internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionServi
         IsAcceptingNewPlayers = accepting;
     }
 
+    internal readonly List<ulong> KickedClientIds = new();
+
+    public bool KickPlayer(ulong clientId)
+    {
+        KickedClientIds.Add(clientId);
+        return true;
+    }
+
     internal void ReconnectAs(ulong previousClientId, ulong newClientId)
     {
         TryGetPlayerId(previousClientId, out string playerId);
