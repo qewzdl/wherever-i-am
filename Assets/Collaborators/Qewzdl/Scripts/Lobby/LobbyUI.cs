@@ -13,12 +13,15 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
     [SerializeField] private Button leaveButton;
+    [SerializeField] private TMP_Text lobbyVisibilityText;
     [SerializeField] private Button lobbyVisibilityButton;
     [SerializeField] private TMP_Text lobbyVisibilityButtonLabel;
     [SerializeField] private TMP_Dropdown difficultyDropdown;
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
+    [SerializeField] private string privateLobbyText = "Private - nobody can join";
+    [SerializeField] private string publicLobbyText = "Public - anybody can join";
     [SerializeField] private string makePublicActionText = "Make public";
     [SerializeField] private string makePrivateActionText = "Make private";
 
@@ -265,6 +268,16 @@ public class LobbyUI : MonoBehaviour
 
             readyButton.interactable = isLobbyPhaseOpen && hasLocalPlayer;
             SetReadyButtonLabel(hasLocalPlayer && localPlayer.IsReady);
+        }
+
+        // Everybody needs to know whether the door is open, not just whoever
+        // can move it - otherwise a player has no way to tell why their friend
+        // cannot get in.
+        if (lobbyVisibilityText != null)
+        {
+            lobbyVisibilityText.text = readService.Settings.IsPublic
+                ? publicLobbyText
+                : privateLobbyText;
         }
 
         // Only the owner decides who may walk in, and only while the lobby is
