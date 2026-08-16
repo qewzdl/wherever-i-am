@@ -13,6 +13,7 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private Button readyButton;
     [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
+    [SerializeField] private TMP_Text startHintText;
     [SerializeField] private Button leaveButton;
     [SerializeField] private TMP_Text lobbyVisibilityText;
     [SerializeField] private Button lobbyVisibilityButton;
@@ -23,6 +24,9 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
     [SerializeField] private string playerCountFormat = "{0}/{1}";
+    [SerializeField] private string needMorePlayersFormat = "Need {0} more to start";
+    [SerializeField] private string waitingForReadyFormat = "Waiting for {0} to get ready";
+    [SerializeField] private string startingText = "Starting the match...";
     [SerializeField] private string ownerOnlySettingText = "Only the host can change this";
     [SerializeField] private string privateLobbyText = "Private - nobody can join";
     [SerializeField] private string publicLobbyText = "Public - anybody can join";
@@ -309,6 +313,8 @@ public class LobbyUI : MonoBehaviour
             SetReadyButtonLabel(hasLocalPlayer && localPlayer.IsReady);
         }
 
+        RefreshStartHint(isLobbyPhaseOpen);
+
         // Everybody needs to know whether the door is open, not just whoever
         // can move it - otherwise a player has no way to tell why their friend
         // cannot get in.
@@ -347,6 +353,49 @@ public class LobbyUI : MonoBehaviour
 
         lobbyVisibilityButtonLabel.text =
             isPublic ? makePrivateActionText : makePublicActionText;
+    }
+
+    // The same reasons the server checks, in the same order, so the line never
+    // claims something the rules do not. Shown to everybody: the players who
+    // are holding the match up are the ones who need to hear it.
+    private void RefreshStartHint(bool isLobbyPhaseOpen)
+    {
+        if (startHintText == null)
+            return;
+
+        if (!isLobbyPhaseOpen)
+        {
+            startHintText.text = startingText;
+            return;
+        }
+
+        LobbySettingsData settings = readService.Settings;
+        int missingPlayers = settings.MinPlayersToStart - readService.PlayerCount;
+
+        if (missingPlayers > 0)
+        {
+            startHintText.text = string.Format(needMorePlayersFormat, missingPlayers);
+            return;
+        }
+
+        int notReadyCount = settings.RequireAllPlayersReady ? CountNotReady() : 0;
+
+        startHintText.text = notReadyCount > 0
+            ? string.Format(waitingForReadyFormat, notReadyCount)
+            : string.Empty;
+    }
+
+    private int CountNotReady()
+    {
+        int notReadyCount = 0;
+
+        for (int i = 0; i < readService.PlayerCount; i++)
+        {
+            if (!readService.GetPlayer(i).IsReady)
+                notReadyCount++;
+        }
+
+        return notReadyCount;
     }
 
     private void CacheReadyButtonLabel()
