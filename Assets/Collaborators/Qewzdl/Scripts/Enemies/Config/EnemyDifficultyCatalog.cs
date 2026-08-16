@@ -18,6 +18,7 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
     {
         [SerializeField] [Min(0)] private int difficultyId;
         [SerializeField] private string displayName;
+        [SerializeField] [TextArea(2, 4)] private string description;
         [SerializeField] private EnemyConfig config;
 
         public EnemyDifficultyEntry(int difficultyId, string displayName, EnemyConfig config)
@@ -25,10 +26,12 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
             this.difficultyId = Mathf.Max(0, difficultyId);
             this.displayName = displayName;
             this.config = config;
+            description = string.Empty;
         }
 
         public int DifficultyId => difficultyId;
         public string DisplayName => displayName;
+        public string Description => description;
         public EnemyConfig Config => config;
     }
 

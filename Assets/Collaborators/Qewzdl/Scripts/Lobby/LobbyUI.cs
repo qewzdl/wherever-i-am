@@ -18,10 +18,12 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private Button lobbyVisibilityButton;
     [SerializeField] private TMP_Text lobbyVisibilityButtonLabel;
     [SerializeField] private TMP_Dropdown difficultyDropdown;
+    [SerializeField] private TMP_Text difficultyDescriptionText;
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
     [SerializeField] private string playerCountFormat = "{0}/{1}";
+    [SerializeField] private string ownerOnlySettingText = "Only the host can change this";
     [SerializeField] private string privateLobbyText = "Private - nobody can join";
     [SerializeField] private string publicLobbyText = "Public - anybody can join";
     [SerializeField] private string makePublicActionText = "Make public";
@@ -29,6 +31,7 @@ public class LobbyUI : MonoBehaviour
 
     private ILobbyReadService readService;
     private int[] difficultyIds = Array.Empty<int>();
+    private string[] difficultyDescriptions = Array.Empty<string>();
     private readonly List<LobbyPlayerRow> playerRows = new List<LobbyPlayerRow>();
 
     public event Action ReadyClicked;
@@ -157,6 +160,7 @@ public class LobbyUI : MonoBehaviour
 
         int count = difficultyCatalog.Count;
         difficultyIds = new int[count];
+        difficultyDescriptions = new string[count];
         List<string> optionLabels = new List<string>(count);
 
         for (int i = 0; i < count; i++)
@@ -169,6 +173,7 @@ public class LobbyUI : MonoBehaviour
             }
 
             difficultyIds[i] = entry.DifficultyId;
+            difficultyDescriptions[i] = entry.Description;
             optionLabels.Add(entry.DisplayName);
         }
 
@@ -183,8 +188,10 @@ public class LobbyUI : MonoBehaviour
         if (difficultyDropdown == null || difficultyIds.Length == 0)
             return;
 
-        difficultyDropdown.interactable =
+        bool canChangeDifficulty =
             readService.Phase == LobbyPhase.Open && readService.IsLocalPlayerRoomOwner;
+
+        difficultyDropdown.interactable = canChangeDifficulty;
 
         int selectedDifficultyId = readService.Settings.DifficultyId;
 
@@ -195,8 +202,27 @@ public class LobbyUI : MonoBehaviour
 
             difficultyDropdown.SetValueWithoutNotify(i);
             difficultyDropdown.RefreshShownValue();
+            SetDifficultyDescription(difficultyDescriptions[i], canChangeDifficulty);
             return;
         }
+    }
+
+    // A greyed out control with no reason given reads as broken rather than as
+    // somebody else's to move, so the reason goes next to the description.
+    private void SetDifficultyDescription(string description, bool canChangeDifficulty)
+    {
+        if (difficultyDescriptionText == null)
+            return;
+
+        if (canChangeDifficulty)
+        {
+            difficultyDescriptionText.text = description;
+            return;
+        }
+
+        difficultyDescriptionText.text = string.IsNullOrWhiteSpace(description)
+            ? ownerOnlySettingText
+            : description + Environment.NewLine + ownerOnlySettingText;
     }
 
     private void RefreshPlayers()
