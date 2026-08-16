@@ -9,6 +9,7 @@ public class LobbyUI : MonoBehaviour
     [Header("UI")]
     [SerializeField] private LobbyPlayerRow playerRowPrefab;
     [SerializeField] private Transform playerListRoot;
+    [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private Button readyButton;
     [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
@@ -20,6 +21,7 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
+    [SerializeField] private string playerCountFormat = "{0}/{1}";
     [SerializeField] private string privateLobbyText = "Private - nobody can join";
     [SerializeField] private string publicLobbyText = "Public - anybody can join";
     [SerializeField] private string makePublicActionText = "Make public";
@@ -199,6 +201,17 @@ public class LobbyUI : MonoBehaviour
 
     private void RefreshPlayers()
     {
+        // Before the rows, and regardless of them: a full lobby is the reason a
+        // friend is turned away, and they find that out at connect time unless
+        // somebody in here can see it coming.
+        if (playerCountText != null)
+        {
+            playerCountText.text = string.Format(
+                playerCountFormat,
+                readService.PlayerCount,
+                readService.Settings.MaxPlayers);
+        }
+
         if (playerRowPrefab == null || playerListRoot == null)
             return;
 
