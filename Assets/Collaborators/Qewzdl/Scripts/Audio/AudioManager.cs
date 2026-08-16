@@ -10,7 +10,6 @@ public class AudioManager : MonoBehaviour, IAudioService
     [SerializeField] private UiSoundManager ui;
     [SerializeField] private GameplaySoundManager gameplay;
 
-    private SettingsServiceComposition settingsComposition;
 
     public MusicManager Music => music;
     public UiSoundManager UI => ui;
@@ -34,17 +33,19 @@ public class AudioManager : MonoBehaviour, IAudioService
         ISettingsService settingsService)
     {
         FindMissingManagers();
-        settingsComposition?.Dispose();
-        settingsComposition = null;
 
-        if (!SettingsServiceComposition.TryCompose(
-                gameObject,
-                settingsService,
-                out settingsComposition))
+        if (music == null || ui == null || gameplay == null)
         {
-            Debug.LogError($"{nameof(AudioManager)} failed to compose settings consumers.", this);
+            Debug.LogError($"{nameof(AudioManager)} is missing a sound manager.", this);
             return false;
         }
+
+        ReleaseSettingsConsumers();
+
+        // Three named managers, all of them fields on this class already.
+        music.Construct(settingsService);
+        ui.Construct(settingsService);
+        gameplay.Construct(settingsService);
 
         SceneAudioDirector director = GetComponentInChildren<SceneAudioDirector>(true);
 
@@ -54,27 +55,24 @@ public class AudioManager : MonoBehaviour, IAudioService
                 $"{nameof(AudioManager)} requires a child {nameof(SceneAudioDirector)}.",
                 this);
 
-            settingsComposition.Dispose();
-            settingsComposition = null;
+            ReleaseSettingsConsumers();
             return false;
         }
 
         director.Construct(this, sceneRegistry);
-        bool valid = music != null && ui != null && gameplay != null;
+        return true;
+    }
 
-        if (!valid)
-        {
-            settingsComposition.Dispose();
-            settingsComposition = null;
-        }
-
-        return valid;
+    private void ReleaseSettingsConsumers()
+    {
+        music?.ReleaseSettingsService();
+        ui?.ReleaseSettingsService();
+        gameplay?.ReleaseSettingsService();
     }
 
     private void OnDestroy()
     {
-        settingsComposition?.Dispose();
-        settingsComposition = null;
+        ReleaseSettingsConsumers();
     }
 
     private void ApplyLowLatencyConfiguration()

@@ -18,7 +18,6 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     [SerializeField] private PlayerUI presentationService;
 
     private IDisposable scopeRegistration;
-    private SettingsServiceComposition settingsComposition;
 
     private void Awake()
     {
@@ -79,21 +78,10 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         if (!createLocalScope)
             return;
 
-        if (SettingsServiceComposition.TryCompose(
-                gameObject,
-                settingsService,
-                out settingsComposition))
-        {
-            return;
-        }
-
-        Debug.LogError(
-            $"{nameof(PlayerScopeLifetime)} failed to compose local player settings consumers.",
-            this);
-        CloseScope();
-        _ = NetworkObjectServiceContext.ReportSessionReadinessFailureAsync(
-            this,
-            "Local player settings composition failed.");
+        // The camera is the only thing on a player that wants settings, and
+        // this class already holds it. Searching the object for whoever might
+        // implement an interface was never anything but a way of not saying so.
+        cameraService.Construct(settingsService);
     }
 
     public override void OnNetworkDespawn()
@@ -109,9 +97,8 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 
     private void CloseScope()
     {
-        SettingsServiceComposition composition = settingsComposition;
-        settingsComposition = null;
-        composition?.Dispose();
+        if (cameraService != null)
+            cameraService.ReleaseSettingsService();
 
         IDisposable registration = scopeRegistration;
         scopeRegistration = null;
