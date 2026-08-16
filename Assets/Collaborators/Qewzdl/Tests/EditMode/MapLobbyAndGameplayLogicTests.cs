@@ -352,6 +352,11 @@ public sealed class MapLobbyAndGameplayLogicTests
         // Nobody to throw out is not an error, just nothing to do.
         Assert.That(registry.Kick(11), Is.False);
 
+        // Whoever announces the disconnect asks once, so the room hears
+        // "removed" instead of "left" - and a later leave is still a leave.
+        Assert.That(registry.WasKicked(9), Is.True);
+        Assert.That(registry.WasKicked(9), Is.False);
+
         // A new session starts with nobody barred.
         registry.Reset();
         Assert.That(

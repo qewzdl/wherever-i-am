@@ -6,4 +6,5 @@ public interface INetworkSessionAdmissionService
     void RecordDisconnect(ulong clientId);
     void SetAcceptingNewPlayers(bool accepting);
     bool KickPlayer(ulong clientId);
+    bool WasKicked(ulong clientId);
 }

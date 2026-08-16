@@ -108,6 +108,11 @@ internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionServi
         return true;
     }
 
+    public bool WasKicked(ulong clientId)
+    {
+        return KickedClientIds.Remove(clientId);
+    }
+
     internal void ReconnectAs(ulong previousClientId, ulong newClientId)
     {
         TryGetPlayerId(previousClientId, out string playerId);

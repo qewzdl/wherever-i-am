@@ -44,6 +44,10 @@ internal sealed class NetworkSessionAdmissionRegistry
     private readonly Dictionary<ulong, string> activeClientIds = new();
     private readonly Dictionary<ulong, RecentClientRecord> recentClientIds = new();
     private readonly HashSet<string> kickedPlayerIds = new(StringComparer.Ordinal);
+
+    // Only until somebody asks: the answer is needed once, by whoever announces
+    // the disconnect that the kick is about to cause.
+    private readonly HashSet<ulong> kickedClientIds = new();
     private readonly List<string> expiredPlayerIds = new();
     private readonly List<ulong> expiredClientIds = new();
 
@@ -259,15 +263,22 @@ internal sealed class NetworkSessionAdmissionRegistry
             return false;
 
         kickedPlayerIds.Add(playerId);
+        kickedClientIds.Add(clientId);
         RecordDisconnect(clientId, reserveSlot: false);
         records.Remove(playerId);
         recentClientIds.Remove(clientId);
         return true;
     }
 
+    internal bool WasKicked(ulong clientId)
+    {
+        return kickedClientIds.Remove(clientId);
+    }
+
     internal void Reset()
     {
         kickedPlayerIds.Clear();
+        kickedClientIds.Clear();
         records.Clear();
         activeClientIds.Clear();
         recentClientIds.Clear();

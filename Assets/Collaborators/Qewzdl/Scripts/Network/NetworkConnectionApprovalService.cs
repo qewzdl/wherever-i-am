@@ -86,6 +86,11 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
         acceptingNewPlayers = accepting;
     }
 
+    public bool WasKicked(ulong clientId)
+    {
+        return admissionRegistry != null && admissionRegistry.WasKicked(clientId);
+    }
+
     // Removing somebody is one act, not two: the session has to forget them
     // and the connection has to go, or a kick lasts until they press join.
     public bool KickPlayer(ulong clientId)

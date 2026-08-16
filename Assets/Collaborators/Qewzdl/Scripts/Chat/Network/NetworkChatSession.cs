@@ -24,6 +24,8 @@ public class NetworkChatSession : NetworkBehaviour,
     [SerializeField] private bool announcePlayerConnections = true;
     [SerializeField] private string playerJoinedMessageFormat = "{0} joined the game.";
     [SerializeField] private string playerLeftMessageFormat = "{0} left the game.";
+    [SerializeField] private string playerKickedMessageFormat =
+        "{0} was removed by the host.";
 
     private readonly Dictionary<ulong, double> lastMessageTimeByClient = new Dictionary<ulong, double>();
     private readonly ChatMessageValidator messageValidator = new ChatMessageValidator();
@@ -549,7 +551,20 @@ public class NetworkChatSession : NetworkBehaviour,
         if (!CanAnnounceConnectionForClient(clientId))
             return;
 
-        AddConnectionSystemMessage(clientId, playerLeftMessageFormat);
+        // Leaving and being thrown out look the same from here, and telling
+        // the room somebody left when the host removed them is the part that
+        // reads as a bug to everyone watching.
+        AddConnectionSystemMessage(
+            clientId,
+            WasKickedFromSession(clientId)
+                ? playerKickedMessageFormat
+                : playerLeftMessageFormat);
+    }
+
+    private bool WasKickedFromSession(ulong clientId)
+    {
+        return G.TryResolve(out INetworkSessionAdmissionService admissionService) &&
+               admissionService.WasKicked(clientId);
     }
 
     private bool CanAnnounceConnectionForClient(ulong clientId)
