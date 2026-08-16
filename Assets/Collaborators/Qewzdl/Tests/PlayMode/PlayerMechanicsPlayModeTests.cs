@@ -1,8 +1,6 @@
-using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 using UnityEngine.UI;
 
 [Category("Gameplay")]
@@ -395,41 +393,6 @@ public sealed class PlayerMechanicsPlayModeTests
         Assert.That(vignette.IsVisible, Is.False);
         Assert.That(vignette.CurrentOpacity, Is.Zero);
         Assert.That(canvas.enabled, Is.False);
-    }
-
-    [UnityTest]
-    public IEnumerator CameraFollow_SnapsAndSwitchesOffsetsForLocalControl()
-    {
-        GameObject target = Track(new GameObject("Camera target"));
-        target.transform.position = new Vector3(2f, 3f, 4f);
-
-        GameObject cameraObject = Track(new GameObject("Follow camera"));
-        cameraObject.SetActive(false);
-        CameraFollow follow = cameraObject.AddComponent<CameraFollow>();
-        PlayModeTestReflection.SetField(follow, "target", target.transform);
-        PlayModeTestReflection.SetField(follow, "positionSmoothTime", 0f);
-        cameraObject.SetActive(true);
-
-        follow.SetLocalControl(true);
-        yield return null;
-
-        Assert.That(
-            Vector3.Distance(
-                cameraObject.transform.position,
-                target.transform.TransformPoint(new Vector3(0f, 0.491f, 0f))),
-            Is.LessThan(0.001f));
-
-        follow.SetCrouching(true);
-        yield return null;
-
-        Assert.That(
-            Vector3.Distance(
-                cameraObject.transform.position,
-                target.transform.TransformPoint(new Vector3(0f, 0.2455f, 0f))),
-            Is.LessThan(0.001f));
-
-        follow.SetLocalControl(false);
-        Assert.That(follow.enabled, Is.False);
     }
 
     private static Transform CreateChild(Transform parent, string name)

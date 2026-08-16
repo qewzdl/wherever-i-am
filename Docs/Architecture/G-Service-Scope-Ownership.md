@@ -35,7 +35,7 @@ Global (ProjectContext: Ready -> Dispose)
 | Global | `IUiSoundService` | `UiSoundManager` | не регистрируется отдельно; доступен через `IAudioService` | вместе с `IAudioService` | только local presentation |
 | Global | `IGameplaySoundService` | `GameplaySoundManager` | не регистрируется отдельно; доступен через `IAudioService` | вместе с `IAudioService` | воспроизводит локальную проекцию подтверждённых gameplay events |
 | Global, read-only | `IGameMapCatalog` | `GameMapCatalog` | bootstrap Compose | unregister при global Dispose; asset остаётся Unity-owned | одинаковая конфигурация должна быть доступна server и clients |
-| Session | `IGameMapSessionService` | `GameMapService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | map selection/load подтверждает server; clients читают результат |
+| Session | `IGameMapSessionService` | `GameMapService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | map selection/load подтверждает server; clients читают результат. Сюда же попадает выбранная в лобби сложность: `SelectDifficulty` вызывает только server, и `SelectedEnemyConfig` читают только серверные враги |
 | Session | `IGameplayNoiseService` | `GameplayNoiseWorldService` | synchronous Session transaction | после NGO stop, до `SessionStopped` | запись и поиск noise events разрешены только server |
 | Session | `ISessionServiceRegistry` | `SessionServiceRegistry` | synchronous Session transaction | вместе с Session scope | read/subscription API для динамических Session contracts; mutable scope не публикуется |
 | Session | `IPlayerScopeRegistry` | `PlayerScopeRegistry` | synchronous Session transaction | `CloseAll` до Session Dispose | read-only registry Player scopes по `NetworkObjectId` на каждом peer |

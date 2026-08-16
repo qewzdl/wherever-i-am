@@ -72,6 +72,9 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.ReadyClicked += HandleReadyClicked;
         lobbyUI.StartGameClicked += HandleStartGameClicked;
         lobbyUI.LeaveLobbyClicked += HandleLeaveLobbyClicked;
+        lobbyUI.DifficultySelected += HandleDifficultySelected;
+        lobbyUI.LobbyVisibilityToggleClicked += HandleLobbyVisibilityToggleClicked;
+        lobbyUI.PlayerKickRequested += HandlePlayerKickRequested;
 
         isSubscribed = true;
     }
@@ -84,6 +87,9 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.ReadyClicked -= HandleReadyClicked;
         lobbyUI.StartGameClicked -= HandleStartGameClicked;
         lobbyUI.LeaveLobbyClicked -= HandleLeaveLobbyClicked;
+        lobbyUI.DifficultySelected -= HandleDifficultySelected;
+        lobbyUI.LobbyVisibilityToggleClicked -= HandleLobbyVisibilityToggleClicked;
+        lobbyUI.PlayerKickRequested -= HandlePlayerKickRequested;
 
         isSubscribed = false;
     }
@@ -114,6 +120,39 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
             return;
 
         commandService.StartGame();
+    }
+
+    private void HandleDifficultySelected(int difficultyId)
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (readService.Phase != LobbyPhase.Open)
+            return;
+
+        commandService.SetDifficulty(difficultyId);
+    }
+
+    private void HandleLobbyVisibilityToggleClicked()
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (readService.Phase != LobbyPhase.Open)
+            return;
+
+        commandService.SetLobbyPublic(!readService.Settings.IsPublic);
+    }
+
+    private void HandlePlayerKickRequested(ulong clientId)
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (readService.Phase != LobbyPhase.Open)
+            return;
+
+        commandService.KickPlayer(clientId);
     }
 
     private void HandleLeaveLobbyClicked()

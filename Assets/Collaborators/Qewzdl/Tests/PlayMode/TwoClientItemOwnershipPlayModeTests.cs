@@ -151,15 +151,37 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
         clientB.Manager.Shutdown(discardMessageQueue: false);
 
+        // Sampled the first frame the release lands, not after the wait
+        // returns. The server puts the item back on its spawn point and makes
+        // it dynamic again in the same step, and nothing in this test world is
+        // holding it up, so it is falling from the next frame on. Reading the
+        // position afterwards measured how many frames the wait happened to
+        // take - fine on its own, past the tolerance with the whole suite
+        // running.
+        bool hasRestoredPosition = false;
+        Vector3 restoredPosition = Vector3.zero;
+
         yield return WaitForCondition(
-            () => !clientB.Manager.IsListening &&
-                  serverItem.OwnerClientId == NetworkManager.ServerClientId &&
-                  !IsPickedUp(serverItem) &&
-                  itemA.OwnerClientId == NetworkManager.ServerClientId,
+            () =>
+            {
+                bool released =
+                    !clientB.Manager.IsListening &&
+                    serverItem.OwnerClientId == NetworkManager.ServerClientId &&
+                    !IsPickedUp(serverItem) &&
+                    itemA.OwnerClientId == NetworkManager.ServerClientId;
+
+                if (released && !hasRestoredPosition)
+                {
+                    hasRestoredPosition = true;
+                    restoredPosition = serverItem.transform.position;
+                }
+
+                return released;
+            },
             "Disconnect did not return the picked item to server ownership.");
 
         Assert.That(
-            Vector3.Distance(serverItem.transform.position, spawnPosition),
+            Vector3.Distance(restoredPosition, spawnPosition),
             Is.LessThan(0.05f));
         Assert.That(serverItem.GetComponent<Rigidbody>().isKinematic, Is.False);
         Assert.That(serverItem.GetComponent<Rigidbody>().useGravity, Is.True);

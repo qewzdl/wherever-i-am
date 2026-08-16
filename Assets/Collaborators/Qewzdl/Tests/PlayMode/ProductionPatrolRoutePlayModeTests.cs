@@ -32,20 +32,38 @@ public sealed class ProductionPatrolRoutePlayModeTests
         Assert.That(mapScene.isLoaded, Is.True);
 
         EnemyPatrolRoute route = null;
-        NetworkEnemyController enemy = null;
+        EnemySpawnPoint spawnPoint = null;
         List<RuntimeNavMeshBuilder> builders = new();
 
         foreach (GameObject root in mapScene.GetRootGameObjects())
         {
             route ??= root.GetComponentInChildren<EnemyPatrolRoute>(true);
-            enemy ??= root.GetComponentInChildren<NetworkEnemyController>(true);
             builders.AddRange(
                 root.GetComponentsInChildren<RuntimeNavMeshBuilder>(true));
+
+            foreach (EnemySpawnPoint candidate in
+                     root.GetComponentsInChildren<EnemySpawnPoint>(true))
+            {
+                if (candidate.EnemyPrefab != null)
+                {
+                    spawnPoint ??= candidate;
+                }
+            }
         }
 
         Assert.That(route, Is.Not.Null);
-        Assert.That(enemy, Is.Not.Null);
         Assert.That(builders, Is.Not.Empty);
+
+        // The map declares its enemy rather than keeping one standing in the
+        // scene, so the prefab named by a spawn point is what has to be able to
+        // walk these legs.
+        Assert.That(
+            spawnPoint,
+            Is.Not.Null,
+            "The production map has a patrol route but no spawn point naming an enemy to " +
+            "walk it. Assign an enemy prefab on an EnemySpawnPoint in the map.");
+
+        NetworkEnemyController enemy = spawnPoint.EnemyPrefab;
 
         foreach (RuntimeNavMeshBuilder builder in builders)
         {

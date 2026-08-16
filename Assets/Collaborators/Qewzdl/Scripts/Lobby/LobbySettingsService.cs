@@ -46,6 +46,42 @@ public class LobbySettingsService
         lobbyState.Settings.Value = settings;
     }
 
+    public void SetLobbyPublic(bool isPublic)
+    {
+        if (!CanChangeSettings())
+            return;
+
+        LobbySettingsData settings = lobbyState.Settings.Value;
+
+        if (settings.IsPublic == isPublic)
+            return;
+
+        settings.IsPublic = isPublic;
+        lobbyState.Settings.Value = settings;
+    }
+
+    public void SetDifficulty(int difficultyId)
+    {
+        if (!CanChangeSettings())
+            return;
+
+        if (!IsValidDifficultyId(difficultyId))
+            return;
+
+        LobbySettingsData settings = lobbyState.Settings.Value;
+        settings.DifficultyId = difficultyId;
+        lobbyState.Settings.Value = settings;
+    }
+
+    private bool IsValidDifficultyId(int difficultyId)
+    {
+        if (lobbyConfig != null && lobbyConfig.IsValidDifficultyId(difficultyId))
+            return true;
+
+        Debug.LogWarning($"Rejected invalid lobby difficulty id: {difficultyId}.");
+        return false;
+    }
+
     private bool IsValidGameModeId(int gameModeId)
     {
         if (lobbyConfig != null && lobbyConfig.IsValidGameModeId(gameModeId))

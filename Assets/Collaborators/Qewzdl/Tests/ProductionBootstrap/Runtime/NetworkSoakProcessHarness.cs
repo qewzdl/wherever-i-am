@@ -493,11 +493,10 @@ internal sealed class NetworkSoakProcessHarness : MonoBehaviour
                 "Objective disconnect fault requires an active production objective.");
         }
 
-        string objectiveId =
-            objective.CurrentObjective.ObjectiveId.ToString();
+        ObjectiveDefinition activeObjective = objective.ActiveObjective;
 
         if (!objective.ReportObjectiveProgressServerOnly(
-                objectiveId,
+                activeObjective,
                 0.1f,
                 networkManager.LocalClientId))
         {
@@ -721,8 +720,7 @@ internal sealed class NetworkSoakProcessHarness : MonoBehaviour
             },
             $"Cycle {cycle}: production objective is unavailable.");
 
-        string objectiveId =
-            objective.CurrentObjective.ObjectiveId.ToString();
+        ObjectiveDefinition activeObjective = objective.ActiveObjective;
         float targetProgress = Mathf.Max(
             objective.CurrentObjective.Progress01,
             0.25f);
@@ -731,7 +729,7 @@ internal sealed class NetworkSoakProcessHarness : MonoBehaviour
                 objective.CurrentObjective.Progress01,
                 targetProgress) &&
             !objective.ReportObjectiveProgressServerOnly(
-                objectiveId,
+                activeObjective,
                 targetProgress,
                 networkManager.LocalClientId))
         {

@@ -9,6 +9,22 @@ public sealed class EnemyBlackboard
     public EnemyPerceptionMemory PerceptionMemory { get; } = new();
     public EnemyInvestigationMemory InvestigationMemory { get; } = new();
 
+    // Shared by Stalk, Retreat, Flank and Ambush, which are one behaviour in
+    // four parts. Held here rather than in any one of them so the target,
+    // the pose being planned against and the overall deadline survive a phase
+    // change instead of being reset by it.
+    public EnemyStealthManeuver StealthManeuver { get; } = new();
+
+    // What the enemy has learned about this pursuit, as opposed to about this
+    // attempt. Outlives the manoeuvre above on purpose: a manoeuvre is thrown
+    // away every time the enemy drops out of the stealth states, so nothing
+    // that lives there can count how many times sneaking has been tried.
+    //
+    // Server only, like everything else here. No new NetworkVariable: clients
+    // see the outcome through EnemyState, the target identity and the attack
+    // phase they already replicate.
+    public EnemyEngagementTacticsRuntime EngagementTactics { get; } = new();
+
     public EnemyInvestigationDebugData InvestigationDebugData
     {
         get
@@ -97,6 +113,8 @@ public sealed class EnemyBlackboard
         TargetMemory.ClearAll();
         PerceptionMemory.ClearAll();
         InvestigationMemory.ClearAll();
+        StealthManeuver.End();
+        EngagementTactics.Clear();
         investigationDebugData?.Clear();
     }
 }

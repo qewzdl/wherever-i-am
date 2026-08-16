@@ -62,6 +62,16 @@ public abstract class ObjectiveReporterBase : MonoBehaviour
         return objectiveBinding.TryCompleteServerOnly(instigatorClientId);
     }
 
+    protected bool Fail(ulong instigatorClientId = 0)
+    {
+        if (!CanReportObjective("fail objective"))
+        {
+            return false;
+        }
+
+        return objectiveBinding.TryFailServerOnly(instigatorClientId);
+    }
+
     protected void ResolveObjectiveBinding()
     {
         if (objectiveBinding != null)
@@ -98,9 +108,9 @@ public abstract class ObjectiveReporterBase : MonoBehaviour
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(objectiveBinding.ObjectiveId))
+        if (objectiveBinding.Objective == null)
         {
-            Debug.LogError($"{GetType().Name} cannot {action}: objective id is empty.", this);
+            Debug.LogError($"{GetType().Name} cannot {action}: the binding has no objective.", this);
             return false;
         }
 

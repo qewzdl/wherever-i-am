@@ -1,18 +1,25 @@
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;
 
-// Breaks off once it has been noticed. Backs away from the target until it is
-// no longer in anyone's view, then hands back to stalking to come round from
+// Breaks off once it has been noticed. Backs away from everyone watching until
+// it is out of sight, then hands back to flanking to come round from
 // somewhere else.
+//
+// Backs away from everyone, not from its target. The state used to plan
+// against the one pose it had observed, so an enemy spotted by a second player
+// retreated relative to the first - which in a shared room is a route towards
+// the person who had just noticed it.
 public sealed class EnemyRetreatState : IEnemyStateHandler
 {
-    private const float RepathInterval = 0.4f;
-    private const float ArrivalDistance = 1.2f;
-
     private readonly EnemyBrainContext context;
+    private readonly EnemyRetreatPlanner planner;
+    private readonly List<Vector3> threats = new();
 
     private float repathTimer;
     private float unseenTimer;
+    private float giveUpTimer;
+    private float noEscapeTimer;
+    private bool hasNoEscape;
     private Vector3 retreatPoint;
     private bool hasRetreatPoint;
 
@@ -21,32 +28,53 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
     public EnemyRetreatState(EnemyBrainContext context)
     {
         this.context = context;
+        planner = new EnemyRetreatPlanner(context);
     }
 
     public void Enter()
     {
         repathTimer = 0f;
         unseenTimer = 0f;
+        giveUpTimer = 0f;
+        noEscapeTimer = 0f;
+        hasNoEscape = false;
         hasRetreatPoint = false;
+        planner.Restart();
     }
 
     public void Tick(float deltaTime)
     {
-        Vector3 selfPosition = context.Navigator.Position;
-
-        // Deliberately does not need a live target. Breaking sight is this
-        // state's entire job, so the target is lost partway through almost
-        // every time - requiring it meant the retreat abandoned itself and
-        // went off to search instead of finishing and going round.
-        if (!PlayerGazeNetwork.TryGetNearest(
-                selfPosition,
-                out PlayerGazeNetwork player))
+        // Breaking sight is this state's job, so it continues from the
+        // manoeuvre's own observation. Looking up the nearest live player here
+        // transfers the retreat to an unrelated client when the original
+        // target hides or disconnects.
+        if (!context.TryContinueManeuver(
+                out EnemyTargetObservation targetObservation))
         {
-            context.ChangeState(EnemyState.Investigate);
             return;
         }
 
-        if (PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
+        Vector3 selfPosition = context.Navigator.Position;
+        EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
+
+        giveUpTimer += deltaTime;
+
+        // Backing off only works if there is somewhere out of sight to back
+        // off to. In a lit open room with several players there is not, and
+        // without this the enemy shuffled between fallback points for as long
+        // as anyone kept looking at it - the state had no ending that did not
+        // depend on the players' behaviour. Giving up and coming at them is
+        // the same answer the flank reaches for the same reason.
+        if (giveUpTimer >= context.Config.retreatTimeout)
+        {
+            context.GiveUpOnStealth(EnemyStealthFailureReason.Timeout);
+            return;
+        }
+
+        IReadOnlyList<PlayerWatcher> watchers = context.GetWatchers();
+        CollectThreats(watchers, targetObservation.Position);
+
+        if (watchers.Count > 0)
         {
             unseenTimer = 0f;
         }
@@ -58,9 +86,43 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
             // back to watching: returning to stalking made a closed loop -
             // watch, be seen, back off, watch again - which is what the first
             // build did, seven times over, and it reads as aimless wandering.
+            //
+            // Only if the pursuit has an attempt left in it. Handing over
+            // regardless let Flank enter, count the attempt it cannot have and
+            // give up on its first tick, which clients saw as a frame of
+            // flanking that never happened.
             if (unseenTimer >= context.Config.retreatBrokenSightDuration)
             {
-                context.ChangeState(EnemyState.Flank);
+                if (context.EngagementTactics.CanStartAnotherStealthAttempt(
+                        tactics.maxStealthAttemptsPerEngagement))
+                {
+                    context.ChangeState(EnemyState.Flank);
+                    return;
+                }
+
+                context.GiveUpOnStealth(
+                    EnemyStealthFailureReason.AttemptsSpent
+                );
+
+                return;
+            }
+        }
+
+        // The room has already been searched once with nothing out of sight in
+        // it. Rooms do change - a door opens, the watcher walks on - so this
+        // keeps trying, but only for a couple of seconds. Spending the whole
+        // retreat timeout recomputing the same fan is what made an enemy with
+        // nowhere to go shuffle in the open for eight seconds.
+        //
+        // Checked after the sighting has had its chance to break, because
+        // getting away is the outcome this state wants and giving up is not.
+        if (hasNoEscape)
+        {
+            noEscapeTimer += deltaTime;
+
+            if (noEscapeTimer >= tactics.noEscapeTimeout)
+            {
+                context.GiveUpOnStealth(EnemyStealthFailureReason.NoEscape);
                 return;
             }
         }
@@ -72,137 +134,189 @@ public sealed class EnemyRetreatState : IEnemyStateHandler
             return;
         }
 
-        repathTimer = RepathInterval;
+        repathTimer = tactics.retreatRepathInterval;
+
+        // At least one path query per candidate, because a candidate is only
+        // good if the complete posture-aware route to it is.
+        int candidateCount = Mathf.Clamp(
+            tactics.candidatesPerTick,
+            1,
+            tactics.retreatAngles.Length * tactics.retreatDistanceScales.Length
+        );
+
+        // Three spare paths make four available even with one candidate: the
+        // expensive posture route is standing, crawl reference, standing
+        // waypoint and crawl continuation. Longer scans resume next frame.
+        if (!context.TryReservePlanningQueries(
+                candidateCount + 3,
+                candidateCount + 1,
+                out int pathBudget,
+                out int visibilityBudget))
+        {
+            // Refused the budget, so the point in hand has not been checked
+            // against where the watchers are standing now - and they are the
+            // reason this state exists. Being refused is ordinary with several
+            // enemies about, so this is the common case, not the corner: keep
+            // the point, retry next frame, but do not walk on a verdict from
+            // the last one.
+            repathTimer = 0f;
+            context.StopNavigation();
+            return;
+        }
 
         // Keep the spot once it is chosen. Picking again every repath meant a
         // different corner of the fan each time, and the enemy walked a
         // circuit around the player instead of leaving.
-        Vector3 playerPosition = player.transform.position;
-
         if (hasRetreatPoint &&
-            Vector3.Distance(selfPosition, retreatPoint) > ArrivalDistance &&
-            // The point was chosen against where they stood then. They move,
-            // and a spot that led away a moment ago can lead straight back
-            // past them.
-            !EnemyStateRules.ClosesOnWatcher(
-                selfPosition,
-                retreatPoint,
-                playerPosition) &&
-            !PlayerGazeNetwork.IsBodySeenByAnyone(
-                retreatPoint,
-                context.Navigator.BodyHeight))
+            Vector3.Distance(selfPosition, retreatPoint) >
+            tactics.arrivalDistance)
         {
-            context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
-            return;
+            switch (CheckRetreatPoint(
+                        ref pathBudget,
+                        ref visibilityBudget))
+            {
+                case EnemyTacticalPlanResult.Found:
+                    context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+                    return;
+
+                // It leads back past somebody now, or nowhere at all. Drop it
+                // here rather than leaving it for the search below to hand
+                // back when the search itself runs out of budget.
+                case EnemyTacticalPlanResult.NotFound:
+                    hasRetreatPoint = false;
+                    break;
+
+                // Nothing left to check it with. It may well still be good, so
+                // it is kept - but walking on an unchecked verdict is what
+                // this state exists to avoid.
+                default:
+                    repathTimer = 0f;
+                    context.StopNavigation();
+                    return;
+            }
         }
 
-        hasRetreatPoint = TryFindRetreatPoint(
-            selfPosition,
-            playerPosition,
-            out retreatPoint);
-
-        if (hasRetreatPoint)
+        switch (planner.TryFindRetreatPoint(
+                    selfPosition,
+                    threats,
+                    ref pathBudget,
+                    ref visibilityBudget,
+                    out Vector3 nextRetreatPoint))
         {
-            context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
-            return;
-        }
+            case EnemyStealthPlanOutcome.FoundHiddenRoute:
+                retreatPoint = nextRetreatPoint;
+                hasRetreatPoint = true;
+                hasNoEscape = false;
+                noEscapeTimer = 0f;
+                context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+                return;
 
-        // Nothing to move to that leads away. Standing still beats walking in
-        // the one direction this state exists to avoid.
-        context.StopNavigation();
+            // Half a fan searched. Anything still held got here either checked
+            // or already underfoot, so it is kept and the search finishes next
+            // tick rather than being thrown away and started again.
+            case EnemyStealthPlanOutcome.DeferredByBudget:
+                repathTimer = 0f;
+                KeepMovingOrStop();
+                return;
+
+            // A whole fan searched and nowhere in it is out of sight. Worth
+            // walking to anyway - it is further off - but the room has no
+            // cover in it, and recomputing the same fan for the whole retreat
+            // timeout is eight seconds of shuffling in the open. Give it a
+            // couple of seconds, then stop pretending to sneak.
+            case EnemyStealthPlanOutcome.AllRoutesObserved:
+                retreatPoint = nextRetreatPoint;
+                hasRetreatPoint = true;
+                hasNoEscape = true;
+                context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+                return;
+
+            default:
+                hasRetreatPoint = false;
+                hasNoEscape = true;
+
+                // Nothing to move to that leads away. Standing still beats
+                // walking in the one direction this state exists to avoid.
+                context.StopNavigation();
+                return;
+        }
     }
 
     public void Exit()
     {
         repathTimer = 0f;
         unseenTimer = 0f;
+        giveUpTimer = 0f;
         hasRetreatPoint = false;
+        planner.Restart();
     }
 
-    // Straight away from someone looking at you keeps you dead centre in
-    // their view the whole way - which is why the first build appeared to
-    // hide in plain sight. Sideways is what actually leaves a cone, so the
-    // lateral options are tried first and a candidate the player can still
-    // see is not a retreat at all.
-    private bool TryFindRetreatPoint(
-        Vector3 selfPosition,
-        Vector3 targetPosition,
-        out Vector3 retreatPoint
+    // Everyone currently looking. When nobody is - the sighting has passed but
+    // sight has not been broken for long enough yet - the target's last
+    // observed pose stands in, so the enemy keeps leaving rather than stopping
+    // dead for a second and a half.
+    private void CollectThreats(
+        IReadOnlyList<PlayerWatcher> watchers,
+        Vector3 observedTargetPosition
     )
     {
-        Vector3 away = selfPosition - targetPosition;
-        away.y = 0f;
+        threats.Clear();
 
-        // Standing exactly on the target is not a direction; anywhere will do.
-        if (away.sqrMagnitude < 0.01f)
+        for (int i = 0; i < watchers.Count; i++)
         {
-            away = Vector3.forward;
+            threats.Add(watchers[i].Position);
         }
 
-        away.Normalize();
-
-        float preferred = context.Config.retreatDistance;
-        float bodyHeight = context.Navigator.BodyHeight;
-        bool hasFallback = false;
-        Vector3 fallback = default;
-
-        for (int r = 0; r < DistanceScales.Length; r++)
+        if (threats.Count == 0)
         {
-            float distance = preferred * DistanceScales[r];
-
-            for (int i = 0; i < RetreatAngles.Length; i++)
-            {
-                Vector3 direction =
-                    Quaternion.Euler(0f, RetreatAngles[i], 0f) * away;
-
-                if (!NavMesh.SamplePosition(
-                        selfPosition + direction * distance,
-                        out NavMeshHit hit,
-                        distance * 0.5f,
-                        NavMesh.AllAreas))
-                {
-                    continue;
-                }
-
-                // The wide angles swing round the target rather than away
-                // from it, and at this state's distances they can finish on
-                // the far side - further off than they started, having walked
-                // right through the target on the way. A retreat that passes
-                // closer than the gap it started with is not a retreat.
-                if (EnemyStateRules.ClosesOnWatcher(
-                        selfPosition,
-                        hit.position,
-                        targetPosition))
-                {
-                    continue;
-                }
-
-                if (!PlayerGazeNetwork.IsBodySeenByAnyone(hit.position, bodyHeight))
-                {
-                    retreatPoint = hit.position;
-                    return true;
-                }
-
-                // Nowhere out of sight yet. Remember the first reachable spot
-                // so the enemy keeps moving instead of standing in the open
-                // waiting for a perfect answer that this room may not have.
-                if (!hasFallback)
-                {
-                    hasFallback = true;
-                    fallback = hit.position;
-                }
-            }
+            threats.Add(observedTargetPosition);
         }
-
-        retreatPoint = fallback;
-        return hasFallback;
     }
 
-    // Sideways before backwards. Leaving a hundred and twenty degree cone is
-    // a matter of getting out of its edge, and walking straight back does not
-    // do that at any distance.
-    private static readonly float[] RetreatAngles =
-        { -90f, 90f, -135f, 135f, -45f, 45f, 0f };
+    private void KeepMovingOrStop()
+    {
+        if (hasRetreatPoint)
+        {
+            context.TryMoveTo(retreatPoint, context.Config.chaseSpeed);
+            return;
+        }
 
-    private static readonly float[] DistanceScales = { 1f, 0.6f, 0.35f };
+        context.StopNavigation();
+    }
+
+    // Whether the point already held is still worth walking to: reachable by a
+    // route that leads away, and out of sight when the enemy gets there. Both
+    // halves can come back unanswered for want of budget, and unanswered is
+    // its own verdict rather than a refusal.
+    private EnemyTacticalPlanResult CheckRetreatPoint(
+        ref int pathBudget,
+        ref int visibilityBudget
+    )
+    {
+        EnemyTacticalPlanResult leaving = planner.CheckPointStillLeaving(
+            retreatPoint,
+            threats,
+            ref pathBudget,
+            out EnemyTacticalRoute route
+        );
+
+        if (leaving != EnemyTacticalPlanResult.Found)
+        {
+            return leaving;
+        }
+
+        if (visibilityBudget <= 0 || route == null)
+        {
+            return EnemyTacticalPlanResult.Deferred;
+        }
+
+        retreatPoint = route.Endpoint;
+        visibilityBudget--;
+
+        return PlayerGazeNetwork.IsBodySeenByAnyone(
+                   retreatPoint,
+                   route.EndpointBodyHeight)
+            ? EnemyTacticalPlanResult.NotFound
+            : EnemyTacticalPlanResult.Found;
+    }
 }

@@ -89,10 +89,10 @@ public sealed class MultiplayerBootstrapScenarioProbe : MonoBehaviour
         if (failed)
             yield break;
 
-        string objectiveId = objectiveFlow.CurrentObjective.ObjectiveId.ToString();
+        ObjectiveDefinition activeObjective = objectiveFlow.ActiveObjective;
 
         if (!objectiveFlow.ReportObjectiveProgressServerOnly(
-                objectiveId,
+                activeObjective,
                 0.5f,
                 networkManager.LocalClientId) ||
             !Mathf.Approximately(
@@ -129,7 +129,7 @@ public sealed class MultiplayerBootstrapScenarioProbe : MonoBehaviour
         gameFlow.MatchResolved += _ => matchResolvedCount++;
 
         if (!objectiveFlow.CompleteObjectiveServerOnly(
-                objectiveId,
+                activeObjective,
                 networkManager.LocalClientId))
         {
             ReportFailure("Host could not complete the active objective.");
@@ -148,7 +148,7 @@ public sealed class MultiplayerBootstrapScenarioProbe : MonoBehaviour
 
         bool duplicateCompletionAccepted =
             objectiveFlow.CompleteObjectiveServerOnly(
-                objectiveId,
+                activeObjective,
                 networkManager.LocalClientId);
 
         if (duplicateCompletionAccepted || matchResolvedCount != 1)

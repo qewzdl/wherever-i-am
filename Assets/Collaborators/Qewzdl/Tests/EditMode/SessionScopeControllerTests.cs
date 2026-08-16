@@ -55,6 +55,10 @@ public sealed class SessionScopeControllerTests
         public void SubmitMessage(string text)
         {
         }
+
+        public void AddSystemMessage(string text)
+        {
+        }
     }
 
     private sealed class ReplicatedPlayerServiceStub : IReplicatedPlayerStateService
@@ -93,6 +97,9 @@ public sealed class SessionScopeControllerTests
         {
             return matchResult.HasResult;
         }
+
+        public GameResultData CurrentResult => GameResultData.None;
+        public event Action<GameResultData> MatchResolved { add { } remove { } }
     }
 
     private sealed class GameMapSessionServiceStub : IGameMapSessionService
@@ -102,6 +109,7 @@ public sealed class SessionScopeControllerTests
         public GameMapDefinition ActiveMap => null;
         public GameMapRoot ActiveMapRoot => null;
         public bool IsReadyForMatch => false;
+        public EnemyConfig SelectedEnemyConfig => null;
 
         public event Action MapReady
         {
@@ -110,6 +118,11 @@ public sealed class SessionScopeControllerTests
         }
 
         public bool SelectMap(int mapId)
+        {
+            return false;
+        }
+
+        public bool SelectDifficulty(int difficultyId)
         {
             return false;
         }
@@ -150,6 +163,7 @@ public sealed class SessionScopeControllerTests
         public bool TryFindBestNoise(
             Vector3 listenerPosition,
             float hearingRadius,
+            float hearingSensitivity,
             float memoryDuration,
             float minimumLoudness,
             out GameplayNoiseEvent bestNoise,

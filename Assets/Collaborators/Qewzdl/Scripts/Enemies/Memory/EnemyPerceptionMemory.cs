@@ -3,6 +3,8 @@ using UnityEngine;
 public sealed class EnemyPerceptionMemory
 {
     private EnemyTarget visualMemoryTarget;
+    private Vector3 visualMemoryFrozenPosition;
+    private bool visualMemoryTracksLiveTarget = true;
 
     public EnemyPerceptionStimulus CurrentStimulus { get; private set; } = EnemyPerceptionStimulus.None;
 
@@ -38,12 +40,21 @@ public sealed class EnemyPerceptionMemory
         CurrentStimulus = EnemyPerceptionStimulus.None;
     }
 
-    public bool TryStartVisualMemoryGracePeriod(EnemyTarget target, float duration)
+    // trackLiveTargetPosition decides what the grace period is worth: following
+    // the target through walls, or holding the spot where it was last seen.
+    // See GetTargetPosition for which one the game is built around.
+    public bool TryStartVisualMemoryGracePeriod(
+        EnemyTarget target,
+        float duration,
+        bool trackLiveTargetPosition = true
+    )
     {
         if (target == null || duration <= 0f)
         {
             return false;
         }
+
+        visualMemoryTracksLiveTarget = trackLiveTargetPosition;
 
         if (IsUsingVisualMemory && visualMemoryTarget == target)
         {
@@ -53,6 +64,10 @@ public sealed class EnemyPerceptionMemory
         visualMemoryTarget = target;
         IsUsingVisualMemory = true;
         VisualMemoryTimeRemaining = duration;
+
+        // Taken once, here, because this is the moment sight was lost. Sampling
+        // it later would just be the live position under another name.
+        visualMemoryFrozenPosition = GetLiveTargetPosition(target);
 
         return true;
     }
@@ -108,6 +123,7 @@ public sealed class EnemyPerceptionMemory
         visualMemoryTarget = null;
         IsUsingVisualMemory = false;
         VisualMemoryTimeRemaining = 0f;
+        visualMemoryFrozenPosition = default;
     }
 
     public void ClearAll()
@@ -124,14 +140,32 @@ public sealed class EnemyPerceptionMemory
         return target != null && target.IsValidNetworkTarget;
     }
 
-    // Deliberate: this hands out the target's live position, not the position
+    // By default this hands out the target's live position, not the position
     // where it was last seen. For visualTargetMemoryDuration after line of
     // sight breaks, Chase and Attack therefore track the target exactly,
     // through walls. That is the intended feel - the grace period doubles as
-    // the window in which the enemy cannot be shaken off - so do not "fix" it
-    // into a frozen last-known point. The balance dial is
-    // visualTargetMemoryDuration on EnemyVisionConfig, not this method.
+    // the window in which the enemy cannot be shaken off - and it is still the
+    // default, so turning it off changes how hard the enemy is to lose.
+    //
+    // visualMemoryTracksLiveTarget on EnemyVisionConfig switches to the honest
+    // reading: hold the point where sight broke and let the player leave it.
+    // The length of either behaviour is visualTargetMemoryDuration.
     private Vector3 GetTargetPosition(EnemyTarget target)
+    {
+        if (target == null)
+        {
+            return default;
+        }
+
+        if (!visualMemoryTracksLiveTarget)
+        {
+            return visualMemoryFrozenPosition;
+        }
+
+        return GetLiveTargetPosition(target);
+    }
+
+    private static Vector3 GetLiveTargetPosition(EnemyTarget target)
     {
         if (target == null)
         {

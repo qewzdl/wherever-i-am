@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;
 
 // Walks round to stand behind the target while it is not looking.
 //
@@ -8,43 +7,48 @@ using UnityEngine.AI;
 // to be somewhere the player cannot see, and an enemy the player cannot see
 // usually cannot see the player either - the state machine log for the first
 // build is full of the target being lost every few seconds. Losing it here is
-// expected, so the destination is worked out from the player's position and
-// facing at the moment it is needed, not from the enemy's own memory.
+// expected, so the destination uses the pose the manoeuvre observed for its
+// own target. It must not silently start flanking whichever other player
+// happens to be nearest, which is what a perception refresh used to be able to
+// make it do.
+//
+// Transitions and driving the plan only. Choosing the point is
+// EnemyFlankPlanner's job.
 public sealed class EnemyFlankState : IEnemyStateHandler
 {
-    private const float RepathInterval = 0.5f;
-    private const float ArrivalDistance = 1.2f;
-
-    private const float RouteSampleSpacing = 1.5f;
-    // Spent across the whole search rather than per candidate. Twenty one
-    // candidates each walking a long route is thousands of raycasts twice a
-    // second, and the worst case lands exactly when the enemy is stuck and
-    // repathing hardest.
-    private const int RouteSampleBudget = 120;
-
-    // Two enemies both work out "behind the player, three and a half metres"
-    // and walk into each other. Whoever gets there first holds the spot; the
-    // other is pushed on to the next candidate in the fan.
-    private const float ClaimSpacing = 2f;
-
-    private static readonly Dictionary<EnemyFlankState, Vector3> ClaimedPoints =
-        new();
-
     private readonly EnemyBrainContext context;
-    private readonly NavMeshPath routePath = new();
+    private readonly EnemyFlankPlanner planner;
 
     private Vector3 flankPoint;
     private bool hasFlankPoint;
     private float repathTimer;
     private float giveUpTimer;
     private float seenTimer;
-    private bool mirrorSides;
+
+    // Where the enemy stood the first frame of a sighting, which is the place
+    // worth remembering: by the time the sighting has lasted long enough to
+    // break off, the enemy has walked further into view.
+    private Vector3 firstSeenPosition;
+    private bool hasFirstSeenPosition;
+
+    // Waiting out a room where every way round is being watched, rather than
+    // walking a watched route and calling it a flank.
+    private bool holdingForOpening;
+    private float noOpeningTimer;
+    private EnemyStealthFailureReason noOpeningReason;
+
+    // What the players were doing when the last search ran. A search whose
+    // inputs have not moved gives the same answer, so it is worth repeating
+    // only when they have - or now and then, in case something the signature
+    // does not cover has changed.
+    private int lastGazeSignature;
 
     public EnemyState State => EnemyState.Flank;
 
     public EnemyFlankState(EnemyBrainContext context)
     {
         this.context = context;
+        planner = new EnemyFlankPlanner(context);
     }
 
     public void Enter()
@@ -53,48 +57,89 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         repathTimer = 0f;
         giveUpTimer = 0f;
         seenTimer = 0f;
+        hasFirstSeenPosition = false;
+        holdingForOpening = false;
+        noOpeningTimer = 0f;
+        noOpeningReason = EnemyStealthFailureReason.None;
+        lastGazeSignature = context.GetRelevantGazeTopologySignature();
 
-        // Swap which way round the fan is tried on every attempt. The
-        // order used to be fixed, so an approach that failed on the left
-        // was retried on the left, and the enemy kept walking into the
-        // same blocked corner.
-        mirrorSides = !mirrorSides;
+        EnemyEngagementTacticsRuntime engagement = context.EngagementTactics;
+
+        // Coming round is the attempt. Counted here, where it starts, so a
+        // Retreat handing back to a Flank is visible as a second try rather
+        // than as more of the first one.
+        engagement.NoteStealthAttempt();
+
+        // Which way round to go. Alternating sides was only ever a guess at
+        // "somewhere other than last time"; once the engagement knows which
+        // side the last attempt was caught on, it is not a guess.
+        if (engagement.HasSidePreference)
+        {
+            planner.RestartFacing(engagement.PrefersMirroredFan);
+            return;
+        }
+
+        planner.Restart();
     }
 
     public void Tick(float deltaTime)
     {
-        if (!PlayerGazeNetwork.TryGetNearest(
-                context.Navigator.Position,
-                out PlayerGazeNetwork player))
+        if (!context.TryContinueManeuver(
+                out EnemyTargetObservation targetObservation))
         {
-            context.ChangeState(EnemyState.Investigate);
+            return;
+        }
+
+        EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
+        EnemyEngagementTacticsRuntime engagement = context.EngagementTactics;
+
+        // What was learned about the corridors behind the target is about the
+        // pose it had. Once it has walked off or turned round, they are
+        // different corridors and the history is in the way.
+        engagement.ForgetFailedRoutesIfTargetMoved(
+            targetObservation.Position,
+            targetObservation.Forward
+        );
+
+        // Sneaking has had its go against this person. The count survives
+        // Retreat and Chase, which is the whole reason it lives on the
+        // engagement rather than on the manoeuvre.
+        if (engagement.HasSpentStealthAttempts(
+                tactics.maxStealthAttemptsPerEngagement))
+        {
+            context.GiveUpOnStealth(EnemyStealthFailureReason.AttemptsSpent);
             return;
         }
 
         Vector3 selfPosition = context.Navigator.Position;
+        IReadOnlyList<PlayerWatcher> watchers = context.GetWatchers();
+        bool isSeen = watchers.Count > 0;
 
         // Spotted on the way round. Break off and try again from somewhere
         // else rather than walking the rest of the way in full view - but not
         // on a single frame of it. Crossing a doorway puts the enemy in view
         // for an instant, and treating that as being caught threw away the
         // whole approach every few metres.
-        bool isSeen = PlayerGazeNetwork.IsBodySeenByAnyone(
-            selfPosition,
-            context.Navigator.BodyHeight);
-
         if (isSeen)
         {
+            if (!hasFirstSeenPosition)
+            {
+                firstSeenPosition = selfPosition;
+                hasFirstSeenPosition = true;
+            }
+
             seenTimer += deltaTime;
 
-            if (seenTimer >= context.Config.stalkNoticedDuration)
+            if (seenTimer >= tactics.stalkNoticedDuration)
             {
-                context.ChangeState(EnemyState.Retreat);
+                BreakOffAfterBeingSeen(targetObservation, tactics, engagement);
                 return;
             }
         }
         else
         {
             seenTimer = 0f;
+            hasFirstSeenPosition = false;
         }
 
         giveUpTimer += deltaTime;
@@ -103,31 +148,66 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         // watching restarted the whole sequence - watch, be seen, break off,
         // fail to get round, watch again - which is the loop the log showed
         // running until the player walked away.
-        if (giveUpTimer >= context.Config.flankTimeout)
+        if (giveUpTimer >= tactics.flankTimeout)
         {
-            context.ChangeState(EnemyState.Chase);
+            context.GiveUpOnStealth(EnemyStealthFailureReason.Timeout);
             return;
+        }
+
+        // The searches below are expensive and their answer only changes when
+        // somebody moves or looks somewhere else. A change in the room is
+        // therefore what makes one worth repeating, rather than a timer.
+        int gazeSignature = context.GetRelevantGazeTopologySignature(
+            targetObservation.Position
+        );
+
+        if (gazeSignature != lastGazeSignature)
+        {
+            lastGazeSignature = gazeSignature;
+            repathTimer = 0f;
         }
 
         repathTimer -= deltaTime;
 
-        if (!hasFlankPoint || repathTimer <= 0f)
+        // Sitting tight because there was nowhere hidden to go. The player can
+        // hold this for a few seconds by watching the ways round; they cannot
+        // hold it forever, and that is the deal.
+        if (holdingForOpening)
         {
-            repathTimer = RepathInterval;
-            hasFlankPoint =
-                TryFindPointBehind(player, selfPosition, out flankPoint);
+            noOpeningTimer += deltaTime;
+
+            if (noOpeningTimer >= tactics.noOpeningWaitDuration)
+            {
+                context.GiveUpOnStealth(noOpeningReason);
+                return;
+            }
         }
 
-        // Nowhere behind them to stand, by either standard. Sneaking is off,
-        // so the honest answer is to come at them rather than go back and
-        // start the same failing sequence again.
+        // Whatever the reservation below grants and the search leaves unspent.
+        // Reserved queries are a claim on this frame, so the leftovers live and
+        // die with this tick rather than being carried.
+        int pathBudget = 0;
+
+        if ((!hasFlankPoint && !holdingForOpening) || repathTimer <= 0f)
+        {
+            if (!TryPlanFlankPoint(
+                    targetObservation,
+                    selfPosition,
+                    isSeen,
+                    deltaTime,
+                    ref pathBudget))
+            {
+                return;
+            }
+        }
+
         if (!hasFlankPoint)
         {
-            context.ChangeState(EnemyState.Chase);
             return;
         }
 
-        if (Vector3.Distance(selfPosition, flankPoint) <= ArrivalDistance)
+        if (Vector3.Distance(selfPosition, flankPoint) <=
+            tactics.arrivalDistance)
         {
             context.ChangeState(EnemyState.Ambush);
             return;
@@ -136,13 +216,13 @@ public sealed class EnemyFlankState : IEnemyStateHandler
         // Caught partway round. The route is allowed to be seen for stretches
         // of it - insisting otherwise found nothing in a real level - but
         // walking at someone while they are looking straight at you is not a
-        // flank, it is a charge. Wait them out; either the sighting passes or
-        // the timer above hands this to the retreat.
+        // flank, it is a charge. Judged along the route the agent will take,
+        // because the straight line to a point behind somebody says nothing
+        // about a NavMesh route that goes round the other way. Wait them out;
+        // either the sighting passes or the timer above hands this to the
+        // retreat.
         if (isSeen &&
-            EnemyStateRules.ClosesOnWatcher(
-                selfPosition,
-                flankPoint,
-                player.transform.position))
+            RouteWalksIntoAWatcher(selfPosition, watchers, ref pathBudget))
         {
             context.StopNavigation();
             return;
@@ -154,169 +234,262 @@ public sealed class EnemyFlankState : IEnemyStateHandler
     public void Exit()
     {
         hasFlankPoint = false;
-        ClaimedPoints.Remove(this);
+        holdingForOpening = false;
+        noOpeningTimer = 0f;
+        planner.ReleaseClaim();
     }
 
-    private bool IsClaimedByAnotherEnemy(Vector3 candidate)
+    // Seen for long enough to count. The route that got the enemy noticed, and
+    // the spot it was first noticed from, are what the next attempt has to
+    // avoid - remembering only the flank point sent it down the same corridor
+    // to a slightly different corner and it was seen from the same doorway.
+    private void BreakOffAfterBeingSeen(
+        EnemyTargetObservation targetObservation,
+        EnemyStealthTacticsConfig tactics,
+        EnemyEngagementTacticsRuntime engagement
+    )
     {
-        foreach (KeyValuePair<EnemyFlankState, Vector3> claim in ClaimedPoints)
+        engagement.NoteFlankExposure();
+        engagement.RememberFailedRoute(
+            planner.LastChosenRouteFingerprint,
+            hasFirstSeenPosition ? firstSeenPosition : context.Navigator.Position,
+            targetObservation.Position,
+            targetObservation.Forward
+        );
+
+        // Being caught once is bad luck and worth another approach from the
+        // other side. Being caught twice is the player watching the ways
+        // round, and a third attempt is the same loop again.
+        if (engagement.HasSpentFlankExposures(tactics.maxFlankExposureRetries))
         {
-            if (claim.Key != this &&
-                (claim.Value - candidate).sqrMagnitude <
-                ClaimSpacing * ClaimSpacing)
+            context.GiveUpOnStealth(EnemyStealthFailureReason.Detected);
+            return;
+        }
+
+        context.ChangeState(EnemyState.Retreat);
+    }
+
+    // False means the tick is over: either there was no budget to plan with
+    // and nothing already held to keep walking towards, the search is only
+    // part way through and will finish next tick, or there is nowhere hidden
+    // to go and the enemy is waiting in cover.
+    private bool TryPlanFlankPoint(
+        EnemyTargetObservation targetObservation,
+        Vector3 selfPosition,
+        bool isSeen,
+        float deltaTime,
+        ref int pathBudget
+    )
+    {
+        EnemyStealthTacticsConfig tactics = context.Config.StealthTactics;
+        int candidateCount = Mathf.Clamp(
+            tactics.candidatesPerTick,
+            1,
+            tactics.flankBehindAngles.Length * tactics.flankDistanceScales.Length
+        );
+
+        // Endpoints and routes share one raycast allowance, and asking for
+        // more of it than the whole server has in a frame is not a bigger
+        // budget - it is a request the scheduler silently truncates, so the
+        // search believed it had samples nobody granted. A search too big for
+        // one tick now resumes mid-route instead.
+        int visibilityQueries = candidateCount + Mathf.Max(
+            1,
+            Mathf.Min(
+                tactics.routeSampleBudget,
+                EnemyServerPerceptionScheduler.VisibilityQueriesPerFrame -
+                candidateCount
+            )
+        );
+
+        // One route per candidate plus three spare queries. Four is the minimum
+        // complete allowance for the expensive case: standing attempt, crawl
+        // reference, standing waypoint and crawl continuation. A larger fan
+        // naturally grants more; a long waypoint scan still resumes.
+        if (!context.TryReservePlanningQueries(
+                candidateCount + 3,
+                visibilityQueries,
+                out pathBudget,
+                out int visibilityBudget))
+        {
+            // Capacity is not a navigation failure. Keep an existing point
+            // moving and retry an unplanned first point next frame - unless a
+            // pass is already part way through, because everything it has
+            // judged so far was judged from where the enemy stood when it
+            // began. Walking on until the budget comes back moves that spot,
+            // and the pass starts over: under load, a long route check would
+            // begin again and again and never finish.
+            repathTimer = 0f;
+
+            if (hasFlankPoint && !planner.HasPendingSearch)
             {
                 return true;
             }
-        }
 
-        return false;
-    }
-
-    // Walks the route the agent would actually take and asks whether the
-    // player could see the enemy standing anywhere along it. Sampled rather
-    // than continuous: a stride is about a metre, and a gap the enemy crosses
-    // between two samples is a glimpse, not a sighting.
-    private bool IsRouteHidden(Vector3 from, Vector3 to, ref int budget)
-    {
-        if (!NavMesh.CalculatePath(from, to, NavMesh.AllAreas, routePath) ||
-            routePath.status != NavMeshPathStatus.PathComplete)
-        {
+            context.StopNavigation();
             return false;
         }
 
-        Vector3[] corners = routePath.corners;
+        repathTimer = tactics.flankRepathInterval;
 
-        for (int i = 1; i < corners.Length; i++)
+        EnemyStealthPlanOutcome outcome = planner.TryFindPointBehind(
+            targetObservation,
+            selfPosition,
+            context.EngagementTactics,
+            ref pathBudget,
+            ref visibilityBudget,
+            out Vector3 nextFlankPoint,
+            out bool pointIsUsable
+        );
+
+        switch (outcome)
         {
-            Vector3 previous = corners[i - 1];
-            Vector3 corner = corners[i];
-            float length = Vector3.Distance(previous, corner);
-            int steps = Mathf.Max(1, Mathf.CeilToInt(length / RouteSampleSpacing));
-
-            for (int step = 1; step <= steps; step++)
-            {
-                // Out of budget with the route half walked. Refusing is the
-                // only safe answer: calling an unchecked route hidden is how
-                // the enemy would walk straight across the view it was trying
-                // to avoid.
-                if (budget <= 0)
-                {
-                    return false;
-                }
-
-                budget--;
-
-                Vector3 sample = Vector3.Lerp(previous, corner, step / (float)steps);
-
-                if (PlayerGazeNetwork.IsBodySeenByAnyone(
-                        sample,
-                        context.Navigator.BodyHeight))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    // Straight behind first, then wider round either side, then closer in. A
-    // point directly behind is often against a wall; the fan gives the level a
-    // chance to offer something reachable that is still out of view.
-    private bool TryFindPointBehind(
-        PlayerGazeNetwork player,
-        Vector3 selfPosition,
-        out Vector3 point
-    )
-    {
-        // Two passes. A route that stays hidden the whole way is the good
-        // answer, but insisting on it found nothing at all in a real level -
-        // the log for that build is Flank falling straight back to Stalk over
-        // and over. A hidden place to stand, reached by a route that is seen
-        // for part of the way, still ends with the enemy behind the player;
-        // refusing it just means never getting there.
-        return TryFindPointBehind(player, selfPosition, true, out point) ||
-               TryFindPointBehind(player, selfPosition, false, out point);
-    }
-
-    private bool TryFindPointBehind(
-        PlayerGazeNetwork player,
-        Vector3 selfPosition,
-        bool requireHiddenRoute,
-        out Vector3 point
-    )
-    {
-        Vector3 playerPosition = player.transform.position;
-        Vector3 behind = -player.transform.forward;
-        behind.y = 0f;
-        behind.Normalize();
-
-        float preferred = context.Config.flankBehindDistance;
-        int budget = RouteSampleBudget;
-
-        // Distances as well as angles. Five points at one radius all land in
-        // the same wall in a corridor, and the enemy gave up and went back to
-        // watching - which is what the first build did in a real level. Closer
-        // rings are worse ambush spots but a great deal better than none.
-        for (int r = 0; r < DistanceScales.Length; r++)
-        {
-            float distance = preferred * DistanceScales[r];
-
-            for (int i = 0; i < BehindAngles.Length; i++)
-            {
-                float angle = mirrorSides ? -BehindAngles[i] : BehindAngles[i];
-                Vector3 direction = Quaternion.Euler(0f, angle, 0f) * behind;
-
-                if (!NavMesh.SamplePosition(
-                        playerPosition + direction * distance,
-                        out NavMeshHit hit,
-                        distance * 0.5f,
-                        NavMesh.AllAreas))
-                {
-                    continue;
-                }
-
-                // No use walking to a spot the player is already looking at.
-                // Hidden from everyone, not just the one being crept up on.
-                // Checking only the nearest meant the enemy planned a route
-                // hidden from one player, walked it in full view of another,
-                // was spotted, broke off and started over - the same circling
-                // as before, brought on by a second person in the room.
-                if (PlayerGazeNetwork.IsBodySeenByAnyone(
-                        hit.position,
-                        context.Navigator.BodyHeight))
-                {
-                    continue;
-                }
-
-                // Nor to a hidden spot by a route that crosses the player's
-                // view on the way. The shortest path to somewhere behind
-                // someone usually goes straight past their face, which is how
-                // an enemy circling a player who never moved kept walking
-                // back into sight and starting over.
-                if (requireHiddenRoute &&
-                    !IsRouteHidden(selfPosition, hit.position, ref budget))
-                {
-                    continue;
-                }
-
-                if (IsClaimedByAnotherEnemy(hit.position))
-                {
-                    continue;
-                }
-
-                ClaimedPoints[this] = hit.position;
-                point = hit.position;
+            case EnemyStealthPlanOutcome.FoundHiddenRoute:
+                flankPoint = nextFlankPoint;
+                hasFlankPoint = true;
+                holdingForOpening = false;
+                noOpeningTimer = 0f;
                 return true;
-            }
+
+            // Everything round is watched, and the enemy is already standing
+            // in plain view. There is no stealth left for a watched route to
+            // spend, so the spot behind them is still worth taking.
+            case EnemyStealthPlanOutcome.AllRoutesObserved
+                when pointIsUsable && isSeen:
+                flankPoint = nextFlankPoint;
+                hasFlankPoint = true;
+                holdingForOpening = false;
+                noOpeningTimer = 0f;
+                return true;
+
+            case EnemyStealthPlanOutcome.DeferredByBudget:
+                repathTimer = 0f;
+
+                // Stand still until the pass finishes, even with a point in
+                // hand. Every candidate in a pass is judged by the route from
+                // where the enemy stood when the pass began - that is what
+                // lets a half-finished route check resume - so walking on
+                // while it runs would have it commit to a route from a place
+                // it has left, which in a room with a pillar in it is the
+                // other way round the pillar. A deferred pass resumes on the
+                // very next frame, so this is a few frames of not moving,
+                // and only when the first candidates all failed.
+                context.StopNavigation();
+                return false;
+
+            case EnemyStealthPlanOutcome.AllRoutesObserved:
+                return WaitForAnOpening(outcome, deltaTime, tactics);
+
+            case EnemyStealthPlanOutcome.SlotOccupied:
+                return WaitForAnOpening(outcome, deltaTime, tactics);
+
+            case EnemyStealthPlanOutcome.NoReachablePoint:
+                // A gaze can move and a claimed slot can be released. A wall
+                // cannot. The complete fan has already established that this
+                // agent cannot get behind the target, so waiting for an
+                // "opening" here only delays the same Assault decision.
+                context.GiveUpOnStealth(
+                    EnemyStealthFailureReason.NoHiddenRoute
+                );
+                return false;
+
+            case EnemyStealthPlanOutcome.OnlyPreviouslyFailedRoutes:
+                // These routes exist, but this engagement has already learned
+                // that they repeat the failed approach. A gaze-only wait does
+                // not change that history, so escalate immediately.
+                context.GiveUpOnStealth(
+                    EnemyStealthFailureReason.PreviouslyFailedRoute
+                );
+                return false;
+
+            default:
+                context.GiveUpOnStealth(
+                    EnemyStealthFailureReason.NoHiddenRoute
+                );
+                return false;
+        }
+    }
+
+    // Nowhere hidden to go. Staying put beats walking a watched route: the
+    // enemy is already out of sight, and the route is the only part of the
+    // plan the players can see. Waiting costs them nothing but the seconds
+    // they spend looking, and it ends in an assault either way.
+    private bool WaitForAnOpening(
+        EnemyStealthPlanOutcome outcome,
+        float deltaTime,
+        EnemyStealthTacticsConfig tactics
+    )
+    {
+        noOpeningReason = outcome switch
+        {
+            EnemyStealthPlanOutcome.AllRoutesObserved =>
+                EnemyStealthFailureReason.AllRoutesObserved,
+            EnemyStealthPlanOutcome.SlotOccupied =>
+                EnemyStealthFailureReason.SlotOccupied,
+            _ => EnemyStealthFailureReason.NoHiddenRoute,
+        };
+
+        hasFlankPoint = false;
+        planner.ReleaseClaim();
+        context.StopNavigation();
+
+        if (!holdingForOpening)
+        {
+            holdingForOpening = true;
+            noOpeningTimer = deltaTime;
         }
 
-        point = default;
+        if (noOpeningTimer >= tactics.noOpeningWaitDuration)
+        {
+            context.GiveUpOnStealth(noOpeningReason);
+            return false;
+        }
+
+        // Until somebody moves or looks elsewhere, the same search returns the
+        // same answer. The gaze check in Tick clears this the moment they do.
+        repathTimer = tactics.noOpeningReplanInterval;
         return false;
     }
 
-    private static readonly float[] BehindAngles =
-        { 0f, -35f, 35f, -70f, 70f, -105f, 105f };
+    private bool RouteWalksIntoAWatcher(
+        Vector3 selfPosition,
+        IReadOnlyList<PlayerWatcher> watchers,
+        ref int pathBudget
+    )
+    {
+        // Four queries cover a standing prefix plus its crawl continuation.
+        // Most ticks do not plan, so there is nothing left over to spend and
+        // this asks the server for its own.
+        if (pathBudget <= 0 &&
+            context.TryReservePlanningQueries(
+                4,
+                0,
+                out int grantedPathQueries,
+                out _))
+        {
+            pathBudget = grantedPathQueries;
+        }
 
-    private static readonly float[] DistanceScales = { 1f, 0.65f, 0.4f };
+        // No route means the enemy has no business walking, whichever reason
+        // it was: a point it cannot reach is not one it can walk to, and a
+        // check it could not afford is not a verdict. The straight line used
+        // to stand in for both and is conservative for neither - a real route
+        // bends round obstacles, sometimes towards the very watcher this is
+        // asking about, and reading that as "not walking into anyone" is how
+        // the enemy kept going. Standing still costs a tick; the flank timeout
+        // hands this to the chase if it never resolves.
+        if (!context.TacticalPlanner.TryPlanRoute(
+                flankPoint,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out _))
+        {
+            return true;
+        }
+
+        return EnemyTacticalNavigationPlanner.RouteClosesOnAnyWatcher(
+            route,
+            watchers
+        );
+    }
 }

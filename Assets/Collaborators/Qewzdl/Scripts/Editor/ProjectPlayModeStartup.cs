@@ -117,7 +117,9 @@ public static class ProjectPlayModeStartup
         SessionState.EraseString(PreviousPlayModeStartScenePathKey);
     }
 
-    private static ProjectSettings LoadProjectSettings()
+    // Internal so the menu that opens project scenes loads the same settings
+    // asset rather than keeping a second copy of the path to it.
+    internal static ProjectSettings LoadProjectSettings()
     {
         ProjectSettings settings = AssetDatabase.LoadAssetAtPath<ProjectSettings>(ProjectSettingsAssetPath);
 

@@ -537,6 +537,8 @@ MonoBehaviour:
   stimulusResolverPolicy:
     visionAlwaysOverridesHearing: 1
     allowSwitchToNewVisibleTarget: 1
+    targetSwitchMinimumHoldDuration: 2
+    targetSwitchScoreAdvantage: 1.5
     allowHearingToInterruptConfirmedTarget: 0
     minimumHearingInterruptScore: 2
     hearingInterruptScoreMultiplier: 2
@@ -643,7 +645,7 @@ MonoBehaviour:
   obstructionMask:
     serializedVersion: 2
     m_Bits: 897
-  maxDetectionResults: 16
+  maxDetectionResults: 32
   overflowWarningCooldown: 2
   maxVisibilityPoints: 4
 --- !u!114 &7002212260278922464
@@ -688,7 +690,6 @@ MonoBehaviour:
   attackController: {fileID: 7387159276498090581}
   navMeshStartupGate: {fileID: 4840997165000147843}
   postureController: {fileID: 1705734711893662682}
-  gazeScanner: {fileID: 0}
 --- !u!114 &6129419102609731285
 MonoBehaviour:
   m_ObjectHideFlags: 0

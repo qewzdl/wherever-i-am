@@ -28,6 +28,7 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
     private bool requireServerStoppedCallback;
     private bool clientStoppedObserved;
     private bool serverStoppedObserved;
+    private INetworkClientIdentityProvider identityProvider;
 
     public bool IsHost => networkManager != null && networkManager.IsHost;
     public bool IsClient => networkManager != null && networkManager.IsClient;
@@ -107,6 +108,13 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
         }
 
         ApplyProtocolVersion();
+
+        if (!TryApplyConnectionPayload(config.Role, out ConnectionResult payloadError))
+        {
+            Debug.LogError(payloadError.DebugMessage);
+            return payloadError;
+        }
+
         ResetShutdownObservations();
 
         if (!strategies.TryGetValue(config.Mode, out IConnectionStrategy strategy))
@@ -474,6 +482,47 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
     private void ApplyProtocolVersion()
     {
         networkManager.NetworkConfig.ProtocolVersion = connectionConfig.ProtocolVersion;
+    }
+
+    private bool TryApplyConnectionPayload(
+        ConnectionRole role,
+        out ConnectionResult error)
+    {
+        error = null;
+
+        if (role == ConnectionRole.Server)
+        {
+            networkManager.NetworkConfig.ConnectionData = Array.Empty<byte>();
+            return true;
+        }
+
+        identityProvider ??= new NetworkClientIdentityProvider();
+        string playerId = identityProvider.GetOrCreatePlayerId();
+
+        if (NetworkConnectionPayloadCodec.TryEncode(
+                connectionConfig.ProtocolVersion,
+                Application.version,
+                playerId,
+                out byte[] payload,
+                out string payloadError))
+        {
+            networkManager.NetworkConfig.ConnectionData = payload;
+            return true;
+        }
+
+        error = ConnectionResult.Fail(
+            ConnectionErrorCode.Unknown,
+            "Failed to prepare the network connection.",
+            $"Could not create connection approval payload: {payloadError}",
+            false);
+        return false;
+    }
+
+    internal void SetIdentityProviderForTests(
+        INetworkClientIdentityProvider provider)
+    {
+        identityProvider = provider ??
+                           throw new ArgumentNullException(nameof(provider));
     }
 
     private ConnectionResult CanStartConnection()

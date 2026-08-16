@@ -36,7 +36,9 @@ public class PlayerSetup : NetworkBehaviour
         PlayerOrchestrator playerOrchestrator = RequireComponentOnPlayer<PlayerOrchestrator>();
 
         CameraLook cameraLook = RequireComponentInPlayerChildren<CameraLook>();
-        Camera playerCamera = RequireComponentInPlayerChildren<Camera>();
+        // Every camera, not just the first one found: the viewmodel overlay is
+        // one too, and a player nobody controls must render through none of them.
+        Camera[] playerCameras = RequireComponentsInPlayerChildren<Camera>();
         AudioListener audioListener = RequireComponentInPlayerChildren<AudioListener>();
         CapsuleCollider bodyCollider = RequireComponentInPlayerChildren<CapsuleCollider>();
 
@@ -68,7 +70,7 @@ public class PlayerSetup : NetworkBehaviour
                 playerController.enabled = true;
                 playerUI.enabled = true;
 
-                playerCamera.enabled = true;
+                SetCamerasEnabled(playerCameras, true);
                 audioListener.enabled = true;
 
                 cameraLook.SetLocalControl(true);
@@ -79,7 +81,7 @@ public class PlayerSetup : NetworkBehaviour
                 AddDestroyingComponent(playerInputHandler);
                 AddDestroyingComponent(playerController);
                 AddDestroyingComponent(playerUI);
-                playerCamera.enabled = false;
+                SetCamerasEnabled(playerCameras, false);
                 audioListener.enabled = false;
 
                 cameraLook.SetLocalControl(false);
@@ -98,7 +100,7 @@ public class PlayerSetup : NetworkBehaviour
             playerInteraction.enabled = true;
             playerUI.enabled = true;
 
-            playerCamera.enabled = true;
+            SetCamerasEnabled(playerCameras, true);
             audioListener.enabled = true;
 
             cameraLook.SetLocalControl(true);
@@ -142,6 +144,25 @@ public class PlayerSetup : NetworkBehaviour
         }
 
         return component;
+    }
+
+    private T[] RequireComponentsInPlayerChildren<T>() where T : Component
+    {
+        T[] components = GetComponentsInChildren<T>(true);
+
+        if (components.Length == 0)
+        {
+            Debug.LogError($"{nameof(PlayerSetup)} requires {typeof(T).Name} in player children.", this);
+            setupFailed = true;
+        }
+
+        return components;
+    }
+
+    private static void SetCamerasEnabled(Camera[] cameras, bool value)
+    {
+        for (int i = 0; i < cameras.Length; i++)
+            cameras[i].enabled = value;
     }
 
     private void AddDestroyingComponent(Component component)

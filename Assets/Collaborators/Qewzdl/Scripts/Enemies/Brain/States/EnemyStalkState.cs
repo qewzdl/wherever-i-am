@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Stands and watches. The first beat of going round behind someone rather
@@ -12,6 +13,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
     private float watchedTimer;
     private float lostTimer;
+    private float unwatchedTimer;
 
     public EnemyState State => EnemyState.Stalk;
 
@@ -33,15 +35,29 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
     public void Tick(float deltaTime)
     {
+        if (!context.TryContinueManeuver(
+                out EnemyTargetObservation targetObservation))
+        {
+            return;
+        }
+
         Vector3 selfPosition = context.Navigator.Position;
+        EnemyTarget currentTarget = context.TargetMemory.CurrentTarget;
+
+        // The manoeuvre's own target, not whoever perception is holding. They
+        // are the same person unless something has gone wrong, and this is
+        // where it would show.
+        bool hasLiveTarget =
+            currentTarget != null &&
+            context.TargetMemory.IsCurrentTargetValid &&
+            currentTarget == targetObservation.Target;
 
         // A lost target is not immediately a search. Vision refreshes four
         // times a second, so a target that steps behind a door frame is
         // "gone" for a moment on its way past - abandoning the stalk on that
         // meant the enemy dropped into a search over and over and never got
         // anywhere.
-        if (!context.TargetMemory.HasTarget ||
-            !context.TargetMemory.IsCurrentTargetValid)
+        if (!hasLiveTarget)
         {
             lostTimer += deltaTime;
 
@@ -57,7 +73,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
         lostTimer = 0f;
 
         Vector3 targetPosition =
-            context.GetTargetNavigationPosition(context.TargetMemory.CurrentTarget);
+            context.GetTargetNavigationPosition(currentTarget);
         float distance = Vector3.Distance(selfPosition, targetPosition);
 
         if (distance > context.Config.loseTargetDistance)
@@ -77,11 +93,42 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
         FaceTarget(targetPosition, selfPosition, deltaTime);
 
-        if (!PlayerGazeNetwork.IsBodySeenByAnyone(selfPosition, context.Navigator.BodyHeight))
+        IReadOnlyList<PlayerWatcher> watchers = context.GetWatchers();
+
+        if (watchers.Count == 0)
         {
             watchedTimer = 0f;
+            unwatchedTimer += deltaTime;
+
+            // Nobody is looking. That is the opening the whole manoeuvre is
+            // waiting for, and standing here watching until something else
+            // times out spends it - the log for that build has the enemy
+            // stalling in cover for twenty seconds while the player faced a
+            // wall, then charging when the overall budget ran out.
+            //
+            // An opening is only worth taking if the pursuit still has an
+            // attempt to spend on it. Otherwise going round is a state change
+            // that Flank undoes on its first tick.
+            if (unwatchedTimer >=
+                context.Config.StealthTactics.stalkUnwatchedFlankDelay)
+            {
+                if (context.EngagementTactics.CanStartAnotherStealthAttempt(
+                        context.Config.StealthTactics
+                            .maxStealthAttemptsPerEngagement))
+                {
+                    context.ChangeState(EnemyState.Flank);
+                    return;
+                }
+
+                context.GiveUpOnStealth(
+                    EnemyStealthFailureReason.AttemptsSpent
+                );
+            }
+
             return;
         }
+
+        unwatchedTimer = 0f;
 
         // Being looked at for a moment is being noticed. A single frame is
         // not: a player sweeping the room past the enemy has not seen it.
@@ -89,6 +136,13 @@ public sealed class EnemyStalkState : IEnemyStateHandler
 
         if (watchedTimer >= context.Config.stalkNoticedDuration)
         {
+            // The decision the whole manoeuvre turns on, made once and here:
+            // the target does not change because somebody else noticed. A
+            // second player spotting the enemy is a reason to break off, not a
+            // reason to start creeping up on them instead - swapping would
+            // throw away the approach already walked and hand the new person a
+            // plan built for the old one. The retreat that follows backs away
+            // from everyone watching, including whoever this was.
             context.ChangeState(EnemyState.Retreat);
         }
     }
@@ -97,6 +151,7 @@ public sealed class EnemyStalkState : IEnemyStateHandler
     {
         watchedTimer = 0f;
         lostTimer = 0f;
+        unwatchedTimer = 0f;
     }
 
     private void FaceTarget(

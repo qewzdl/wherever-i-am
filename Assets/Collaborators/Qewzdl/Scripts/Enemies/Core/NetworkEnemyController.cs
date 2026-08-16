@@ -43,9 +43,27 @@ public class NetworkEnemyController : NetworkBehaviour
         CacheComponents();
     }
 
+    // A spawned enemy comes from a prefab, and a prefab cannot hold a route
+    // that lives in the scene. The spawner hands one over between Instantiate
+    // and Spawn, while the runtime has not read it yet.
+    public void ConstructServerOnly(EnemyPatrolRoute route)
+    {
+        if (IsSpawned)
+        {
+            Debug.LogError(
+                $"{nameof(NetworkEnemyController)} cannot take a patrol route after spawning.",
+                this);
+
+            return;
+        }
+
+        patrolRoute = route;
+    }
+
     public override void OnNetworkSpawn()
     {
         CacheComponents();
+        ApplyLobbyDifficultyServerOnly();
 
         if (targetDetector != null &&
             NetworkObjectServiceContext.TryResolveSessionService(
@@ -88,6 +106,28 @@ public class NetworkEnemyController : NetworkBehaviour
 
         EnableServerRuntimeComponents();
         shouldStartServerRuntime = true;
+    }
+
+    // The difficulty the host chose only ever changes how the enemy thinks,
+    // which is server work. Clients keep the prefab config, and the catalog
+    // makes sure every difficulty describes the same body, so the collider
+    // they build from it stays right.
+    private void ApplyLobbyDifficultyServerOnly()
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        if (!NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IGameMapSessionService mapSession) ||
+            mapSession.SelectedEnemyConfig == null)
+        {
+            return;
+        }
+
+        config = mapSession.SelectedEnemyConfig;
     }
 
     public override void OnNetworkDespawn()

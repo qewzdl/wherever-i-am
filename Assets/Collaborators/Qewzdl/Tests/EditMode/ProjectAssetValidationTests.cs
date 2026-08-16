@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Netcode;
@@ -19,6 +21,10 @@ public sealed class ProjectAssetValidationTests
         "Assets/Collaborators/Qewzdl/Settings/ProjectSceneFlow.asset";
     private const string GameMapCatalogPath =
         "Assets/Collaborators/Qewzdl/Configs/Maps/GameMapCatalog.asset";
+    private const string LobbyConfigPath =
+        "Assets/Collaborators/Qewzdl/Configs/Lobby/LobbyConfig.asset";
+    private const string EnemyDifficultyCatalogPath =
+        "Assets/Collaborators/Qewzdl/Configs/Enemies/EnemyDifficultyCatalog.asset";
     private const string SceneAudioRegistryPath =
         "Assets/Collaborators/Qewzdl/Audio/Scenes/SceneAudioRegistry.asset";
     private const string UiSoundThemePath =
@@ -47,6 +53,27 @@ public sealed class ProjectAssetValidationTests
     private static readonly Regex GuidReferencePattern = new(
         @"guid:\s*([0-9a-fA-F]{32})",
         RegexOptions.Compiled);
+
+    // Connection approval refuses to configure itself without a build version,
+    // and without approval there is no networking at all. An empty version
+    // field is therefore not a release-day detail - it takes the whole session
+    // down, and it does it at runtime where the cause is far from the symptom.
+    [Test]
+    public void BuildVersion_IsSetAndFitsTheConnectionPayload()
+    {
+        Assert.That(
+            Application.version,
+            Is.Not.Null.And.Not.Empty,
+            "Player Settings has no version. Connection approval cannot start without one.");
+        Assert.That(
+            Application.version.Trim(),
+            Is.Not.Empty,
+            "Player Settings version is whitespace. Connection approval treats that as missing.");
+        Assert.That(
+            Encoding.UTF8.GetByteCount(Application.version.Trim()),
+            Is.LessThanOrEqualTo(64),
+            "The build version does not fit the connection approval payload.");
+    }
 
     [Test]
     public void ProjectScenes_AreUniqueResolvableAndEnabled()
@@ -171,6 +198,226 @@ public sealed class ProjectAssetValidationTests
     }
 
     [Test]
+    public void EnemyDifficultyCatalog_IsValidAndEveryDifficultyIsSelectable()
+    {
+        EnemyDifficultyCatalog catalog =
+            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+
+        Assert.That(catalog.IsValid(out string catalogError), Is.True, catalogError);
+        Assert.That(catalog.Count, Is.GreaterThan(0));
+        Assert.That(catalog.IsValidDifficultyId(catalog.DefaultDifficultyId), Is.True);
+
+        LobbyConfig lobbyConfig = LoadRequiredAsset<LobbyConfig>(LobbyConfigPath);
+
+        Assert.That(
+            lobbyConfig.DifficultyCatalog,
+            Is.SameAs(catalog),
+            "Lobby offers difficulties from a different catalog than the one under test.");
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            Assert.That(
+                catalog.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry),
+                Is.True,
+                $"Missing difficulty entry at index {i}.");
+
+            // A difficulty the lobby refuses is one nobody can ever pick.
+            Assert.That(
+                lobbyConfig.IsValidDifficultyId(entry.DifficultyId),
+                Is.True,
+                $"Difficulty '{entry.DisplayName}' is not selectable in the lobby.");
+        }
+    }
+
+    // Fields that are the same on every difficulty on purpose. A profile
+    // authored once per difficulty is a claim that its numbers are a lever;
+    // anything in it that never moves is either one of these or was forgotten
+    // in a copy, and the difference between those two is a decision worth
+    // writing down.
+    private static readonly HashSet<string> SharedDifficultyFields = new(StringComparer.Ordinal)
+    {
+        // Anatomy and wiring, not difficulty.
+        "EnemyVisionConfig.targetHeightOffset",
+        "EnemyHearingConfig.hearingEnabled",
+
+        // The chase is balanced around following a target through walls for
+        // the memory duration; turning it off for one difficulty would be a
+        // different game, not an easier one.
+        "EnemyVisionConfig.visualMemoryTracksLiveTarget",
+
+        // A floor for inaudible sources. hearingSensitivity is the lever.
+        "EnemyHearingConfig.minimumNoiseLoudness",
+
+        // How close counts as having reached a search point.
+        "EnemyInvestigationConfig.investigationReachDistance",
+
+        // Retreat and flank geometry: the shape of a manoeuvre, not how hard
+        // she is. What varies is when she chooses one - see the stalk and
+        // ambush fields, which are not on this list.
+        "EnemyStealthTacticsConfig.noEscapeTimeout",
+        "EnemyStealthTacticsConfig.failedRouteAvoidRadius",
+        "EnemyStealthTacticsConfig.retreatBrokenSightDuration",
+        "EnemyStealthTacticsConfig.retreatTimeout",
+        "EnemyStealthTacticsConfig.retreatDistance",
+        "EnemyStealthTacticsConfig.retreatRepathInterval",
+        "EnemyStealthTacticsConfig.flankBehindDistance",
+
+        // Planner budget. Raising it for one difficulty buys frame time, not
+        // difficulty.
+        "EnemyStealthTacticsConfig.claimSpacing",
+        "EnemyStealthTacticsConfig.arrivalDistance",
+        "EnemyStealthTacticsConfig.routeSampleSpacing",
+        "EnemyStealthTacticsConfig.routeSampleBudget",
+        "EnemyStealthTacticsConfig.candidatesPerTick",
+    };
+
+    // acceleration and angularSpeed sat at 12 and 360 on all four difficulties
+    // while only top speed varied, and in a house that is most of what a chase
+    // is. Nothing said so until it was played. This says so.
+    [Test]
+    public void EnemyDifficultyProfiles_HaveNoFieldThatNeverMoves()
+    {
+        EnemyDifficultyCatalog catalog =
+            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+
+        List<EnemyConfig> configs = new();
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            Assert.That(catalog.TryGetEntryAt(i, out var entry), Is.True);
+            Assert.That(entry.Config, Is.Not.Null, $"Difficulty '{entry.DisplayName}' has no config.");
+            configs.Add(entry.Config);
+        }
+
+        Assert.That(configs.Count, Is.GreaterThan(1), "One difficulty cannot have levers.");
+
+        List<string> deadFields = new();
+
+        foreach (FieldInfo profileField in ProfileFields())
+        {
+            ScriptableObject[] profiles = configs
+                .Select(config => (ScriptableObject)profileField.GetValue(config))
+                .ToArray();
+
+            // Every difficulty pointing at one asset is a single deliberate
+            // decision to share, not a field-by-field oversight.
+            if (profiles.Any(profile => profile == null) ||
+                profiles.Distinct().Count() == 1)
+            {
+                continue;
+            }
+
+            foreach (FieldInfo field in profiles[0].GetType()
+                         .GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                // Arrays hold the shape of a manoeuvre and compare by
+                // reference here, so they are left out rather than wrongly
+                // reported as differing.
+                if (field.FieldType.IsArray)
+                {
+                    continue;
+                }
+
+                string id = $"{field.DeclaringType?.Name}.{field.Name}";
+
+                if (SharedDifficultyFields.Contains(id))
+                {
+                    continue;
+                }
+
+                object first = field.GetValue(profiles[0]);
+
+                if (profiles.Skip(1).All(profile => Equals(field.GetValue(profile), first)))
+                {
+                    deadFields.Add($"{id} = {first} on every difficulty");
+                }
+            }
+        }
+
+        Assert.That(
+            deadFields,
+            Is.Empty,
+            "These look tuned per difficulty but never change, so they are not levers. " +
+            "Give them different values or add them to " +
+            $"{nameof(SharedDifficultyFields)} with a reason:\n  " +
+            string.Join("\n  ", deadFields));
+    }
+
+    private static IEnumerable<FieldInfo> ProfileFields()
+    {
+        return typeof(EnemyConfig)
+            .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Where(field =>
+                field.IsDefined(typeof(SerializeField), inherit: false) &&
+                typeof(ScriptableObject).IsAssignableFrom(field.FieldType));
+    }
+
+    // The bug this guards: hearing radius is capped by how far each noise
+    // carries, so raising it past the loudest noise in the project changed
+    // nothing and three of the four difficulties heard identically.
+    [Test]
+    public void EnemyDifficulties_HearNoLessAsTheyGetHarder()
+    {
+        EnemyDifficultyCatalog catalog =
+            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+
+        List<EnemyDifficultyCatalog.EnemyDifficultyEntry> entries = new();
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            Assert.That(catalog.TryGetEntryAt(i, out var entry), Is.True);
+            entries.Add(entry);
+        }
+
+        entries.Sort((left, right) => left.DifficultyId.CompareTo(right.DifficultyId));
+
+        float[] noiseRadii = AssetDatabase.FindAssets("t:GameplayNoisePreset")
+            .Select(AssetDatabase.GUIDToAssetPath)
+            .Select(AssetDatabase.LoadAssetAtPath<GameplayNoisePreset>)
+            .Where(preset => preset != null)
+            .Select(preset => preset.Radius)
+            .ToArray();
+
+        Assert.That(noiseRadii, Is.Not.Empty, "No noise presets to measure hearing against.");
+
+        bool anyDifference = false;
+
+        foreach (float noiseRadius in noiseRadii)
+        {
+            for (int i = 1; i < entries.Count; i++)
+            {
+                float previous = EffectiveHearing(entries[i - 1], noiseRadius);
+                float current = EffectiveHearing(entries[i], noiseRadius);
+
+                Assert.That(
+                    current,
+                    Is.GreaterThanOrEqualTo(previous),
+                    $"'{entries[i].DisplayName}' hears a noise of radius {noiseRadius} " +
+                    $"from {current}, less than '{entries[i - 1].DisplayName}' at {previous}.");
+
+                anyDifference |= !Mathf.Approximately(current, previous);
+            }
+        }
+
+        Assert.That(
+            anyDifference,
+            Is.True,
+            "Every difficulty hears every noise from the same distance, so hearing is not a difficulty lever at all.");
+    }
+
+    private static float EffectiveHearing(
+        EnemyDifficultyCatalog.EnemyDifficultyEntry entry,
+        float noiseRadius)
+    {
+        EnemyConfig config = entry.Config;
+
+        return GameplayNoiseWorldService.ResolveEffectiveRadius(
+            config.hearingRadius,
+            config.hearingSensitivity,
+            noiseRadius);
+    }
+
+    [Test]
     public void ObjectiveAndEnemyConfigs_AreComplete()
     {
         string[] sequenceGuids = AssetDatabase.FindAssets(
@@ -193,6 +440,30 @@ public sealed class ProjectAssetValidationTests
             Assert.That(sequence.IsValid(out string error), Is.True, $"{path}: {error}");
         }
 
+        // A map may swap in its own objective sequence. Nothing loads it until
+        // the match is already starting, so a broken override only shows up as
+        // a faulted flow mid-session unless it is checked here.
+        string[] mapGuids = AssetDatabase.FindAssets(
+            $"t:{nameof(GameMapDefinition)}",
+            new[] { CollaboratorsRoot });
+
+        for (int i = 0; i < mapGuids.Length; i++)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(mapGuids[i]);
+            GameMapDefinition map =
+                AssetDatabase.LoadAssetAtPath<GameMapDefinition>(path);
+
+            Assert.That(map, Is.Not.Null, path);
+
+            if (map.ObjectiveSequenceOverride == null)
+                continue;
+
+            Assert.That(
+                map.ObjectiveSequenceOverride.IsValid(out string overrideError),
+                Is.True,
+                $"{path}: {overrideError}");
+        }
+
         for (int i = 0; i < enemyConfigGuids.Length; i++)
         {
             string path = AssetDatabase.GUIDToAssetPath(enemyConfigGuids[i]);
@@ -200,6 +471,36 @@ public sealed class ProjectAssetValidationTests
 
             Assert.That(config, Is.Not.Null, path);
             Assert.That(config.TryGetValidationError(out string error), Is.False, $"{path}: {error}");
+        }
+    }
+
+    // Stalk, Retreat, Flank and Ambush shipped with no presentation entries at
+    // all, so four of the nine states were silent and left the animator on
+    // whatever the previous state set. Nothing failed - the profile simply had
+    // no row - which is exactly the kind of gap a lookup by state hides.
+    [Test]
+    public void EnemyPresentationProfiles_CoverEveryEnemyState()
+    {
+        string[] profileGuids = AssetDatabase.FindAssets(
+            $"t:{nameof(EnemyPresentationProfile)}",
+            new[] { CollaboratorsRoot });
+
+        Assert.That(profileGuids.Length, Is.GreaterThan(0));
+
+        foreach (EnemyState state in Enum.GetValues(typeof(EnemyState)))
+        {
+            for (int i = 0; i < profileGuids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(profileGuids[i]);
+                EnemyPresentationProfile profile =
+                    AssetDatabase.LoadAssetAtPath<EnemyPresentationProfile>(path);
+
+                Assert.That(profile, Is.Not.Null, path);
+                Assert.That(
+                    profile.TryGetPresentation(state, out _),
+                    Is.True,
+                    $"{path} has no presentation entry for {state}.");
+            }
         }
     }
 
@@ -298,6 +599,74 @@ public sealed class ProjectAssetValidationTests
             Is.True,
             "Player prefab has no NetworkObject.");
         Assert.That(hasPlayerPrefab, Is.True, "Player prefab is absent from NetworkPrefabsList.");
+    }
+
+    [Test]
+    public void GameplayCameras_HandOffFromSceneCameraToLocalPlayer()
+    {
+        GameObject playerPrefab = LoadBootstrapPlayerPrefab();
+        Assert.That(playerPrefab, Is.Not.Null);
+
+        Camera[] playerCameras = playerPrefab.GetComponentsInChildren<Camera>(true);
+        Assert.That(playerCameras, Is.Not.Empty, "Player prefab has no camera.");
+        Assert.That(
+            playerCameras.All(camera => !camera.enabled),
+            Is.True,
+            "Player prefab cameras must start disabled so a remote player never renders.");
+
+        float lowestPlayerCameraDepth = playerCameras.Min(camera => camera.depth);
+
+        AudioListener playerListener =
+            playerPrefab.GetComponentInChildren<AudioListener>(true);
+        Assert.That(playerListener, Is.Not.Null, "Player prefab has no audio listener.");
+        Assert.That(
+            playerListener.enabled,
+            Is.False,
+            "Player prefab audio listener must start disabled so a remote player never hears.");
+
+        ProjectSettings settings = LoadRequiredAsset<ProjectSettings>(ProjectSettingsPath);
+        Assert.That(
+            settings.TryGetScene(ProjectSceneKind.Game, out ProjectSceneDefinition game),
+            Is.True);
+
+        Scene existingScene = SceneManager.GetSceneByPath(game.ScenePath);
+        bool openedByTest = !existingScene.IsValid() || !existingScene.isLoaded;
+        Scene scene = openedByTest
+            ? EditorSceneManager.OpenScene(game.ScenePath, OpenSceneMode.Additive)
+            : existingScene;
+
+        try
+        {
+            List<Camera> sceneCameras = new();
+            GameObject[] roots = scene.GetRootGameObjects();
+
+            for (int i = 0; i < roots.Length; i++)
+            {
+                sceneCameras.AddRange(roots[i].GetComponentsInChildren<Camera>(true));
+            }
+
+            for (int i = 0; i < sceneCameras.Count; i++)
+            {
+                Camera sceneCamera = sceneCameras[i];
+
+                Assert.That(
+                    sceneCamera.GetComponent<FallbackCamera>(),
+                    Is.Not.Null,
+                    $"'{GetHierarchyPath(sceneCamera.transform)}' keeps rendering over the " +
+                    $"local player because nothing hands the view over.");
+
+                Assert.That(
+                    sceneCamera.depth,
+                    Is.LessThan(lowestPlayerCameraDepth),
+                    $"'{GetHierarchyPath(sceneCamera.transform)}' shares its depth with a " +
+                    $"player camera, so the winner of the last draw is undefined.");
+            }
+        }
+        finally
+        {
+            if (openedByTest && scene.IsValid())
+                EditorSceneManager.CloseScene(scene, true);
+        }
     }
 
     [Test]

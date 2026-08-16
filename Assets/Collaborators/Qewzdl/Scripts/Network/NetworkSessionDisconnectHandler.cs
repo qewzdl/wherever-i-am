@@ -63,6 +63,12 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
 
         NetworkSessionState state = sessionStateMachine.CurrentState;
 
+        // When the host names a reason - a kick, a closed session - that is the
+        // only thing worth telling the player. Our own wording would replace an
+        // answer with a shrug.
+        string serverReason =
+            NetworkDisconnectReason.UserFacing(networkManager.DisconnectReason);
+
         if (state == NetworkSessionState.Disconnecting ||
             state == NetworkSessionState.Failed ||
             state == NetworkSessionState.Offline)
@@ -74,7 +80,10 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
             state == NetworkSessionState.StartingClient)
         {
             StopListening();
-            failureHandler.FailAndReturnToMainMenu("Connection failed or was interrupted while connecting.");
+            failureHandler.FailAndReturnToMainMenu(
+                string.IsNullOrEmpty(serverReason)
+                    ? "Connection failed or was interrupted while connecting."
+                    : serverReason);
             return;
         }
 
@@ -83,7 +92,10 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
             state == NetworkSessionState.InGame)
         {
             StopListening();
-            failureHandler.FailAndReturnToMainMenu("Disconnected from network session.");
+            failureHandler.FailAndReturnToMainMenu(
+                string.IsNullOrEmpty(serverReason)
+                    ? "Disconnected from network session."
+                    : serverReason);
         }
     }
 

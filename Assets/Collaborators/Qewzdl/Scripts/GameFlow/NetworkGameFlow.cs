@@ -15,6 +15,11 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
     [SerializeField] [Min(0f)] private float matchResolvedDelaySeconds = 0.5f;
     [SerializeField] [Min(0f)] private float finishDelaySeconds = 1.5f;
 
+    [Header("Result announcement")]
+    [SerializeField] private string victoryMessage = "The match is over - you got out.";
+    [SerializeField] private string defeatMessage = "The match is over - everyone was caught.";
+    [SerializeField] private string drawMessage = "The match is over.";
+
     private readonly NetworkVariable<GamePhase> phase = new NetworkVariable<GamePhase>(
         GamePhase.Waiting,
         NetworkVariableReadPermission.Everyone,
@@ -209,9 +214,33 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
         }
 
         TryRaiseMatchResolvedOnce();
+        AnnounceResult(matchResult);
 
         StartFinishRoutine();
         return true;
+    }
+
+    // Said in chat rather than on a screen nobody is looking at for long: the
+    // match ends by taking everyone back to the lobby, and the chat window is
+    // still there when they arrive.
+    private void AnnounceResult(GameResultData matchResult)
+    {
+        if (!NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IChatCommandService chatService))
+        {
+            return;
+        }
+
+        string message = matchResult.ResultType switch
+        {
+            GameResultType.Victory => victoryMessage,
+            GameResultType.Defeat => defeatMessage,
+            _ => drawMessage
+        };
+
+        if (!string.IsNullOrWhiteSpace(message))
+            chatService.AddSystemMessage(message);
     }
 
     private bool RegisterSessionService()

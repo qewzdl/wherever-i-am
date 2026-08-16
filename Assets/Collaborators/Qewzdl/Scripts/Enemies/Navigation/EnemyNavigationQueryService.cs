@@ -6,6 +6,9 @@ internal sealed class EnemyNavigationQueryService
     private readonly EnemyNavigationQueryTelemetry telemetry;
     private int remainingPathQueries;
 
+    public bool WasPathBudgetExhausted { get; private set; }
+    public int RemainingPathQueries => remainingPathQueries;
+
     public EnemyNavigationQueryService(EnemyNavigationQueryTelemetry telemetry)
     {
         this.telemetry = telemetry;
@@ -14,6 +17,7 @@ internal sealed class EnemyNavigationQueryService
     public void BeginRepath(int maximumPathQueries)
     {
         remainingPathQueries = Mathf.Max(1, maximumPathQueries);
+        WasPathBudgetExhausted = false;
     }
 
     public bool TrySamplePosition(
@@ -32,8 +36,14 @@ internal sealed class EnemyNavigationQueryService
         NavMeshQueryFilter filter,
         NavMeshPath path)
     {
-        if (path == null || remainingPathQueries <= 0)
+        if (path == null)
         {
+            return false;
+        }
+
+        if (remainingPathQueries <= 0)
+        {
+            WasPathBudgetExhausted = true;
             telemetry.RecordBudgetRejection();
             return false;
         }

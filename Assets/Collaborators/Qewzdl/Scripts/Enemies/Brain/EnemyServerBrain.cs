@@ -75,6 +75,11 @@ public sealed class EnemyServerBrain
         );
 
         RegisterStateHandlers();
+
+        if (attackController != null)
+        {
+            attackController.AttackResolved += HandleAttackResolved;
+        }
     }
 
     public void Start()
@@ -133,6 +138,11 @@ public sealed class EnemyServerBrain
 
     public void Dispose()
     {
+        if (attackController != null)
+        {
+            attackController.AttackResolved -= HandleAttackResolved;
+        }
+
         attackController?.Interrupt();
 
         currentHandler?.Exit();
@@ -140,10 +150,29 @@ public sealed class EnemyServerBrain
 
         perceptionRuntime.ResetRuntimeState();
 
+        // The scheduler's cache is keyed per enemy and it has no way to notice
+        // one going away, so a match's worth of dead enemies would sit in it.
+        context?.ForgetPerceptionCache();
+
         blackboard.ClearAll();
         SyncTarget();
 
         HasStarted = false;
+    }
+
+    // A landed attack is the pursuit having got what it came for. Everything
+    // the engagement remembers - the failed approaches, the count of them, a
+    // commitment to charging because sneaking did not work - was in service of
+    // reaching this, so it goes, and the next approach on the same person
+    // starts from sneaking again rather than from a grudge.
+    private void HandleAttackResolved(EnemyAttackResult result)
+    {
+        if (result.Type != EnemyAttackResultType.Hit)
+        {
+            return;
+        }
+
+        blackboard.EngagementTactics.Clear();
     }
 
     private void RegisterStateHandlers()
@@ -192,6 +221,8 @@ public sealed class EnemyServerBrain
             $"valid={blackboard.TargetMemory.IsCurrentTargetValid}");
 #endif
 
+        UpdateStealthManeuver(currentState, nextState);
+
         currentHandler?.Exit();
 
         currentState = nextState;
@@ -199,6 +230,56 @@ public sealed class EnemyServerBrain
 
         currentHandler = nextHandler;
         currentHandler.Enter();
+    }
+
+    // The manoeuvre and its target lock live exactly as long as the manoeuvre.
+    //
+    // Starting one takes a snapshot of who it is against and when they were
+    // last seen; moving between its phases keeps both. Leaving it is the
+    // explicit abort - and the only thing that lets perception hand this enemy
+    // somebody else. Nothing about a perception refresh releases it, which is
+    // the whole point: the target vanishing used to null the held target and
+    // fall straight through into adopting whoever was visible instead.
+    private void UpdateStealthManeuver(EnemyState fromState, EnemyState toState)
+    {
+        bool wasManeuvering = EnemyStateRules.IsStealthManeuver(fromState);
+        bool willManeuver = EnemyStateRules.IsStealthManeuver(toState);
+
+        if (willManeuver && wasManeuvering && blackboard.StealthManeuver.IsActive)
+        {
+            blackboard.StealthManeuver.EnterPhase(toState);
+        }
+        else if (willManeuver)
+        {
+            blackboard.StealthManeuver.Begin(
+                blackboard.TargetMemory.LastObservation,
+                toState,
+                Time.time
+            );
+        }
+        else if (wasManeuvering)
+        {
+            blackboard.StealthManeuver.End();
+            EnemyTacticalSlotRegistry.Release(context.TacticalOwnerId);
+        }
+
+        // Chase and Attack carry on against the same person, so the
+        // commitment survives between them. Anything else has stopped dealing
+        // with anybody at all, and that is what releases it.
+        if (EnemyStateRules.IsEngagedWithTarget(fromState) &&
+            !EnemyStateRules.IsEngagedWithTarget(toState))
+        {
+            context.TargetDetector?.ResetTargetSelection();
+
+            // What was learned about how to approach this person goes with the
+            // pursuit of them. Investigating is still that pursuit - the enemy
+            // is looking for the same person and may well find them - so the
+            // memory outlives a lost sighting and dies when the search does.
+            if (toState != EnemyState.Investigate)
+            {
+                blackboard.EngagementTactics.Clear();
+            }
+        }
     }
 
     private void ApplyPerceptionDecision(EnemyPerceptionDecision decision)
@@ -253,11 +334,33 @@ public sealed class EnemyServerBrain
     // cannot flip the enemy back and forth.
     private void ApplyConfirmedTarget()
     {
+        // Everything the enemy has learned is about one person. A perception
+        // refresh that hands it somebody else starts again from nothing.
+        EnemyEngagementTacticsRuntime engagement = blackboard.EngagementTactics;
+        engagement.BeginEngagement(blackboard.TargetMemory.CurrentTargetIdentity);
+
         // Chase is the only engaged state the fork may still change - the
         // rest run their own sequence and say when they are done.
         if (EnemyStateRules.IsEngagedWithTarget(currentState) &&
             currentState != EnemyState.Chase)
         {
+            return;
+        }
+
+        // Sneaking was tried against this person and did not work. Distance is
+        // what used to decide this, and distance is exactly what a failed
+        // flank produces - the enemy backs off, crosses the stalk threshold,
+        // and is sent round again on the strength of it. While the commitment
+        // holds, a confirmed target means walk at them, whatever the range.
+        if (engagement.IsAssaultCommitted(
+                Time.time,
+                context.GetRelevantGazeTopologySignature()))
+        {
+            if (currentState != EnemyState.Chase)
+            {
+                ChangeState(EnemyState.Chase);
+            }
+
             return;
         }
 

@@ -153,6 +153,21 @@ public sealed class EntranceDoor : InteractableObject
             return false;
         }
 
+        // The handle is only checked on the client that interacts, and the
+        // insert RPC is open to everyone - without this the door opens for
+        // anyone who sends the message, item or not.
+        if (requireHandleItem && IsSpawned && IsServer &&
+            !HoldsHandleItem(instigatorClientId, handleId))
+        {
+            Debug.LogWarning(
+                $"{nameof(EntranceDoor)} rejected handle insert from client " +
+                $"{instigatorClientId}: it does not carry item {handleId}.",
+                this
+            );
+
+            return false;
+        }
+
         int nextHandleCount = Mathf.Min(InsertedHandleCount + 1, RequiredHandleCount);
         SetInsertedHandleCount(nextHandleCount);
 
@@ -182,6 +197,40 @@ public sealed class EntranceDoor : InteractableObject
         }
 
         return true;
+    }
+
+    private bool HoldsHandleItem(ulong instigatorClientId, int handleId)
+    {
+        NetworkManager manager = NetworkManager;
+
+        if (manager == null ||
+            !manager.ConnectedClients.TryGetValue(
+                instigatorClientId,
+                out NetworkClient client))
+        {
+            return false;
+        }
+
+        NetworkObject[] ownedObjects = client.OwnedObjects;
+
+        for (int i = 0; i < ownedObjects.Length; i++)
+        {
+            NetworkObject owned = ownedObjects[i];
+
+            if (owned == null || !owned.IsSpawned)
+            {
+                continue;
+            }
+
+            if (owned.TryGetComponent(out PickupItem item) &&
+                item.IsPickedUp &&
+                item.GetItemID() == handleId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool TryResolveHandleItem(

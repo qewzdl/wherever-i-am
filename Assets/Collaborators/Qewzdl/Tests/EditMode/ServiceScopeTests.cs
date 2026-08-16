@@ -666,6 +666,10 @@ public sealed class GTests
         public void SubmitMessage(string text)
         {
         }
+
+        public void AddSystemMessage(string text)
+        {
+        }
     }
 
     private sealed class ForbiddenPlayerService : IReplicatedPlayerStateService
@@ -895,6 +899,7 @@ public sealed class GTests
             typeof(IGameStateService),
             typeof(IProjectSceneFlowService),
             typeof(INetworkSessionService),
+            typeof(INetworkSessionAdmissionService),
             typeof(IUiErrorService),
             typeof(ISettingsService),
             typeof(IAudioService),

@@ -64,3 +64,13 @@ MonoBehaviour:
     allowEditorDirectLoad: 0
     stateBeforeLoad: 1
     serverActionsAfterLoad: []
+  - fromScene: 4
+    toScene: 3
+    loadMode: 1
+    authority: 1
+    requiresActiveNetworkSession: 1
+    allowEditorDirectLoad: 0
+    stateBeforeLoad: 2
+    serverActionsAfterLoad:
+    - 2
+    - 0

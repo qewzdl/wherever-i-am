@@ -7,13 +7,9 @@ using UnityEngine;
 public sealed class ObjectiveAndNetworkDataTests
 {
     [Test]
-    public void ObjectiveDefinition_ValidatesIdentityProgressAndCompletion()
+    public void ObjectiveDefinition_ValidatesIdentityAndProgress()
     {
-        ObjectiveDefinition objective = CreateObjective(
-            "escape",
-            2.5f,
-            ObjectiveCompletionPolicy.CompletesGame,
-            GameResultType.Victory);
+        ObjectiveDefinition objective = CreateObjective("escape", 2.5f);
 
         try
         {
@@ -23,8 +19,6 @@ public sealed class ObjectiveAndNetworkDataTests
             Assert.That(objective.DisplayName, Is.EqualTo("escape"));
             Assert.That(objective.RequiredProgress, Is.EqualTo(2.5f));
             Assert.That(objective.TargetValue, Is.EqualTo(3));
-            Assert.That(objective.CompletesGame, Is.True);
-            Assert.That(objective.ResultType, Is.EqualTo(GameResultType.Victory));
         }
         finally
         {
@@ -35,54 +29,22 @@ public sealed class ObjectiveAndNetworkDataTests
     [Test]
     public void ObjectiveDefinition_RejectsEveryInvalidShape()
     {
-        ObjectiveDefinition objective = CreateObjective(
-            "",
-            1f,
-            ObjectiveCompletionPolicy.CompletesGame,
-            GameResultType.Victory);
-
-        try
-        {
-            Assert.That(objective.IsValid(out string error), Is.False);
-            StringAssert.Contains("empty objective id", error);
-
-            TestReflection.SetField(objective, "objectiveId", new string('я', 31));
-            Assert.That(objective.IsValid(out error), Is.False);
-            StringAssert.Contains("too long", error);
-
-            TestReflection.SetField(objective, "objectiveId", "escape");
-            TestReflection.SetField(objective, "requiredProgress", 0f);
-            Assert.That(objective.IsValid(out error), Is.False);
-            StringAssert.Contains("greater than zero", error);
-
-            TestReflection.SetField(objective, "requiredProgress", 1f);
-            TestReflection.SetField(objective, "completionResult", GameResultType.None);
-            Assert.That(objective.IsValid(out error), Is.False);
-            StringAssert.Contains("invalid completion result", error);
-        }
-        finally
-        {
-            Object.DestroyImmediate(objective);
-        }
-    }
-
-    [Test]
-    public void ObjectiveOnlyDefinition_NeverProducesMatchResult()
-    {
-        ObjectiveDefinition objective = CreateObjective(
-            "switch",
-            1f,
-            ObjectiveCompletionPolicy.ObjectiveOnly,
-            GameResultType.Victory);
+        ObjectiveDefinition objective = CreateObjective("escape", 1f);
 
         try
         {
             Assert.That(objective.IsValid(out string error), Is.True, error);
-            Assert.That(objective.CompletesGame, Is.False);
-            Assert.That(objective.ResultType, Is.EqualTo(GameResultType.None));
-            Assert.That(
-                MatchOutcomeFactory.FromObjective(objective, 4).HasResult,
-                Is.False);
+
+            // The asset name is what a finished match reports, and the result
+            // carries it in a FixedString64Bytes.
+            objective.name = new string('я', 31);
+            Assert.That(objective.IsValid(out error), Is.False);
+            StringAssert.Contains("too long", error);
+
+            objective.name = "escape";
+            TestReflection.SetField(objective, "requiredProgress", 0f);
+            Assert.That(objective.IsValid(out error), Is.False);
+            StringAssert.Contains("greater than zero", error);
         }
         finally
         {
@@ -90,21 +52,45 @@ public sealed class ObjectiveAndNetworkDataTests
         }
     }
 
+    // The same objective asset is now worth the same everywhere; what a match
+    // does about it belongs to the list it sits in.
     [Test]
-    public void ObjectiveSequence_RejectsMissingNullAndDuplicateDefinitions()
+    public void ObjectiveSequence_OwnsWhatFinishingAndLosingAreWorth()
     {
-        ObjectiveSequenceDefinition sequence =
-            ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
-        ObjectiveDefinition first = CreateObjective(
-            "door",
-            1f,
-            ObjectiveCompletionPolicy.ObjectiveOnly,
-            GameResultType.None);
-        ObjectiveDefinition duplicate = CreateObjective(
-            "door",
-            1f,
-            ObjectiveCompletionPolicy.CompletesGame,
-            GameResultType.Victory);
+        ObjectiveSequenceDefinition sequence = CreateSequence(GameResultType.Victory);
+        ObjectiveDefinition only = CreateObjective("escape", 1f);
+
+        try
+        {
+            TestReflection.SetField(sequence, "objectives", new[] { only });
+
+            Assert.That(sequence.IsValid(out string error), Is.True, error);
+            Assert.That(sequence.CompletionResult, Is.EqualTo(GameResultType.Victory));
+            Assert.That(sequence.IsLastObjective(0), Is.True);
+            Assert.That(sequence.LosingAnObjectiveEndsMatch, Is.True);
+
+            // None means the objectives are losable and the sequence carries on.
+            TestReflection.SetField(sequence, "failureResult", GameResultType.None);
+            Assert.That(sequence.LosingAnObjectiveEndsMatch, Is.False);
+            Assert.That(sequence.IsValid(out error), Is.True, error);
+
+            // Finishing it, however, has to decide something.
+            TestReflection.SetField(sequence, "completionResult", GameResultType.None);
+            Assert.That(sequence.IsValid(out error), Is.False);
+            StringAssert.Contains("no completion result", error);
+        }
+        finally
+        {
+            Object.DestroyImmediate(sequence);
+            Object.DestroyImmediate(only);
+        }
+    }
+
+    [Test]
+    public void ObjectiveSequence_RejectsMissingAndNullDefinitionsButAllowsRepeats()
+    {
+        ObjectiveSequenceDefinition sequence = CreateSequence(GameResultType.Victory);
+        ObjectiveDefinition first = CreateObjective("door", 1f);
 
         try
         {
@@ -119,36 +105,26 @@ public sealed class ObjectiveAndNetworkDataTests
             Assert.That(sequence.IsValid(out error), Is.False);
             StringAssert.Contains("null objective", error);
 
-            TestReflection.SetField(
-                sequence,
-                "objectives",
-                new[] { first, duplicate });
-            Assert.That(sequence.IsValid(out error), Is.False);
-            StringAssert.Contains("duplicate objective id", error);
+            // The position is the identity, so the same objective twice is two
+            // steps rather than a clash. It had to be rejected while a shared
+            // id was what the lookup went by.
+            TestReflection.SetField(sequence, "objectives", new[] { first, first });
+            Assert.That(sequence.IsValid(out error), Is.True, error);
+            Assert.That(sequence.IsLastObjective(1), Is.True);
         }
         finally
         {
             Object.DestroyImmediate(sequence);
             Object.DestroyImmediate(first);
-            Object.DestroyImmediate(duplicate);
         }
     }
 
     [Test]
     public void ObjectiveSequence_ProvidesStableOrderedLookup()
     {
-        ObjectiveSequenceDefinition sequence =
-            ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
-        ObjectiveDefinition first = CreateObjective(
-            "switch",
-            2f,
-            ObjectiveCompletionPolicy.ObjectiveOnly,
-            GameResultType.None);
-        ObjectiveDefinition final = CreateObjective(
-            "escape",
-            1f,
-            ObjectiveCompletionPolicy.CompletesGame,
-            GameResultType.Victory);
+        ObjectiveSequenceDefinition sequence = CreateSequence(GameResultType.Victory);
+        ObjectiveDefinition first = CreateObjective("switch", 2f);
+        ObjectiveDefinition final = CreateObjective("escape", 1f);
 
         try
         {
@@ -197,7 +173,6 @@ public sealed class ObjectiveAndNetworkDataTests
 
         ObjectiveNetworkState objective = new()
         {
-            ObjectiveId = "escape",
             SequenceIndex = 2,
             State = ObjectiveRuntimeState.Active,
             Progress01 = 0.75f
@@ -254,21 +229,25 @@ public sealed class ObjectiveAndNetworkDataTests
         Assert.That(GameResultData.None.SourceId.IsEmpty, Is.True);
     }
 
-    private static ObjectiveDefinition CreateObjective(
-        string id,
-        float requiredProgress,
-        ObjectiveCompletionPolicy policy,
-        GameResultType result)
+    private static ObjectiveDefinition CreateObjective(string id, float requiredProgress)
     {
         ObjectiveDefinition objective =
             ScriptableObject.CreateInstance<ObjectiveDefinition>();
-        TestReflection.SetField(objective, "objectiveId", id);
+        objective.name = id;
         TestReflection.SetField(objective, "requiredProgress", requiredProgress);
-        TestReflection.SetField(objective, "completionPolicy", policy);
-        TestReflection.SetField(objective, "completionResult", result);
-        TestReflection.SetField(objective, "completionReason", "Completed");
         TestReflection.SetField(objective, "requiresSceneBinding", false);
         return objective;
+    }
+
+    private static ObjectiveSequenceDefinition CreateSequence(GameResultType completionResult)
+    {
+        ObjectiveSequenceDefinition sequence =
+            ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
+        TestReflection.SetField(sequence, "completionResult", completionResult);
+        TestReflection.SetField(sequence, "completionReason", "Completed");
+        TestReflection.SetField(sequence, "failureResult", GameResultType.Defeat);
+        TestReflection.SetField(sequence, "failureReason", "Failed");
+        return sequence;
     }
 
     private static T RoundTrip<T>(T value)

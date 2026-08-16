@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsServiceConsumer
+public class CameraLook : MonoBehaviour, ILocalPlayerCameraService
 {
     [Header("References")]
     [SerializeField] private Transform playerTransform;
@@ -29,6 +29,7 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
     private readonly HashSet<object> lookBlockers = new();
 
     private Rigidbody playerRigidbody;
+    private Camera ownedCamera;
     private IPauseService pauseService;
 
     private Vector2 pendingLookDelta;
@@ -45,7 +46,7 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
     private bool hasLocalControl;
     private bool lookActive = true;
     private float verticalSensitivitySign = 1f;
-    private ISettingsService settingsService;
+    private int appliedSettingsRevision = -1;
 
     private Transform hidingViewAnchor;
     private Vector3 returnLocalPosition;
@@ -61,6 +62,8 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
     private void Awake()
     {
+        ownedCamera = GetComponentInChildren<Camera>(true);
+
         if (!ValidateReferences())
         {
             enabled = false;
@@ -68,38 +71,20 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
         }
 
         SyncRotationFromScene();
+
+        ApplySettingsIfChanged();
     }
 
-    public void Construct(ISettingsService settings)
+    private void OnEnable()
     {
-        if (settings == null)
-            throw new System.ArgumentNullException(nameof(settings));
-
-        if (ReferenceEquals(settingsService, settings))
-            return;
-
-        ReleaseSettingsService();
-        settingsService = settings;
-        settingsService.FovChanged += OnFovChanged;
-        settingsService.SettingsChanged += ApplySettings;
-        ApplySettings();
-    }
-
-    public void ReleaseSettingsService()
-    {
-        if (settingsService == null)
-            return;
-
-        settingsService.FovChanged -= OnFovChanged;
-        settingsService.SettingsChanged -= ApplySettings;
-        settingsService = null;
+        if (SettingsService.TryGet(out ISettingsService settings))
+            settings.FovChanged += OnFovChanged;
     }
 
     private void OnFovChanged(float fieldOfView)
     {
-        Camera attachedCamera = GetComponentInChildren<Camera>(true);
-        if (attachedCamera != null)
-            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
+        if (ownedCamera != null)
+            ownedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
     }
 
     public void ApplyUserSettings(
@@ -115,11 +100,9 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
             ? Mathf.Lerp(0.005f, 0.12f, Mathf.Clamp01(smoothingIntensity))
             : 0f;
 
-        Camera attachedCamera = GetComponentInChildren<Camera>(true);
-
-        if (attachedCamera != null)
+        if (ownedCamera != null)
         {
-            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
+            ownedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
         }
     }
 
@@ -136,6 +119,13 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
         lookBlockers.Clear();
         lookActive = true;
         pendingLookDelta = Vector2.zero;
+
+        // The scene keeps a camera alive for the time before this player
+        // exists; claiming the view here is what switches that one off.
+        if (hasLocalControl)
+            FallbackCamera.SetLocalPlayerCamera(ownedCamera);
+        else
+            FallbackCamera.ClearLocalPlayerCamera(ownedCamera);
 
         if (!hasLocalControl)
         {
@@ -276,6 +266,8 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
     private void Update()
     {
+        ApplySettingsIfChanged();
+
         if (CanReadLookInput())
             ApplyLookInput();
 
@@ -306,6 +298,9 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
     private void OnDisable()
     {
+        if (SettingsService.TryGet(out ISettingsService settings))
+            settings.FovChanged -= OnFovChanged;
+
         pendingLookDelta = Vector2.zero;
         ClearHidingView();
 
@@ -315,7 +310,9 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
     private void OnDestroy()
     {
-        ReleaseSettingsService();
+        // Leaving the match takes the player's camera with it, so the scene
+        // has to get the view back instead of nothing rendering at all.
+        FallbackCamera.ClearLocalPlayerCamera(ownedCamera);
     }
 
     private void OnApplicationFocus(bool hasFocus)
@@ -403,6 +400,9 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
             return;
         }
 
+        if (SettingsService.TryGet(out ISettingsService settings))
+            sensitivity = Mathf.Clamp(settings.Current.mouseSensitivity, GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
+
         Vector2 scaledDelta = pendingLookDelta * sensitivity / 500f;
 
         targetYaw += scaledDelta.x * horizontalSensitivityMultiplier;
@@ -472,17 +472,21 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
         transform.localRotation = Quaternion.Euler(currentPitch, yawOffset, 0f);
     }
 
-    private void ApplySettings()
+    private void ApplySettingsIfChanged()
     {
-        if (settingsService == null)
+        if (!SettingsService.TryGet(out ISettingsService settings) ||
+            settings.Revision == appliedSettingsRevision)
+        {
             return;
+        }
 
-        GameSettingsData values = settingsService.Current;
+        GameSettingsData values = settings.Current;
         ApplyUserSettings(
             values.mouseSensitivity,
             values.invertVerticalLook,
             values.cameraSmoothing,
             values.cameraSmoothingIntensity,
             values.fieldOfView);
+        appliedSettingsRevision = settings.Revision;
     }
 }

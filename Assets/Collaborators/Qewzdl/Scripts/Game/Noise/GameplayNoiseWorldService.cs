@@ -179,6 +179,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
     public bool TryFindBestNoise(
         Vector3 listenerPosition,
         float hearingRadius,
+        float hearingSensitivity,
         float memoryDuration,
         float minimumLoudness,
         out GameplayNoiseEvent bestNoise,
@@ -189,6 +190,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
         bestScore = 0f;
 
         hearingRadius = Mathf.Max(0f, hearingRadius);
+        hearingSensitivity = Mathf.Max(0.01f, hearingSensitivity);
         memoryDuration = Mathf.Max(0f, memoryDuration);
         minimumLoudness = Mathf.Max(0f, minimumLoudness);
 
@@ -204,7 +206,9 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
         {
             GameplayNoiseEvent noise = noises[i];
 
-            if (now - noise.CreatedAtTime > memoryDuration)
+            float age = now - noise.CreatedAtTime;
+
+            if (age > memoryDuration)
             {
                 continue;
             }
@@ -215,15 +219,24 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
             }
 
             float distance = Vector3.Distance(listenerPosition, noise.Position);
-            float effectiveRadius = Mathf.Min(hearingRadius, noise.Radius);
+
+            float effectiveRadius = ResolveEffectiveRadius(
+                hearingRadius,
+                hearingSensitivity,
+                noise.Radius);
 
             if (distance > effectiveRadius)
             {
                 continue;
             }
 
-            float normalizedDistance = distance / Mathf.Max(0.001f, effectiveRadius);
-            float score = noise.Loudness * (1f - normalizedDistance);
+            float score = ScoreNoise(
+                noise.Loudness,
+                distance,
+                effectiveRadius,
+                age,
+                memoryDuration
+            );
 
             if (score <= bestScore)
             {
@@ -236,6 +249,46 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
         }
 
         return hasBestNoise;
+    }
+
+    // Loud, close and recent, in that order of what the enemy goes to look at.
+    //
+    // Age used to count for nothing: a noise scored the same on its last
+    // remembered frame as on its first, so one loud bang held every enemy in
+    // range for the whole memory duration and a quieter, nearer, newer sound
+    // could not displace it. Fading to nothing at the memory horizon also
+    // removes the cliff, where a noise went from top candidate to forgotten
+    // between two frames.
+    //
+    // Internal rather than private so the scoring can be checked without
+    // standing up a server; TryFindBestNoise needs one.
+    // How far this listener notices a noise that carries noiseRadius on its
+    // own. Sharper ears carry it further, up to the listener's own ceiling; at
+    // sensitivity 1 this is the plain radius, which is what it always was.
+    internal static float ResolveEffectiveRadius(
+        float hearingRadius,
+        float hearingSensitivity,
+        float noiseRadius)
+    {
+        return Mathf.Min(
+            Mathf.Max(0f, hearingRadius),
+            Mathf.Max(0f, noiseRadius) * Mathf.Max(0.01f, hearingSensitivity));
+    }
+
+    internal static float ScoreNoise(
+        float loudness,
+        float distance,
+        float effectiveRadius,
+        float age,
+        float memoryDuration
+    )
+    {
+        float normalizedDistance = distance / Mathf.Max(0.001f, effectiveRadius);
+        float freshness = Mathf.Clamp01(
+            1f - age / Mathf.Max(0.001f, memoryDuration)
+        );
+
+        return loudness * (1f - normalizedDistance) * freshness;
     }
 
     public void Clear()

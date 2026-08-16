@@ -56,10 +56,17 @@ public sealed class ChildServiceContractPolicyTests
         {
         }
 
+        public void AddSystemMessage(string text)
+        {
+        }
+
         public bool CompleteMatchServerOnly(GameResultData matchResult, string reason)
         {
             return true;
         }
+
+        public GameResultData CurrentResult => GameResultData.None;
+        public event Action<GameResultData> MatchResolved { add { } remove { } }
 
         public bool TrySetServerScenePhase(ProjectSceneKind sceneKind)
         {
@@ -90,6 +97,7 @@ public sealed class ChildServiceContractPolicyTests
 
         public bool IsLocalClient(ulong clientId) => false;
         public void SubmitMessage(string text) { }
+        public void AddSystemMessage(string text) { }
     }
 
     private sealed class CrossScopeService : IChatCommandService, IPauseService
@@ -103,6 +111,10 @@ public sealed class ChildServiceContractPolicyTests
         }
 
         public void SubmitMessage(string text)
+        {
+        }
+
+        public void AddSystemMessage(string text)
         {
         }
 
@@ -462,6 +474,54 @@ public sealed class ChildServiceContractPolicyTests
 
         replacement.Dispose();
 
+        Assert.That(failureCount, Is.EqualTo(1));
+    }
+
+    // A finished match takes the Game scene away, which despawns the objects
+    // that publish IMatchCompletionService. On a client that arrives while it
+    // is still nominally InGame, and treating it as a fault ended the session
+    // for everybody over the server doing something it meant to do.
+    [Test]
+    public void SessionReadinessMonitor_LeavesSessionHealthToThePeerThatOwnsIt()
+    {
+        using ServiceScope global = new("Global");
+        using ServiceScope session = global.CreateChild(
+            "Session",
+            SessionContractPolicy.Instance);
+        using SessionServiceRegistry registry = new(session);
+        DynamicSessionService service = new();
+
+        Assert.That(
+            registry.TryRegister(
+                registrar =>
+                {
+                    registrar.Register<IChatReadService>(service);
+                    registrar.Register<IChatCommandService>(service);
+                    registrar.Register<ISessionPhaseService>(service);
+                },
+                out SessionServiceRegistration registration,
+                out Exception registrationFailure),
+            Is.True,
+            registrationFailure?.ToString());
+
+        int failureCount = 0;
+        bool ownsSessionHealth = false;
+        using SessionServiceReadinessMonitor monitor = new(
+            registry,
+            () => GameState.Lobby,
+            _ => failureCount++,
+            () => ownsSessionHealth);
+
+        registration.Dispose();
+
+        Assert.That(
+            failureCount,
+            Is.Zero,
+            "A client ended the session over services only the server controls.");
+
+        // The server does own it, and a contract vanishing there is a fault.
+        ownsSessionHealth = true;
+        Assert.That(monitor.ValidateNow(), Is.False);
         Assert.That(failureCount, Is.EqualTo(1));
     }
 

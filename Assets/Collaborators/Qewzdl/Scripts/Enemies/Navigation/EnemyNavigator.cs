@@ -21,6 +21,7 @@ public class EnemyNavigator : MonoBehaviour
     private EnemyNavigationRecoveryController recoveryController;
     private EnemyDoorTraversalHandler doorTraversal;
     private EnemyPostureTraversalPlanner postureTraversal;
+    private NavMeshPath tacticalPath;
 
     private EnemyConfig config;
     private bool warnedAboutMissingNavMesh;
@@ -29,6 +30,7 @@ public class EnemyNavigator : MonoBehaviour
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
     private bool requestedAllowPushThrough;
+    private bool hasDeferredRepath;
     private float forcefulPushStopUntil = -1f;
 
     private readonly HashSet<ItemNavigationObstacle> pushThroughHolds = new();
@@ -40,6 +42,7 @@ public class EnemyNavigator : MonoBehaviour
     // from the agent rather than written down again per state: it is already
     // the authority on the enemy's size, and it shrinks when the posture does.
     public float BodyHeight => agent != null ? agent.height : DefaultBodyHeight;
+    public int NavigationSchedulerId => GetInstanceID();
 
     private const float DefaultBodyHeight = 1.8f;
     public EnemyNavigationQueryTelemetrySnapshot QueryTelemetry =>
@@ -107,7 +110,13 @@ public class EnemyNavigator : MonoBehaviour
             queryService,
             HasNavigationBlockerOnPath);
 
+        if (postureController != null)
+        {
+            postureController.ServerPostureChanged += HandleServerPostureChanged;
+        }
+
         pathBuffer = new NavMeshPath();
+        tacticalPath = new NavMeshPath();
     }
 
     public void Configure(EnemyConfig config)
@@ -117,6 +126,7 @@ public class EnemyNavigator : MonoBehaviour
         CacheComponents();
 
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         repathScheduler?.Invalidate();
         recoveryController?.Configure(config);
         queryTelemetry?.Reset();
@@ -155,6 +165,7 @@ public class EnemyNavigator : MonoBehaviour
         CacheComponents();
 
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
         doorTraversal?.Cancel();
@@ -170,6 +181,21 @@ public class EnemyNavigator : MonoBehaviour
     private void OnDisable()
     {
         ReleaseAllPushThroughHolds();
+        EnemyServerPerceptionScheduler.Forget(NavigationSchedulerId);
+    }
+
+    private void OnDestroy()
+    {
+        if (postureController != null)
+        {
+            postureController.ServerPostureChanged -= HandleServerPostureChanged;
+        }
+    }
+
+    private void HandleServerPostureChanged(EnemyPosture posture)
+    {
+        postureTraversal?.NotifyPostureChanged(posture);
+        repathScheduler?.Invalidate();
     }
 
     public bool TryMoveTo(Vector3 destination, float speed, bool allowPushThrough = false)
@@ -204,14 +230,15 @@ public class EnemyNavigator : MonoBehaviour
 
     public void TickNavigationGate()
     {
-        if (doorTraversal == null)
+        if (!hasRequestedNavigation)
         {
+            doorTraversal?.Cancel();
             return;
         }
 
-        if (!hasRequestedNavigation)
+        if (doorTraversal == null)
         {
-            doorTraversal.Cancel();
+            RetryDeferredRepath();
             return;
         }
 
@@ -247,7 +274,28 @@ public class EnemyNavigator : MonoBehaviour
                 requestedNavigationSpeed,
                 forceRepath: true
             );
+
+            return;
         }
+
+        if (hasDeferredRepath)
+        {
+            RetryDeferredRepath();
+        }
+    }
+
+    private void RetryDeferredRepath()
+    {
+        if (!hasDeferredRepath)
+        {
+            return;
+        }
+
+        TryMoveAfterDoorNavigation(
+            requestedNavigationDestination,
+            requestedNavigationSpeed,
+            forceRepath: true
+        );
     }
 
     private bool TryMoveAfterDoorNavigation(
@@ -292,14 +340,27 @@ public class EnemyNavigator : MonoBehaviour
             return true;
         }
 
+        int requestedPathQueries = navigationConfig != null
+            ? navigationConfig.maximumPathQueriesPerRepath
+            : 24;
+
+        if (!EnemyServerPerceptionScheduler.TryReservePathQueries(
+                NavigationSchedulerId,
+                requestedPathQueries,
+                out int grantedPathQueries))
+        {
+            hasDeferredRepath = true;
+            queryTelemetry.RecordDeferredRepath();
+            ContinueCurrentPath(speed);
+            return true;
+        }
+
+        hasDeferredRepath = false;
         repathScheduler.RecordAttempt(
             destination,
             navigationConfig,
             EnemyNavigationTopology.Revision);
-        queryService.BeginRepath(
-            navigationConfig != null
-                ? navigationConfig.maximumPathQueriesPerRepath
-                : 24);
+        queryService.BeginRepath(grantedPathQueries);
 
         if (!requestedAllowPushThrough)
         {
@@ -309,6 +370,14 @@ public class EnemyNavigator : MonoBehaviour
         if (config != null && config.crawlingEnabled && postureController != null)
         {
             bool moved = TryMoveWithPosturePriority(destination, speed);
+
+            if (!moved && queryService.WasPathBudgetExhausted)
+            {
+                hasDeferredRepath = true;
+                queryTelemetry.RecordDeferredRepath();
+                ContinueCurrentPath(speed);
+                return true;
+            }
 
             if (!moved && !postureController.IsPostureTransitionInProgress)
             {
@@ -322,12 +391,37 @@ public class EnemyNavigator : MonoBehaviour
             destination,
             speed);
 
+        if (!movedWithCurrentPosture && queryService.WasPathBudgetExhausted)
+        {
+            hasDeferredRepath = true;
+            queryTelemetry.RecordDeferredRepath();
+            ContinueCurrentPath(speed);
+            return true;
+        }
+
         if (!movedWithCurrentPosture)
         {
             StopAtBlockedRoute();
         }
 
         return movedWithCurrentPosture;
+    }
+
+    private void ContinueCurrentPath(float speed)
+    {
+        if (agent == null ||
+            !agent.enabled ||
+            !agent.isOnNavMesh ||
+            !agent.hasPath ||
+            agent.isPathStale ||
+            agent.pathStatus == NavMeshPathStatus.PathInvalid)
+        {
+            return;
+        }
+
+        agent.speed = Mathf.Max(0f, speed);
+        agent.isStopped = false;
+        queryTelemetry.RecordReusedPath();
     }
 
     private bool TryRecoverStalledNavigation()
@@ -365,6 +459,7 @@ public class EnemyNavigator : MonoBehaviour
     public void Stop()
     {
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
@@ -381,6 +476,7 @@ public class EnemyNavigator : MonoBehaviour
     public void ResetPath()
     {
         hasRequestedNavigation = false;
+        hasDeferredRepath = false;
         doorTraversal?.Cancel();
         repathScheduler?.Invalidate();
         recoveryController?.Reset();
@@ -471,6 +567,194 @@ public class EnemyNavigator : MonoBehaviour
         };
 
         return true;
+    }
+
+    // The complete route this agent would actually walk, including the posture
+    // of every leg. Runtime navigation and tactical preview both delegate to
+    // EnemyPostureTraversalPlanner, so reachability, sampled endpoints and the
+    // standing-prefix/crawl-continuation strategy cannot drift apart.
+    //
+    // The stealth states used to ask NavMesh.SamplePosition and
+    // NavMesh.CalculatePath with NavMesh.AllAreas and whichever agent type
+    // happened to be default. That is a different NavMesh from the one this
+    // enemy moves on - wrong agent size, wrong area mask, no posture, none of
+    // the item blockers - so a plan could be judged perfect and then be
+    // unwalkable the moment it was handed back here to be driven.
+    internal bool TryPlanTacticalRoute(
+        Vector3 to,
+        ref int pathBudget,
+        out EnemyPostureTraversalPlan plan,
+        out bool budgetExhausted
+    )
+    {
+        plan = default;
+        budgetExhausted = false;
+
+        if (UsesPostureNavigation)
+        {
+            return postureTraversal.TryBuildTacticalPlan(
+                to,
+                ref pathBudget,
+                out plan,
+                out budgetExhausted);
+        }
+
+        if (pathBudget <= 0)
+        {
+            budgetExhausted = true;
+            return false;
+        }
+
+        pathBudget--;
+        tacticalPath.ClearCorners();
+
+        if (!TryGetNavigationQueryFilter(
+                EnemyPosture.Standing,
+                out NavMeshQueryFilter filter))
+        {
+            return false;
+        }
+
+        float sampleRadius = GetNavigationSampleRadius();
+
+        if (!NavMesh.SamplePosition(
+                transform.position,
+                out NavMeshHit fromHit,
+                sampleRadius,
+                filter) ||
+            !NavMesh.SamplePosition(
+                to,
+                out NavMeshHit toHit,
+                sampleRadius,
+                filter) ||
+            !NavMesh.CalculatePath(
+                fromHit.position,
+                toHit.position,
+                filter,
+                tacticalPath) ||
+            tacticalPath.status != NavMeshPathStatus.PathComplete ||
+            HasNavigationBlockerOnPath(tacticalPath))
+        {
+            return false;
+        }
+
+        plan = EnemyPostureTraversalPlan.Single(
+            new EnemyPostureTraversalLeg(
+                EnemyPosture.Standing,
+                toHit.position,
+                tacticalPath));
+        return true;
+    }
+
+    // The posture the move would try first, so what gets checked here is what
+    // gets walked. Same answer from the same place the runtime planner asks,
+    // rather than a second rule that agreed with it most of the time: a copy
+    // that judged only whether the enemy could physically stand still had it
+    // planning standing routes through the second or so a crawl is held for.
+    private EnemyPosture FirstTacticalPosture =>
+        postureController == null ||
+        config == null ||
+        !config.crawlingEnabled
+            ? EnemyPosture.Standing
+            : postureController.GetPreferredPlanningPosture();
+
+    // Both postures, in the same order the route planning above takes them.
+    // Asking with the current posture alone threw out every spot that exists
+    // only on the other NavMesh before the route planner - the one part of
+    // this that does try both - was ever asked about it, so a destination that
+    // needed the other posture could not be reached at all.
+    internal bool TrySampleTacticalPoint(
+        Vector3 desiredPosition,
+        float maximumDistance,
+        out Vector3 sampledPosition)
+    {
+        EnemyPosture posture = FirstTacticalPosture;
+
+        if (TrySampleTacticalPointForPosture(
+                posture,
+                desiredPosition,
+                maximumDistance,
+                out sampledPosition))
+        {
+            return true;
+        }
+
+        // Same two postures the route planning takes, and no more: a spot that
+        // exists only where the move will not go is not a spot to go to.
+        return config != null &&
+               config.crawlingEnabled &&
+               posture == EnemyPosture.Standing &&
+               TrySampleTacticalPointForPosture(
+                   EnemyPosture.Crawling,
+                   desiredPosition,
+                   maximumDistance,
+                   out sampledPosition);
+    }
+
+    private bool TrySampleTacticalPointForPosture(
+        EnemyPosture posture,
+        Vector3 desiredPosition,
+        float maximumDistance,
+        out Vector3 sampledPosition)
+    {
+        sampledPosition = desiredPosition;
+
+        // The same landing rule the route builder uses for its destination, so
+        // a point offered here is a point a route can end on. A plain sample
+        // accepted spots the posture cannot actually hold.
+        if (UsesPostureNavigation)
+        {
+            if (!postureController.TryGetUsablePosturePosition(
+                    posture,
+                    desiredPosition,
+                    Mathf.Max(0.1f, maximumDistance),
+                    out NavMeshHit postureHit))
+            {
+                return false;
+            }
+
+            sampledPosition = postureHit.position;
+            return true;
+        }
+
+        if (!TryGetNavigationQueryFilter(posture, out NavMeshQueryFilter filter))
+        {
+            return false;
+        }
+
+        if (!NavMesh.SamplePosition(
+                desiredPosition,
+                out NavMeshHit hit,
+                Mathf.Max(0.1f, maximumDistance),
+                filter))
+        {
+            return false;
+        }
+
+        sampledPosition = hit.position;
+        return true;
+    }
+
+    private bool UsesPostureNavigation =>
+        config != null &&
+        config.crawlingEnabled &&
+        postureController != null &&
+        postureTraversal != null;
+
+    // The posture the enemy is in right now, as opposed to the one a route
+    // would be planned with. What a route costs in exposure depends on the
+    // difference: setting off in another posture is a change of body at a spot
+    // that has only been looked at as it stands.
+    internal EnemyPosture CurrentPosture =>
+        postureController != null
+            ? postureController.CurrentPosture
+            : EnemyPosture.Standing;
+
+    internal float GetBodyHeightForPosture(EnemyPosture posture)
+    {
+        return postureController != null
+            ? postureController.GetHeightForPosture(posture)
+            : BodyHeight;
     }
 
     private void RememberRequestedNavigation(
@@ -575,6 +859,11 @@ public class EnemyNavigator : MonoBehaviour
             return ApplyPosturePlan(plan, speed);
         }
 
+        if (queryService.WasPathBudgetExhausted)
+        {
+            return false;
+        }
+
         if (!requestedAllowPushThrough)
         {
             return false;
@@ -596,8 +885,6 @@ public class EnemyNavigator : MonoBehaviour
             speed,
             plan.Posture);
 
-        EnemyPosture previousPosture = postureController.CurrentPosture;
-
         if (!postureController.TrySetServerPosture(plan.Posture))
         {
             return false;
@@ -607,12 +894,6 @@ public class EnemyNavigator : MonoBehaviour
         {
             StopForPostureTransition();
             return false;
-        }
-
-        if (previousPosture != postureController.CurrentPosture)
-        {
-            postureTraversal.NotifyPostureChanged(
-                postureController.CurrentPosture);
         }
 
         return queryService.TryApplyPath(

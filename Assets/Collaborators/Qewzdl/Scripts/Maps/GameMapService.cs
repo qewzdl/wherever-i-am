@@ -10,8 +10,10 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameMapCatalog catalog;
+    [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
 
     private IProjectSceneRegistry sceneRegistry;
+    private EnemyConfig selectedEnemyConfig;
     private GameMapDefinition selectedMap;
     private GameMapDefinition activeMap;
     private GameMapRoot activeMapRoot;
@@ -29,6 +31,7 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     public GameMapDefinition SelectedMap => selectedMap;
     public GameMapDefinition ActiveMap => activeMap;
     public GameMapRoot ActiveMapRoot => activeMapRoot;
+    public EnemyConfig SelectedEnemyConfig => selectedEnemyConfig;
     public bool IsReadyForMatch => readyForMatch;
     internal bool HasPendingOperation => pendingCompletion != null ||
                                          localLoadRequested ||
@@ -88,6 +91,31 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         return true;
     }
 
+    // Server only: enemies read the resolved config when they spawn. Leaving
+    // the catalog unassigned is a valid setup - enemies then keep the config
+    // on their own prefab.
+    public bool SelectDifficulty(int difficultyId)
+    {
+        if (difficultyCatalog == null)
+        {
+            Debug.LogError(
+                $"{nameof(GameMapService)} cannot select a difficulty without " +
+                $"{nameof(EnemyDifficultyCatalog)}.",
+                this);
+
+            return false;
+        }
+
+        if (!difficultyCatalog.TryGetConfig(difficultyId, out EnemyConfig config))
+        {
+            Debug.LogError($"Cannot select unknown enemy difficulty id {difficultyId}.", this);
+            return false;
+        }
+
+        selectedEnemyConfig = config;
+        return true;
+    }
+
     internal bool ShouldActivateSceneScope(Scene scene)
     {
         if (!scene.IsValid() || catalog == null ||
@@ -121,6 +149,9 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
             error = "No game map is selected.";
             return false;
         }
+
+        if (difficultyCatalog != null && !difficultyCatalog.IsValid(out error))
+            return false;
 
         return selectedMap.IsConfigured(out error);
     }
@@ -505,10 +536,15 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
 
     private void ResolveDefaultSelection()
     {
-        if (selectedMap != null || catalog == null)
-            return;
+        if (selectedMap == null && catalog != null)
+            catalog.TryGetMap(catalog.DefaultMapId, out selectedMap);
 
-        catalog.TryGetMap(catalog.DefaultMapId, out selectedMap);
+        if (selectedEnemyConfig == null && difficultyCatalog != null)
+        {
+            difficultyCatalog.TryGetConfig(
+                difficultyCatalog.DefaultDifficultyId,
+                out selectedEnemyConfig);
+        }
     }
 
     private bool HasValidCatalog()

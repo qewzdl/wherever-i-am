@@ -11,6 +11,7 @@ public class LobbyConfig : ScriptableObject
     [Header("Allowed Selections")]
     [SerializeField] private int[] gameModeIds = { 0 };
     [SerializeField] private GameMapCatalog mapCatalog;
+    [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
 
     public int MinPlayersToStart => minPlayersToStart;
     public int MaxPlayers => maxPlayers;
@@ -18,6 +19,11 @@ public class LobbyConfig : ScriptableObject
 
     public int DefaultGameModeId => GetFirstOrDefault(gameModeIds);
     public int DefaultMapId => mapCatalog != null ? mapCatalog.DefaultMapId : 0;
+
+    public EnemyDifficultyCatalog DifficultyCatalog => difficultyCatalog;
+
+    public int DefaultDifficultyId =>
+        difficultyCatalog != null ? difficultyCatalog.DefaultDifficultyId : 0;
 
     public bool IsValidGameModeId(int gameModeId)
     {
@@ -27,6 +33,11 @@ public class LobbyConfig : ScriptableObject
     public bool IsValidMapId(int mapId)
     {
         return mapCatalog != null && mapCatalog.IsValidMapId(mapId);
+    }
+
+    public bool IsValidDifficultyId(int difficultyId)
+    {
+        return difficultyCatalog != null && difficultyCatalog.IsValidDifficultyId(difficultyId);
     }
 
     private static int GetFirstOrDefault(int[] ids)

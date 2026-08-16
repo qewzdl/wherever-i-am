@@ -16,3 +16,10 @@ MonoBehaviour:
   allowInGameLateJoin: 1
   remoteClientDeniedReason: The network session is not accepting new players right
     now.
+  reconnectGracePeriodSeconds: 20
+  invalidPayloadReason: The connection request is invalid.
+  incompatibleBuildReason: The client build is incompatible with the host.
+  sessionFullReason: The network session is full.
+  duplicatePlayerReason: This player is already connected.
+  lobbyPrivateReason: The lobby is private.
+  kickedReason: The host removed you from the lobby.

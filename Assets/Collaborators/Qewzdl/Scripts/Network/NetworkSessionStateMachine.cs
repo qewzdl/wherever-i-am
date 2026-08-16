@@ -86,7 +86,10 @@ public sealed class NetworkSessionStateMachine : MonoBehaviour
                        to == NetworkSessionState.Failed;
 
             case NetworkSessionState.InGame:
-                return to == NetworkSessionState.Disconnecting ||
+                // Back to the lobby when a match ends, without the session
+                // going down with it.
+                return to == NetworkSessionState.Lobby ||
+                       to == NetworkSessionState.Disconnecting ||
                        to == NetworkSessionState.Failed;
 
             case NetworkSessionState.Disconnecting:

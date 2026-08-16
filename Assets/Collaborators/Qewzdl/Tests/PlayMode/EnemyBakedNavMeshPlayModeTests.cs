@@ -27,6 +27,51 @@ internal sealed class BakedNavMeshAttackEffectProbe : IEnemyAttackEffect
 }
 
 [Category("Gameplay")]
+// Only the active map root matters to the spawner; the rest of the contract is
+// here because the interface asks for it.
+internal sealed class SpawnerMapSessionStub : IGameMapSessionService
+{
+    private readonly GameMapRoot mapRoot;
+
+    internal SpawnerMapSessionStub(GameMapRoot mapRoot)
+    {
+        this.mapRoot = mapRoot;
+    }
+
+    public IGameMapCatalog Catalog => null;
+    public GameMapDefinition SelectedMap => null;
+    public GameMapDefinition ActiveMap => null;
+    public GameMapRoot ActiveMapRoot => mapRoot;
+    public bool IsReadyForMatch => true;
+    public EnemyConfig SelectedEnemyConfig => null;
+
+    public event Action MapReady
+    {
+        add { }
+        remove { }
+    }
+
+    public bool SelectMap(int mapId)
+    {
+        return false;
+    }
+
+    public bool SelectDifficulty(int difficultyId)
+    {
+        return false;
+    }
+
+    public bool TryGetPlayerSpawn(
+        ulong clientId,
+        out Vector3 position,
+        out Quaternion rotation)
+    {
+        position = default;
+        rotation = default;
+        return false;
+    }
+}
+
 public sealed class EnemyBakedNavMeshPlayModeTests
 {
     private const string FixtureScenePath =
@@ -1622,9 +1667,17 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         bool reachedRoutePoint = false;
 
+        // Building the route spent this enemy's share of the frame's path
+        // queries, so the move that follows it is deferred and retried by the
+        // navigation gate - which the server ticks every frame and this test
+        // stands in for. Without the tick the agent holds a destination it
+        // has no path to and never leaves its first point.
+        yield return null;
+
         yield return WaitForCondition(
             () =>
             {
+                navigator.TickNavigationGate();
                 reachedRoutePoint = controller.HasReachedCurrentRoutePoint();
                 return reachedRoutePoint;
             },
@@ -1639,66 +1692,14 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     [UnityTest]
     public IEnumerator Navigator_OnDualBakedNavMeshes_CrawlsUnderCeilingAndStandsAfterExit()
     {
-        EnemyConfig sourceConfig = enemyConfig;
-        GetProductionAgentTypes(
-            enemyPrefab,
-            out int standingAgentTypeId,
-            out int crawlingAgentTypeId);
-        BakeLowCeilingCorridor(
-            standingAgentTypeId,
-            crawlingAgentTypeId);
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out EnemyConfig config,
+            out EnemyPostureController postureController,
+            out NavMeshAgent agent);
 
-        EnemyConfig config = CloneNavigationConfig(sourceConfig);
-        EnemyPostureConfig postureProfile = config.PostureProfile;
-        postureProfile.standingToCrawlingTransitionDuration = 0f;
-        postureProfile.crawlingToStandingTransitionDuration = 0f;
-        postureProfile.minPostureDuration = 0f;
-        postureProfile.standingRecoveryCheckInterval = 0.05f;
-
-        GameObject actor = Track(new GameObject("Posture navigation enemy"));
-        actor.SetActive(false);
-        actor.layer = 6;
-        actor.transform.position = new Vector3(0f, 0f, -6f);
-        actor.AddComponent<NetworkObject>();
-
-        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
-        agent.enabled = false;
-        agent.agentTypeID = standingAgentTypeId;
-        agent.speed = 4f;
-        agent.acceleration = 30f;
-
-        CapsuleCollider bodyCollider =
-            actor.AddComponent<CapsuleCollider>();
-        bodyCollider.height = postureProfile.standingBodyColliderHeight;
-        bodyCollider.radius = postureProfile.standingBodyColliderRadius;
-        bodyCollider.center = postureProfile.standingBodyColliderCenter;
-
-        EnemyNetworkState networkState =
-            actor.AddComponent<EnemyNetworkState>();
-        EnemyPostureController postureController =
-            actor.AddComponent<EnemyPostureController>();
-        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
-
-        PlayModeTestReflection.SetField(
-            postureController,
-            "standingAgentTypeId",
-            standingAgentTypeId);
-        PlayModeTestReflection.SetField(
-            postureController,
-            "crawlingAgentTypeId",
-            crawlingAgentTypeId);
-        actor.SetActive(true);
-
-        agent.enabled = true;
-        Assert.That(
-            TryPlaceAgent(agent, actor.transform.position),
-            Is.True,
-            "Posture enemy could not be placed on the standing NavMesh.");
-        Assert.That(
-            postureController.TryInitializeServer(config, networkState),
-            Is.True);
-        navigator.Configure(config);
-
+        Transform actor = navigator.transform;
+        int standingAgentTypeId = agent.agentTypeID;
         Vector3 destination = new Vector3(0f, 0f, 6f);
         bool observedCrawling = false;
 
@@ -1709,7 +1710,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 observedCrawling |=
                     postureController.CurrentPosture ==
                     EnemyPosture.Crawling;
-                return actor.transform.position.z > 4.5f;
+                return actor.position.z > 4.5f;
             },
             "Enemy did not traverse the low passage on the crawling NavMesh.");
 
@@ -1729,6 +1730,452 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         Assert.That(agent.agentTypeID, Is.EqualTo(standingAgentTypeId));
         Assert.That(agent.isOnNavMesh, Is.True);
+    }
+
+    // Two things the flank and the retreat depend on for a destination that
+    // only exists under a low ceiling.
+    //
+    // The tactical sampler asked with the current posture alone, so a
+    // crawl-only spot was thrown out before the route planner - the one part
+    // of this that does drop to a crawl - was ever asked about it, and the
+    // crawl fallback could not be reached by the destinations that needed it.
+    //
+    // Only NavMesh.CalculatePath consumes the path-query allowance. Rejecting
+    // standing at destination sampling is free, so the one actual crawl path
+    // still fits into a one-query grant.
+    [UnityTest]
+    public IEnumerator TacticalPlanning_ForACrawlOnlyDestination_SamplesItAndChargesTheCalculatedPath()
+    {
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out _,
+            out EnemyPostureController postureController,
+            out _);
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Standing),
+            "This test needs the enemy standing outside the low passage.");
+
+        // Mid-passage: the ceiling spans z -2.5 to 2.5, which is further from
+        // the standing NavMesh than the navigator's sample radius reaches.
+        Assert.That(
+            navigator.TrySampleTacticalPoint(
+                Vector3.zero,
+                1f,
+                out Vector3 sampled),
+            Is.True,
+            "A crawl-only destination was refused before the route planner saw it.");
+        Assert.That(Mathf.Abs(sampled.z), Is.LessThan(2.5f));
+
+        EnemyTacticalNavigationPlanner tacticalPlanner = new(navigator);
+
+        // Standing is rejected before CalculatePath; the crawl calculation is
+        // the only path query charged for this endpoint.
+        int pathBudget = 1;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                sampled,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out bool budgetExhausted),
+            Is.True);
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(pathBudget, Is.Zero);
+
+        pathBudget = 2;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                sampled,
+                ref pathBudget,
+                out route,
+                out budgetExhausted),
+            Is.True,
+            "The crawl fallback did not find the route the enemy walks above.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(
+            pathBudget,
+            Is.EqualTo(1),
+            "The crawl fallback did not charge for its query.");
+
+        // Planning lands the destination on the NavMesh before routing to it,
+        // so the route ends somewhere other than the point asked for. The
+        // planners read that off the last corner and walk to it: approving a
+        // route to one spot and then moving to another is how a flank arrived
+        // somewhere it had never checked.
+        Vector3 shortOfTheWall = new(2.6f, 0f, 0f);
+        pathBudget = 2;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                shortOfTheWall,
+                ref pathBudget,
+                out route,
+                out budgetExhausted),
+            Is.True);
+
+        Vector3 endpoint = route.Endpoint;
+
+        Assert.That(
+            Mathf.Abs(endpoint.x),
+            Is.LessThan(2.4f),
+            "The route ended outside the corridor walls.");
+        Assert.That(
+            Vector3.Distance(endpoint, shortOfTheWall),
+            Is.GreaterThan(0.1f),
+            "This case needs a destination the planner has to move.");
+
+        // And how far it may be moved is the move's own landing radius, not a
+        // wider one of the preview's. A point well beyond it is refused here
+        // exactly as the move would refuse it - the preview used to snap such
+        // a point back through a wall and approve the route to it.
+        Vector3 throughTheWall = new(5f, 0f, 0f);
+        pathBudget = 2;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                throughTheWall,
+                ref pathBudget,
+                out route,
+                out budgetExhausted),
+            Is.False,
+            "The preview landed a destination the move would not have.");
+        Assert.That(budgetExhausted, Is.False);
+    }
+
+    // The other way round from the test above, and the one the tactical
+    // planner used to get wrong. A crawling enemy asked about the crawling
+    // route and stopped there, while EnemyPostureTraversalPlanner puts it back
+    // on its feet as soon as its recovery check comes round - so the route the
+    // visibility check approved was the one the enemy was about to stop using.
+    // The preview must expose the same standing prefix and crawl continuation
+    // as runtime, including the height used to check visibility on each leg.
+    [UnityTest]
+    public IEnumerator TacticalPlanning_WhileCrawling_BuildsStandingThenCrawlSequence()
+    {
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out EnemyConfig config,
+            out EnemyPostureController postureController,
+            out NavMeshAgent agent);
+
+        Assert.That(
+            postureController.TrySetServerPosture(EnemyPosture.Crawling),
+            Is.True,
+            "The enemy could not be put onto its belly for this test.");
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Crawling));
+
+        // Out in the open part of the corridor, so getting up is a question of
+        // when the recovery check comes round rather than whether it can.
+        Assert.That(
+            postureController.CanUsePostureAtCurrentPosition(
+                EnemyPosture.Standing),
+            Is.True,
+            "This test needs somewhere the enemy could stand up.");
+
+        Assert.That(
+            navigator.TrySampleTacticalPoint(
+                Vector3.zero,
+                1f,
+                out Vector3 underTheCeiling),
+            Is.True);
+
+        EnemyTacticalNavigationPlanner tacticalPlanner = new(navigator);
+
+        // One query buys the standing attempt, which cannot reach a spot under
+        // a low ceiling. Coming back with "no route" would be a verdict on
+        // evidence never gathered.
+        int pathBudget = 1;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                underTheCeiling,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out bool budgetExhausted),
+            Is.False);
+        Assert.That(
+            budgetExhausted,
+            Is.True,
+            "A crawling enemy planned without trying to stand up first.");
+
+        // The waypoint scan may span frames under the same small allowance.
+        // It must make progress rather than restarting at the far endpoint.
+        bool found = false;
+
+        for (int attempt = 0; attempt < 16 && !found; attempt++)
+        {
+            pathBudget = 4;
+            found = tacticalPlanner.TryPlanRoute(
+                underTheCeiling,
+                ref pathBudget,
+                out route,
+                out budgetExhausted);
+
+            if (!found)
+            {
+                Assert.That(
+                    budgetExhausted,
+                    Is.True,
+                    "A resumable waypoint scan returned a navigation failure.");
+            }
+        }
+
+        Assert.That(found, Is.True, "The standing waypoint scan did not finish.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(route.Legs.Count, Is.EqualTo(2));
+        Assert.That(route.Legs[0].Posture, Is.EqualTo(EnemyPosture.Standing));
+        Assert.That(route.Legs[1].Posture, Is.EqualTo(EnemyPosture.Crawling));
+        Assert.That(
+            route.Legs[0].BodyHeight,
+            Is.EqualTo(config.standingAgentHeight).Within(0.001f));
+        Assert.That(
+            route.Legs[1].BodyHeight,
+            Is.EqualTo(config.crawlingAgentHeight).Within(0.001f));
+        Assert.That(
+            Vector3.Distance(route.Endpoint, route.Legs[1].Endpoint),
+            Is.LessThan(0.05f));
+        Assert.That(
+            Vector3.Distance(route.Legs[0].Endpoint, route.Endpoint),
+            Is.GreaterThan(0.5f),
+            "The standing prefix was collapsed into the final crawl endpoint.");
+
+        // A non-zero transition used to lose the prefix: after standing up,
+        // the normal repath rebuilt from the final destination and immediately
+        // put the enemy back onto its belly at the original position.
+        Vector3 previewStandingEndpoint = route.Legs[0].Endpoint;
+        config.PostureProfile.crawlingToStandingTransitionDuration = 0.05f;
+
+        Assert.That(
+            navigator.TryMoveTo(underTheCeiling, config.chaseSpeed),
+            Is.False,
+            "The posture change should finish before the path is applied.");
+        Assert.That(postureController.IsPostureTransitionInProgress, Is.True);
+        Assert.That(
+            postureController.TargetPosture,
+            Is.EqualTo(EnemyPosture.Standing));
+
+        yield return new WaitForSeconds(0.06f);
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Standing));
+        Assert.That(
+            navigator.TryMoveTo(underTheCeiling, config.chaseSpeed),
+            Is.True,
+            "Runtime did not resume the standing prefix after the transition.");
+
+        Vector3[] runtimeCorners = agent.path.corners;
+        Assert.That(runtimeCorners.Length, Is.GreaterThan(1));
+        Assert.That(
+            Vector3.Distance(
+                runtimeCorners[runtimeCorners.Length - 1],
+                previewStandingEndpoint),
+            Is.LessThan(0.1f),
+            "Runtime applied a different first leg from the tactical preview.");
+    }
+
+    // And the window in between, which is where the two planners used to
+    // disagree. For the second or so a crawl is held for, the move will not
+    // try to get up however clear the ceiling is, so neither may the plan -
+    // judging a standing route the enemy is not about to walk is the same
+    // mistake as judging a crawling one it is about to leave.
+    [UnityTest]
+    public IEnumerator TacticalPlanning_WithinTheCrawlCooldown_StaysOnTheCrawlingRoute()
+    {
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out EnemyConfig config,
+            out EnemyPostureController postureController,
+            out _);
+
+        config.PostureProfile.minPostureDuration = 5f;
+
+        Assert.That(
+            postureController.TrySetServerPosture(EnemyPosture.Crawling),
+            Is.True);
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Crawling));
+        Assert.That(
+            postureController.CanUsePostureAtCurrentPosition(
+                EnemyPosture.Standing),
+            Is.True,
+            "This test needs a ceiling that is not what keeps it down.");
+
+        // Clear overhead, but only just onto its belly, so the move would keep
+        // crawling and so must the plan.
+        Assert.That(
+            postureController.GetPreferredPlanningPosture(),
+            Is.EqualTo(EnemyPosture.Crawling));
+
+        Assert.That(
+            navigator.TrySampleTacticalPoint(
+                Vector3.zero,
+                1f,
+                out Vector3 underTheCeiling),
+            Is.True);
+
+        // One query is enough when the first posture tried is the right one.
+        EnemyTacticalNavigationPlanner tacticalPlanner = new(navigator);
+        int pathBudget = 1;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                underTheCeiling,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out bool budgetExhausted),
+            Is.True,
+            "The plan spent its query standing up while the move would crawl.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(pathBudget, Is.Zero);
+
+        // And when the crawl destination cannot even be sampled, that is the
+        // answer. No CalculatePath was issued and standing must remain untried.
+        Vector3 outsideTheCorridor = new(20f, 0f, 0f);
+        pathBudget = 2;
+
+        Assert.That(
+            tacticalPlanner.TryPlanRoute(
+                outsideTheCorridor,
+                ref pathBudget,
+                out route,
+                out budgetExhausted),
+            Is.False);
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(
+            pathBudget,
+            Is.EqualTo(2),
+            "A held crawl still went on to plan a standing route.");
+    }
+
+    // Hidden lying down, in plain view the moment it gets up - and the route
+    // that begins with getting up used to be called hidden, because the scan
+    // starts at the first step of the first segment and never looks at the
+    // corner it sets off from. Nothing else covers that spot either: the
+    // perception cache measures where the enemy is at the height it has now,
+    // which is the crawl it is about to leave.
+    [UnityTest]
+    public IEnumerator RouteVisibility_WhenSettingOffMeansStandingUp_ChecksTheStartingPoint()
+    {
+        yield return StartHost();
+
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out _,
+            out EnemyPostureController postureController,
+            out _);
+
+        // Both are built after the NavMesh so they block sight without
+        // carving the floor the enemy plans over.
+        //
+        // Waist-high between the watcher and the enemy: it hides a body lying
+        // down and not one standing up. Then head-high just beyond the enemy,
+        // so everywhere the route goes is hidden at any height. Only the
+        // corner it sets off from is exposed, and only once it stands.
+        CreateGeometry(
+            "Low barrier",
+            new Vector3(0f, 0.7f, -4.5f),
+            new Vector3(4.6f, 1.4f, 0.3f));
+        CreateGeometry(
+            "High barrier",
+            new Vector3(0f, 1.5f, -6.8f),
+            new Vector3(4.6f, 3f, 0.3f));
+
+        EnemyTarget watcher = CreateSpawnedTarget(
+            new Vector3(0f, 0f, -3f),
+            canBeDetected: true,
+            withGaze: true);
+        watcher.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        Physics.SyncTransforms();
+
+        Assert.That(
+            postureController.TrySetServerPosture(EnemyPosture.Crawling),
+            Is.True);
+
+        yield return null;
+
+        Assert.That(
+            postureController.CurrentPosture,
+            Is.EqualTo(EnemyPosture.Crawling));
+
+        Vector3 start = navigator.transform.position;
+        float crawlHeight =
+            navigator.GetBodyHeightForPosture(EnemyPosture.Crawling);
+        float standHeight =
+            navigator.GetBodyHeightForPosture(EnemyPosture.Standing);
+
+        // The whole point of the fixture. If the barrier hides neither posture
+        // or both, the test below proves nothing, so say so here.
+        Assert.That(
+            PlayerGazeNetwork.IsBodySeenByAnyone(start, crawlHeight),
+            Is.False,
+            "Fixture: the enemy should be hidden while it is lying down.");
+        Assert.That(
+            PlayerGazeNetwork.IsBodySeenByAnyone(start, standHeight),
+            Is.True,
+            "Fixture: the enemy should be seen once it stands up.");
+
+        // The route runs off behind the head-high barrier, so every sample
+        // along it is hidden and the only thing that can fail the check is the
+        // corner it starts on. Without that look the whole route reads as
+        // hidden, which is the bug.
+        Assert.That(
+            postureController.GetPreferredPlanningPosture(),
+            Is.EqualTo(EnemyPosture.Standing));
+
+        EnemyTacticalNavigationPlanner planner = new(navigator);
+        Vector3 behindTheBarrier = new(0f, 0f, -7.4f);
+        int pathBudget = 4;
+
+        Assert.That(
+            planner.TryPlanRoute(
+                behindTheBarrier,
+                ref pathBudget,
+                out EnemyTacticalRoute route,
+                out _),
+            Is.True);
+        Assert.That(
+            PlayerGazeNetwork.IsBodySeenByAnyone(route.Endpoint, standHeight),
+            Is.False,
+            "Fixture: the far end of the route should be hidden even standing.");
+        Assert.That(route.Legs.Count, Is.GreaterThan(0));
+        Assert.That(
+            route.Legs[0].Posture,
+            Is.EqualTo(EnemyPosture.Standing));
+        Assert.That(route.StartsWithPostureChange, Is.True);
+
+        int visibilityBudget = 32;
+        EnemyRouteScan scan = default;
+
+        Assert.That(
+            planner.IsRouteHidden(
+                route,
+                1.5f,
+                ref visibilityBudget,
+                ref scan,
+                out bool budgetExhausted),
+            Is.False,
+            "A route that begins by standing into somebody's view was called hidden.");
+        Assert.That(budgetExhausted, Is.False);
+        Assert.That(
+            visibilityBudget,
+            Is.LessThan(32),
+            "The starting point was never looked at.");
     }
 
     [UnityTest]
@@ -1932,6 +2379,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             new Vector3(0f, 0f, -5f));
         EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
         NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+        EnemyPostureController posture =
+            enemy.GetComponent<EnemyPostureController>();
 
         yield return WaitForCondition(
             () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
@@ -2000,13 +2449,16 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 framesBelowThreshold++;
             }
 
-            // Standing still is correct in two states now. Attacking has
-            // always been one; stalking is the other, and its whole purpose is
+            // Standing still is correct in three states now. Attacking has
+            // always been one; stalking is the second, and its whole purpose is
             // to stop and watch, so counting it as a stall would test the
-            // opposite of what is wanted.
+            // opposite of what is wanted. Lying in ambush is the third - it
+            // stops navigation on entry and waits for the target to turn
+            // round, so every ambush is a halt by design.
             bool shouldBeMoving =
                 enemy.CurrentState != EnemyState.Attack &&
-                enemy.CurrentState != EnemyState.Stalk;
+                enemy.CurrentState != EnemyState.Stalk &&
+                enemy.CurrentState != EnemyState.Ambush;
 
             bool halting = !isMoving && shouldBeMoving;
 
@@ -2022,7 +2474,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                         $"speed={speed:0.###} isStopped={agent.isStopped} " +
                         $"pathPending={agent.pathPending} " +
                         $"hasPath={agent.hasPath} status={agent.pathStatus} " +
-                        $"remaining={agent.remainingDistance:0.##}";
+                        $"remaining={agent.remainingDistance:0.##} " +
+                        $"state={enemy.CurrentState} " +
+                        $"posture={posture.CurrentPosture} " +
+                        $"transitioning={posture.IsPostureTransitionInProgress}";
                 }
 
                 haltSeconds += Time.unscaledDeltaTime;
@@ -2057,6 +2512,117 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             string.Join(" ", stopReports));
     }
 
+    // An enemy standing in the scene before the match cannot be varied by
+    // difficulty or added partway through one, which the doll being picked up
+    // will need. This is that path: the spawner puts one into the world while
+    // the match is already running.
+    [UnityTest]
+    public IEnumerator Spawner_PutsALiveEnemyWhereTheSpawnPointSaysAndTakesItBack()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkEnemySpawner spawner = CreateSpawnedEnemySpawner();
+
+        GameObject pointObject = Track(new GameObject("Enemy spawn point"));
+        pointObject.transform.SetPositionAndRotation(
+            new Vector3(2f, 0f, -1f),
+            Quaternion.Euler(0f, 90f, 0f));
+        EnemySpawnPoint spawnPoint = pointObject.AddComponent<EnemySpawnPoint>();
+        spawnPoint.ConfigureEditor(
+            enemyPrefab.GetComponent<NetworkEnemyController>(),
+            route: null);
+
+        Assert.That(
+            spawner.TrySpawnServerOnly(spawnPoint, out NetworkEnemyController enemy),
+            Is.True);
+        Assert.That(enemy, Is.Not.Null);
+        Track(enemy.gameObject);
+
+        Assert.That(enemy.GetComponent<NetworkObject>().IsSpawned, Is.True);
+        Assert.That(
+            Vector3.Distance(enemy.transform.position, spawnPoint.Position),
+            Is.LessThan(0.01f));
+        Assert.That(spawner.SpawnedEnemies, Has.Count.EqualTo(1));
+
+        // The config comes from the prefab here; with a session running it
+        // would be the difficulty the host picked.
+        Assert.That(enemy.Config, Is.Not.Null);
+
+        spawner.DespawnAllServerOnly();
+        yield return null;
+
+        Assert.That(spawner.SpawnedEnemies, Is.Empty);
+    }
+
+    [UnityTest]
+    public IEnumerator Spawner_FillsEverySpawnPointTheMapDeclares()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameObject mapRootObject = Track(new GameObject("Map root"));
+        GameMapRoot mapRoot = mapRootObject.AddComponent<GameMapRoot>();
+
+        for (int i = 0; i < 2; i++)
+        {
+            GameObject point = new($"Enemy spawn {i}");
+            point.transform.SetParent(mapRootObject.transform, false);
+            point.transform.position = new Vector3(i * 3f, 0f, 2f);
+            point.AddComponent<EnemySpawnPoint>().ConfigureEditor(
+                enemyPrefab.GetComponent<NetworkEnemyController>(),
+                route: null);
+        }
+
+        NetworkEnemySpawner spawner = CreateSpawnedEnemySpawner();
+        PlayModeTestReflection.SetField(
+            spawner,
+            "gameMapService",
+            new SpawnerMapSessionStub(mapRoot));
+
+        Assert.That(spawner.SpawnMapEnemiesServerOnly(), Is.EqualTo(2));
+        Assert.That(spawner.SpawnedEnemies, Has.Count.EqualTo(2));
+
+        for (int i = 0; i < spawner.SpawnedEnemies.Count; i++)
+        {
+            NetworkEnemyController spawned = spawner.SpawnedEnemies[i];
+            Track(spawned.gameObject);
+            Assert.That(spawned.GetComponent<NetworkObject>().IsSpawned, Is.True);
+        }
+
+        spawner.DespawnAllServerOnly();
+        yield return null;
+    }
+
+    private NetworkEnemySpawner CreateSpawnedEnemySpawner()
+    {
+        GameObject host = Track(new GameObject("Enemy spawner"));
+        host.SetActive(false);
+
+        NetworkObject networkObject = host.AddComponent<NetworkObject>();
+        NetworkEnemySpawner spawner = host.AddComponent<NetworkEnemySpawner>();
+
+        // Off by default: this fixture has no session scope to resolve a map
+        // service from, so the tests drive the spawner directly.
+        PlayModeTestReflection.SetField(spawner, "spawnMapEnemiesWhenReady", false);
+
+        host.SetActive(true);
+        networkObject.Spawn(true);
+
+        Assert.That(networkObject.IsSpawned, Is.True);
+        return spawner;
+    }
+
     private IEnumerator StartHost()
     {
         GameObject root = Track(new GameObject("Enemy NavMesh host"));
@@ -2068,6 +2634,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             EnableSceneManagement = false,
             ProtocolVersion = 7
         };
+
+        // Registered so the enemy can be spawned at runtime rather than only
+        // placed in a scene beforehand.
+        manager.NetworkConfig.Prefabs.Add(new NetworkPrefab { Prefab = enemyPrefab });
         transport.SetConnectionData("127.0.0.1", 0, "127.0.0.1");
 
         Assert.That(manager.StartHost(), Is.True);
@@ -2700,7 +3270,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             enemyPrefab,
             out int standingAgentTypeId,
             out int crawlingAgentTypeId);
-        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+        BakeLargeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
 
         GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
 
@@ -2750,16 +3320,52 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "The ambush position is in the target's view.");
 
         // Turning round on something standing behind you is the beat the whole
-        // sequence exists to deliver. Chase rather than Attack: closing the
-        // last stride and swinging is chasing's job, and this hands over to it.
-        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        // sequence exists to deliver. Open the gap on the same frame as well:
+        // an Ambush used to hand over to an ordinary Chase, whose next distance
+        // refresh immediately chose Stalk again here.
+        Vector3 escapeDirection = target.transform.position -
+                                  enemy.transform.position;
+        escapeDirection.y = 0f;
+        escapeDirection.Normalize();
+
+        Vector3 escapedPosition = enemy.transform.position +
+                                  escapeDirection * 16f;
+
+        target.transform.position = escapedPosition;
+        target.transform.rotation = Quaternion.LookRotation(
+            enemy.transform.position - escapedPosition,
+            Vector3.up
+        );
         Physics.SyncTransforms();
+
+        Assert.That(
+            Vector3.Distance(
+                enemy.transform.position,
+                target.transform.position),
+            Is.GreaterThan(enemyConfig.stalkInsteadOfChasingDistance),
+            "The target did not open enough distance to exercise the " +
+            "Chase-to-Stalk fork."
+        );
 
         yield return WaitForCondition(
             () => enemy.CurrentState == EnemyState.Chase ||
                   enemy.CurrentState == EnemyState.Attack,
             "The target turned round onto the ambush and the enemy did not " +
             "come at it.");
+
+        float assaultDeadline = Time.realtimeSinceStartup + 1f;
+
+        while (Time.realtimeSinceStartup < assaultDeadline)
+        {
+            Assert.That(
+                EnemyStateRules.IsStealthManeuver(enemy.CurrentState),
+                Is.False,
+                "A triggered ambush restarted the stealth manoeuvre when the " +
+                "target opened the gap."
+            );
+
+            yield return null;
+        }
     }
 
     // Backing away is measured against the target, not against the compass.
@@ -2816,9 +3422,10 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             enemy.transform.position,
             target.transform.position);
         float closest = startDistance;
-        float deadline = Time.realtimeSinceStartup + 3f;
+        float deadline = Time.realtimeSinceStartup + 5f;
 
-        while (Time.realtimeSinceStartup < deadline)
+        while (Time.realtimeSinceStartup < deadline &&
+               enemy.CurrentState == EnemyState.Retreat)
         {
             closest = Mathf.Min(
                 closest,
@@ -2829,18 +3436,311 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             yield return null;
         }
 
-        Assert.That(
-            enemy.CurrentState,
-            Is.EqualTo(EnemyState.Retreat),
-            "The enemy left the retreat, so this measured something else.");
-
-        // Standing still is a fine answer here - there is nowhere to back
-        // away to. Walking in is not.
+        // Standing still is a fine retreat answer here - there is nowhere to
+        // back away to. Walking in before admitting that stealth has failed is
+        // not.
         Assert.That(
             closest,
             Is.GreaterThan(startDistance - 1f),
-            $"The enemy closed on a target watching it, from " +
+            $"The enemy closed while retreating from a target watching it, from " +
             $"{startDistance:F2} to {closest:F2}.");
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(EnemyState.Chase).Or.EqualTo(EnemyState.Attack),
+            "A retreat with no safe escape did not escalate to assault.");
+    }
+
+    // Being watched used to be one bool for the whole server, so a retreat was
+    // planned against the one pose the enemy had observed and nobody else.
+    // Here a second player stands behind the enemy in the stem, watching it,
+    // and is not a target the enemy could pick up - so the only thing that can
+    // keep the enemy off them is the retreat accounting for every watcher
+    // rather than for its own victim.
+    //
+    // Backing straight away from the target is backing into that second
+    // player, and the stem is too narrow to step aside in. Standing still is
+    // the only honest answer the level offers.
+    [UnityTest]
+    public IEnumerator Retreat_DoesNotBackAwayIntoASecondPlayerWatching()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeDeadEndFacingTheTarget(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 5f),
+            canBeDetected: true,
+            withGaze: true);
+
+        // Watches, cannot be watched for. Detectable, it would simply be the
+        // nearer target and the enemy would deal with it instead, which is a
+        // different behaviour from the one under test.
+        EnemyTarget watcher = CreateSpawnedTarget(
+            new Vector3(0f, 0f, -10f),
+            canBeDetected: false,
+            withGaze: true);
+
+        // Both looking down the stem at the enemy between them.
+        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        watcher.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        Physics.SyncTransforms();
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -5f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning,
+            "Enemy did not start.");
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Retreat,
+            "Enemy did not break off while two players watched it.");
+
+        float startToTarget = Vector3.Distance(
+            enemy.transform.position,
+            target.transform.position);
+        float startToWatcher = Vector3.Distance(
+            enemy.transform.position,
+            watcher.transform.position);
+        float closestToTarget = startToTarget;
+        float closestToWatcher = startToWatcher;
+        float deadline = Time.realtimeSinceStartup + 5f;
+
+        while (Time.realtimeSinceStartup < deadline &&
+               enemy.CurrentState == EnemyState.Retreat)
+        {
+            closestToTarget = Mathf.Min(
+                closestToTarget,
+                Vector3.Distance(
+                    enemy.transform.position,
+                    target.transform.position));
+            closestToWatcher = Mathf.Min(
+                closestToWatcher,
+                Vector3.Distance(
+                    enemy.transform.position,
+                    watcher.transform.position));
+
+            yield return null;
+        }
+
+        Assert.That(
+            closestToWatcher,
+            Is.GreaterThan(startToWatcher - 1.5f),
+            "While retreating, the enemy backed away from its target straight into the second " +
+            $"player watching it, from {startToWatcher:F2} to " +
+            $"{closestToWatcher:F2}.");
+
+        Assert.That(
+            closestToTarget,
+            Is.GreaterThan(startToTarget - 1.5f),
+            $"While retreating, the enemy closed on the target it was breaking off from, from " +
+            $"{startToTarget:F2} to {closestToTarget:F2}.");
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(EnemyState.Chase).Or.EqualTo(EnemyState.Attack),
+            "A retreat blocked by two watchers did not escalate to assault.");
+    }
+
+    // The manoeuvre's target leaving the level, at each phase of it, with
+    // somebody else standing in plain sight.
+    //
+    // Perception nulls a target the moment it stops being valid, and the
+    // selector's "nothing to defend, take anything visible" branch used to be
+    // checked before the lock was - so a despawn handed the approach, and the
+    // ambush at the end of it, to whichever other player was in view, running
+    // a plan built around somebody who had left. The phases carry on against
+    // the pose they observed, which is the point of them, but never against a
+    // different person: only leaving the manoeuvre releases the lock.
+    [UnityTest]
+    public IEnumerator StalkDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Stalk);
+    }
+
+    [UnityTest]
+    public IEnumerator RetreatDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Retreat);
+    }
+
+    [UnityTest]
+    public IEnumerator FlankDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Flank);
+    }
+
+    [UnityTest]
+    public IEnumerator AmbushDespawn_DoesNotHandTheApproachToAnotherPlayer()
+    {
+        yield return DespawnDuringPhase(EnemyState.Ambush);
+    }
+
+    private IEnumerator DespawnDuringPhase(EnemyState phase)
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+
+        EnemyTarget target = CreateSpawnedTarget(
+            new Vector3(0f, 0f, 6f),
+            canBeDetected: true,
+            withGaze: true);
+
+        // Standing beside the target, in the open, and switched on only when
+        // the target goes - so up to that moment there is exactly one person
+        // the enemy could be dealing with, and from it there is exactly one
+        // person left to be tempted by. Beside the target rather than beside
+        // the enemy on purpose: whatever the manoeuvre ends in walks back
+        // towards where the target was last, so this one is certain to be
+        // found once the lock is released.
+        EnemyTarget challenger = CreateSpawnedTarget(
+            new Vector3(4f, 0f, 4f),
+            canBeDetected: false);
+        ulong challengerObjectId =
+            challenger.GetComponent<NetworkObject>().NetworkObjectId;
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -6f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning,
+            "Enemy did not start.");
+
+        yield return DriveManeuverTo(phase, enemy, target);
+
+        Assert.That(
+            enemy.CurrentState,
+            Is.EqualTo(phase),
+            "The manoeuvre did not settle on the phase being tested.");
+
+        PlayModeTestReflection.SetField(challenger, "canBeDetected", true);
+        target.GetComponent<NetworkObject>().Despawn(destroy: true);
+
+        // Two halves, and the second is what stops the first proving nothing.
+        // While the manoeuvre runs, the person standing in plain sight must
+        // not become its target. Once it ends - a phase timing out, the
+        // overall deadline, or a search starting - the lock is released and
+        // that same person, in that same spot, is picked up. Refused because
+        // it was locked, not because it could not be seen.
+        bool leftTheManeuver = false;
+        bool tookTheChallenger = false;
+        float deadline = Time.realtimeSinceStartup + 24f;
+
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            if (!leftTheManeuver)
+            {
+                if (EnemyStateRules.IsStealthManeuver(enemy.CurrentState))
+                {
+                    Assert.That(
+                        TargetsNetworkObject(enemy, challengerObjectId),
+                        Is.False,
+                        $"The enemy carried its {phase} on against a " +
+                        "different player once its own target despawned.");
+                }
+                else
+                {
+                    leftTheManeuver = true;
+                }
+            }
+            else if (TargetsNetworkObject(enemy, challengerObjectId))
+            {
+                tookTheChallenger = true;
+                break;
+            }
+
+            yield return null;
+        }
+
+        Assert.That(
+            leftTheManeuver,
+            Is.True,
+            $"The {phase} never ended after its target left the level.");
+
+        Assert.That(
+            tookTheChallenger,
+            Is.True,
+            "The enemy never picked up the player standing in plain sight, " +
+            "so the refusal above proved nothing.");
+    }
+
+    // Stalk needs the target seen from a distance; the rest need it looking at
+    // the enemy and then away again, which is the sequence StalkChain walks.
+    private IEnumerator DriveManeuverTo(
+        EnemyState phase,
+        NetworkEnemyController enemy,
+        EnemyTarget target)
+    {
+        target.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Stalk,
+            "Enemy did not stalk a target seen from a distance.");
+
+        if (phase == EnemyState.Stalk)
+        {
+            yield break;
+        }
+
+        target.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        Physics.SyncTransforms();
+
+        yield return WaitForCondition(
+            () => enemy.CurrentState == EnemyState.Retreat,
+            "Enemy did not break off after being looked at.");
+
+        if (phase == EnemyState.Retreat)
+        {
+            yield break;
+        }
+
+        target.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        Physics.SyncTransforms();
+
+        if (phase == EnemyState.Flank)
+        {
+            yield return WaitForCondition(
+                () => enemy.CurrentState == EnemyState.Flank,
+                "Enemy did not go round after breaking sight.");
+
+            yield break;
+        }
+
+        yield return WaitForCondition(
+            20f,
+            () => enemy.CurrentState == EnemyState.Ambush,
+            "Enemy never got behind the target and settled into an ambush.");
+    }
+
+    private static bool TargetsNetworkObject(
+        NetworkEnemyController enemy,
+        ulong networkObjectId)
+    {
+        EnemyTargetIdentity identity = enemy.CurrentTargetIdentity;
+
+        return identity.HasTarget &&
+               identity.TargetObject.NetworkObjectId == networkObjectId;
     }
 
     // The search route reaches four metres from the origin at its furthest,
@@ -3029,6 +3929,22 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             crawlingAgentTypeId);
     }
 
+    private void BakeLargeOpenArena(
+        int standingAgentTypeId,
+        int crawlingAgentTypeId)
+    {
+        GameObject root = Track(new GameObject("Large prebuilt NavMesh arena"));
+        CreateGeometry(
+            "Large arena floor",
+            new Vector3(0f, -0.1f, 0f),
+            new Vector3(40f, 0.2f, 40f),
+            root.transform);
+        BakeSurfaces(
+            root,
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+    }
+
     private void BakePushCorridor(
         int standingAgentTypeId,
         int crawlingAgentTypeId)
@@ -3159,6 +4075,76 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             root,
             standingAgentTypeId,
             crawlingAgentTypeId);
+    }
+
+    // The dual-NavMesh corridor with a posture-capable enemy standing on it.
+    // Shared by the traversal test and the tactical planning test, which need
+    // the same setup and have nothing else in common.
+    private EnemyNavigator BuildPostureEnemyOnLowCeilingCorridor(
+        Vector3 position,
+        out EnemyConfig config,
+        out EnemyPostureController postureController,
+        out NavMeshAgent agent)
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeLowCeilingCorridor(
+            standingAgentTypeId,
+            crawlingAgentTypeId);
+
+        config = CloneNavigationConfig(enemyConfig);
+        EnemyPostureConfig postureProfile = config.PostureProfile;
+        postureProfile.standingToCrawlingTransitionDuration = 0f;
+        postureProfile.crawlingToStandingTransitionDuration = 0f;
+        postureProfile.minPostureDuration = 0f;
+        postureProfile.standingRecoveryCheckInterval = 0.05f;
+
+        GameObject actor = Track(new GameObject("Posture navigation enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = position;
+        actor.AddComponent<NetworkObject>();
+
+        agent = actor.AddComponent<NavMeshAgent>();
+        agent.enabled = false;
+        agent.agentTypeID = standingAgentTypeId;
+        agent.speed = 4f;
+        agent.acceleration = 30f;
+
+        CapsuleCollider bodyCollider =
+            actor.AddComponent<CapsuleCollider>();
+        bodyCollider.height = postureProfile.standingBodyColliderHeight;
+        bodyCollider.radius = postureProfile.standingBodyColliderRadius;
+        bodyCollider.center = postureProfile.standingBodyColliderCenter;
+
+        EnemyNetworkState networkState =
+            actor.AddComponent<EnemyNetworkState>();
+        postureController = actor.AddComponent<EnemyPostureController>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+
+        PlayModeTestReflection.SetField(
+            postureController,
+            "standingAgentTypeId",
+            standingAgentTypeId);
+        PlayModeTestReflection.SetField(
+            postureController,
+            "crawlingAgentTypeId",
+            crawlingAgentTypeId);
+        actor.SetActive(true);
+
+        agent.enabled = true;
+        Assert.That(
+            TryPlaceAgent(agent, position),
+            Is.True,
+            "Posture enemy could not be placed on the standing NavMesh.");
+        Assert.That(
+            postureController.TryInitializeServer(config, networkState),
+            Is.True);
+        navigator.Configure(config);
+
+        return navigator;
     }
 
     private void BakeSurfaces(

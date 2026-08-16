@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -31,6 +32,7 @@ public class EnemyPostureController : MonoBehaviour
     private EnemyPosture transitionTargetPosture = EnemyPosture.Standing;
     private float postureTransitionStartedTime = float.NegativeInfinity;
     private float postureTransitionCompleteTime = float.NegativeInfinity;
+    private float nextStandingRecoveryCheckTime;
 
     public EnemyPosture CurrentPosture { get; private set; } = EnemyPosture.Standing;
     public float LastPostureChangedTime { get; private set; } = float.NegativeInfinity;
@@ -46,6 +48,10 @@ public class EnemyPostureController : MonoBehaviour
     public float PostureTransitionDuration => postureTransitionInProgress
         ? Mathf.Max(0f, postureTransitionCompleteTime - postureTransitionStartedTime)
         : 0f;
+
+    // Server-side notification only. Navigation uses it to invalidate a path
+    // built for the previous agent type when an asynchronous transition ends.
+    public event Action<EnemyPosture> ServerPostureChanged;
 
     private void Awake()
     {
@@ -172,10 +178,107 @@ public class EnemyPostureController : MonoBehaviour
         return baseSpeed * config.crawlingSpeedMultiplier;
     }
 
+    public float GetHeightForPosture(EnemyPosture posture)
+    {
+        if (config == null)
+        {
+            return agent != null ? agent.height : 1.8f;
+        }
+
+        return posture == EnemyPosture.Crawling
+            ? config.crawlingAgentHeight
+            : config.standingAgentHeight;
+    }
+
     public int GetAgentTypeIdForPosture(EnemyPosture posture)
     {
         return GetAgentTypeId(posture);
     }
+
+    // Which posture a route should be planned with first, asked without
+    // changing anything.
+    //
+    // Two planners need this answer and they must agree. The runtime one used
+    // to work it out from a schedule it kept privately, while the tactical one
+    // guessed from the current posture - so for the second or so between a
+    // crawl beginning and the next recovery check, the visibility of a
+    // standing route was checked and a crawling route was walked, or the other
+    // way round. The schedule lives here now, and both ask this.
+    public EnemyPosture GetPreferredPlanningPosture()
+    {
+        if (!IsCrawling)
+        {
+            return EnemyPosture.Standing;
+        }
+
+        if (postureTransitionInProgress ||
+            Time.time < LastPostureChangedTime + MinimumPostureDuration ||
+            Time.time < nextStandingRecoveryCheckTime)
+        {
+            return EnemyPosture.Crawling;
+        }
+
+        return CanUsePostureAtCurrentPosition(EnemyPosture.Standing)
+            ? EnemyPosture.Standing
+            : EnemyPosture.Crawling;
+    }
+
+    // The same question, asked by the one caller that is allowed to book the
+    // next check by asking it. Getting up costs path queries, so it is tried
+    // on an interval rather than every frame.
+    internal bool TryBeginStandingRecoveryCheck()
+    {
+        if (!IsCrawling)
+        {
+            return true;
+        }
+
+        if (postureTransitionInProgress)
+        {
+            return false;
+        }
+
+        float now = Time.time;
+        float nextAllowedByDuration =
+            LastPostureChangedTime + MinimumPostureDuration;
+
+        if (now < nextAllowedByDuration)
+        {
+            nextStandingRecoveryCheckTime = Mathf.Max(
+                nextStandingRecoveryCheckTime,
+                nextAllowedByDuration
+            );
+            return false;
+        }
+
+        if (now < nextStandingRecoveryCheckTime)
+        {
+            return false;
+        }
+
+        nextStandingRecoveryCheckTime = now + Mathf.Max(
+            0.05f,
+            config != null ? config.standingRecoveryCheckInterval : 0.05f
+        );
+        return true;
+    }
+
+    internal void ResetStandingRecoverySchedule()
+    {
+        nextStandingRecoveryCheckTime = 0f;
+    }
+
+    // Just onto its belly: nothing is going to get it up again before the
+    // minimum time there has passed, so do not spend queries asking.
+    internal void DelayStandingRecoveryAfterPostureChange(EnemyPosture posture)
+    {
+        nextStandingRecoveryCheckTime = posture == EnemyPosture.Crawling
+            ? Time.time + MinimumPostureDuration
+            : 0f;
+    }
+
+    private float MinimumPostureDuration =>
+        config != null ? Mathf.Max(0f, config.minPostureDuration) : 0f;
 
     public bool CanUsePostureAtCurrentPosition(EnemyPosture posture)
     {
@@ -277,6 +380,7 @@ public class EnemyPostureController : MonoBehaviour
 
         ApplyVisualPosture(posture);
         SyncPostureServer(posture);
+        ServerPostureChanged?.Invoke(posture);
 
         return true;
     }

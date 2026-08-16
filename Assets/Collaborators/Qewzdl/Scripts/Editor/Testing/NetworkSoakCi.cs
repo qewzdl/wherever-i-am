@@ -20,10 +20,8 @@ public static class NetworkSoakCi
     private const int DefaultJitterMs = 20;
     private const float DefaultPacketLossPercent = 2f;
 
-    [MenuItem(
-        TestingMenu.Root + "Run Network Soak (15 min)",
-        false,
-        TestingMenu.Priority)]
+    // No menu item: CI reaches this through -executeMethod NetworkSoakCi.Run,
+    // and a fifteen minute soak is not something to have one click away.
     public static void Run()
     {
         bool smoke = ReadBoolean("WIA_NETWORK_SOAK_SMOKE");
@@ -198,6 +196,8 @@ public static class NetworkSoakCi
             QuoteArgument(role),
             "-gNetworkSoakRunDirectory",
             QuoteArgument(runDirectory),
+            "-wiaPlayerId",
+            QuoteArgument(Guid.NewGuid().ToString("N")),
             "-gNetworkSoakDurationSeconds",
             durationSeconds.ToString(
                 CultureInfo.InvariantCulture),

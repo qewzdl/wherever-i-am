@@ -13,6 +13,7 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     [SerializeField] private bool startOnServerSpawn = true;
     [SerializeField] private string startReason = "Game scene network spawn completed";
     private bool isSubscribed;
+    private bool matchFinishedSubscribed;
     private IGameMapSessionService mapSessionService;
     private IGameStateService gameStateService;
 
@@ -27,6 +28,8 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
             return;
         }
 
+        SubscribeMatchFinished();
+
         if (!startOnServerSpawn)
         {
             return;
@@ -39,11 +42,13 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         UnsubscribeReadinessEvents();
+        UnsubscribeMatchFinished();
     }
 
     private void OnDisable()
     {
         UnsubscribeReadinessEvents();
+        UnsubscribeMatchFinished();
     }
 
     private void OnValidate()
@@ -141,6 +146,56 @@ public sealed class NetworkGameFlowSceneStarter : NetworkBehaviour
         }
 
         isSubscribed = false;
+    }
+
+    private void SubscribeMatchFinished()
+    {
+        if (matchFinishedSubscribed || gameFlow == null)
+        {
+            return;
+        }
+
+        gameFlow.MatchFinished += HandleMatchFinished;
+        matchFinishedSubscribed = true;
+    }
+
+    private void UnsubscribeMatchFinished()
+    {
+        if (!matchFinishedSubscribed)
+        {
+            return;
+        }
+
+        if (gameFlow != null)
+        {
+            gameFlow.MatchFinished -= HandleMatchFinished;
+        }
+
+        matchFinishedSubscribed = false;
+    }
+
+    // A finished match goes back to the lobby with everyone still connected, so
+    // another round costs a press of start rather than hosting and rejoining.
+    // It used to end the session instead, which was the only way out of the
+    // game scene at the time.
+    private void HandleMatchFinished(GameResultData result)
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        if (!G.TryResolve(out INetworkSessionService sessionService))
+        {
+            Debug.LogError(
+                $"{nameof(NetworkGameFlowSceneStarter)} cannot leave a finished " +
+                $"match without {nameof(INetworkSessionService)}.",
+                this);
+
+            return;
+        }
+
+        sessionService.ReturnToLobby();
     }
 
     private void HandleDependencyReady()

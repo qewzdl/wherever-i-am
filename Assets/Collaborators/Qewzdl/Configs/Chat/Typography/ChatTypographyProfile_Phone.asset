@@ -14,4 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   fontAsset: {fileID: 11400000, guid: 19d958ec4845fc140b3a9d1aedc1a4de, type: 2}
   fontSharedMaterial: {fileID: 0}
+  textColor: {r: 0.2724045, g: 0.8415094, b: 0.093677394, a: 1}
+  scrollbarHandleColor: {r: 0.25490198, g: 0.8039216, b: 0.18039216, a: 1}
   includeInactiveText: 1

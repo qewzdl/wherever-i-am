@@ -64,6 +64,11 @@ public sealed class EnemyPerceptionRuntime
     public void ResetRuntimeState()
     {
         targetRefreshTimer = 0f;
+
+        // The hold timer measures time spent on a target. Carrying it across a
+        // teardown would have a reused enemy refusing its first target for a
+        // couple of seconds on the strength of a pursuit that is over.
+        targetDetector?.ResetTargetSelection();
     }
 
     private EnemyPerceptionDecision TickVisualTargetMemory(
@@ -217,6 +222,23 @@ public sealed class EnemyPerceptionRuntime
             targetMemory.SetTarget(stimulus.Target);
         }
 
+        Transform targetTransform = stimulus.Target.NetworkObject != null &&
+                                    stimulus.Target.NetworkObject.IsSpawned
+            ? stimulus.Target.NetworkObject.transform
+            : stimulus.Target.transform;
+
+        targetMemory.RememberObservation(
+            stimulus.Target,
+            targetTransform.position,
+            targetTransform.forward,
+            Time.time
+        );
+
+        // Same person, seen again: the manoeuvre plans against the fresh pose.
+        // Anyone else is refused here rather than quietly moving the spot an
+        // ambush is already creeping towards.
+        blackboard.StealthManeuver.TryRefresh(targetMemory.LastObservation);
+
         investigationMemory.RememberLastKnownTargetPosition(stimulus.Position);
         investigationMemory.ClearSuspiciousPosition();
 
@@ -257,7 +279,8 @@ public sealed class EnemyPerceptionRuntime
         {
             perceptionMemory.TryStartVisualMemoryGracePeriod(
                 targetMemory.CurrentTarget,
-                config.visualTargetMemoryDuration
+                config.visualTargetMemoryDuration,
+                config.visualMemoryTracksLiveTarget
             );
 
             return EnemyPerceptionDecision.None;
@@ -306,7 +329,7 @@ public sealed class EnemyPerceptionRuntime
             hidingPlace
         );
     }
-
+
     private bool IsPursuingConfirmedTarget(EnemyState currentState)
     {
         EnemyTargetMemory targetMemory = blackboard.TargetMemory;
@@ -329,7 +352,8 @@ public sealed class EnemyPerceptionRuntime
             {
                 perceptionMemory.TryStartVisualMemoryGracePeriod(
                     targetMemory.CurrentTarget,
-                    config.visualTargetMemoryDuration
+                    config.visualTargetMemoryDuration,
+                    config.visualMemoryTracksLiveTarget
                 );
             }
 

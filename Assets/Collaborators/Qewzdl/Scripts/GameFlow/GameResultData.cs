@@ -54,16 +54,7 @@ public struct GameResultData : INetworkSerializable, IEquatable<GameResultData>
             case MatchResultSource.Objective:
                 return !string.IsNullOrWhiteSpace(sourceId);
 
-            case MatchResultSource.Timeout:
-                return true;
-
-            case MatchResultSource.Admin:
-                return true;
-
-            case MatchResultSource.Disconnect:
-                return !string.IsNullOrWhiteSpace(sourceId);
-
-            case MatchResultSource.AllPlayersDead:
+            case MatchResultSource.PlayerCaught:
                 return true;
 
             default:

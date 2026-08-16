@@ -3,19 +3,44 @@ using UnityEngine;
 
 public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
 {
-    [SerializeField] private ObjectiveSceneBinding[] bindings;
+    [Tooltip(
+        "Leave empty to collect every binding under this object. Fill it in " +
+        "only to bind a hand-picked set, or bindings that live outside this " +
+        "hierarchy.")]
+    [SerializeField] private ObjectiveSceneBinding[] bindings = Array.Empty<ObjectiveSceneBinding>();
+
+    // The serialized field is the designer's explicit override; this is what is
+    // actually used. Writing the collected children back into it would quietly
+    // turn "collect automatically" into "this exact list", and every binding
+    // added to the map afterwards would be ignored - which is the mistake the
+    // hand-kept array made easy in the first place.
+    private ObjectiveSceneBinding[] resolvedBindings;
+
+    private ObjectiveSceneBinding[] Bindings
+    {
+        get
+        {
+            if (bindings != null && bindings.Length > 0)
+            {
+                return bindings;
+            }
+
+            if (resolvedBindings == null)
+            {
+                resolvedBindings = GetComponentsInChildren<ObjectiveSceneBinding>(true);
+            }
+
+            return resolvedBindings;
+        }
+    }
 
     public bool IsValidForSequence(ObjectiveSequenceDefinition sequence, out string error)
     {
-        if (bindings == null)
-        {
-            error = $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has null bindings array.";
-            return false;
-        }
+        ObjectiveSceneBinding[] resolved = Bindings;
 
-        for (int i = 0; i < bindings.Length; i++)
+        for (int i = 0; i < resolved.Length; i++)
         {
-            ObjectiveSceneBinding binding = bindings[i];
+            ObjectiveSceneBinding binding = resolved[i];
 
             if (binding == null)
             {
@@ -28,18 +53,20 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
                 return false;
             }
 
-            for (int j = i + 1; j < bindings.Length; j++)
+            for (int j = i + 1; j < resolved.Length; j++)
             {
-                ObjectiveSceneBinding other = bindings[j];
+                ObjectiveSceneBinding other = resolved[j];
 
                 if (other == null || other.Objective == null)
                 {
                     continue;
                 }
 
-                if (string.Equals(binding.ObjectiveId, other.ObjectiveId, StringComparison.Ordinal))
+                if (other.Objective == binding.Objective)
                 {
-                    error = $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has duplicate scene binding for objective '{binding.ObjectiveId}'.";
+                    error =
+                        $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has two scene " +
+                        $"bindings for objective '{binding.Objective.name}'.";
                     return false;
                 }
             }
@@ -60,9 +87,11 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
                 continue;
             }
 
-            if (!TryGetBinding(objective.ObjectiveId, out _))
+            if (!TryGetBinding(objective, out _))
             {
-                error = $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has no scene binding for required objective '{objective.ObjectiveId}'.";
+                error =
+                    $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has no scene " +
+                    $"binding for required objective '{objective.name}'.";
                 return false;
             }
         }
@@ -80,16 +109,18 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
             return false;
         }
 
-        if (bindings == null)
+        ObjectiveSceneBinding[] resolved = Bindings;
+
+        if (resolved == null)
         {
             error =
-                $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has null bindings array.";
+                $"{nameof(ObjectiveSceneBindingRegistry)} on '{name}' has no bindings.";
             return false;
         }
 
-        for (int i = 0; i < bindings.Length; i++)
+        for (int i = 0; i < resolved.Length; i++)
         {
-            ObjectiveSceneBinding binding = bindings[i];
+            ObjectiveSceneBinding binding = resolved[i];
 
             if (binding == null)
             {
@@ -119,14 +150,16 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
 
     public void DeactivateAll()
     {
-        if (bindings == null)
+        ObjectiveSceneBinding[] resolved = Bindings;
+
+        if (resolved == null)
         {
             return;
         }
 
-        for (int i = 0; i < bindings.Length; i++)
+        for (int i = 0; i < resolved.Length; i++)
         {
-            ObjectiveSceneBinding binding = bindings[i];
+            ObjectiveSceneBinding binding = resolved[i];
 
             if (binding == null)
             {
@@ -139,14 +172,16 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
 
     public void UnbindAll()
     {
-        if (bindings == null)
+        ObjectiveSceneBinding[] resolved = Bindings;
+
+        if (resolved == null)
         {
             return;
         }
 
-        for (int i = 0; i < bindings.Length; i++)
+        for (int i = 0; i < resolved.Length; i++)
         {
-            ObjectiveSceneBinding binding = bindings[i];
+            ObjectiveSceneBinding binding = resolved[i];
 
             if (binding == null)
             {
@@ -157,25 +192,27 @@ public sealed class ObjectiveSceneBindingRegistry : MonoBehaviour
         }
     }
 
-    public bool TryGetBinding(string objectiveId, out ObjectiveSceneBinding binding)
+    public bool TryGetBinding(ObjectiveDefinition objective, out ObjectiveSceneBinding binding)
     {
         binding = null;
 
-        if (bindings == null || string.IsNullOrWhiteSpace(objectiveId))
+        ObjectiveSceneBinding[] resolved = Bindings;
+
+        if (resolved == null || objective == null)
         {
             return false;
         }
 
-        for (int i = 0; i < bindings.Length; i++)
+        for (int i = 0; i < resolved.Length; i++)
         {
-            ObjectiveSceneBinding candidate = bindings[i];
+            ObjectiveSceneBinding candidate = resolved[i];
 
             if (candidate == null)
             {
                 continue;
             }
 
-            if (string.Equals(candidate.ObjectiveId, objectiveId, StringComparison.Ordinal))
+            if (candidate.Objective == objective)
             {
                 binding = candidate;
                 return true;

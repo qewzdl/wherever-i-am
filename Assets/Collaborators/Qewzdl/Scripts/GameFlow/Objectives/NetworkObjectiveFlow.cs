@@ -28,7 +28,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     private IGameMapSessionService gameMapService;
     private bool subscribedToGameMap;
     private bool serverReady;
-    private bool failureReported;
+    private bool faultReported;
     private bool matchCompletionCommitted;
 
     public event Action ServerReady;
@@ -36,6 +36,14 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     public event Action<FixedString128Bytes, FixedString128Bytes> ObjectiveReasonChanged;
 
     public ObjectiveNetworkState CurrentObjective => currentObjective.Value;
+
+    // Which objective the index points at. Callers used to carry its name
+    // around to hand back to the report methods; the flow knows it.
+    public ObjectiveDefinition ActiveObjective =>
+        activeObjectiveSequence == null
+            ? null
+            : activeObjectiveSequence.GetObjective(currentObjective.Value.SequenceIndex);
+
     public string LastObjectiveReason => lastObjectiveReason.Value.ToString();
     public bool HasActiveObjective => currentObjective.Value.State == ObjectiveRuntimeState.Active;
     public bool IsServerReady => IsSpawned && IsServer && serverReady;
@@ -47,14 +55,14 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         serverReady = false;
-        failureReported = false;
+        faultReported = false;
         matchCompletionCommitted = false;
         currentObjective.OnValueChanged += HandleObjectiveStateChanged;
         lastObjectiveReason.OnValueChanged += HandleObjectiveReasonChanged;
 
         if (!ValidateStaticSetup())
         {
-            FailObjectiveFlowServer(
+            FaultObjectiveFlowServer(
                 $"{nameof(NetworkObjectiveFlow)} static setup validation failed.");
             enabled = false;
             return;
@@ -85,7 +93,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (!ValidateRuntimeSetup())
         {
-            FailObjectiveFlowServer(
+            FaultObjectiveFlowServer(
                 $"{nameof(NetworkObjectiveFlow)} runtime setup validation failed.");
             enabled = false;
             return;
@@ -94,7 +102,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         if (!sceneBindingRegistry.TryBindAll(this, out string bindingError))
         {
             Debug.LogError(bindingError, this);
-            FailObjectiveFlowServer(bindingError);
+            FaultObjectiveFlowServer(bindingError);
             enabled = false;
             return;
         }
@@ -133,7 +141,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         activeBinding = null;
         serverReady = false;
-        failureReported = false;
+        faultReported = false;
         matchCompletionCommitted = false;
     }
 
@@ -169,44 +177,58 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return true;
         }
 
-        return FailObjectiveFlowServer(error);
+        return FaultObjectiveFlowServer(error);
     }
 
-    public bool ReportObjectiveProgressServerOnly(string objectiveId, float progress01, ulong instigatorClientId)
+    public bool ReportObjectiveProgressServerOnly(ObjectiveDefinition objective, float progress01, ulong instigatorClientId)
     {
-        return ReportObjectiveProgressNormalizedServerOnly(objectiveId, progress01, instigatorClientId);
+        return ReportObjectiveProgressNormalizedServerOnly(objective, progress01, instigatorClientId);
     }
 
-    public bool ReportObjectiveProgressAmountServerOnly(string objectiveId, float progressAmount, ulong instigatorClientId)
+    public bool ReportObjectiveProgressAmountServerOnly(ObjectiveDefinition objective, float progressAmount, ulong instigatorClientId)
     {
-        if (!TryGetActiveObjective(objectiveId, out ObjectiveNetworkState state, out ObjectiveDefinition objective))
+        if (!TryGetActiveObjective(objective, out ObjectiveNetworkState state, out ObjectiveDefinition active))
         {
             return false;
         }
 
-        float normalizedProgress = Mathf.Clamp01(progressAmount / objective.RequiredProgress);
-        return ApplyObjectiveProgressServerOnly(state, objective, normalizedProgress, instigatorClientId, "Objective progress amount reported");
+        float normalizedProgress = Mathf.Clamp01(progressAmount / active.RequiredProgress);
+        return ApplyObjectiveProgressServerOnly(state, active, normalizedProgress, instigatorClientId, "Objective progress amount reported");
     }
 
-    public bool ReportObjectiveProgressNormalizedServerOnly(string objectiveId, float progress01, ulong instigatorClientId)
+    public bool ReportObjectiveProgressNormalizedServerOnly(ObjectiveDefinition objective, float progress01, ulong instigatorClientId)
     {
-        if (!TryGetActiveObjective(objectiveId, out ObjectiveNetworkState state, out ObjectiveDefinition objective))
+        if (!TryGetActiveObjective(objective, out ObjectiveNetworkState state, out ObjectiveDefinition active))
         {
             return false;
         }
 
         float normalizedProgress = Mathf.Clamp01(progress01);
-        return ApplyObjectiveProgressServerOnly(state, objective, normalizedProgress, instigatorClientId, "Objective normalized progress reported");
+        return ApplyObjectiveProgressServerOnly(state, active, normalizedProgress, instigatorClientId, "Objective normalized progress reported");
     }
 
-    public bool CompleteObjectiveServerOnly(string objectiveId, ulong instigatorClientId)
+    public bool CompleteObjectiveServerOnly(ObjectiveDefinition objective, ulong instigatorClientId)
     {
-        if (!TryGetActiveObjective(objectiveId, out ObjectiveNetworkState state, out ObjectiveDefinition objective))
+        if (!TryGetActiveObjective(objective, out ObjectiveNetworkState state, out ObjectiveDefinition active))
         {
             return false;
         }
 
-        return CompleteObjectiveServerOnly(state, objective, instigatorClientId);
+        return CompleteObjectiveServerOnly(state, active, instigatorClientId);
+    }
+
+    public bool FailObjectiveServerOnly(ObjectiveDefinition objective, ulong instigatorClientId)
+    {
+        if (!TryGetActiveObjective(objective, out ObjectiveNetworkState state, out ObjectiveDefinition active))
+        {
+            return false;
+        }
+
+        return ResolveObjectiveServerOnly(
+            state,
+            active,
+            ObjectiveRuntimeState.Failed,
+            instigatorClientId);
     }
 
     private bool ApplyObjectiveProgressServerOnly(
@@ -241,9 +263,61 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         ObjectiveDefinition objective,
         ulong instigatorClientId)
     {
-        int nextIndex = state.SequenceIndex + 1;
+        return ResolveObjectiveServerOnly(
+            state,
+            objective,
+            ObjectiveRuntimeState.Completed,
+            instigatorClientId);
+    }
 
-        if (nextIndex < activeObjectiveSequence.Count)
+    // The sequence decides what the match does about one of its objectives,
+    // because it is the sequence that knows which one is last. Losing one ends
+    // the match when losing is declared to cost it; otherwise the sequence
+    // simply carries on, and running out of objectives is what wins.
+    private bool ResolveObjectiveServerOnly(
+        ObjectiveNetworkState state,
+        ObjectiveDefinition objective,
+        ObjectiveRuntimeState resolvedState,
+        ulong instigatorClientId)
+    {
+        bool completed = resolvedState == ObjectiveRuntimeState.Completed;
+
+        string resolutionReason = completed
+            ? $"Objective '{objective.name}' completed"
+            : $"Objective '{objective.name}' failed";
+
+        state.State = resolvedState;
+
+        if (completed)
+        {
+            state.Progress01 = 1f;
+        }
+
+        int nextIndex = state.SequenceIndex + 1;
+        bool sequenceFinished = nextIndex >= activeObjectiveSequence.Count;
+
+        GameResultType matchResult;
+        string matchReason;
+
+        if (!completed && activeObjectiveSequence.LosingAnObjectiveEndsMatch)
+        {
+            matchResult = activeObjectiveSequence.FailureResult;
+            matchReason = activeObjectiveSequence.FailureReason;
+        }
+        else if (sequenceFinished)
+        {
+            // Nothing left to do. A losable objective lost on the last step
+            // still gets here, which is what "losing it costs nothing" means.
+            matchResult = activeObjectiveSequence.CompletionResult;
+            matchReason = activeObjectiveSequence.CompletionReason;
+        }
+        else
+        {
+            matchResult = GameResultType.None;
+            matchReason = string.Empty;
+        }
+
+        if (matchResult == GameResultType.None)
         {
             if (!TryPrepareObjectiveActivation(
                     nextIndex,
@@ -251,73 +325,56 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
                     out ObjectiveSceneBinding nextBinding,
                     out string activationError))
             {
-                return FailObjectiveFlowServer(activationError);
+                return FaultObjectiveFlowServer(activationError);
             }
 
-            state.State = ObjectiveRuntimeState.Completed;
-            state.Progress01 = 1f;
             currentObjective.Value = state;
-            lastObjectiveReason.Value =
-                $"Objective '{objective.ObjectiveId}' completed";
+            lastObjectiveReason.Value = resolutionReason;
 
             CommitObjectiveActivation(
                 nextIndex,
                 nextObjective,
                 nextBinding,
-                $"Objective '{objective.ObjectiveId}' completed");
+                resolutionReason);
             return true;
-        }
-
-        if (!objective.CompletesGame)
-        {
-            string error =
-                $"{nameof(NetworkObjectiveFlow)} sequence ended with objective " +
-                $"'{objective.ObjectiveId}' but it does not complete the game.";
-            Debug.LogError(error, this);
-            return FailObjectiveFlowServer(error);
         }
 
         if (matchCompletionCommitted)
             return false;
 
         GameResultData result = GameResultData.Create(
-            objective.CompletionResult,
+            matchResult,
             MatchResultSource.Objective,
-            objective.ObjectiveId,
-            objective.CompletionReason,
+            objective.SourceId,
+            matchReason,
             instigatorClientId);
 
         bool matchCompleted;
 
         try
         {
-            matchCompleted = gameFlow.CompleteMatchServerOnly(
-                result,
-                objective.CompletionReason);
+            matchCompleted = gameFlow.CompleteMatchServerOnly(result, matchReason);
         }
         catch (Exception exception)
         {
             Debug.LogException(exception, this);
-            return FailObjectiveFlowServer(
+            return FaultObjectiveFlowServer(
                 $"{nameof(NetworkObjectiveFlow)} match completion threw for " +
-                $"objective '{objective.ObjectiveId}': {exception.Message}");
+                $"objective '{objective.name}': {exception.Message}");
         }
 
         if (!matchCompleted)
         {
             string error =
                 $"{nameof(NetworkObjectiveFlow)} could not commit match completion " +
-                $"for objective '{objective.ObjectiveId}'.";
+                $"for objective '{objective.name}'.";
             Debug.LogError(error, this);
-            return FailObjectiveFlowServer(error);
+            return FaultObjectiveFlowServer(error);
         }
 
         matchCompletionCommitted = true;
-        state.State = ObjectiveRuntimeState.Completed;
-        state.Progress01 = 1f;
         currentObjective.Value = state;
-        lastObjectiveReason.Value =
-            $"Objective '{objective.ObjectiveId}' completed";
+        lastObjectiveReason.Value = resolutionReason;
         DeactivateActiveBinding();
         return true;
     }
@@ -351,11 +408,11 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         if (objective.RequiresSceneBinding)
         {
-            if (!sceneBindingRegistry.TryGetBinding(objective.ObjectiveId, out binding))
+            if (!sceneBindingRegistry.TryGetBinding(objective, out binding))
             {
                 error =
                     $"{nameof(NetworkObjectiveFlow)} cannot activate objective " +
-                    $"'{objective.ObjectiveId}': required scene binding is missing.";
+                    $"'{objective.name}': required scene binding is missing.";
                 Debug.LogError(error, this);
                 return false;
             }
@@ -375,14 +432,13 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
 
         ObjectiveNetworkState nextState = new ObjectiveNetworkState
         {
-            ObjectiveId = objective.ObjectiveId,
             SequenceIndex = index,
             State = ObjectiveRuntimeState.Active,
             Progress01 = 0f
         };
 
         currentObjective.Value = nextState;
-        lastObjectiveReason.Value = GetReason(reason, $"Objective '{objective.ObjectiveId}' activated");
+        lastObjectiveReason.Value = GetReason(reason, $"Objective '{objective.name}' activated");
 
         activeBinding = binding;
 
@@ -393,7 +449,7 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
     }
 
     private bool TryGetActiveObjective(
-        string objectiveId,
+        ObjectiveDefinition requested,
         out ObjectiveNetworkState state,
         out ObjectiveDefinition objective)
     {
@@ -416,16 +472,18 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
             return false;
         }
 
-        if (!string.Equals(state.ObjectiveId.ToString(), objectiveId, StringComparison.Ordinal))
+        objective = activeObjectiveSequence.GetObjective(state.SequenceIndex);
+
+        if (objective != null && requested != null && requested != objective)
         {
             Debug.LogError(
-                $"{nameof(NetworkObjectiveFlow)} rejected objective update for '{objectiveId}'. Active objective: '{state.ObjectiveId}'.",
+                $"{nameof(NetworkObjectiveFlow)} rejected an update for objective " +
+                $"'{requested.name}'. The active one is '{objective.name}'.",
                 this);
 
+            objective = null;
             return false;
         }
-
-        objective = activeObjectiveSequence.GetObjective(state.SequenceIndex);
 
         if (objective == null)
         {
@@ -581,29 +639,31 @@ public sealed class NetworkObjectiveFlow : NetworkBehaviour
         }
     }
 
-    private bool FailObjectiveFlowServer(string details)
+    // Configuration or invariant error - not a lost objective. This tears the
+    // session down; gameplay failure goes through FailObjectiveServerOnly.
+    private bool FaultObjectiveFlowServer(string details)
     {
-        if (!IsServer || failureReported)
+        if (!IsServer || faultReported)
             return false;
 
-        failureReported = true;
+        faultReported = true;
         serverReady = false;
 
-        ObjectiveNetworkState failedState = currentObjective.Value;
-        failedState.State = ObjectiveRuntimeState.Failed;
-        currentObjective.Value = failedState;
+        ObjectiveNetworkState faultedState = currentObjective.Value;
+        faultedState.State = ObjectiveRuntimeState.Faulted;
+        currentObjective.Value = faultedState;
 
-        string failureDetails = string.IsNullOrWhiteSpace(details)
-            ? "Objective flow failed."
+        string faultDetails = string.IsNullOrWhiteSpace(details)
+            ? "Objective flow faulted."
             : details;
-        lastObjectiveReason.Value = failureDetails;
+        lastObjectiveReason.Value = faultDetails;
 
         DeactivateActiveBinding();
         sceneBindingRegistry?.UnbindAll();
 
         _ = NetworkObjectServiceContext.ReportSessionReadinessFailureAsync(
             this,
-            failureDetails);
+            faultDetails);
         return false;
     }
 

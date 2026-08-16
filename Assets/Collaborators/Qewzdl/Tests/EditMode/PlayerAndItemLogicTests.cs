@@ -57,7 +57,7 @@ public sealed class PlayerAndItemLogicTests
     private const string ProductionHidingPlacePrefabPath =
         "Assets/Collaborators/Qewzdl/Prefabs/Hiding Objects/Test Hiding Box.prefab";
     private const string ProductionHidingPlaceDataPath =
-        "Assets/Collaborators/Qewzdl/Configs/Items/Interactable/Hiding/HidingPlaceData.asset";
+        "Assets/Collaborators/Qewzdl/Configs/Hiding/HidingPlaceData.asset";
 
     [Test]
     public void ProductionDraggablePrefabs_DeclareNavigationObstacle()

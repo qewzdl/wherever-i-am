@@ -162,6 +162,39 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         lobbyController.RequestSetMapRpc(mapId);
     }
 
+    public void SetDifficulty(int difficultyId)
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogError("LobbyController is missing.");
+            return;
+        }
+
+        lobbyController.RequestSetDifficultyRpc(difficultyId);
+    }
+
+    public void SetLobbyPublic(bool isPublic)
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogError("LobbyController is missing.");
+            return;
+        }
+
+        lobbyController.RequestSetLobbyPublicRpc(isPublic);
+    }
+
+    public void KickPlayer(ulong clientId)
+    {
+        if (lobbyController == null)
+        {
+            Debug.LogError("LobbyController is missing.");
+            return;
+        }
+
+        lobbyController.RequestKickPlayerRpc(clientId);
+    }
+
     public void StartGame()
     {
         if (lobbyController == null)

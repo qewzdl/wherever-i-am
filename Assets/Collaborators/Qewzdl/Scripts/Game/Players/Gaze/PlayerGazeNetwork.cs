@@ -11,6 +11,34 @@ using UnityEngine;
 // Only the pitch is replicated. The body's yaw already reaches the server
 // through the player's NetworkTransform, and the camera turns the body with
 // it, so sending a whole direction would send the yaw twice.
+
+// One player who can see a given point, and where they are watching it from.
+//
+// "Is anybody looking at me" collapses a room full of people into a single
+// bool, and every stealth decision made from that bool is made against the
+// wrong person: an enemy noticed by player B while working on player A backed
+// away from A, which in a shared room is a route towards B.
+public readonly struct PlayerWatcher
+{
+    public ulong ClientId { get; }
+    public Vector3 Position { get; }
+    public Vector3 EyePosition { get; }
+    public Vector3 GazeDirection { get; }
+
+    public PlayerWatcher(
+        ulong clientId,
+        Vector3 position,
+        Vector3 eyePosition,
+        Vector3 gazeDirection
+    )
+    {
+        ClientId = clientId;
+        Position = position;
+        EyePosition = eyePosition;
+        GazeDirection = gazeDirection;
+    }
+}
+
 [DisallowMultipleComponent]
 public sealed class PlayerGazeNetwork : NetworkBehaviour
 {
@@ -44,6 +72,42 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         NetworkVariableWritePermission.Owner
     );
 
+    // Where the owner's camera actually ended up, in the player's own space.
+    //
+    // Anyone watching this player has to see what they see. Rebuilding that
+    // from an eye height and a pitch cannot hold: crouching moves the pivot,
+    // a hiding place takes the camera off the body altogether, and every
+    // future camera trick would have to be taught to the watcher a second
+    // time - each one a fresh way for the two views to disagree. The camera
+    // pose is the one thing that already accounts for all of it, so that is
+    // what gets sent.
+    //
+    // Kept in the player's space so the body's own replicated movement is not
+    // sent twice, and so a watcher rebuilds the world pose against the body
+    // position it is already interpolating.
+    private readonly NetworkVariable<Vector3> viewLocalPosition = new(
+        Vector3.zero,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner
+    );
+
+    private readonly NetworkVariable<Quaternion> viewLocalRotation = new(
+        Quaternion.identity,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner
+    );
+
+    private readonly NetworkVariable<bool> hasViewPose = new(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner
+    );
+
+    private const float ViewPositionSendThreshold = 0.004f;
+    private const float ViewRotationSendThreshold = 0.2f;
+
+    private Transform viewTransform;
+
     // Eyes sit near the top of a head, not at the very crown.
     private const float EyeShareOfHeight = 0.92f;
 
@@ -53,6 +117,12 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
     private float lastSentPitch;
 
     public static IReadOnlyList<PlayerGazeNetwork> All => RegisteredGazes;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetRegisteredGazes()
+    {
+        RegisteredGazes.Clear();
+    }
 
     // Taken from the capsule when there is one, so crouching lowers the eye
     // without this component having to hear about postures. The serialized
@@ -103,6 +173,100 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         {
             RegisteredGazes.Add(this);
         }
+
+        // Published before anybody can ask, so a watcher switching to a player
+        // who has been standing still since spawn still gets a pose.
+        if (IsOwner)
+        {
+            SendViewPose();
+        }
+    }
+
+    // Where the owner's camera sits relative to this player. False until the
+    // owner has sent one - the caller keeps whatever view it had.
+    //
+    // Left in the player's space on purpose: a watcher that turns it into a
+    // world pose against the body it is already interpolating follows the body
+    // exactly, and only has to smooth what the camera itself is doing.
+    public bool TryGetLocalViewPose(out Vector3 position, out Quaternion rotation)
+    {
+        position = viewLocalPosition.Value;
+        rotation = viewLocalRotation.Value;
+        return hasViewPose.Value;
+    }
+
+    // The camera under the look pivot. A plain search for a camera can answer
+    // with the viewmodel overlay one, which lives on its own branch and points
+    // wherever that branch happens to point.
+    private Transform ViewTransform
+    {
+        get
+        {
+            if (viewTransform != null)
+            {
+                return viewTransform;
+            }
+
+            CameraLook cameraLook = GetComponentInChildren<CameraLook>(true);
+
+            if (cameraLook != null)
+            {
+                Camera pivotCamera = cameraLook.GetComponentInChildren<Camera>(true);
+                viewTransform = pivotCamera != null
+                    ? pivotCamera.transform
+                    : cameraLook.transform;
+
+                return viewTransform;
+            }
+
+            Camera anyCamera = GetComponentInChildren<Camera>(true);
+            viewTransform = anyCamera != null ? anyCamera.transform : null;
+            return viewTransform;
+        }
+    }
+
+    private void SendViewPose()
+    {
+        Transform view = ViewTransform;
+
+        if (view == null)
+        {
+            return;
+        }
+
+        viewLocalPosition.Value = transform.InverseTransformPoint(view.position);
+        viewLocalRotation.Value = Quaternion.Inverse(transform.rotation) * view.rotation;
+        hasViewPose.Value = true;
+    }
+
+    // ponytail: sent by every player all match, whether anybody is watching or
+    // not. A pose per tick per player is nothing at this player count; gate it
+    // on somebody actually being out of the match if that stops being true.
+    private void SendViewPoseIfMoved()
+    {
+        Transform view = ViewTransform;
+
+        if (view == null)
+        {
+            return;
+        }
+
+        Vector3 localPosition = transform.InverseTransformPoint(view.position);
+        Quaternion localRotation =
+            Quaternion.Inverse(transform.rotation) * view.rotation;
+
+        if (hasViewPose.Value &&
+            Vector3.Distance(localPosition, viewLocalPosition.Value) <
+                ViewPositionSendThreshold &&
+            Quaternion.Angle(localRotation, viewLocalRotation.Value) <
+                ViewRotationSendThreshold)
+        {
+            return;
+        }
+
+        viewLocalPosition.Value = localPosition;
+        viewLocalRotation.Value = localRotation;
+        hasViewPose.Value = true;
     }
 
     public override void OnNetworkDespawn()
@@ -112,10 +276,12 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
 
     private void LateUpdate()
     {
-        if (!IsOwner || !IsSpawned)
+        if (!IsOwner || !IsSpawned || !isInPlay)
         {
             return;
         }
+
+        SendViewPoseIfMoved();
 
         if (ownerCamera == null)
         {
@@ -153,7 +319,18 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
     // without the same rule here a player in a crate scared the enemy off a
     // flank it should have walked straight past.
     public bool IsWatching =>
-        HidingState == null || !HidingState.IsHidden;
+        isInPlay && (HidingState == null || !HidingState.IsHidden);
+
+    private bool isInPlay = true;
+
+    // A player who is out of the match watches through somebody else's eyes,
+    // and their own body is left standing where it fell. It neither watches
+    // the enemy any more - counting it makes the enemy back away from a room
+    // nobody is really in - nor has a view of its own worth sending.
+    public void SetInPlay(bool value)
+    {
+        isInPlay = value;
+    }
 
     private IReplicatedPlayerHidingStateService HidingState
     {
@@ -291,39 +468,6 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         return Vector3.Angle(GazeDirection, toCentre) <= halfViewAngle + slack;
     }
 
-    public static bool TryGetNearest(Vector3 from, out PlayerGazeNetwork nearest)
-    {
-        nearest = null;
-        float nearestSqr = float.PositiveInfinity;
-
-        for (int i = 0; i < RegisteredGazes.Count; i++)
-        {
-            PlayerGazeNetwork gaze = RegisteredGazes[i];
-
-            // Not filtered by whether they are watching. This answers "who
-            // am I dealing with", which a player folded into a box still is -
-            // filtering here made the whole stalk chain collapse into a
-            // search the moment someone hid. Only the visibility questions
-            // care about watching.
-            if (gaze == null)
-            {
-                continue;
-            }
-
-            float sqr = (gaze.transform.position - from).sqrMagnitude;
-
-            if (sqr >= nearestSqr)
-            {
-                continue;
-            }
-
-            nearestSqr = sqr;
-            nearest = gaze;
-        }
-
-        return nearest != null;
-    }
-
     public static bool IsBodySeenByAnyone(Vector3 footPosition, float height)
     {
         for (int i = 0; i < RegisteredGazes.Count; i++)
@@ -337,5 +481,45 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
         }
 
         return false;
+    }
+
+    // Everyone who can see this body, not merely whether anybody can.
+    //
+    // Costs the same as the question above in the common case - the cheap
+    // rejection runs first for every player either way - and it is the only
+    // form a retreat or a flank can plan honestly against, because it can
+    // route away from all of them at once instead of away from a guess.
+    public static void CollectBodyWatchers(
+        Vector3 footPosition,
+        float height,
+        List<PlayerWatcher> watchers
+    )
+    {
+        if (watchers == null)
+        {
+            return;
+        }
+
+        watchers.Clear();
+
+        for (int i = 0; i < RegisteredGazes.Count; i++)
+        {
+            PlayerGazeNetwork gaze = RegisteredGazes[i];
+
+            if (gaze != null && gaze.CanSeeBody(footPosition, height))
+            {
+                watchers.Add(gaze.AsWatcher());
+            }
+        }
+    }
+
+    private PlayerWatcher AsWatcher()
+    {
+        return new PlayerWatcher(
+            OwnerClientId,
+            transform.position,
+            EyePosition,
+            GazeDirection
+        );
     }
 }

@@ -34,6 +34,18 @@ if (-not (Test-Path -LiteralPath $UnityEditorPath -PathType Leaf)) {
     throw "Unity Editor was not found at '$UnityEditorPath'. Set UNITY_EDITOR_PATH."
 }
 
+# A driver that crashes or is killed never runs its own cleanup, so its player
+# processes keep going and hold the LAN port the next run needs. That run then
+# fails for a reason that has nothing to do with what changed, which is a bad
+# way to spend an afternoon. Clear them before starting.
+$leftoverPlayers = Get-Process "WhereverIAm-ProductionBootstrap" -ErrorAction SilentlyContinue
+
+if ($leftoverPlayers) {
+    Write-Host "Stopping $($leftoverPlayers.Count) leftover player process(es) from an earlier run."
+    $leftoverPlayers | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+}
+
 $editorLog = Join-Path $ArtifactRoot "editor.log"
 $env:WIA_NETWORK_SOAK_ARTIFACTS = $ArtifactRoot
 

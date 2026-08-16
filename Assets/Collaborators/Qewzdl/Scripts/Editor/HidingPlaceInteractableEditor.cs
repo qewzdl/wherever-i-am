@@ -12,7 +12,7 @@ public sealed class HidingPlaceInteractableEditor : Editor
     private static readonly Color FallbackColor = new(0.1f, 0.55f, 1f);
 
     private const string DefaultDataDirectory =
-        "Assets/Collaborators/Qewzdl/Configs/Items/Interactable/Hiding";
+        "Assets/Collaborators/Qewzdl/Configs/Hiding";
 
     private SerializedProperty data;
     private SerializedProperty interactionAnchor;

@@ -237,78 +237,6 @@ public sealed class EnemyLogicTests
     }
 
     [Test]
-    public void GazeScanner_ScansBothSidesWithoutTargetAndRecentersWhenPursuing()
-    {
-        GameObject enemy = new("Gaze scanner enemy");
-        enemy.SetActive(false);
-
-        try
-        {
-            GameObject eyes = new("Eyes");
-            eyes.transform.SetParent(enemy.transform, false);
-
-            // Same contract error as EnemyTarget: the sensor validates itself
-            // the moment it is added, before the test can point it at anything.
-            LogAssert.Expect(
-                LogType.Error,
-                new System.Text.RegularExpressions.Regex(
-                    "EnemyVisionSensor has invalid configuration:"
-                )
-            );
-
-            EnemyVisionSensor visionSensor = enemy.AddComponent<EnemyVisionSensor>();
-            TestReflection.SetField(visionSensor, "eyes", eyes.transform);
-
-            EnemyGazeScanner scanner = enemy.AddComponent<EnemyGazeScanner>();
-
-            float widestLeftSweep = 0f;
-            float widestRightSweep = 0f;
-
-            for (int i = 0; i < 400; i++)
-            {
-                scanner.TickServer(0.05f, EnemyState.Patrol);
-
-                widestLeftSweep = Mathf.Min(widestLeftSweep, scanner.CurrentYaw);
-                widestRightSweep = Mathf.Max(widestRightSweep, scanner.CurrentYaw);
-            }
-
-            Assert.That(
-                widestRightSweep,
-                Is.GreaterThan(1f),
-                "Gaze must sweep to one side while the enemy has no target.");
-
-            Assert.That(
-                widestLeftSweep,
-                Is.LessThan(-1f),
-                "Gaze must sweep to the other side too, otherwise it is not looking around.");
-
-            Assert.That(
-                Mathf.Max(widestRightSweep, -widestLeftSweep),
-                Is.LessThanOrEqualTo(55f + 0.01f),
-                "Gaze must stay inside the configured sweep angle.");
-
-            Assert.That(
-                Mathf.DeltaAngle(0f, eyes.transform.localRotation.eulerAngles.y),
-                Is.EqualTo(scanner.CurrentYaw).Within(0.01f),
-                "Vision cone follows the eyes transform, so the swept yaw must be applied to it.");
-
-            for (int i = 0; i < 100; i++)
-            {
-                scanner.TickServer(0.05f, EnemyState.Chase);
-            }
-
-            Assert.That(
-                scanner.CurrentYaw,
-                Is.EqualTo(0f).Within(0.001f),
-                "Gaze must recenter onto the body forward while pursuing a target.");
-        }
-        finally
-        {
-            UnityEngine.Object.DestroyImmediate(enemy);
-        }
-    }
-
-    [Test]
     public void PerceptionMemory_VisualGraceDeliberatelyFollowsLiveTargetPosition()
     {
         GameObject player = new("Visual memory target");
@@ -346,6 +274,40 @@ public sealed class EnemyLogicTests
             Assert.That(memory.IsUsingVisualMemory, Is.False);
             Assert.That(memory.VisualMemoryTimeRemaining, Is.Zero);
             Assert.That(memory.GetVisualMemoryTargetPosition(), Is.EqualTo(Vector3.zero));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(player);
+        }
+    }
+
+    [Test]
+    public void PerceptionMemory_FrozenModeHoldsThePointWhereSightBroke()
+    {
+        GameObject player = new("Frozen memory target");
+        player.SetActive(false);
+
+        try
+        {
+            EnemyTarget target = CreateUnconfiguredTarget(player);
+            player.transform.position = new Vector3(0f, 0f, 5f);
+
+            EnemyPerceptionMemory memory = new();
+
+            Assert.That(
+                memory.TryStartVisualMemoryGracePeriod(
+                    target,
+                    2f,
+                    trackLiveTargetPosition: false),
+                Is.True);
+
+            player.transform.position = new Vector3(9f, 0f, 5f);
+
+            // The whole point of the switch: the player who steps aside behind
+            // cover is no longer followed through it.
+            Assert.That(
+                memory.GetVisualMemoryTargetPosition(),
+                Is.EqualTo(new Vector3(0f, 0f, 5f)));
         }
         finally
         {

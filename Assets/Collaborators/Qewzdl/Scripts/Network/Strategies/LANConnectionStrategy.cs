@@ -234,15 +234,9 @@ public class LanConnectionStrategy : BaseConnectionStrategy
 
     private string GetServerDisconnectReason()
     {
-        if (networkManager == null)
-            return string.Empty;
-
-        string reason = networkManager.DisconnectReason;
-
-        if (string.IsNullOrWhiteSpace(reason) || reason.StartsWith("[Disconnect Event]", StringComparison.Ordinal))
-            return string.Empty;
-
-        return reason;
+        return networkManager == null
+            ? string.Empty
+            : NetworkDisconnectReason.UserFacing(networkManager.DisconnectReason);
     }
 
     private static ConnectionResult CreateCancelledResult()

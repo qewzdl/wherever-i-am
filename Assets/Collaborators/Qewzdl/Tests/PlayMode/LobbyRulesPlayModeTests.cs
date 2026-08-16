@@ -9,6 +9,8 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
 {
     internal int StartGameCount { get; private set; }
     internal int LastMapId { get; private set; } = -1;
+    internal int LastDifficultyId { get; private set; } = -1;
+    internal int ReturnToLobbyCount { get; private set; }
 
     public Task HostLanAsync()
     {
@@ -26,6 +28,17 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
         LastMapId = mapId;
     }
 
+    public void StartGame(int mapId, int difficultyId)
+    {
+        StartGame(mapId);
+        LastDifficultyId = difficultyId;
+    }
+
+    public void ReturnToLobby()
+    {
+        ReturnToLobbyCount++;
+    }
+
     public void ShutdownToMainMenu()
     {
     }
@@ -33,6 +46,79 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
     public Task<NetworkShutdownResult> ShutdownToMainMenuAsync()
     {
         return Task.FromResult(NetworkShutdownResult.Success());
+    }
+}
+
+internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionService
+{
+    private readonly Dictionary<ulong, string> playerIds = new();
+    private readonly HashSet<ulong> reconnectingClients = new();
+    private readonly HashSet<string> reservations = new();
+    private readonly HashSet<ulong> deniedClients = new();
+
+    internal void Deny(ulong clientId)
+    {
+        deniedClients.Add(clientId);
+    }
+
+    public bool TryGetPlayerId(ulong clientId, out string playerId)
+    {
+        if (deniedClients.Contains(clientId))
+        {
+            playerId = string.Empty;
+            return false;
+        }
+
+        if (playerIds.TryGetValue(clientId, out playerId))
+            return true;
+
+        playerId = $"test-player-{clientId}";
+        playerIds.Add(clientId, playerId);
+        return true;
+    }
+
+    public bool IsReconnect(ulong clientId)
+    {
+        return reconnectingClients.Contains(clientId);
+    }
+
+    public bool HasReconnectReservation(string playerId)
+    {
+        return reservations.Contains(playerId);
+    }
+
+    public void RecordDisconnect(ulong clientId)
+    {
+        if (TryGetPlayerId(clientId, out string playerId))
+            reservations.Add(playerId);
+    }
+
+    internal bool IsAcceptingNewPlayers { get; private set; } = true;
+
+    public void SetAcceptingNewPlayers(bool accepting)
+    {
+        IsAcceptingNewPlayers = accepting;
+    }
+
+    internal readonly List<ulong> KickedClientIds = new();
+
+    public bool KickPlayer(ulong clientId)
+    {
+        KickedClientIds.Add(clientId);
+        return true;
+    }
+
+    public bool WasKicked(ulong clientId)
+    {
+        return KickedClientIds.Remove(clientId);
+    }
+
+    internal void ReconnectAs(ulong previousClientId, ulong newClientId)
+    {
+        TryGetPlayerId(previousClientId, out string playerId);
+        playerIds[newClientId] = playerId;
+        reconnectingClients.Add(newClientId);
+        reservations.Remove(playerId);
     }
 }
 
@@ -98,12 +184,23 @@ public sealed class LobbyRulesPlayModeTests
             mapId: 0);
         state.Phase.Value = LobbyPhase.Open;
 
+        LobbyAdmissionServiceProbe admission = new();
         LobbyOwnershipService ownership = new(state);
-        LobbyPlayerRegistry registry = new(state, ownership);
+        LobbyPlayerRegistry registry = new(state, ownership, admission);
 
         Assert.That(registry.TryAddPlayer(10), Is.True);
         Assert.That(registry.TryAddPlayer(20), Is.True);
+
+        // Capacity is admission's job now - it turns a client away before the
+        // connection exists, where this could only turn it away afterwards.
+        // What is left here is that an unadmitted client never reaches the
+        // lobby list.
+        admission.Deny(30);
+        LogAssert.Expect(
+            LogType.Warning,
+            "Rejected lobby registration for unadmitted client '30'.");
         Assert.That(registry.TryAddPlayer(30), Is.False);
+
         Assert.That(state.Players.Count, Is.EqualTo(2));
         Assert.That(ownership.IsRoomOwner(10), Is.True);
 
@@ -118,6 +215,43 @@ public sealed class LobbyRulesPlayModeTests
         Assert.That(
             state.RoomOwnerClientId.Value,
             Is.EqualTo(LobbyState.NoRoomOwner));
+    }
+
+    [UnityTest]
+    public IEnumerator PlayerRegistry_RestoresLobbyStateForApprovedReconnect()
+    {
+        LobbyState state = CreateLobbyState();
+        yield return null;
+
+        state.Settings.Value = new LobbySettingsData(
+            minPlayersToStart: 1,
+            maxPlayers: 1,
+            requireAllPlayersReady: true,
+            gameModeId: 0,
+            mapId: 0);
+        state.Phase.Value = LobbyPhase.Open;
+
+        LobbyAdmissionServiceProbe admission = new();
+        LobbyOwnershipService ownership = new(state);
+        LobbyPlayerRegistry registry = new(state, ownership, admission);
+
+        Assert.That(registry.TryAddPlayer(10), Is.True);
+        LobbyPlayerData original = state.Players[0];
+        original.PlayerName = "Persistent player";
+        original.IsReady = true;
+        state.Players[0] = original;
+
+        admission.RecordDisconnect(10);
+        registry.RemovePlayer(10);
+        admission.ReconnectAs(10, 42);
+
+        Assert.That(registry.TryAddPlayer(42), Is.True);
+        Assert.That(state.Players.Count, Is.EqualTo(1));
+        Assert.That(state.Players[0].ClientId, Is.EqualTo(42));
+        Assert.That(
+            state.Players[0].PlayerName.ToString(),
+            Is.EqualTo("Persistent player"));
+        Assert.That(state.Players[0].IsReady, Is.True);
     }
 
     [UnityTest]
@@ -156,6 +290,10 @@ public sealed class LobbyRulesPlayModeTests
         LobbyConfig config = ScriptableObject.CreateInstance<LobbyConfig>();
         GameMapCatalog catalog = ScriptableObject.CreateInstance<GameMapCatalog>();
         GameMapDefinition map = ScriptableObject.CreateInstance<GameMapDefinition>();
+        EnemyDifficultyCatalog difficulties =
+            ScriptableObject.CreateInstance<EnemyDifficultyCatalog>();
+        EnemyConfig easyEnemy = ScriptableObject.CreateInstance<EnemyConfig>();
+        EnemyConfig hardEnemy = ScriptableObject.CreateInstance<EnemyConfig>();
 
         try
         {
@@ -176,6 +314,16 @@ public sealed class LobbyRulesPlayModeTests
                 "gameModeIds",
                 new[] { 2, 3 });
             PlayModeTestReflection.SetField(config, "mapCatalog", catalog);
+            PlayModeTestReflection.SetField(
+                difficulties,
+                "difficulties",
+                new[]
+                {
+                    new EnemyDifficultyCatalog.EnemyDifficultyEntry(0, "Test easy", easyEnemy),
+                    new EnemyDifficultyCatalog.EnemyDifficultyEntry(4, "Test hard", hardEnemy)
+                });
+            PlayModeTestReflection.SetField(difficulties, "defaultDifficultyId", 4);
+            PlayModeTestReflection.SetField(config, "difficultyCatalog", difficulties);
 
             yield return null;
 
@@ -184,6 +332,19 @@ public sealed class LobbyRulesPlayModeTests
             Assert.That(state.Phase.Value, Is.EqualTo(LobbyPhase.Open));
             Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(2));
             Assert.That(state.Settings.Value.MapId, Is.EqualTo(7));
+            Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(4));
+
+            LogAssert.Expect(
+                LogType.Warning,
+                "Rejected invalid lobby difficulty id: 99.");
+            settings.SetDifficulty(99);
+            Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(4));
+
+            settings.SetDifficulty(0);
+            Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(0));
+
+            Assert.That(difficulties.TryGetConfig(0, out EnemyConfig selected), Is.True);
+            Assert.That(selected, Is.SameAs(easyEnemy));
 
             LogAssert.Expect(
                 LogType.Warning,
@@ -195,7 +356,10 @@ public sealed class LobbyRulesPlayModeTests
             Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(3));
 
             LobbyOwnershipService ownership = new(state);
-            LobbyPlayerRegistry registry = new(state, ownership);
+            LobbyPlayerRegistry registry = new(
+                state,
+                ownership,
+                new LobbyAdmissionServiceProbe());
             registry.TryAddPlayer(10);
             LobbyPlayerCustomizationService customization = new(state);
             customization.SetReady(10, true);
@@ -216,6 +380,9 @@ public sealed class LobbyRulesPlayModeTests
             Object.Destroy(config);
             Object.Destroy(catalog);
             Object.Destroy(map);
+            Object.Destroy(difficulties);
+            Object.Destroy(easyEnemy);
+            Object.Destroy(hardEnemy);
         }
     }
 

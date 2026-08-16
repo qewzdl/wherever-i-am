@@ -657,14 +657,16 @@ public sealed class NetworkSessionShutdownPlayModeTests
             PlayModeTestReflection.GetField<ObjectiveSequenceDefinition>(
                 objectiveFlow,
                 "objectiveSequence");
-        ObjectiveDefinition activeObjective =
-            defaultSequence.GetObjective(0);
+        // Only the last objective resolves the match, so an objective with a
+        // broken tail behind it hands over rather than ending anything.
+        ObjectiveDefinition handingOverObjective =
+            UnityEngine.Object.Instantiate(defaultSequence.GetObjective(0));
         ObjectiveSequenceDefinition brokenSequence =
             ScriptableObject.CreateInstance<ObjectiveSequenceDefinition>();
         PlayModeTestReflection.SetField(
             brokenSequence,
             "objectives",
-            new ObjectiveDefinition[] { activeObjective, null });
+            new ObjectiveDefinition[] { handingOverObjective, null });
         PlayModeTestReflection.SetField(
             objectiveFlow,
             "activeObjectiveSequence",
@@ -687,16 +689,15 @@ public sealed class NetworkSessionShutdownPlayModeTests
                 "NetworkObjectiveFlow: NetworkObjectiveFlow cannot activate " +
                 "objective at index 1: definition is null\\."));
 
-        string objectiveId =
-            objectiveFlow.CurrentObjective.ObjectiveId.ToString();
+        ObjectiveDefinition activeObjective = objectiveFlow.ActiveObjective;
         Assert.That(
             objectiveFlow.CompleteObjectiveServerOnly(
-                objectiveId,
+                activeObjective,
                 networkManager.LocalClientId),
             Is.False);
         Assert.That(
             objectiveFlow.CurrentObjective.State,
-            Is.EqualTo(ObjectiveRuntimeState.Failed));
+            Is.EqualTo(ObjectiveRuntimeState.Faulted));
 
         yield return WaitForCondition(
             () => runtimeContext.StateMachine.CurrentState ==
@@ -712,6 +713,7 @@ public sealed class NetworkSessionShutdownPlayModeTests
         Assert.That(sessionServices.IsDisposed, Is.True);
 
         UnityEngine.Object.Destroy(brokenSequence);
+        UnityEngine.Object.Destroy(handingOverObjective);
         yield return null;
     }
 

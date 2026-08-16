@@ -164,6 +164,16 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
     public void StartGame(int mapId)
     {
+        StartGame(mapId, difficultyId: null);
+    }
+
+    public void StartGame(int mapId, int difficultyId)
+    {
+        StartGame(mapId, (int?)difficultyId);
+    }
+
+    private void StartGame(int mapId, int? difficultyId)
+    {
         if (!HasRequiredReferences())
             return;
 
@@ -187,12 +197,57 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
+        if (difficultyId.HasValue &&
+            !gameMapService.SelectDifficulty(difficultyId.Value))
+        {
+            _ = FailAsync(ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to select the difficulty.",
+                $"Invalid enemy difficulty id: {difficultyId.Value}.",
+                true
+            ));
+            return;
+        }
+
         if (!sceneFlowService.LoadScene(ProjectSceneKind.Game))
         {
             _ = FailAsync(ConnectionResult.Fail(
                 ConnectionErrorCode.Unknown,
                 "Failed to load the game.",
                 "Failed to load game scene.",
+                true
+            ));
+        }
+    }
+
+    // The players and everything else the match built belong to the Game scene
+    // and go down with it: player objects are spawned with destroyWithScene, so
+    // a caught player watching through somebody else's camera loses that view
+    // along with the body it was attached to.
+    public void ReturnToLobby()
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (!networkManager.IsServer)
+        {
+            Debug.LogWarning("Only server can take the session back to the lobby.", this);
+            return;
+        }
+
+        if (!sessionStateMachine.TryChangeState(
+                NetworkSessionState.Lobby,
+                "Match finished; returning to the lobby."))
+        {
+            return;
+        }
+
+        if (!sceneFlowService.LoadScene(ProjectSceneKind.Lobby))
+        {
+            _ = FailAsync(ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to return to the lobby.",
+                "Failed to load the lobby scene after the match.",
                 true
             ));
         }

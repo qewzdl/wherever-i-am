@@ -1,6 +1,10 @@
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+// Being caught takes one player out of the match, not the match itself. The
+// survivors carry on and the caught player watches them; the match is only
+// lost once there is nobody left to finish it.
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
 public sealed class PlayerEnemyAttackReceiver :
@@ -8,24 +12,68 @@ public sealed class PlayerEnemyAttackReceiver :
     IEnemyAttackReceiver,
     IHidingEntryEligibility
 {
+    private static readonly List<PlayerEnemyAttackReceiver> RegisteredPlayers = new();
+
     [SerializeField] private GameResultType hitResult = GameResultType.Defeat;
     [SerializeField] private string hitReason = "A player was caught by an enemy";
+    [SerializeField] private string lastPlayerCaughtReason =
+        "Every player was caught by an enemy";
     [SerializeField] private bool logReceivedAttack = true;
+
+    private readonly NetworkVariable<bool> eliminated = new(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
     private NetworkObject networkObject;
     private readonly PlayerEnemyAttackCompletionGate completionGate = new();
+    private bool isEliminated;
+    private bool eliminationApplied;
+
+    public static IReadOnlyList<PlayerEnemyAttackReceiver> All => RegisteredPlayers;
+
+    public bool IsEliminated => isEliminated;
 
     public bool CanEnterHiding =>
-        isActiveAndEnabled && completionGate.CanAttempt;
+        isActiveAndEnabled && !isEliminated;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetRegisteredPlayers()
+    {
+        RegisteredPlayers.Clear();
+    }
 
     private void Awake()
     {
         networkObject = GetComponent<NetworkObject>();
     }
 
+    public override void OnNetworkSpawn()
+    {
+        eliminated.OnValueChanged += HandleEliminatedChanged;
+        isEliminated = eliminated.Value;
+
+        if (!RegisteredPlayers.Contains(this))
+        {
+            RegisteredPlayers.Add(this);
+        }
+
+        if (isEliminated)
+        {
+            ApplyElimination();
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        eliminated.OnValueChanged -= HandleEliminatedChanged;
+        RegisteredPlayers.Remove(this);
+    }
+
     public bool TryReceiveEnemyAttack(EnemyAttackContext context)
     {
-        if (!context.IsValid || !completionGate.CanAttempt)
+        if (!context.IsValid || isEliminated)
         {
             return false;
         }
@@ -46,12 +94,22 @@ public sealed class PlayerEnemyAttackReceiver :
         if (!NetworkObjectServiceContext.TryResolveSessionService(
                 NetworkManager,
                 out IMatchCompletionService matchCompletionService) ||
-            !completionGate.TryComplete(
-                matchCompletionService,
-                hitResult,
-                hitReason))
+            matchCompletionService == null ||
+            !matchCompletionService.IsMatchRunning)
         {
             return false;
+        }
+
+        EliminateServerOnly();
+
+        if (!HasPlayerInPlay(RegisteredPlayers))
+        {
+            completionGate.TryComplete(
+                matchCompletionService,
+                hitResult,
+                networkObject.OwnerClientId,
+                lastPlayerCaughtReason
+            );
         }
 
         if (logReceivedAttack)
@@ -65,11 +123,118 @@ public sealed class PlayerEnemyAttackReceiver :
         return true;
     }
 
+    internal static bool HasPlayerInPlay(
+        IReadOnlyList<PlayerEnemyAttackReceiver> players)
+    {
+        if (players == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            PlayerEnemyAttackReceiver player = players[i];
+
+            if (player != null && !player.IsEliminated)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void EliminateServerOnly()
+    {
+        isEliminated = true;
+
+        if (IsSpawned && IsServer)
+        {
+            eliminated.Value = true;
+        }
+
+        ApplyElimination();
+    }
+
+    private void HandleEliminatedChanged(bool previousValue, bool nextValue)
+    {
+        isEliminated = nextValue;
+
+        if (nextValue)
+        {
+            ApplyElimination();
+        }
+    }
+
+    // Runs on every peer: the body has to leave play for the enemy, for the
+    // survivors looking at it, and for the physics they walk through.
+    private void ApplyElimination()
+    {
+        if (eliminationApplied)
+        {
+            return;
+        }
+
+        eliminationApplied = true;
+
+        EnemyTarget enemyTarget = GetComponentInChildren<EnemyTarget>(true);
+
+        if (enemyTarget != null)
+        {
+            enemyTarget.SetDetectable(false);
+        }
+
+        PlayerGazeNetwork gaze = GetComponent<PlayerGazeNetwork>();
+
+        if (gaze != null)
+        {
+            gaze.SetInPlay(false);
+        }
+
+        TakeBodyOutOfPlay();
+
+        if (IsOwner)
+        {
+            PlayerSpectatorView.AttachTo(gameObject);
+        }
+    }
+
+    private void TakeBodyOutOfPlay()
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            renderers[i].enabled = false;
+        }
+
+        Collider[] colliders = GetComponentsInChildren<Collider>(true);
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            colliders[i].enabled = false;
+        }
+
+        // Without its colliders the body would fall out of the world for as
+        // long as the match lasts, and keep replicating the fall.
+        Rigidbody body = GetComponent<Rigidbody>();
+
+        if (body != null)
+        {
+            body.isKinematic = true;
+        }
+    }
+
     private void OnValidate()
     {
         if (string.IsNullOrWhiteSpace(hitReason))
         {
             hitReason = "A player was caught by an enemy";
+        }
+
+        if (string.IsNullOrWhiteSpace(lastPlayerCaughtReason))
+        {
+            lastPlayerCaughtReason = "Every player was caught by an enemy";
         }
 
         if (hitResult == GameResultType.None)
@@ -89,6 +254,7 @@ internal sealed class PlayerEnemyAttackCompletionGate
     internal bool TryComplete(
         IMatchCompletionService matchCompletionService,
         GameResultType hitResult,
+        ulong caughtClientId,
         string hitReason)
     {
         if (!CanAttempt ||
@@ -98,8 +264,9 @@ internal sealed class PlayerEnemyAttackCompletionGate
             return false;
         }
 
-        MatchOutcome outcome = MatchOutcomeFactory.FromAllPlayersDead(
+        MatchOutcome outcome = MatchOutcomeFactory.FromPlayerCaught(
             hitResult,
+            caughtClientId,
             hitReason
         );
         if (!outcome.HasResult)

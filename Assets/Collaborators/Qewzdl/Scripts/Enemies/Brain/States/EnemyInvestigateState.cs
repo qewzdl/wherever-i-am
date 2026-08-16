@@ -140,11 +140,9 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         StartHierarchicalSearch();
     }
 
-    // Standing still is the whole point. EnemyVisionSensor measures its cone
-    // against the eyes transform, and EnemyGazeScanner sweeps that transform
-    // whenever the enemy is not chasing - so a stationary body turns the sweep
-    // into real coverage of the corners around this point, where walking just
-    // drags the cone along the route.
+    // Standing still is the whole point. TickLookAround turns the body while
+    // the enemy waits here, so a stationary stop covers the corners around
+    // this point, where walking just drags the vision cone along the route.
     //
     // Has to be checked before RepathToCurrentDestination: the repath would
     // re-issue the destination and undo StopNavigation on its next interval.
