@@ -175,8 +175,10 @@ public sealed class GameSettingsTests
             SettingsService service = gameObject.AddComponent<SettingsService>();
             service.InitializeForTests(path, GameSettingsData.CreateDefaults(1920, 1080, 0), 3);
             int events = 0;
+            int settingsEvents = 0;
             float gain = -1f;
             service.MusicGainChanged += value => { events++; gain = value; };
+            service.SettingsChanged += () => settingsEvents++;
 
             service.SetEffectsVolume(0.1f);
             service.SetMasterVolume(0.5f);
@@ -184,6 +186,7 @@ public sealed class GameSettingsTests
             service.Flush();
 
             Assert.That(events, Is.EqualTo(2));
+            Assert.That(settingsEvents, Is.EqualTo(3));
             Assert.That(gain, Is.EqualTo(0.25f).Within(0.001f));
             GameSettingsData loaded = new GameSettingsStorage(path).Load(GameSettingsData.CreateDefaults(1920, 1080, 0), 3);
             Assert.That(loaded.effectsVolume, Is.EqualTo(0.1f).Within(0.001f));

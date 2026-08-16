@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
 
-public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService
+public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService, ISettingsServiceConsumer
 {
     [Header("Mixer")]
     [SerializeField] private AudioMixerGroup gameplayMixerGroup;
@@ -16,6 +16,7 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService
 
     private readonly List<AudioSource> sources = new List<AudioSource>();
     private Transform poolRoot;
+    private ISettingsService settingsService;
 
     private void Awake()
     {
@@ -41,6 +42,16 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService
     public void SetMasterVolume(float volume)
     {
         masterVolume = Mathf.Clamp01(volume);
+    }
+
+    public void Construct(ISettingsService settings)
+    {
+        settingsService = settings;
+    }
+
+    public void ReleaseSettingsService()
+    {
+        settingsService = null;
     }
 
     private void Play(SoundEffect sound, Vector3 position, float spatialBlend)
@@ -133,9 +144,9 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService
 
     private float GetEffectiveVolume()
     {
-        if (SettingsService.TryGet(out ISettingsService settings))
+        if (settingsService != null)
         {
-            GameSettingsData current = settings.Current;
+            GameSettingsData current = settingsService.Current;
             return Mathf.Clamp01(current.masterVolume) * Mathf.Clamp01(current.effectsVolume);
         }
 

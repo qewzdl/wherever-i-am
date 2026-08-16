@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Audio;
 
-public class UiSoundManager : MonoBehaviour, IUiSoundService
+public class UiSoundManager : MonoBehaviour, IUiSoundService, ISettingsServiceConsumer
 {
     [Header("Mixer")]
     [SerializeField] private AudioMixerGroup uiMixerGroup;
@@ -11,6 +11,7 @@ public class UiSoundManager : MonoBehaviour, IUiSoundService
 
     private AudioSource source;
     private UiSoundTheme activeTheme;
+    private ISettingsService settingsService;
 
     private void Awake()
     {
@@ -123,6 +124,16 @@ public class UiSoundManager : MonoBehaviour, IUiSoundService
         masterVolume = Mathf.Clamp01(volume);
     }
 
+    public void Construct(ISettingsService settings)
+    {
+        settingsService = settings;
+    }
+
+    public void ReleaseSettingsService()
+    {
+        settingsService = null;
+    }
+
     private AudioSource CreateAudioSource()
     {
         GameObject sourceObject = new GameObject("UI Sound Source");
@@ -139,9 +150,9 @@ public class UiSoundManager : MonoBehaviour, IUiSoundService
 
     private float GetEffectiveVolume()
     {
-        if (SettingsService.TryGet(out ISettingsService settings))
+        if (settingsService != null)
         {
-            GameSettingsData current = settings.Current;
+            GameSettingsData current = settingsService.Current;
             return Mathf.Clamp01(current.masterVolume) * Mathf.Clamp01(current.interfaceVolume);
         }
 

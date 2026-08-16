@@ -130,7 +130,7 @@ public abstract class PickupItem : DraggableObject
         }
 
         this.context = context;
-        RequestPickUpItemServerRpc(NetworkManager.LocalClientId);
+        context.PlayerInteraction.RequestPickup(this);
     }
 
     protected void Drop()
@@ -167,30 +167,26 @@ public abstract class PickupItem : DraggableObject
         DropClientRpc();
     }
 
-
-    [Rpc(SendTo.Server)]
-    private void RequestPickUpItemServerRpc(ulong ownerId, RpcParams rpcParams = default)
+    internal bool TryPickUpServer(ulong ownerId)
     {
-        ulong senderClientId = rpcParams.Receive.SenderClientId;
-
-        if (ownerId != senderClientId ||
+        if (!IsServer ||
             netIsPickedUp.Value ||
             netIsDragging.Value ||
             !PlayerActionGateContext.TryBegin(
                 NetworkManager,
-                senderClientId,
+                ownerId,
                 PlayerActionKind.Pickup,
                 this,
                 out IPlayerActionGate actionGate))
         {
-            DenyPickupRpc(RpcTarget.Single(senderClientId, RpcTargetUse.Temp));
-            return;
+            return false;
         }
 
         try
         {
             netIsPickedUp.Value = true;
             PickUpServer(ownerId);
+            return true;
         }
         catch
         {
@@ -199,11 +195,10 @@ public abstract class PickupItem : DraggableObject
         }
     }
 
-    [Rpc(SendTo.SpecifiedInParams)]
-    private void DenyPickupRpc(RpcParams rpcParams = default)
+    internal void ClearPendingPickup(PlayerInteraction requester)
     {
-        context?.PlayerInteraction?.DenyPickup();
-        context = null;
+        if (context?.PlayerInteraction == requester)
+            context = null;
     }
 
     // Client RPCs

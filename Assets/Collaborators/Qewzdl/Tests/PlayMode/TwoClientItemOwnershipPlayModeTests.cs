@@ -40,7 +40,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private Endpoint clientB;
     private GameObject draggablePrefab;
     private GameObject pickupPrefab;
-    private GameObject actionGatePlayerPrefab;
+    private GameObject networkTestPlayerPrefab;
 
     [UnityTearDown]
     public IEnumerator TearDown()
@@ -77,7 +77,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         clientB = null;
         draggablePrefab = null;
         pickupPrefab = null;
-        actionGatePlayerPrefab = null;
+        networkTestPlayerPrefab = null;
         yield return null;
     }
 
@@ -92,8 +92,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             spawnPosition);
         yield return WaitForSpawnOnEveryEndpoint(networkObjectId);
 
-        LocalPlayerFixture playerA = CreateLocalPlayer("Pickup player A");
-        LocalPlayerFixture playerB = CreateLocalPlayer("Pickup player B");
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+        NetworkTestPlayer playerB = GetNetworkTestPlayer(clientB);
         NetworkItemTestPickup itemA =
             GetSpawnedComponent<NetworkItemTestPickup>(clientA, networkObjectId);
         NetworkItemTestPickup itemB =
@@ -110,6 +110,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                   !clientNavigation.IsBlockingNavigation,
             "Dropped pickup navigation obstacle was not server-only.");
 
+        AssertServerCanReach(clientA.Manager.LocalClientId, serverItem);
         BeginPickupRequest(itemA, playerA);
 
         yield return WaitForCondition(
@@ -137,6 +138,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         Assert.That(itemA.GetComponent<Rigidbody>().isKinematic, Is.False);
         Assert.That(itemA.GetComponent<Rigidbody>().useGravity, Is.True);
 
+        AssertServerCanReach(clientB.Manager.LocalClientId, serverItem);
         BeginPickupRequest(itemB, playerB);
 
         yield return WaitForCondition(
@@ -179,8 +181,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             new Vector3(0f, 2f, 0f));
         yield return WaitForSpawnOnEveryEndpoint(networkObjectId);
 
-        LocalPlayerFixture playerA = CreateLocalPlayer("Pickup race player A");
-        LocalPlayerFixture playerB = CreateLocalPlayer("Pickup race player B");
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+        NetworkTestPlayer playerB = GetNetworkTestPlayer(clientB);
         NetworkItemTestPickup itemA =
             GetSpawnedComponent<NetworkItemTestPickup>(
                 clientA,
@@ -194,6 +196,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 server,
                 networkObjectId);
 
+        AssertServerCanReach(clientA.Manager.LocalClientId, serverItem);
+        AssertServerCanReach(clientB.Manager.LocalClientId, serverItem);
         BeginPickupRequest(itemA, playerA);
         BeginPickupRequest(itemB, playerB);
 
@@ -210,8 +214,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             serverItem.OwnerClientId == clientB.Manager.LocalClientId,
             Is.True);
 
-        LocalPlayerFixture winner = clientAWon ? playerA : playerB;
-        LocalPlayerFixture loser = clientAWon ? playerB : playerA;
+        NetworkTestPlayer winner = clientAWon ? playerA : playerB;
+        NetworkTestPlayer loser = clientAWon ? playerB : playerA;
         NetworkItemTestPickup winnerItem = clientAWon ? itemA : itemB;
         NetworkItemTestPickup loserItem = clientAWon ? itemB : itemA;
         ulong loserClientId = clientAWon
@@ -238,6 +242,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                   !winner.Orchestrator.States.IsCarrying,
             "Pickup winner did not release the item.");
 
+        AssertServerCanReach(loserClientId, serverItem);
         BeginPickupRequest(loserItem, loser);
 
         yield return WaitForCondition(
@@ -257,7 +262,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             new Vector3(0f, 1f, 0f));
         yield return WaitForSpawnOnEveryEndpoint(networkObjectId);
 
-        LocalPlayerFixture player = CreateLocalPlayer("Drag player");
+        NetworkTestPlayer player = GetNetworkTestPlayer(clientA);
         NetworkItemTestDraggable clientItem =
             GetSpawnedComponent<NetworkItemTestDraggable>(
                 clientA,
@@ -278,6 +283,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                   !clientNavigation.IsBlockingNavigation,
             "Stationary draggable navigation obstacle was not server-only.");
 
+        AssertServerCanReach(clientA.Manager.LocalClientId, serverItem);
         BeginDragRequest(
             clientItem,
             player,
@@ -332,8 +338,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             new Vector3(0f, 1f, 0f));
         yield return WaitForSpawnOnEveryEndpoint(networkObjectId);
 
-        LocalPlayerFixture playerA = CreateLocalPlayer("Race player A");
-        LocalPlayerFixture playerB = CreateLocalPlayer("Race player B");
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+        NetworkTestPlayer playerB = GetNetworkTestPlayer(clientB);
         NetworkItemTestDraggable itemA =
             GetSpawnedComponent<NetworkItemTestDraggable>(
                 clientA,
@@ -347,6 +353,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 server,
                 networkObjectId);
 
+        AssertServerCanReach(clientA.Manager.LocalClientId, serverItem);
+        AssertServerCanReach(clientB.Manager.LocalClientId, serverItem);
         BeginDragRequest(itemA, playerA, itemA.transform.position);
         BeginDragRequest(itemB, playerB, itemB.transform.position);
 
@@ -364,8 +372,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             winnerClientId == clientB.Manager.LocalClientId,
             Is.True);
 
-        LocalPlayerFixture winner = clientAWon ? playerA : playerB;
-        LocalPlayerFixture loser = clientAWon ? playerB : playerA;
+        NetworkTestPlayer winner = clientAWon ? playerA : playerB;
+        NetworkTestPlayer loser = clientAWon ? playerB : playerA;
         Endpoint winnerEndpoint = clientAWon ? clientA : clientB;
         Endpoint remainingEndpoint = clientAWon ? clientB : clientA;
         NetworkItemTestDraggable remainingItem =
@@ -441,27 +449,72 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                   server.Manager.ConnectedClientsIds.Count == 2,
             "Both item test clients did not connect.");
 
-        SpawnActionGatePlayer(clientA.Manager.LocalClientId);
-        SpawnActionGatePlayer(clientB.Manager.LocalClientId);
+        SpawnNetworkTestPlayer(clientA.Manager.LocalClientId);
+        SpawnNetworkTestPlayer(clientB.Manager.LocalClientId);
 
         yield return WaitForCondition(
             () => HasPlayerObject(server, clientA.Manager.LocalClientId) &&
                   HasPlayerObject(server, clientB.Manager.LocalClientId) &&
                   clientA.Manager.LocalClient?.PlayerObject != null &&
                   clientB.Manager.LocalClient?.PlayerObject != null,
-            "Action-gated player objects were not spawned on every endpoint.");
+            "Network test player objects were not spawned on every endpoint.");
     }
 
     private void CreateNetworkPrefabs()
     {
-        actionGatePlayerPrefab = Track(
-            new GameObject("Action gate player prefab"));
-        actionGatePlayerPrefab.SetActive(false);
+        networkTestPlayerPrefab = Track(
+            new GameObject("Network test player prefab"));
+        networkTestPlayerPrefab.SetActive(false);
         NetworkObject playerNetworkObject =
-            actionGatePlayerPrefab.AddComponent<NetworkObject>();
+            networkTestPlayerPrefab.AddComponent<NetworkObject>();
         ConfigureNetworkObject(playerNetworkObject, PlayerPrefabHash);
-        actionGatePlayerPrefab.AddComponent<PlayerActionGate>();
-        actionGatePlayerPrefab.SetActive(true);
+
+        Rigidbody playerBody = networkTestPlayerPrefab.AddComponent<Rigidbody>();
+        playerBody.isKinematic = true;
+
+        PlayerController playerController =
+            networkTestPlayerPrefab.AddComponent<PlayerController>();
+        playerController.enabled = false;
+        playerController.SetSpeed(InitialPlayerSpeed);
+
+        PlayerActionGate actionGate =
+            networkTestPlayerPrefab.AddComponent<PlayerActionGate>();
+        Transform rayOrigin =
+            CreateChild(networkTestPlayerPrefab.transform, "Ray origin");
+        Transform camera =
+            CreateChild(networkTestPlayerPrefab.transform, "Camera");
+        Transform playerViewModel =
+            CreateChild(networkTestPlayerPrefab.transform, "View model");
+        Transform dropPoint =
+            CreateChild(networkTestPlayerPrefab.transform, "Drop point");
+        CreateChild(networkTestPlayerPrefab.transform, "Interaction point");
+
+        PlayerInteraction interaction =
+            networkTestPlayerPrefab.AddComponent<PlayerInteraction>();
+        PlayModeTestReflection.SetField(interaction, "rayOrigin", rayOrigin);
+        PlayModeTestReflection.SetField(
+            interaction,
+            "playerCameraTransform",
+            camera);
+        PlayModeTestReflection.SetField(
+            interaction,
+            "playerController",
+            playerController);
+        PlayModeTestReflection.SetField(
+            interaction,
+            "viewModelContainer",
+            playerViewModel);
+        PlayModeTestReflection.SetField(
+            interaction,
+            "itemDropTransform",
+            dropPoint);
+        PlayModeTestReflection.SetField(
+            interaction,
+            "playerActionGateSource",
+            actionGate);
+
+        networkTestPlayerPrefab.AddComponent<PlayerOrchestrator>();
+        networkTestPlayerPrefab.SetActive(true);
 
         DraggableObjectData draggableData =
             Track(ScriptableObject.CreateInstance<DraggableObjectData>());
@@ -551,7 +604,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         for (int i = 0; i < targets.Length; i++)
         {
             targets[i].Manager.NetworkConfig.Prefabs.Add(
-                new NetworkPrefab { Prefab = actionGatePlayerPrefab });
+                new NetworkPrefab { Prefab = networkTestPlayerPrefab });
             targets[i].Manager.NetworkConfig.Prefabs.Add(
                 new NetworkPrefab { Prefab = draggablePrefab });
             targets[i].Manager.NetworkConfig.Prefabs.Add(
@@ -612,7 +665,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
     private static void BeginDragRequest(
         NetworkItemTestDraggable item,
-        LocalPlayerFixture player,
+        NetworkTestPlayer player,
         Vector3 hitPosition)
     {
         Assert.That(
@@ -631,7 +684,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
     private static void BeginPickupRequest(
         NetworkItemTestPickup item,
-        LocalPlayerFixture player)
+        NetworkTestPlayer player)
     {
         Assert.That(
             player.ActionGate.TryBegin(PlayerActionKind.Pickup, item),
@@ -647,61 +700,37 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         item.OnPickup(player.CreatePickupContext());
     }
 
-    private LocalPlayerFixture CreateLocalPlayer(string name)
+    private static NetworkTestPlayer GetNetworkTestPlayer(Endpoint endpoint)
     {
-        GameObject root = Track(new GameObject(name));
-        root.SetActive(false);
+        NetworkObject playerObject = endpoint.Manager.LocalClient.PlayerObject;
+        Assert.That(playerObject, Is.Not.Null);
 
-        Rigidbody body = root.AddComponent<Rigidbody>();
-        body.isKinematic = true;
-        PlayerController controller = root.AddComponent<PlayerController>();
-        controller.enabled = false;
-        controller.SetSpeed(InitialPlayerSpeed);
-        PlayerActionGate actionGate = root.AddComponent<PlayerActionGate>();
+        PlayerOrchestrator orchestrator =
+            playerObject.GetComponent<PlayerOrchestrator>();
+        PlayerInteraction interaction =
+            playerObject.GetComponent<PlayerInteraction>();
+        PlayerActionGate actionGate =
+            playerObject.GetComponent<PlayerActionGate>();
+        PlayerController controller =
+            playerObject.GetComponent<PlayerController>();
 
-        Transform rayOrigin = CreateChild(root.transform, "Ray origin");
-        Transform camera = CreateChild(root.transform, "Camera");
-        Transform viewModel = CreateChild(root.transform, "View model");
-        Transform dropPoint = CreateChild(root.transform, "Drop point");
-        Transform interactionPoint =
-            CreateChild(root.transform, "Interaction point");
+        Assert.That(orchestrator, Is.Not.Null);
+        Assert.That(interaction, Is.Not.Null);
+        Assert.That(actionGate, Is.Not.Null);
+        Assert.That(controller, Is.Not.Null);
 
-        PlayerInteraction interaction = root.AddComponent<PlayerInteraction>();
-        PlayModeTestReflection.SetField(interaction, "rayOrigin", rayOrigin);
-        PlayModeTestReflection.SetField(
-            interaction,
-            "playerCameraTransform",
-            camera);
-        PlayModeTestReflection.SetField(
-            interaction,
-            "playerController",
-            controller);
-        PlayModeTestReflection.SetField(
-            interaction,
-            "viewModelContainer",
-            viewModel);
-        PlayModeTestReflection.SetField(
-            interaction,
-            "itemDropTransform",
-            dropPoint);
-        PlayModeTestReflection.SetField(
-            interaction,
-            "playerActionGateSource",
-            actionGate);
-
-        PlayerOrchestrator orchestrator = root.AddComponent<PlayerOrchestrator>();
-        root.SetActive(true);
         orchestrator.Setup(isMultiplayer: true, isOwner: true);
 
-        return new LocalPlayerFixture(
+        Transform root = playerObject.transform;
+        return new NetworkTestPlayer(
             orchestrator,
             interaction,
             actionGate,
             controller,
-            camera,
-            viewModel,
-            dropPoint,
-            interactionPoint);
+            root.Find("Camera"),
+            root.Find("View model"),
+            root.Find("Drop point"),
+            root.Find("Interaction point"));
     }
 
     private static Transform CreateChild(Transform parent, string name)
@@ -711,9 +740,9 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         return child.transform;
     }
 
-    private void SpawnActionGatePlayer(ulong ownerClientId)
+    private void SpawnNetworkTestPlayer(ulong ownerClientId)
     {
-        GameObject instance = Object.Instantiate(actionGatePlayerPrefab);
+        GameObject instance = Object.Instantiate(networkTestPlayerPrefab);
         Track(instance);
         NetworkObject networkObject = instance.GetComponent<NetworkObject>();
         PlayModeTestReflection.SetField(
@@ -731,6 +760,27 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                    clientId,
                    out NetworkClient client) &&
                client.PlayerObject != null;
+    }
+
+    private void AssertServerCanReach(
+        ulong clientId,
+        DraggableObject target)
+    {
+        PlayerInteraction interaction = server.Manager.ConnectedClients[clientId]
+            .PlayerObject.GetComponent<PlayerInteraction>();
+        Transform origin = PlayModeTestReflection.GetField<Transform>(
+            interaction,
+            "rayOrigin");
+        bool canReach = (bool)PlayModeTestReflection.Invoke(
+            interaction,
+            "CanReach",
+            target);
+
+        Assert.That(
+            canReach,
+            Is.True,
+            $"Server player {clientId} at {origin.position} cannot reach " +
+            $"{target.name} at {target.transform.position}.");
     }
 
     private Endpoint CreateEndpoint(string name)
@@ -792,9 +842,9 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         return value;
     }
 
-    private sealed class LocalPlayerFixture
+    private sealed class NetworkTestPlayer
     {
-        internal LocalPlayerFixture(
+        internal NetworkTestPlayer(
             PlayerOrchestrator orchestrator,
             PlayerInteraction interaction,
             PlayerActionGate actionGate,

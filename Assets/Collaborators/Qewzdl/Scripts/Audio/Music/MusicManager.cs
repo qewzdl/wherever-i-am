@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Audio;
 
-public class MusicManager : MonoBehaviour, IMusicService
+public class MusicManager : MonoBehaviour, IMusicService, ISettingsServiceConsumer
 {
     [Header("Mixer")]
     [SerializeField] private AudioMixerGroup musicMixerGroup;
@@ -40,16 +40,21 @@ public class MusicManager : MonoBehaviour, IMusicService
         UnbindSettings();
     }
 
-    public void BindSettings()
+    public void Construct(ISettingsService service)
     {
         UnbindSettings();
 
-        if (!SettingsService.TryGet(out ISettingsService service))
+        if (service == null)
             return;
 
         settingsService = service;
         settingsService.MusicGainChanged += HandleMusicGainChanged;
         SetMasterVolume(settingsService.Current.masterVolume * settingsService.Current.musicVolume);
+    }
+
+    public void ReleaseSettingsService()
+    {
+        UnbindSettings();
     }
 
     public void PlayCue(MusicCue cue, bool restartIfSameCue = false)

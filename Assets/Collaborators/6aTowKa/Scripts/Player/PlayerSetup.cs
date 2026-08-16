@@ -59,13 +59,13 @@ public class PlayerSetup : NetworkBehaviour
             playerNetwork.enabled = true;
             playerHiding.enabled = true;
             playerPosture.enabled = true;
+            playerInteraction.enabled = true;
 
             if (isLocalControl)
             {
                 playerInput.enabled = true;
                 playerInputHandler.enabled = true;
                 playerController.enabled = true;
-                playerInteraction.enabled = true;
                 playerUI.enabled = true;
 
                 playerCamera.enabled = true;
@@ -78,7 +78,6 @@ public class PlayerSetup : NetworkBehaviour
                 AddDestroyingComponent(playerInput);
                 AddDestroyingComponent(playerInputHandler);
                 AddDestroyingComponent(playerController);
-                AddDestroyingComponent(playerInteraction);
                 AddDestroyingComponent(playerUI);
                 playerCamera.enabled = false;
                 audioListener.enabled = false;
@@ -88,7 +87,6 @@ public class PlayerSetup : NetworkBehaviour
         }
         else
         {
-            AddDestroyingComponent(networkObject);
             AddDestroyingComponent(networkTransform);
             AddDestroyingComponent(playerNetwork);
             AddDestroyingComponent(playerHiding);

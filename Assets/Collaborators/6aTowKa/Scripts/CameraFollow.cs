@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class CameraFollow : MonoBehaviour
+public class CameraFollow : MonoBehaviour, ISettingsServiceConsumer
 {
     [Header("References")]
     [SerializeField] private Transform target;
@@ -17,7 +17,7 @@ public class CameraFollow : MonoBehaviour
     private Vector3 offsetVelocity;
 
     private bool hasLocalControl;
-    private int appliedSettingsRevision = -1;
+    private ISettingsService settingsService;
 
     public void ApplyUserSmoothing(bool smoothingEnabled, float smoothingIntensity)
     {
@@ -40,8 +40,34 @@ public class CameraFollow : MonoBehaviour
         }
 
         SnapToTarget();
+    }
 
-        ApplySettingsIfChanged();
+    public void Construct(ISettingsService settings)
+    {
+        if (settings == null)
+            throw new System.ArgumentNullException(nameof(settings));
+
+        if (ReferenceEquals(settingsService, settings))
+            return;
+
+        ReleaseSettingsService();
+        settingsService = settings;
+        settingsService.SettingsChanged += ApplySettings;
+        ApplySettings();
+    }
+
+    public void ReleaseSettingsService()
+    {
+        if (settingsService == null)
+            return;
+
+        settingsService.SettingsChanged -= ApplySettings;
+        settingsService = null;
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseSettingsService();
     }
 
     public void SetLocalControl(bool value)
@@ -88,8 +114,6 @@ public class CameraFollow : MonoBehaviour
 
     private void LateUpdate()
     {
-        ApplySettingsIfChanged();
-
         if (!hasLocalControl)
             return;
 
@@ -136,16 +160,12 @@ public class CameraFollow : MonoBehaviour
         return true;
     }
 
-    private void ApplySettingsIfChanged()
+    private void ApplySettings()
     {
-        if (!SettingsService.TryGet(out ISettingsService settings) ||
-            settings.Revision == appliedSettingsRevision)
-        {
+        if (settingsService == null)
             return;
-        }
 
-        GameSettingsData values = settings.Current;
+        GameSettingsData values = settingsService.Current;
         ApplyUserSmoothing(values.cameraSmoothing, values.cameraSmoothingIntensity);
-        appliedSettingsRevision = settings.Revision;
     }
 }

@@ -18,6 +18,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     [SerializeField] private PlayerUI presentationService;
 
     private IDisposable scopeRegistration;
+    private SettingsServiceComposition settingsComposition;
 
     private void Awake()
     {
@@ -27,9 +28,24 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     public override void OnNetworkSpawn()
     {
         bool createLocalScope = IsLocalPlayer;
+        ISettingsService settingsService = null;
 
         if (!ValidateReferences(createLocalScope))
             return;
+
+        if (createLocalScope &&
+            !NetworkObjectServiceContext.TryResolveSessionService(
+                this,
+                out settingsService))
+        {
+            Debug.LogError(
+                $"{nameof(PlayerScopeLifetime)} could not resolve {nameof(ISettingsService)} for the local player.",
+                this);
+            _ = NetworkObjectServiceContext.ReportSessionReadinessFailureAsync(
+                this,
+                $"Local player is missing {nameof(ISettingsService)}.");
+            return;
+        }
 
         Action<NetworkObjectServiceContext.RegistrationContext> registerLocalServices =
             createLocalScope
@@ -43,7 +59,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
             }
             : null;
 
-        if (NetworkObjectServiceContext.TryOpenRequiredPlayerScope(
+        if (!NetworkObjectServiceContext.TryOpenRequiredPlayerScope(
                 this,
                 registration =>
                 {
@@ -59,6 +75,25 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         {
             return;
         }
+
+        if (!createLocalScope)
+            return;
+
+        if (SettingsServiceComposition.TryCompose(
+                gameObject,
+                settingsService,
+                out settingsComposition))
+        {
+            return;
+        }
+
+        Debug.LogError(
+            $"{nameof(PlayerScopeLifetime)} failed to compose local player settings consumers.",
+            this);
+        CloseScope();
+        _ = NetworkObjectServiceContext.ReportSessionReadinessFailureAsync(
+            this,
+            "Local player settings composition failed.");
     }
 
     public override void OnNetworkDespawn()
@@ -74,6 +109,10 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 
     private void CloseScope()
     {
+        SettingsServiceComposition composition = settingsComposition;
+        settingsComposition = null;
+        composition?.Dispose();
+
         IDisposable registration = scopeRegistration;
         scopeRegistration = null;
         registration?.Dispose();

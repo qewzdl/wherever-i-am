@@ -410,7 +410,7 @@ public sealed class ProjectContext : MonoBehaviour
         if (settingsService == null || !settingsService.Initialize())
             return false;
 
-        if (audioManager == null || !audioManager.Construct(sceneRegistry))
+        if (audioManager == null || !audioManager.Construct(sceneRegistry, settingsService))
             return false;
 
         uiErrorManager.Construct(audioManager);

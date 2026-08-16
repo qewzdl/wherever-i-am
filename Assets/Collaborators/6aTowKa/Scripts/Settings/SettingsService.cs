@@ -7,8 +7,6 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
     private const float SaveDelaySeconds = 0.3f;
     private const float DisplayConfirmationSeconds = 15f;
 
-    private static SettingsService instance;
-
     [Header("Persistence")]
     [SerializeField, Min(0.05f)] private float saveDelaySeconds = SaveDelaySeconds;
     [SerializeField, Min(1f)] private float displayConfirmationSeconds = DisplayConfirmationSeconds;
@@ -26,13 +24,6 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
     private int revision;
     private float musicGain;
 
-    public static SettingsService Instance => instance;
-    public static bool TryGet(out ISettingsService service)
-    {
-        service = instance != null && instance.initialized ? instance : null;
-        return service != null;
-    }
-
     public GameSettingsData Current => current;
     public int Revision => revision;
     public bool IsDisplayConfirmationPending => displayConfirmationPending;
@@ -40,18 +31,7 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
 
     public event Action<float> MusicGainChanged;
     public event Action<float> FovChanged;
-
-    private void Awake()
-    {
-        if (instance != null && instance != this)
-        {
-            Debug.LogError($"Only one {nameof(SettingsService)} is allowed.", this);
-            enabled = false;
-            return;
-        }
-
-        instance = this;
-    }
+    public event Action SettingsChanged;
 
     private void Update()
     {
@@ -67,12 +47,6 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
     private void OnApplicationQuit()
     {
         SaveImmediately();
-    }
-
-    private void OnDestroy()
-    {
-        if (instance == this)
-            instance = null;
     }
 
     public bool Initialize()
@@ -412,6 +386,7 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
     private void MarkChanged()
     {
         revision++;
+        SettingsChanged?.Invoke();
     }
 
     private void ScheduleSave()

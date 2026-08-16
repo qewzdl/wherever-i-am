@@ -10,7 +10,7 @@ using UnityEngine.UI;
 
 /// <summary>Сценовое F4-окно для Editor/Development Build без вкладок.</summary>
 [DisallowMultipleComponent]
-public sealed class DeveloperDebugWindow : MonoBehaviour
+public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsumer
 {
     private const float MetricsInterval = 0.2f;
     private const float EnemyConfirmationSeconds = 3f;
@@ -53,12 +53,23 @@ public sealed class DeveloperDebugWindow : MonoBehaviour
 
     private void OnDestroy()
     {
+        ReleaseSettingsService();
+    }
+
+    public void Construct(ISettingsService settingsService)
+    {
+        settings = settingsService;
+    }
+
+    public void ReleaseSettingsService()
+    {
         noClip.Restore();
+        settings = null;
     }
 
     private void SetVisible(bool visible)
     {
-        if (visible && !SettingsService.TryGet(out settings))
+        if (visible && settings == null)
             return;
 
         panel.SetActive(visible);

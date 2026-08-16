@@ -1,25 +1,65 @@
 using UnityEngine;
 
-public class HUDUI : MonoBehaviour
+public class HUDUI : MonoBehaviour, ISettingsServiceConsumer
 {
     [SerializeField] private GameObject root;
     private CanvasGroup canvasGroup;
-    private int appliedSettingsRevision = -1;
+    private ISettingsService settingsService;
 
     private void Awake()
     {
-        canvasGroup = (root != null ? root : gameObject).GetComponent<CanvasGroup>();
+        ResolveCanvasGroup();
     }
 
-    private void Update()
+    private void OnEnable()
     {
-        if (canvasGroup == null ||
-            !SettingsService.TryGet(out ISettingsService settings) ||
-            settings.Revision == appliedSettingsRevision)
+        ApplySettings();
+    }
+
+    public void Construct(ISettingsService settings)
+    {
+        if (settings == null)
+            throw new System.ArgumentNullException(nameof(settings));
+
+        if (ReferenceEquals(settingsService, settings))
             return;
 
-        canvasGroup.alpha = settings.Current.interfaceOpacity;
-        appliedSettingsRevision = settings.Revision;
+        ReleaseSettingsService();
+        settingsService = settings;
+        settingsService.SettingsChanged += ApplySettings;
+        ResolveCanvasGroup();
+        ApplySettings();
+    }
+
+    public void ReleaseSettingsService()
+    {
+        if (settingsService == null)
+            return;
+
+        settingsService.SettingsChanged -= ApplySettings;
+        settingsService = null;
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseSettingsService();
+    }
+
+    private void ResolveCanvasGroup()
+    {
+        if (canvasGroup == null)
+            canvasGroup = (root != null ? root : gameObject).GetComponent<CanvasGroup>();
+    }
+
+    private void ApplySettings()
+    {
+        if (settingsService == null)
+            return;
+
+        ResolveCanvasGroup();
+
+        if (canvasGroup != null)
+            canvasGroup.alpha = settingsService.Current.interfaceOpacity;
     }
 
     public void ShowHUD()

@@ -9,6 +9,7 @@ public interface ISettingsService
 
     event Action<float> MusicGainChanged;
     event Action<float> FovChanged;
+    event Action SettingsChanged;
 
     ISettingsEditSession BeginEdit();
 
