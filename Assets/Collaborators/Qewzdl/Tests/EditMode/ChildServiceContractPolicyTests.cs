@@ -56,10 +56,17 @@ public sealed class ChildServiceContractPolicyTests
         {
         }
 
+        public void AddSystemMessage(string text)
+        {
+        }
+
         public bool CompleteMatchServerOnly(GameResultData matchResult, string reason)
         {
             return true;
         }
+
+        public GameResultData CurrentResult => GameResultData.None;
+        public event Action<GameResultData> MatchResolved { add { } remove { } }
 
         public bool TrySetServerScenePhase(ProjectSceneKind sceneKind)
         {
@@ -90,6 +97,7 @@ public sealed class ChildServiceContractPolicyTests
 
         public bool IsLocalClient(ulong clientId) => false;
         public void SubmitMessage(string text) { }
+        public void AddSystemMessage(string text) { }
     }
 
     private sealed class CrossScopeService : IChatCommandService, IPauseService
@@ -103,6 +111,10 @@ public sealed class ChildServiceContractPolicyTests
         }
 
         public void SubmitMessage(string text)
+        {
+        }
+
+        public void AddSystemMessage(string text)
         {
         }
 

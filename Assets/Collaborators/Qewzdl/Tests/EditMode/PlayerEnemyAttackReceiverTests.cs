@@ -19,6 +19,9 @@ public sealed class PlayerEnemyAttackReceiverTests
             LastResult = matchResult;
             return CompletionResult;
         }
+
+        public GameResultData CurrentResult => GameResultData.None;
+        public event System.Action<GameResultData> MatchResolved { add { } remove { } }
     }
 
     private PlayerEnemyAttackCompletionGate completionGate;

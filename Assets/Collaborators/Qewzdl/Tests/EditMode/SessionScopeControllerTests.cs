@@ -55,6 +55,10 @@ public sealed class SessionScopeControllerTests
         public void SubmitMessage(string text)
         {
         }
+
+        public void AddSystemMessage(string text)
+        {
+        }
     }
 
     private sealed class ReplicatedPlayerServiceStub : IReplicatedPlayerStateService
@@ -93,6 +97,9 @@ public sealed class SessionScopeControllerTests
         {
             return matchResult.HasResult;
         }
+
+        public GameResultData CurrentResult => GameResultData.None;
+        public event Action<GameResultData> MatchResolved { add { } remove { } }
     }
 
     private sealed class GameMapSessionServiceStub : IGameMapSessionService

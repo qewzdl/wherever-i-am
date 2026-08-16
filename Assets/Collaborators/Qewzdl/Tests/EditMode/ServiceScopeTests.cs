@@ -666,6 +666,10 @@ public sealed class GTests
         public void SubmitMessage(string text)
         {
         }
+
+        public void AddSystemMessage(string text)
+        {
+        }
     }
 
     private sealed class ForbiddenPlayerService : IReplicatedPlayerStateService

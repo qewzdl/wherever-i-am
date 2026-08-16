@@ -132,12 +132,19 @@ public sealed class ClientReadinessNetworkProbe : NetworkBehaviour,
     {
     }
 
+        public void AddSystemMessage(string text)
+        {
+        }
+
     public bool CompleteMatchServerOnly(
         GameResultData matchResult,
         string reason)
     {
         return IsServer;
     }
+
+        public GameResultData CurrentResult => GameResultData.None;
+        public event Action<GameResultData> MatchResolved { add { } remove { } }
 }
 
 public sealed class HostClientReadinessTransportPlayModeTests
