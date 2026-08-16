@@ -24,6 +24,11 @@ public sealed class PlayerSpectatorView : MonoBehaviour
 
     public PlayerEnemyAttackReceiver Watched => watched;
 
+    // Only the owner is given one of these, so there is at most one per client
+    // and it is always this player's. Scene UI has nothing else to ask: this
+    // component is added at runtime and cannot be wired to anything.
+    public static PlayerSpectatorView Current { get; private set; }
+
     internal static PlayerSpectatorView AttachTo(GameObject player)
     {
         if (player == null)
@@ -53,6 +58,13 @@ public sealed class PlayerSpectatorView : MonoBehaviour
         }
 
         StopPlaying();
+        Current = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (Current == this)
+            Current = null;
     }
 
     private void LateUpdate()
