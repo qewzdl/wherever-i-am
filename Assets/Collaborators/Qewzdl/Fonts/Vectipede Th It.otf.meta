@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: acfc5711e7d639743b99d7aa545aa376
+guid: 20eb99a2cab1d784996c831aade9d7af
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Born2bSporty FS
+  - Vectipede
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0
