@@ -50,6 +50,11 @@ public class EnemyNavigator : MonoBehaviour
             ? queryTelemetry.Snapshot
             : default;
 
+    // Standing still on purpose: shoving a barricade holds the agent for
+    // barricadeShoveStopDuration so the push reads as a push rather than as a
+    // stumble through the furniture.
+    public bool IsHeldForForcefulPush => Time.time < forcefulPushStopUntil;
+
     public bool IsDirectApproachBlockedByItem(Vector3 destination)
     {
         return itemPusher != null &&

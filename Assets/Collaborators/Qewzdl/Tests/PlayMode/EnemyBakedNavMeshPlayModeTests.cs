@@ -2381,6 +2381,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
         EnemyPostureController posture =
             enemy.GetComponent<EnemyPostureController>();
+        EnemyNavigator navigator = enemy.GetComponent<EnemyNavigator>();
 
         yield return WaitForCondition(
             () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
@@ -2455,10 +2456,16 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             // opposite of what is wanted. Lying in ambush is the third - it
             // stops navigation on entry and waits for the target to turn
             // round, so every ambush is a halt by design.
+            // Shoving clutter aside is the fourth. It holds the agent for
+            // barricadeShoveStopDuration, which is 0.4s against this test's
+            // quarter-second tolerance - and this test scatters clutter on
+            // purpose, so a chase that never shoved anything would be the
+            // surprising outcome.
             bool shouldBeMoving =
                 enemy.CurrentState != EnemyState.Attack &&
                 enemy.CurrentState != EnemyState.Stalk &&
-                enemy.CurrentState != EnemyState.Ambush;
+                enemy.CurrentState != EnemyState.Ambush &&
+                !navigator.IsHeldForForcefulPush;
 
             bool halting = !isMoving && shouldBeMoving;
 
@@ -2477,7 +2484,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                         $"remaining={agent.remainingDistance:0.##} " +
                         $"state={enemy.CurrentState} " +
                         $"posture={posture.CurrentPosture} " +
-                        $"transitioning={posture.IsPostureTransitionInProgress}";
+                        $"transitioning={posture.IsPostureTransitionInProgress} " +
+                        $"shoving={navigator.IsHeldForForcefulPush}";
                 }
 
                 haltSeconds += Time.unscaledDeltaTime;
