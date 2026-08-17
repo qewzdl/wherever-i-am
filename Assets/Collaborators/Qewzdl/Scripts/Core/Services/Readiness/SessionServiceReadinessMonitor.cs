@@ -10,6 +10,10 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
     // Only the peer that owns the session judges its health. Null is treated
     // as owning it, which is what a non-network fixture wants.
     private readonly Func<bool> ownsSessionHealth;
+
+    // A session on its way out drops its services by design. Judging it then
+    // turns every quit into a failure report nobody can act on.
+    private readonly Func<bool> sessionIsEnding;
     private bool failureRaised;
     private bool disposed;
 
@@ -17,7 +21,8 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
         ISessionServiceRegistry serviceRegistry,
         Func<GameState> currentStateProvider,
         Action<string> readinessLostHandler,
-        Func<bool> ownsSessionHealthProvider = null)
+        Func<bool> ownsSessionHealthProvider = null,
+        Func<bool> sessionIsEndingProvider = null)
     {
         registry = serviceRegistry ??
                    throw new ArgumentNullException(nameof(serviceRegistry));
@@ -27,6 +32,7 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
                         throw new ArgumentNullException(nameof(readinessLostHandler));
 
         ownsSessionHealth = ownsSessionHealthProvider;
+        sessionIsEnding = sessionIsEndingProvider;
 
         if (registry.IsDisposed)
             throw new ObjectDisposedException(nameof(serviceRegistry));
@@ -38,12 +44,14 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
         ISessionServiceRegistry serviceRegistry,
         GameStateMachine gameStateMachine,
         Action<string> readinessLostHandler,
-        Func<bool> ownsSessionHealthProvider = null)
+        Func<bool> ownsSessionHealthProvider = null,
+        Func<bool> sessionIsEndingProvider = null)
         : this(
             serviceRegistry,
             CreateStateProvider(gameStateMachine),
             readinessLostHandler,
-            ownsSessionHealthProvider)
+            ownsSessionHealthProvider,
+            sessionIsEndingProvider)
     {
         stateMachine = gameStateMachine;
         stateMachine.StateChanged += HandleGameStateChanged;
@@ -85,6 +93,13 @@ internal sealed class SessionServiceReadinessMonitor : IDisposable
         // client refuses to commit a state whose services are missing, in
         // ClientSessionReadinessGate; it does not get to end the session.
         if (ownsSessionHealth != null && !ownsSessionHealth.Invoke())
+            return true;
+
+        // Netcode despawns everything it owns while shutting down, and pressing
+        // Stop in the editor goes down the same path. Reporting that as a lost
+        // session left three errors behind every quit, which is how a console
+        // stops being read.
+        if (sessionIsEnding != null && sessionIsEnding.Invoke())
             return true;
 
         GameState currentState = stateProvider.Invoke();

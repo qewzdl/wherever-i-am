@@ -619,7 +619,8 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
                 registry,
                 stateMachine,
                 HandleSessionReadinessLost,
-                () => connectionService != null && connectionService.IsServer);
+                () => connectionService != null && connectionService.IsServer,
+                () => connectionService != null && connectionService.IsShuttingDown);
             nextReadinessHealthCheckTime = Time.unscaledTime;
             failure = null;
             return true;

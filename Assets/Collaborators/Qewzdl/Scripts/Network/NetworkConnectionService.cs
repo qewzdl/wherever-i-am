@@ -36,6 +36,11 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
     public bool IsConnected => networkManager != null && networkManager.IsConnectedClient;
     public bool IsListening => networkManager != null && networkManager.IsListening;
     public bool IsRunning => networkManager != null && !IsFullyStopped(networkManager);
+
+    // Netcode raises this before it despawns anything, including on the way out
+    // of play mode, so services disappearing after it are expected rather than
+    // a session falling apart.
+    public bool IsShuttingDown => networkManager != null && networkManager.ShutdownInProgress;
     public bool IsConnectionReady => networkManager != null &&
                                      !networkManager.ShutdownInProgress &&
                                      IsListening &&
