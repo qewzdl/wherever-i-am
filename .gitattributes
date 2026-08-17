@@ -1,3 +1,42 @@
+# Text is stored and checked out with LF. Without this, a Windows checkout
+# rewrites every line ending on the way in and git reports the whole file as
+# touched - which is what the "LF will be replaced by CRLF" warnings were.
+* text=auto eol=lf
+
+# Unity's own YAML. merge=unityyamlmerge only does something once the driver is
+# configured; see the note at the bottom of this file.
+*.unity              text eol=lf merge=unityyamlmerge
+*.prefab             text eol=lf merge=unityyamlmerge
+*.asset              text eol=lf merge=unityyamlmerge
+*.meta               text eol=lf merge=unityyamlmerge
+*.mat                text eol=lf merge=unityyamlmerge
+*.anim               text eol=lf merge=unityyamlmerge
+*.controller         text eol=lf merge=unityyamlmerge
+*.overrideController text eol=lf merge=unityyamlmerge
+*.physicMaterial     text eol=lf merge=unityyamlmerge
+*.mask               text eol=lf merge=unityyamlmerge
+*.playable           text eol=lf merge=unityyamlmerge
+
+# Binaries git should never try to convert or diff.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.tga    binary
+*.psd    binary
+*.wav    binary
+*.mp3    binary
+*.ogg    binary
+*.ttf    binary
+*.otf    binary
+*.dll    binary
+*.blend  binary
+*.unitypackage binary
+
+# LFS, last so these win over the rules above.
 *.fbx filter=lfs diff=lfs merge=lfs -text
 *.tif filter=lfs diff=lfs merge=lfs -text
 Assets/Collaborators/6aTowKa/Import/TirgamesAssets/**/*.png filter=lfs diff=lfs merge=lfs -text
+
+# One-time setup for the Unity merge tool, per machine:
+#   git config merge.unityyamlmerge.name "Unity SmartMerge"
+#   git config merge.unityyamlmerge.driver '"C:/Program Files/Unity/Hub/Editor/6000.0.73f1/Editor/Data/Tools/UnityYAMLMerge.exe" merge -p %O %A %B %A'
