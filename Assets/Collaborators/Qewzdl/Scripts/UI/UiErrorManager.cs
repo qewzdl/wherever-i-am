@@ -8,9 +8,9 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
     [SerializeField] private UiErrorView errorViewPrefab;
 
     private UiErrorView errorView;
-    private IAudioService audioService;
+    // Its own two sounds, and nothing else: handing audio to other components
+    // was never this class's business.
     private IUiSoundService uiSoundService;
-    private AudioServiceComposition errorViewAudioComposition;
 
     private void Awake()
     {
@@ -20,15 +20,11 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
 
     public void Construct(IAudioService service)
     {
-        audioService = service;
         uiSoundService = service != null ? service.UI : null;
     }
 
     public void DisposeComposition()
     {
-        errorViewAudioComposition?.Dispose();
-        errorViewAudioComposition = null;
-        audioService = null;
         uiSoundService = null;
     }
 
@@ -78,17 +74,6 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
 
         errorView = Instantiate(errorViewPrefab, transform);
         errorView.name = errorViewPrefab.name;
-
-        if (audioService != null &&
-            !AudioServiceComposition.TryCompose(
-                errorView.gameObject,
-                audioService,
-                out errorViewAudioComposition))
-        {
-            Debug.LogError(
-                $"{nameof(UiErrorManager)} failed to compose audio dependencies for its view.",
-                this);
-        }
 
         errorView.CloseRequested += HideError;
         errorView.Hide();
