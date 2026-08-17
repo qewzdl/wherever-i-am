@@ -14,10 +14,15 @@ public sealed class NetworkConnectionConfig : ScriptableObject
     [SerializeField] private string listenAddress;
     [SerializeField] private float clientConnectionTimeoutSeconds;
 
+    [Header("Messages")]
+    [SerializeField] private string hostClosedSessionReason =
+        "The host closed the lobby.";
+
     public ushort ProtocolVersion => protocolVersion;
     public string HostAddress => hostAddress;
     public ushort Port => port;
     public string ListenAddress => listenAddress;
+    public string HostClosedSessionReason => hostClosedSessionReason;
     public float ClientConnectionTimeoutSeconds => clientConnectionTimeoutSeconds;
 
     public bool Validate(Object context)

@@ -17,3 +17,4 @@ MonoBehaviour:
   port: 7777
   listenAddress: 0.0.0.0
   clientConnectionTimeoutSeconds: 5
+  hostClosedSessionReason: The host closed the lobby.

@@ -263,12 +263,46 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
             networkManager.Shutdown(discardMessageQueue: true);
     }
 
+    // A host closing the lobby, losing its cable and crashing all reach the
+    // other players as the same silence otherwise. Said before the shutdown so
+    // the message still goes out, and only on the graceful path - an immediate
+    // shutdown is for cases where there is nothing left to say it with.
+    private void AnnounceHostShutdown(NetworkManager manager)
+    {
+        if (immediateShutdownRequested ||
+            manager == null ||
+            !manager.IsServer ||
+            !manager.IsListening)
+        {
+            return;
+        }
+
+        string reason = connectionConfig != null
+            ? connectionConfig.HostClosedSessionReason
+            : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return;
+
+        List<ulong> clientIds = new(manager.ConnectedClientsIds);
+
+        for (int i = 0; i < clientIds.Count; i++)
+        {
+            if (clientIds[i] == NetworkManager.ServerClientId)
+                continue;
+
+            manager.DisconnectClient(clientIds[i], reason);
+        }
+    }
+
     private async Task ShutdownCoreAsync(
         NetworkManager manager,
         Task pendingConnectionAttempt)
     {
         requireClientStoppedCallback |= manager.IsClient;
         requireServerStoppedCallback |= manager.IsServer;
+
+        AnnounceHostShutdown(manager);
 
         if (!requireClientStoppedCallback && !requireServerStoppedCallback)
         {
