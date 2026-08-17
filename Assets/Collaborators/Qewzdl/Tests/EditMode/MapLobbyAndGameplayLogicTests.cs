@@ -306,6 +306,60 @@ public sealed class MapLobbyAndGameplayLogicTests
     }
 
     [Test]
+    public void PlayerName_IsStrippedOfMarkupAndCutToWhatTheWireCarries()
+    {
+        // TextMeshPro reads tags, so a name like this would rewrite the lobby
+        // list and the chat for everybody in the room.
+        Assert.That(
+            NetworkConnectionPayloadCodec.NormalizePlayerName("<color=red>Vasya</color>"),
+            Is.EqualTo("color=redVasya/color"));
+
+        Assert.That(
+            NetworkConnectionPayloadCodec.NormalizePlayerName("  Vasya\n\t "),
+            Is.EqualTo("Vasya"));
+
+        Assert.That(NetworkConnectionPayloadCodec.NormalizePlayerName(null), Is.Empty);
+        Assert.That(NetworkConnectionPayloadCodec.NormalizePlayerName("   "), Is.Empty);
+
+        // FixedString32Bytes carries 29 bytes, and Cyrillic costs two each, so
+        // the cut has to be by bytes - assigning a longer string throws.
+        string longCyrillic = new string('я', 40);
+        string cut = NetworkConnectionPayloadCodec.NormalizePlayerName(longCyrillic);
+
+        Assert.That(
+            System.Text.Encoding.UTF8.GetByteCount(cut),
+            Is.LessThanOrEqualTo(NetworkConnectionPayloadCodec.MaximumPlayerNameBytes));
+        Assert.That(cut, Is.Not.Empty);
+        Assert.DoesNotThrow(() => new Unity.Collections.FixedString32Bytes(cut));
+    }
+
+    [Test]
+    public void ConnectionPayload_CarriesTheNameThroughAnEncodeAndDecode()
+    {
+        string playerId = Guid.NewGuid().ToString("N");
+
+        Assert.That(
+            NetworkConnectionPayloadCodec.TryEncode(
+                7,
+                "1.4.2",
+                playerId,
+                "  <b>Vasya</b>  ",
+                out byte[] encoded,
+                out string error),
+            Is.True,
+            error);
+        Assert.That(
+            NetworkConnectionPayloadCodec.TryDecode(
+                encoded,
+                out NetworkConnectionPayload decoded,
+                out error),
+            Is.True,
+            error);
+        Assert.That(decoded.PlayerName, Is.EqualTo("bVasya/b"));
+        Assert.That(decoded.PlayerId, Is.EqualTo(playerId));
+    }
+
+    [Test]
     public void DisconnectReason_KeepsWhatTheHostSaidAndDropsTransportNoise()
     {
         Assert.That(

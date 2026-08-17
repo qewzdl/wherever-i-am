@@ -94,7 +94,9 @@ public class LobbyPlayerRegistry
 
         return new LobbyPlayerData(
             clientId,
-            $"Player {clientId}",
+            admissionService.TryGetPlayerName(clientId, out string playerName)
+                ? playerName
+                : PlayerDisplayName.Fallback(clientId),
             false);
     }
 

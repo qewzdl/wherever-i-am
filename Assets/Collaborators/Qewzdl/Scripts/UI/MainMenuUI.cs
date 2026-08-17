@@ -4,6 +4,9 @@ using UnityEngine.UI;
 
 public class MainMenuUI : MonoBehaviour
 {
+    [Header("Player")]
+    [SerializeField] private TMP_InputField nameInputField;
+
     [Header("Join")]
     [SerializeField] private TMP_InputField ipInputField;
 
@@ -49,10 +52,34 @@ public class MainMenuUI : MonoBehaviour
     private void Awake()
     {
         SetBusy(false, string.Empty);
+
+        if (nameInputField == null)
+            return;
+
+        nameInputField.characterLimit = 16;
+        nameInputField.SetTextWithoutNotify(PlayerNameProvider.Get());
+        nameInputField.onEndEdit.AddListener(PlayerNameProvider.Set);
+    }
+
+    private void OnDestroy()
+    {
+        if (nameInputField != null)
+            nameInputField.onEndEdit.RemoveListener(PlayerNameProvider.Set);
+    }
+
+    // Saved before connecting as well: a player who types a name and presses
+    // Create without leaving the field would otherwise arrive as the last name
+    // they used, or as nobody.
+    private void SavePlayerName()
+    {
+        if (nameInputField != null)
+            PlayerNameProvider.Set(nameInputField.text);
     }
 
     public async void OnCreateLobbyButtonClicked()
     {
+        SavePlayerName();
+
         if (!TryBeginRequest(hostingMessage))
             return;
 
@@ -71,6 +98,8 @@ public class MainMenuUI : MonoBehaviour
 
     public async void OnJoinLobbyButtonClicked()
     {
+        SavePlayerName();
+
         string ip = ipInputField != null
             ? ipInputField.text
             : string.Empty;

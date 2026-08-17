@@ -42,6 +42,7 @@ internal sealed class NetworkSessionAdmissionRegistry
     private readonly Dictionary<string, PlayerRecord> records =
         new(StringComparer.Ordinal);
     private readonly Dictionary<ulong, string> activeClientIds = new();
+    private readonly Dictionary<ulong, string> playerNames = new();
     private readonly Dictionary<ulong, RecentClientRecord> recentClientIds = new();
     private readonly HashSet<string> kickedPlayerIds = new(StringComparer.Ordinal);
 
@@ -156,6 +157,7 @@ internal sealed class NetworkSessionAdmissionRegistry
             existing.ClientId = clientId;
             existing.ReservationExpiresAt = 0d;
             activeClientIds[clientId] = payload.PlayerId;
+            RememberPlayerName(clientId, payload.PlayerName);
             recentClientIds.Remove(clientId);
             return new NetworkAdmissionResult(NetworkAdmissionStatus.Reconnected);
         }
@@ -169,6 +171,7 @@ internal sealed class NetworkSessionAdmissionRegistry
             payload.PlayerId,
             new PlayerRecord(clientId, isReconnect: false));
         activeClientIds[clientId] = payload.PlayerId;
+        RememberPlayerName(clientId, payload.PlayerName);
         recentClientIds.Remove(clientId);
         return new NetworkAdmissionResult(NetworkAdmissionStatus.Accepted);
     }
@@ -270,6 +273,29 @@ internal sealed class NetworkSessionAdmissionRegistry
         return true;
     }
 
+    // Kept past the disconnect on purpose: whoever announces somebody leaving
+    // reads the name once the connection is already gone.
+    internal bool TryGetPlayerName(ulong clientId, out string playerName)
+    {
+        return playerNames.TryGetValue(clientId, out playerName) &&
+               !string.IsNullOrEmpty(playerName);
+    }
+
+    // The host never goes through approval, so its name arrives this way
+    // instead of on a payload.
+    internal void SetPlayerName(ulong clientId, string playerName)
+    {
+        RememberPlayerName(clientId, playerName);
+    }
+
+    private void RememberPlayerName(ulong clientId, string playerName)
+    {
+        if (string.IsNullOrEmpty(playerName))
+            playerNames.Remove(clientId);
+        else
+            playerNames[clientId] = playerName;
+    }
+
     internal bool WasKicked(ulong clientId)
     {
         return kickedClientIds.Remove(clientId);
@@ -277,6 +303,7 @@ internal sealed class NetworkSessionAdmissionRegistry
 
     internal void Reset()
     {
+        playerNames.Clear();
         kickedPlayerIds.Clear();
         kickedClientIds.Clear();
         records.Clear();

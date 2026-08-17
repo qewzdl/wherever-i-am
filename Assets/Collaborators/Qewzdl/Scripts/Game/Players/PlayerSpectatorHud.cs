@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using TMPro;
-using Unity.Netcode;
 using UnityEngine;
 
 // What a caught player is told while watching. Lives in the scene next to the
@@ -100,13 +99,6 @@ public sealed class PlayerSpectatorHud : MonoBehaviour
 
     private static string ResolveWatchedName(PlayerEnemyAttackReceiver player)
     {
-        if (player == null)
-            return string.Empty;
-
-        NetworkObject networkObject = player.GetComponent<NetworkObject>();
-
-        return networkObject != null
-            ? $"Player {networkObject.OwnerClientId}"
-            : player.name;
+        return player == null ? string.Empty : player.DisplayName;
     }
 }

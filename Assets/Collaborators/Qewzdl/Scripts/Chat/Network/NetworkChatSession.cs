@@ -420,7 +420,7 @@ public class NetworkChatSession : NetworkBehaviour,
 
     private string ResolveSenderName(ulong clientId)
     {
-        return $"Player {clientId}";
+        return PlayerDisplayName.Resolve(clientId);
     }
 
     private bool TryNormalizeMessage(string rawText, out string normalizedText)

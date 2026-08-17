@@ -69,6 +69,15 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
         return false;
     }
 
+    public bool TryGetPlayerName(ulong clientId, out string playerName)
+    {
+        if (admissionRegistry != null)
+            return admissionRegistry.TryGetPlayerName(clientId, out playerName);
+
+        playerName = string.Empty;
+        return false;
+    }
+
     public bool IsReconnect(ulong clientId)
     {
         return admissionRegistry != null &&
@@ -301,6 +310,7 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
         subscribedNetworkManager.OnClientDisconnectCallback +=
             HandleClientDisconnected;
         subscribedNetworkManager.OnServerStopped += HandleServerStopped;
+        subscribedNetworkManager.OnServerStarted += HandleServerStarted;
         networkCallbacksSubscribed = true;
     }
 
@@ -314,6 +324,7 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
             subscribedNetworkManager.OnClientDisconnectCallback -=
                 HandleClientDisconnected;
             subscribedNetworkManager.OnServerStopped -= HandleServerStopped;
+            subscribedNetworkManager.OnServerStarted -= HandleServerStarted;
         }
 
         subscribedNetworkManager = null;
@@ -323,6 +334,14 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
     private void HandleClientDisconnected(ulong clientId)
     {
         RecordDisconnect(clientId);
+    }
+
+    private void HandleServerStarted()
+    {
+        EnsureAdmissionRegistry();
+        admissionRegistry.SetPlayerName(
+            NetworkManager.ServerClientId,
+            PlayerNameProvider.Get());
     }
 
     private void HandleServerStopped(bool wasHost)

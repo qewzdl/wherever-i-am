@@ -77,6 +77,13 @@ internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionServi
         return true;
     }
 
+    internal readonly Dictionary<ulong, string> Names = new();
+
+    public bool TryGetPlayerName(ulong clientId, out string playerName)
+    {
+        return Names.TryGetValue(clientId, out playerName);
+    }
+
     public bool IsReconnect(ulong clientId)
     {
         return reconnectingClients.Contains(clientId);

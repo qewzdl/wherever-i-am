@@ -508,6 +508,7 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
                 connectionConfig.ProtocolVersion,
                 Application.version,
                 playerId,
+                PlayerNameProvider.Get(),
                 out byte[] payload,
                 out string payloadError))
         {

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -26,6 +27,15 @@ public sealed class PlayerEnemyAttackReceiver :
         NetworkVariableWritePermission.Server
     );
 
+    // The name every client can read in the match. Nothing else in the game
+    // scene replicates one, and a spectator on a client has no lobby left to
+    // ask - the host is the only one holding the admitted names.
+    private readonly NetworkVariable<FixedString32Bytes> displayName = new(
+        default,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     private NetworkObject networkObject;
     private readonly PlayerEnemyAttackCompletionGate completionGate = new();
     private bool isEliminated;
@@ -34,6 +44,18 @@ public sealed class PlayerEnemyAttackReceiver :
     public static IReadOnlyList<PlayerEnemyAttackReceiver> All => RegisteredPlayers;
 
     public bool IsEliminated => isEliminated;
+
+    public string DisplayName
+    {
+        get
+        {
+            string replicated = displayName.Value.ToString();
+
+            return string.IsNullOrEmpty(replicated)
+                ? PlayerDisplayName.Fallback(OwnerClientId)
+                : replicated;
+        }
+    }
 
     public bool CanEnterHiding =>
         isActiveAndEnabled && !isEliminated;
@@ -53,6 +75,9 @@ public sealed class PlayerEnemyAttackReceiver :
     {
         eliminated.OnValueChanged += HandleEliminatedChanged;
         isEliminated = eliminated.Value;
+
+        if (IsServer)
+            displayName.Value = PlayerDisplayName.Resolve(OwnerClientId);
 
         if (!RegisteredPlayers.Contains(this))
         {

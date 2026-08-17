@@ -8,27 +8,55 @@ internal readonly struct NetworkConnectionPayload
     internal string BuildVersion { get; }
     internal string PlayerId { get; }
 
+    // What this player calls themselves. A label, not an identity: the id above
+    // is what a reconnect is matched on, and nothing is trusted to a name.
+    internal string PlayerName { get; }
+
     internal NetworkConnectionPayload(
         ushort protocolVersion,
         string buildVersion,
-        string playerId)
+        string playerId,
+        string playerName = "")
     {
         ProtocolVersion = protocolVersion;
         BuildVersion = buildVersion;
         PlayerId = playerId;
+        PlayerName = playerName ?? string.Empty;
     }
 }
 
-internal static class NetworkConnectionPayloadCodec
+public static class NetworkConnectionPayloadCodec
 {
     internal const int SchemaVersion = 1;
     internal const int MaximumPayloadBytes = 256;
     internal const int MaximumBuildVersionLength = 64;
 
+    // FixedString32Bytes carries the name from here to the lobby list and the
+    // chat, and it holds 29 bytes of UTF-8 - which is fourteen Cyrillic
+    // characters, not twenty-nine. Cutting by bytes is the only cut that fits.
+    internal const int MaximumPlayerNameBytes = 29;
+
     internal static bool TryEncode(
         ushort protocolVersion,
         string buildVersion,
         string playerId,
+        out byte[] payload,
+        out string error)
+    {
+        return TryEncode(
+            protocolVersion,
+            buildVersion,
+            playerId,
+            string.Empty,
+            out payload,
+            out error);
+    }
+
+    internal static bool TryEncode(
+        ushort protocolVersion,
+        string buildVersion,
+        string playerId,
+        string playerName,
         out byte[] payload,
         out string error)
     {
@@ -49,7 +77,8 @@ internal static class NetworkConnectionPayloadCodec
             schemaVersion = SchemaVersion,
             protocolVersion = protocolVersion,
             buildVersion = buildVersion.Trim(),
-            playerId = normalizedPlayerId
+            playerId = normalizedPlayerId,
+            playerName = NormalizePlayerName(playerName)
         };
 
         payload = Encoding.UTF8.GetBytes(JsonUtility.ToJson(data));
@@ -117,7 +146,8 @@ internal static class NetworkConnectionPayloadCodec
         connectionPayload = new NetworkConnectionPayload(
             data.protocolVersion,
             data.buildVersion.Trim(),
-            normalizedPlayerId);
+            normalizedPlayerId,
+            NormalizePlayerName(data.playerName));
         return true;
     }
 
@@ -132,6 +162,47 @@ internal static class NetworkConnectionPayloadCodec
 
         normalizedPlayerId = parsed.ToString("N");
         return true;
+    }
+
+    // Never a reason to refuse a connection: a name nobody can use just leaves
+    // the host to fall back on one of its own. What must not survive is markup
+    // - TextMeshPro reads tags, so a player called "<color=red><size=300>"
+    // would rewrite the chat and the lobby list for everybody else.
+    public static string NormalizePlayerName(string playerName)
+    {
+        if (string.IsNullOrWhiteSpace(playerName))
+            return string.Empty;
+
+        StringBuilder builder = new StringBuilder(playerName.Length);
+
+        foreach (char character in playerName.Trim())
+        {
+            if (char.IsControl(character) || character == '<' || character == '>')
+                continue;
+
+            builder.Append(character);
+        }
+
+        return TruncateToBytes(builder.ToString().Trim(), MaximumPlayerNameBytes);
+    }
+
+    private static string TruncateToBytes(string value, int maximumBytes)
+    {
+        if (string.IsNullOrEmpty(value) ||
+            Encoding.UTF8.GetByteCount(value) <= maximumBytes)
+        {
+            return value;
+        }
+
+        int length = value.Length;
+
+        while (length > 0 &&
+               Encoding.UTF8.GetByteCount(value, 0, length) > maximumBytes)
+        {
+            length--;
+        }
+
+        return value.Substring(0, length).TrimEnd();
     }
 
     private static bool TryValidate(
@@ -173,5 +244,6 @@ internal static class NetworkConnectionPayloadCodec
         public ushort protocolVersion;
         public string buildVersion;
         public string playerId;
+        public string playerName;
     }
 }
