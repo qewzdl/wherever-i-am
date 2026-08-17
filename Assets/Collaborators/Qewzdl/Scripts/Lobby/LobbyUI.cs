@@ -10,6 +10,12 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private LobbyPlayerRow playerRowPrefab;
     [SerializeField] private Transform playerListRoot;
     [SerializeField] private TMP_Text playerCountText;
+
+    [Header("Kick confirmation")]
+    [SerializeField] private GameObject kickConfirmPanel;
+    [SerializeField] private TMP_Text kickConfirmText;
+    [SerializeField] private Button kickConfirmButton;
+    [SerializeField] private Button kickCancelButton;
     [SerializeField] private Button readyButton;
     [SerializeField] private TMP_Text readyButtonLabel;
     [SerializeField] private Button startGameButton;
@@ -24,6 +30,8 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
     [SerializeField] private string playerCountFormat = "{0}/{1}";
+    [SerializeField] private string kickConfirmFormat =
+        "Remove {0}? They will not be able to join again this session.";
     [SerializeField] private string needMorePlayersFormat = "Need {0} more to start";
     [SerializeField] private string waitingForReadyFormat = "Waiting for {0} to get ready";
     [SerializeField] private string startingText = "Starting the match...";
@@ -37,6 +45,11 @@ public class LobbyUI : MonoBehaviour
     private int[] difficultyIds = Array.Empty<int>();
     private string[] difficultyDescriptions = Array.Empty<string>();
     private readonly List<LobbyPlayerRow> playerRows = new List<LobbyPlayerRow>();
+
+    // Nobody is removed on one click: it cannot be undone for the rest of the
+    // session, and the row under the pointer moves as players come and go.
+    private bool hasPendingKick;
+    private ulong pendingKickClientId;
 
     public event Action ReadyClicked;
     public event Action StartGameClicked;
@@ -86,6 +99,14 @@ public class LobbyUI : MonoBehaviour
 
         if (lobbyVisibilityButton != null)
             lobbyVisibilityButton.onClick.AddListener(HandleLobbyVisibilityToggleClicked);
+
+        if (kickConfirmButton != null)
+            kickConfirmButton.onClick.AddListener(HandleKickConfirmed);
+
+        if (kickCancelButton != null)
+            kickCancelButton.onClick.AddListener(CancelPendingKick);
+
+        CancelPendingKick();
     }
 
     private void Start()
@@ -109,6 +130,12 @@ public class LobbyUI : MonoBehaviour
 
         if (lobbyVisibilityButton != null)
             lobbyVisibilityButton.onClick.RemoveListener(HandleLobbyVisibilityToggleClicked);
+
+        if (kickConfirmButton != null)
+            kickConfirmButton.onClick.RemoveListener(HandleKickConfirmed);
+
+        if (kickCancelButton != null)
+            kickCancelButton.onClick.RemoveListener(CancelPendingKick);
 
         Dispose();
     }
@@ -255,6 +282,9 @@ public class LobbyUI : MonoBehaviour
                        readService.Phase == LobbyPhase.Open;
         int playerCount = readService.PlayerCount;
 
+        if (hasPendingKick && string.IsNullOrEmpty(ResolvePlayerName(pendingKickClientId)))
+            CancelPendingKick();
+
         EnsurePlayerRowCount(playerCount);
 
         for (int i = 0; i < playerRows.Count; i++)
@@ -292,7 +322,54 @@ public class LobbyUI : MonoBehaviour
 
     private void HandlePlayerKickRequested(ulong clientId)
     {
+        if (kickConfirmPanel == null)
+        {
+            PlayerKickRequested?.Invoke(clientId);
+            return;
+        }
+
+        hasPendingKick = true;
+        pendingKickClientId = clientId;
+
+        if (kickConfirmText != null)
+        {
+            kickConfirmText.text = string.Format(
+                kickConfirmFormat,
+                ResolvePlayerName(clientId));
+        }
+
+        kickConfirmPanel.SetActive(true);
+    }
+
+    private void HandleKickConfirmed()
+    {
+        if (!hasPendingKick)
+            return;
+
+        ulong clientId = pendingKickClientId;
+        CancelPendingKick();
         PlayerKickRequested?.Invoke(clientId);
+    }
+
+    private void CancelPendingKick()
+    {
+        hasPendingKick = false;
+
+        if (kickConfirmPanel != null)
+            kickConfirmPanel.SetActive(false);
+    }
+
+    private string ResolvePlayerName(ulong clientId)
+    {
+        for (int i = 0; i < readService.PlayerCount; i++)
+        {
+            LobbyPlayerData player = readService.GetPlayer(i);
+
+            if (player.ClientId == clientId)
+                return player.PlayerName.ToString();
+        }
+
+        return string.Empty;
     }
 
     private void RefreshButtons()
