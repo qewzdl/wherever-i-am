@@ -477,7 +477,7 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         activeMap = map;
         activeMapRoot = FindMapRoot(scene);
 
-        ComposeMapRuntime(scene);
+        ComposeMapRuntime(activeMapRoot, scene);
 
         if (activeMapRoot == null)
         {
@@ -490,21 +490,27 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         // their current ProjectSceneKind from Unity's active scene.
     }
 
-    private void ComposeMapRuntime(Scene scene)
+    // The map says which builders it has instead of the scene being swept for
+    // whatever implements the type. A map with none is worth saying out loud:
+    // nothing will move on it.
+    private void ComposeMapRuntime(GameMapRoot mapRoot, Scene scene)
     {
-        if (!scene.IsValid() || !scene.isLoaded)
+        if (mapRoot == null)
             return;
 
-        GameObject[] roots = scene.GetRootGameObjects();
+        IReadOnlyList<RuntimeNavMeshBuilder> builders = mapRoot.NavMeshBuilders;
 
-        for (int i = 0; i < roots.Length; i++)
+        if (builders.Count == 0)
         {
-            RuntimeNavMeshBuilder[] builders =
-                roots[i].GetComponentsInChildren<RuntimeNavMeshBuilder>(true);
-
-            for (int j = 0; j < builders.Length; j++)
-                builders[j]?.Construct(this, networkManager);
+            Debug.LogWarning(
+                $"Map scene '{scene.name}' lists no {nameof(RuntimeNavMeshBuilder)}, " +
+                "so no navigation will be built for it.",
+                this);
+            return;
         }
+
+        for (int i = 0; i < builders.Count; i++)
+            builders[i]?.Construct(this, networkManager);
     }
 
     private static GameMapRoot FindMapRoot(Scene scene)

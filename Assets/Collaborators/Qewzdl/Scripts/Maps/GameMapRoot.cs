@@ -13,6 +13,12 @@ public sealed class GameMapRoot : MonoBehaviour
         "only to use a hand-picked set.")]
     [SerializeField] private EnemySpawnPoint[] enemySpawnPoints;
 
+    [Tooltip(
+        "Every navmesh builder this map wants built. Named here rather than " +
+        "searched for: builders sit at the root of a map scene, beside this " +
+        "object rather than under it.")]
+    [SerializeField] private RuntimeNavMeshBuilder[] navMeshBuilders;
+
     private readonly Dictionary<ulong, int> assignedSpawnIndices = new();
 
     // Collected rather than written back into the serialized field, so a point
@@ -21,6 +27,9 @@ public sealed class GameMapRoot : MonoBehaviour
     private EnemySpawnPoint[] resolvedEnemySpawnPoints;
 
     public ObjectiveSceneBindingRegistry ObjectiveBindingRegistry => objectiveBindingRegistry;
+
+    public IReadOnlyList<RuntimeNavMeshBuilder> NavMeshBuilders =>
+        navMeshBuilders ?? System.Array.Empty<RuntimeNavMeshBuilder>();
     public int PlayerSpawnPointCount => playerSpawnPoints == null ? 0 : playerSpawnPoints.Length;
 
     public IReadOnlyList<EnemySpawnPoint> EnemySpawnPoints

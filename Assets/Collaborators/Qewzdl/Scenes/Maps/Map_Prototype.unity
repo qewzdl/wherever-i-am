@@ -169,6 +169,8 @@ MonoBehaviour:
   - {fileID: 3001}
   objectiveBindingRegistry: {fileID: 1966005315}
   enemySpawnPoints: []
+  navMeshBuilders:
+  - {fileID: 314159267}
 --- !u!1 &2000
 GameObject:
   m_ObjectHideFlags: 0
