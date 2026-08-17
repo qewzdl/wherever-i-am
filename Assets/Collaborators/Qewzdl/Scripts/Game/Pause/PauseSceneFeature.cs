@@ -3,7 +3,7 @@ using UnityEngine;
 public sealed class PauseSceneFeature : SceneRuntimeFeature
 {
     [SerializeField] private GamePauseService pauseService;
-    [SerializeField] private PauseMenuUI pauseMenu;
+    [SerializeField] private PauseMenuDocument pauseMenu;
     [SerializeField] private PauseServiceConsumer[] pauseConsumers;
 
     protected override bool ValidateFeature(SceneFeatureContext context)

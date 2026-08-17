@@ -1,0 +1,202 @@
+/* The one place a screen's looks are decided.
+ *
+ * Two layers on purpose. The palette says which colours exist; the roles say
+ * what each colour is for. Screens only ever ask for a role, so re-skinning
+ * the game is a change here and nowhere else - and a role can be repointed
+ * without hunting down every screen that used the colour behind it.
+ *
+ * Class naming is block, element, modifier: .panel, .panel__header,
+ * .panel--narrow. A modifier never appears on its own; it rides on the block
+ * it modifies, the way .button--danger does.
+ */
+
+:root {
+    /* Palette */
+    --palette-black: rgb(6, 6, 6);
+    --palette-gray-950: rgb(17, 17, 17);
+    --palette-gray-800: rgb(46, 46, 46);
+    --palette-gray-500: rgb(138, 138, 138);
+    --palette-gray-200: rgb(226, 226, 226);
+    --palette-white: rgb(245, 245, 245);
+
+    /* Roles */
+    --veil: rgba(6, 6, 6, 0.88);
+
+    --surface: var(--palette-gray-950);
+    --line: var(--palette-gray-800);
+
+    --text: var(--palette-gray-200);
+    --text-dim: var(--palette-gray-500);
+    --text-on-accent: var(--palette-black);
+
+    --accent: var(--palette-white);
+    --accent-pressed: var(--palette-gray-500);
+    --danger: var(--palette-gray-200);
+
+    --space-xs: 4px;
+    --space-s: 8px;
+    --space-m: 16px;
+    --space-l: 28px;
+
+    --text-s: 16px;
+    --text-m: 20px;
+    --text-l: 40px;
+
+    --radius: 2px;
+    --border: 1px;
+
+
+    --hover-time: 0.15s;
+    --open-time: 0.2s;
+    --ease: ease-out;
+}
+
+/* Layout helpers, so a screen's own stylesheet stays about that screen. */
+
+.screen {
+    /* Text properties inherit, so one line at the root of a screen dresses
+       everything inside it. This is a TextCore font asset - the TMP ones the
+       rest of the game uses are a different class and render nothing here. */
+    -unity-font-definition: url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: var(--veil);
+    align-items: center;
+    justify-content: center;
+
+    /* Screens fade rather than appear. Opacity is animatable; display is not,
+       which is why hiding waits for the fade instead of cutting it off. */
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: var(--open-time);
+    transition-timing-function: var(--ease);
+}
+
+.screen--open {
+    opacity: 1;
+}
+
+.stack {
+    flex-grow: 0;
+    flex-direction: column;
+}
+
+.row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.panel {
+    background-color: var(--surface);
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
+    border-radius: var(--radius);
+    padding-left: var(--space-l);
+    padding-right: var(--space-l);
+    padding-top: var(--space-l);
+    padding-bottom: var(--space-l);
+
+    /* A panel arrives from slightly too small, which reads as it coming
+       forward rather than being switched on. */
+    scale: 0.97 0.97;
+    transition-property: scale;
+    transition-duration: var(--open-time);
+    transition-timing-function: var(--ease);
+}
+
+.screen--open .panel {
+    scale: 1 1;
+}
+
+.panel--narrow {
+    width: 320px;
+}
+
+.title {
+    color: var(--text);
+    font-size: var(--text-l);
+    -unity-text-align: middle-center;
+    margin-bottom: var(--space-l);
+}
+
+.hint {
+    color: var(--text-dim);
+    font-size: var(--text-s);
+}
+
+.button {
+    color: var(--text);
+    font-size: var(--text-m);
+    background-color: rgba(0, 0, 0, 0);
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
+    border-radius: var(--radius);
+    padding-top: var(--space-s);
+    padding-bottom: var(--space-s);
+    margin-top: var(--space-xs);
+    margin-bottom: var(--space-xs);
+    transition-property: background-color, color, border-color, scale;
+    transition-duration: var(--hover-time);
+    transition-timing-function: var(--ease);
+}
+
+/* Unity's default runtime theme paints its own focus, hover and press states
+   on .unity-button, and some of its rules carry more weight than a single
+   class of ours. So each state is written against both classes at once: equal
+   weight between themselves, heavier than anything the default theme has, and
+   in an order where being focused never overrides being hovered. */
+
+.unity-button.button:focus:enabled {
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+}
+
+.unity-button.button:hover:enabled {
+    color: var(--text-on-accent);
+    background-color: var(--accent);
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.unity-button.button:active:enabled {
+    background-color: var(--accent-pressed);
+    border-left-color: var(--accent-pressed);
+    border-right-color: var(--accent-pressed);
+    border-top-color: var(--accent-pressed);
+    border-bottom-color: var(--accent-pressed);
+
+    /* The press is felt rather than watched: nothing here waits for it. */
+    scale: 0.98 0.98;
+}
+
+.button:disabled {
+    color: var(--text-dim);
+    opacity: 0.6;
+}
+
+.unity-button.button--danger:hover:enabled {
+    background-color: var(--danger);
+    border-left-color: var(--danger);
+    border-right-color: var(--danger);
+    border-top-color: var(--danger);
+    border-bottom-color: var(--danger);
+}

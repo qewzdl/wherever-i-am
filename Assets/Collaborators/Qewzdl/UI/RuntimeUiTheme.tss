@@ -1,0 +1,7 @@
+/* The theme every runtime screen gets, whether it asks or not: it is assigned
+   once on the PanelSettings asset, so a new screen cannot be built without it.
+   That is the difference between a shared stylesheet and a convention people
+   remember to follow. */
+
+@import url("unity-theme://default");
+@import url("Theme.uss");
