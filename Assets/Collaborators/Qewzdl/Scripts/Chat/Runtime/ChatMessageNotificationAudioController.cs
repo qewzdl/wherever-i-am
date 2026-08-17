@@ -17,6 +17,10 @@ public class ChatMessageNotificationAudioController : MonoBehaviour, IUiSoundSer
     private bool isSubscribed;
     private IUiSoundService uiSoundService;
 
+    // Asked for on first use: this is a leaf, and whoever owns it may never
+    // have thought to hand it anything.
+    private IUiSoundService ResolvedUiSoundService => uiSoundService ??= AudioServices.Ui();
+
     public void Construct(IUiSoundService service)
     {
         uiSoundService = service;
@@ -141,12 +145,12 @@ public class ChatMessageNotificationAudioController : MonoBehaviour, IUiSoundSer
             return;
         }
 
-        if (uiSoundService == null)
+        if (ResolvedUiSoundService == null)
         {
             Debug.LogWarning($"{nameof(ChatMessageNotificationAudioController)}: UI sound service was not constructed.");
             return;
         }
 
-        uiSoundService.Play(sound);
+        ResolvedUiSoundService.Play(sound);
     }
 }

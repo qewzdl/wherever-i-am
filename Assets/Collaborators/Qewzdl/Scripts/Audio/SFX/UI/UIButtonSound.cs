@@ -9,6 +9,10 @@ public class UiButtonSound : MonoBehaviour, IPointerEnterHandler, IPointerClickH
 
     private IUiSoundService uiSoundService;
 
+    // Asked for on first use: this is a leaf, and whoever owns it may never
+    // have thought to hand it anything.
+    private IUiSoundService ResolvedUiSoundService => uiSoundService ??= AudioServices.Ui();
+
     public void Construct(IUiSoundService service)
     {
         uiSoundService = service;
@@ -23,13 +27,13 @@ public class UiButtonSound : MonoBehaviour, IPointerEnterHandler, IPointerClickH
     {
         if (!playHoverSound) return;
 
-        uiSoundService?.PlayHover();
+        ResolvedUiSoundService?.PlayHover();
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
         if (!playClickSound) return;
 
-        uiSoundService?.PlayClick();
+        ResolvedUiSoundService?.PlayClick();
     }
 }

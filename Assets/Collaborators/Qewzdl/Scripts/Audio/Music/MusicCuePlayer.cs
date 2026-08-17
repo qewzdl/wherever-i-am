@@ -12,6 +12,10 @@ public class MusicCuePlayer : MonoBehaviour, IMusicServiceConsumer
 
     private IMusicService musicService;
 
+    // Asked for on first use: this is a leaf, and whoever owns it may never
+    // have thought to hand it anything.
+    private IMusicService ResolvedMusicService => musicService ??= AudioServices.Music();
+
     public void Construct(IMusicService service)
     {
         musicService = service;
@@ -46,22 +50,22 @@ public class MusicCuePlayer : MonoBehaviour, IMusicServiceConsumer
             return;
         }
 
-        if (musicService == null)
+        if (ResolvedMusicService == null)
         {
             Debug.LogWarning("MusicCuePlayer: Music service was not constructed.");
             return;
         }
 
-        musicService.PlayCue(cue, restartIfSameCue);
+        ResolvedMusicService.PlayCue(cue, restartIfSameCue);
     }
 
     public void Stop()
     {
-        if (musicService == null)
+        if (ResolvedMusicService == null)
         {
             return;
         }
 
-        musicService.StopMusic();
+        ResolvedMusicService.StopMusic();
     }
 }

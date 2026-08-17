@@ -21,6 +21,10 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     private float lastInputSoundTime;
     private IUiSoundService uiSoundService;
 
+    // Asked for on first use: this is a leaf, and whoever owns it may never
+    // have thought to hand it anything.
+    private IUiSoundService ResolvedUiSoundService => uiSoundService ??= AudioServices.Ui();
+
     public event Action InputSoundPlayed;
 
     public void Construct(IUiSoundService service)
@@ -52,13 +56,13 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (!playHoverSound) return;
-        uiSoundService?.PlayHover();
+        ResolvedUiSoundService?.PlayHover();
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
         if (!playClickSound) return;
-        uiSoundService?.PlayClick();
+        ResolvedUiSoundService?.PlayClick();
     }
 
     public void SetInputSoundOverride(SoundEffect sound)
@@ -74,7 +78,7 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
             return;
         }
 
-        if (uiSoundService == null)
+        if (ResolvedUiSoundService == null)
         {
             previousText = newText;
             return;
@@ -93,15 +97,15 @@ public class UiInputSound : MonoBehaviour, IPointerEnterHandler, IPointerClickHa
 
     private void TryPlayInputSound()
     {
-        if (uiSoundService == null) return;
+        if (ResolvedUiSoundService == null) return;
 
         if (Time.unscaledTime - lastInputSoundTime < inputSoundCooldown) return;
 
         lastInputSoundTime = Time.unscaledTime;
 
         bool played = inputSoundOverride != null
-            ? uiSoundService.TryPlay(inputSoundOverride)
-            : uiSoundService.TryPlay(UiSoundType.Input);
+            ? ResolvedUiSoundService.TryPlay(inputSoundOverride)
+            : ResolvedUiSoundService.TryPlay(UiSoundType.Input);
 
         if (played)
         {

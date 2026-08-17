@@ -17,6 +17,10 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour, IUiSou
     private bool isSubscribed;
     private IUiSoundService uiSoundService;
 
+    // Asked for on first use: this is a leaf, and whoever owns it may never
+    // have thought to hand it anything.
+    private IUiSoundService ResolvedUiSoundService => uiSoundService ??= AudioServices.Ui();
+
     public AudioSource FallbackAudioSource => fallbackAudioSource;
 
     public void Construct(IUiSoundService service)
@@ -140,8 +144,8 @@ public sealed class PhoneChatNotificationAudioController : MonoBehaviour, IUiSou
             return false;
         }
 
-        if (uiSoundService != null)
-            return uiSoundService.TryPlay(sound);
+        if (ResolvedUiSoundService != null)
+            return ResolvedUiSoundService.TryPlay(sound);
 
         if (fallbackAudioSource == null)
         {

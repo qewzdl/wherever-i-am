@@ -22,7 +22,6 @@ public class ChatUiManager : SceneRuntimeFeature
     private IPlayerScopeRegistry playerScopes;
     private IGameStateService stateMachine;
     private IAudioService audioService;
-    private AudioServiceComposition audioComposition;
 
     protected override bool ValidateFeature(SceneFeatureContext context)
     {
@@ -72,15 +71,6 @@ public class ChatUiManager : SceneRuntimeFeature
 
         if (!SpawnChatUi())
             return false;
-
-        if (!AudioServiceComposition.TryCompose(
-                spawnedUi,
-                audioService,
-                out audioComposition))
-        {
-            DestroySpawnedUi();
-            return false;
-        }
 
         if (BindSpawnedUi())
             return true;
@@ -210,9 +200,6 @@ public class ChatUiManager : SceneRuntimeFeature
 
     private void DestroySpawnedUi()
     {
-        audioComposition?.Dispose();
-        audioComposition = null;
-
         if (spawnedUi == null)
             return;
 

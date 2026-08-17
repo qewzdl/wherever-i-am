@@ -20,7 +20,6 @@ internal sealed class SceneRuntimeScope : IDisposable
     private readonly SceneFeatureContext featureContext;
     private readonly SceneRuntimeFeature[] features;
     private readonly Func<ServiceScope, bool> readyValidator;
-    private AudioServiceComposition audioComposition;
     private readonly List<Exception> cleanupFailures = new();
     private int installedFeatureCount;
     private bool disposed;
@@ -138,16 +137,6 @@ internal sealed class SceneRuntimeScope : IDisposable
 
             if (scene.IsValid() && scene.isLoaded)
             {
-                IAudioService audioService = serviceScope.Resolve<IAudioService>();
-
-                if (!AudioServiceComposition.TryCompose(
-                        scene,
-                        audioService,
-                        out audioComposition))
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to compose audio consumers in scene '{sceneLabel}'.");
-                }
             }
         }
         catch (Exception exception)
@@ -233,7 +222,6 @@ internal sealed class SceneRuntimeScope : IDisposable
         ready = false;
         featureContext.DetachScopeLifetime();
         RollbackInstalledFeatures();
-        DisposeAudioComposition();
         DisposeServiceScope();
     }
 
@@ -244,7 +232,6 @@ internal sealed class SceneRuntimeScope : IDisposable
         ready = false;
         featureContext.DetachScopeLifetime();
         RollbackInstalledFeatures();
-        DisposeAudioComposition();
         RollbackRegistrations(registrationTransaction);
         DisposeServiceScope();
 
@@ -274,21 +261,6 @@ internal sealed class SceneRuntimeScope : IDisposable
         try
         {
             serviceScope.Dispose();
-        }
-        catch (Exception exception)
-        {
-            cleanupFailures.Add(exception);
-        }
-    }
-
-    private void DisposeAudioComposition()
-    {
-        AudioServiceComposition composition = audioComposition;
-        audioComposition = null;
-
-        try
-        {
-            composition?.Dispose();
         }
         catch (Exception exception)
         {

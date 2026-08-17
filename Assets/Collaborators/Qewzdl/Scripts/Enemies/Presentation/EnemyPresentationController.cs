@@ -47,6 +47,10 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
     private bool subscribedToNetworkState;
     private IGameplaySoundService gameplaySoundService;
 
+    // Asked for on first use: this is a leaf, and whoever owns it may never
+    // have thought to hand it anything.
+    private IGameplaySoundService ResolvedGameplaySoundService => gameplaySoundService ??= AudioServices.Gameplay();
+
     public EnemyAttackPhase CurrentAttackPhase => currentPresentedAttackPhase;
 
     private void Awake()
@@ -381,7 +385,7 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
             return;
         }
 
-        if (gameplaySoundService == null)
+        if (ResolvedGameplaySoundService == null)
         {
             return;
         }
@@ -389,11 +393,11 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         if (playAtEnemyPosition)
         {
             Transform origin = soundOrigin != null ? soundOrigin : transform;
-            gameplaySoundService.PlayAtPosition(sound, origin.position);
+            ResolvedGameplaySoundService.PlayAtPosition(sound, origin.position);
             return;
         }
 
-        gameplaySoundService.Play2D(sound);
+        ResolvedGameplaySoundService.Play2D(sound);
     }
 
     // A state with no entry used to pass in silence, leaving the animator in
