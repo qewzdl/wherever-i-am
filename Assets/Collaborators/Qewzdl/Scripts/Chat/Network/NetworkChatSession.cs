@@ -26,6 +26,10 @@ public class NetworkChatSession : NetworkBehaviour,
     [SerializeField] private string playerLeftMessageFormat = "{0} left the game.";
     [SerializeField] private string playerKickedMessageFormat =
         "{0} was removed by the host.";
+    [SerializeField] private string playerLostConnectionMessageFormat =
+        "{0} lost connection.";
+    [SerializeField] private string playerCameBackMessageFormat =
+        "{0} came back.";
 
     private readonly Dictionary<ulong, double> lastMessageTimeByClient = new Dictionary<ulong, double>();
     private readonly ChatMessageValidator messageValidator = new ChatMessageValidator();
@@ -541,7 +545,13 @@ public class NetworkChatSession : NetworkBehaviour,
         if (!CanAnnounceConnectionForClient(clientId))
             return;
 
-        AddConnectionSystemMessage(clientId, playerJoinedMessageFormat);
+        // Coming back is not arriving. The seat was theirs the whole time,
+        // and the room was told they might return.
+        AddConnectionSystemMessage(
+            clientId,
+            IsReconnectingClient(clientId)
+                ? playerCameBackMessageFormat
+                : playerJoinedMessageFormat);
     }
 
     private void HandleClientDisconnected(ulong clientId)
@@ -554,11 +564,33 @@ public class NetworkChatSession : NetworkBehaviour,
         // Leaving and being thrown out look the same from here, and telling
         // the room somebody left when the host removed them is the part that
         // reads as a bug to everyone watching.
-        AddConnectionSystemMessage(
-            clientId,
-            WasKickedFromSession(clientId)
-                ? playerKickedMessageFormat
-                : playerLeftMessageFormat);
+        AddConnectionSystemMessage(clientId, ResolveDisconnectFormat(clientId));
+    }
+
+    // Three different things arrive here as one event. Somebody removed by
+    // the host is not somebody who left; and somebody whose seat is being held
+    // for the next twenty seconds has not left either - saying so is what
+    // makes the room wait for them instead of starting without them.
+    private string ResolveDisconnectFormat(ulong clientId)
+    {
+        if (WasKickedFromSession(clientId))
+            return playerKickedMessageFormat;
+
+        return HoldsSeatForDisconnects()
+            ? playerLostConnectionMessageFormat
+            : playerLeftMessageFormat;
+    }
+
+    private static bool HoldsSeatForDisconnects()
+    {
+        return G.TryResolve(out INetworkSessionAdmissionService admissionService) &&
+               admissionService.HoldsSeatsForDisconnects;
+    }
+
+    private static bool IsReconnectingClient(ulong clientId)
+    {
+        return G.TryResolve(out INetworkSessionAdmissionService admissionService) &&
+               admissionService.IsReconnect(clientId);
     }
 
     private bool WasKickedFromSession(ulong clientId)

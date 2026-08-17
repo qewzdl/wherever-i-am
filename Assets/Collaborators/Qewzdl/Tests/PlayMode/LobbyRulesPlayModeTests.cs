@@ -115,6 +115,10 @@ internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionServi
         return true;
     }
 
+    internal bool SeatsHeld { get; set; } = true;
+
+    public bool HoldsSeatsForDisconnects => SeatsHeld;
+
     public bool WasKicked(ulong clientId)
     {
         return KickedClientIds.Remove(clientId);

@@ -256,6 +256,8 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
         return approvalConfig.CanAcceptRemoteClient(stateMachine.CurrentState);
     }
 
+    public bool HoldsSeatsForDisconnects => ShouldReserveDisconnectedPlayer();
+
     private bool ShouldReserveDisconnectedPlayer()
     {
         if (networkManager == null ||
