@@ -151,27 +151,12 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         ScheduleSave();
     }
 
-    // Camera feel, applied the moment it is touched, for the same reason field
-    // of view is: it is chosen by moving it and watching, not by picking a
-    // number and hoping. CameraLook re-reads Current on SettingsChanged, so
-    // nothing else has to be told.
-    public void SetCameraSmoothing(bool value)
-    {
-        EnsureInitialized();
-
-        if (current.cameraSmoothing == value)
-            return;
-
-        current.cameraSmoothing = value;
-        committed.cameraSmoothing = value;
-
-        if (activeSession != null)
-            activeSession.Draft.cameraSmoothing = value;
-
-        MarkChanged();
-        ScheduleSave();
-    }
-
+    // An immediate setter like the ones above: it commits as it is called, and
+    // keeps any open draft in step so that Apply cannot undo it afterwards.
+    // The settings screen no longer takes this route - everything a player
+    // touches there waits for Apply - but callers that do apply as they go are
+    // still served, and CameraLook re-reads Current on SettingsChanged either
+    // way.
     public void SetCameraSmoothingIntensity(float value)
     {
         EnsureInitialized();
@@ -295,15 +280,11 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         bool displayChanged = !committed.HasSameDisplaySettings(draft);
         GameSettingsData oldDisplay = committed.Clone();
 
-        // Immediate values are already committed while the window is open.
-        draft.masterVolume = committed.masterVolume;
-        draft.musicVolume = committed.musicVolume;
-        draft.effectsVolume = committed.effectsVolume;
-        draft.interfaceVolume = committed.interfaceVolume;
-        draft.mouseSensitivity = committed.mouseSensitivity;
-        draft.cameraSmoothing = committed.cameraSmoothing;
-        draft.cameraSmoothingIntensity = committed.cameraSmoothingIntensity;
-        draft.invertVerticalLook = committed.invertVerticalLook;
+        // The draft decides everything a player can reach in the settings
+        // screen: until this method runs, it is the only place their changes
+        // exist. The debug flags are the exception - the debug overlay writes
+        // them straight to committed and never touches the draft, so taking
+        // those from the draft would undo them behind the overlay's back.
         draft.debugShowPerformance = committed.debugShowPerformance;
         draft.debugShowPlayer = committed.debugShowPlayer;
         draft.debugShowNetwork = committed.debugShowNetwork;
@@ -352,14 +333,10 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         GameSettingsData defaults = CreateDefaults();
         session.Draft.CopyFrom(defaults);
 
-        // Sound and sensitivity follow the immediate rule even when reset.
-        SetMasterVolume(defaults.masterVolume);
-        SetMusicVolume(defaults.musicVolume);
-        SetEffectsVolume(defaults.effectsVolume);
-        SetInterfaceVolume(defaults.interfaceVolume);
-        SetInterfaceOpacity(defaults.interfaceOpacity);
-        SetCrosshairSize(defaults.crosshairSize);
-        SetMouseSensitivity(defaults.mouseSensitivity);
+        // Defaults are a proposal like any other change: they land in the draft
+        // and wait for Apply, so a player who pressed it by accident can still
+        // cancel. Only the debug flags act at once, because they do not go
+        // through the draft at all.
         SetDebugNoClipSpeed(defaults.debugNoClipSpeed);
         SetDebugSectionVisible("performance", defaults.debugShowPerformance);
         SetDebugSectionVisible("player", defaults.debugShowPlayer);

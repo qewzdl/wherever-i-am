@@ -134,13 +134,12 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
         if (!isOpen)
             return;
 
-        // Half of this screen applies as it is touched and half waits for
-        // Apply. Closing on the second half silently would throw away work the
-        // player believes they did, so it is asked about instead.
+        // Nothing here is applied until Apply, so closing silently would throw
+        // away everything the player has just set. It is asked about instead.
         if (HasStagedChanges())
         {
             question = PendingQuestion.DiscardChanges;
-            ShowConfirmation("Close without applying the graphics changes?");
+            ShowConfirmation("Close without applying the changes?");
             return;
         }
 
@@ -322,39 +321,34 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
         }
 
         BindToggle(root, "VerticalSync", value => session.Draft.verticalSync = value);
-        BindToggle(root, "CameraSmoothing", value => settingsService?.SetCameraSmoothing(value));
+        BindToggle(root, "CameraSmoothing", value => session.Draft.cameraSmoothing = value);
 
-        BindSlider(root, "FieldOfView", value => settingsService?.SetFieldOfView(value), FormatWhole);
+        BindSlider(root, "FieldOfView", value => session.Draft.fieldOfView = value, FormatWhole);
         BindSlider(
             root,
             "SmoothingIntensity",
-            value => settingsService?.SetCameraSmoothingIntensity(value),
+            value => session.Draft.cameraSmoothingIntensity = value,
             FormatPercent);
     }
 
-    // Volume and sensitivity are heard and felt while the slider moves, so the
-    // service applies them at once. ApplySession then takes them from what is
-    // already committed rather than from the draft - writing them into the
-    // draft, as the other settings are written, would have thrown them away on
-    // Apply. That is why some settings stuck and others did not.
     private void BindAudio(VisualElement root)
     {
-        BindSlider(root, "MasterVolume", value => settingsService?.SetMasterVolume(value), FormatPercent);
-        BindSlider(root, "MusicVolume", value => settingsService?.SetMusicVolume(value), FormatPercent);
-        BindSlider(root, "EffectsVolume", value => settingsService?.SetEffectsVolume(value), FormatPercent);
-        BindSlider(root, "InterfaceVolume", value => settingsService?.SetInterfaceVolume(value), FormatPercent);
+        BindSlider(root, "MasterVolume", value => session.Draft.masterVolume = value, FormatPercent);
+        BindSlider(root, "MusicVolume", value => session.Draft.musicVolume = value, FormatPercent);
+        BindSlider(root, "EffectsVolume", value => session.Draft.effectsVolume = value, FormatPercent);
+        BindSlider(root, "InterfaceVolume", value => session.Draft.interfaceVolume = value, FormatPercent);
     }
 
     private void BindControls(VisualElement root)
     {
-        BindSlider(root, "MouseSensitivity", value => settingsService?.SetMouseSensitivity(value), FormatWhole);
-        BindToggle(root, "InvertVerticalLook", value => settingsService?.SetInvertVerticalLook(value));
+        BindSlider(root, "MouseSensitivity", value => session.Draft.mouseSensitivity = value, FormatWhole);
+        BindToggle(root, "InvertVerticalLook", value => session.Draft.invertVerticalLook = value);
     }
 
     private void BindInterface(VisualElement root)
     {
-        BindSlider(root, "InterfaceOpacity", value => settingsService?.SetInterfaceOpacity(value), FormatPercent);
-        BindSlider(root, "CrosshairSize", value => settingsService?.SetCrosshairSize(value), FormatPercent);
+        BindSlider(root, "InterfaceOpacity", value => session.Draft.interfaceOpacity = value, FormatPercent);
+        BindSlider(root, "CrosshairSize", value => session.Draft.crosshairSize = value, FormatPercent);
     }
 
     private void BindFooter(VisualElement root)
@@ -497,29 +491,25 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
             ShowDisplayConfirmation();
     }
 
-    // Which settings wait for Apply, in one place, and the rule behind the list
-    // is one sentence: everything applies at once except what rebuilds the
-    // screen. Those are the ones worth a deliberate press, and the only ones a
-    // player might need to undo blind.
+    // Nothing on this screen takes effect before Apply, so the question is the
+    // simple one: does the draft still say what the game is already doing.
+    //
+    // Compared as text rather than field by field. A written-out list of
+    // comparisons has to be extended every time a setting is added, and the day
+    // somebody forgets is the day Apply sits grey over real changes - a failure
+    // this screen has had once already. Settings are stored as JSON anyway, so
+    // this is the same notion of equality that persistence uses.
     private bool HasStagedChanges()
     {
         if (session == null || session.IsCompleted || settingsService == null)
             return false;
 
-        GameSettingsData draft = session.Draft;
-        GameSettingsData current = settingsService.Current;
-
-        return draft.resolutionWidth != current.resolutionWidth ||
-               draft.resolutionHeight != current.resolutionHeight ||
-               draft.fullScreenMode != current.fullScreenMode ||
-               draft.qualityLevel != current.qualityLevel ||
-               draft.verticalSync != current.verticalSync ||
-               draft.frameRateLimit != current.frameRateLimit;
+        return JsonUtility.ToJson(session.Draft) != JsonUtility.ToJson(settingsService.Current);
     }
 
-    // The button says whether there is anything to apply. Half this screen acts
-    // at once, so an Apply that always looks available suggests the other half
-    // did nothing until it was pressed.
+    // The button says whether there is anything to apply, which is also how the
+    // player learns that this screen waits: it lights up the moment they touch
+    // something, and goes out again when they put it back.
     private void RefreshApplyButton()
     {
         applyButton?.SetEnabled(HasStagedChanges());
