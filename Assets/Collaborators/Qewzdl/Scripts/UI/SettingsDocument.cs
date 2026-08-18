@@ -159,15 +159,43 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
     // service finishes the revert on its own.
     private void Update()
     {
-        if (!isOpen ||
-            settingsService == null ||
-            !settingsService.IsDisplayConfirmationPending)
+        if (!isOpen || settingsService == null)
+            return;
+
+        if (settingsService.IsDisplayConfirmationPending)
         {
+            // A question the player is already looking at is not talked over.
+            // Applying a resolution and then editing something else leaves both
+            // questions wanting the one panel, and the countdown does not need
+            // an answer to end - it reverts by itself if nobody gets to it.
+            if (question == PendingQuestion.None ||
+                question == PendingQuestion.DisplayConfirmation)
+            {
+                question = PendingQuestion.DisplayConfirmation;
+                ShowDisplayConfirmation();
+            }
+
             return;
         }
 
-        question = PendingQuestion.DisplayConfirmation;
-        ShowDisplayConfirmation();
+        // The countdown ran out and the service reverted by itself. Nobody
+        // pressed anything, so nobody takes the question down either - unless
+        // it happens here. Without this the panel stands there reading
+        // "Reverting in 1 s" over a screen that has already gone back.
+        if (question == PendingQuestion.DisplayConfirmation)
+            FinishDisplayConfirmation();
+    }
+
+    // However the display question ends - either button, or the countdown
+    // running out - the draft is left describing a resolution that may no
+    // longer be the one on screen, so it is thrown away and taken again.
+    private void FinishDisplayConfirmation()
+    {
+        CancelSession();
+        session = settingsService?.BeginEdit();
+        RefreshFromDraft();
+        question = PendingQuestion.None;
+        HideConfirmation();
     }
 
     private bool Bind()
@@ -542,7 +570,8 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
 
             case PendingQuestion.DisplayConfirmation:
                 settingsService?.ConfirmDisplayChanges();
-                break;
+                FinishDisplayConfirmation();
+                return;
         }
 
         question = PendingQuestion.None;
@@ -556,10 +585,8 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
         {
             case PendingQuestion.DisplayConfirmation:
                 settingsService?.RevertDisplayChanges();
-                CancelSession();
-                session = settingsService?.BeginEdit();
-                RefreshFromDraft();
-                break;
+                FinishDisplayConfirmation();
+                return;
         }
 
         question = PendingQuestion.None;
