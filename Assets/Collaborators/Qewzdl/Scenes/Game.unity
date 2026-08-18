@@ -1038,11 +1038,26 @@ MonoBehaviour:
     trigger: 3
     sound: 0
   - className: unity-base-slider
+    trigger: 0
+    sound: 1
+  - className: unity-base-slider
     trigger: 4
     sound: 8
   - className: unity-toggle
+    trigger: 0
+    sound: 1
+  - className: unity-toggle
     trigger: 5
     sound: 9
+  - className: unity-base-popup-field
+    trigger: 0
+    sound: 1
+  - className: unity-base-popup-field
+    trigger: 1
+    sound: 0
+  - className: unity-base-popup-field
+    trigger: 2
+    sound: 0
   valueChangeInterval: 0.05
 --- !u!114 &556307081
 MonoBehaviour:
@@ -1479,11 +1494,26 @@ MonoBehaviour:
     trigger: 3
     sound: 0
   - className: unity-base-slider
+    trigger: 0
+    sound: 1
+  - className: unity-base-slider
     trigger: 4
     sound: 8
   - className: unity-toggle
+    trigger: 0
+    sound: 1
+  - className: unity-toggle
     trigger: 5
     sound: 9
+  - className: unity-base-popup-field
+    trigger: 0
+    sound: 1
+  - className: unity-base-popup-field
+    trigger: 1
+    sound: 0
+  - className: unity-base-popup-field
+    trigger: 2
+    sound: 0
   valueChangeInterval: 0.05
 --- !u!1001 &1615178676
 PrefabInstance:

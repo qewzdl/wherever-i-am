@@ -15,6 +15,9 @@ public enum UiSoundTrigger
 
 // Which class, on which event, plays which sound. A screen earns its sounds by
 // naming its elements, not by anybody writing code for it.
+//
+// Everything the pointer can reach answers to it: a control that is silent
+// under the cursor reads as one that cannot be used.
 [Serializable]
 public struct UiElementSoundBinding
 {
@@ -55,8 +58,17 @@ public sealed class UiDocumentSounds : MonoBehaviour
         new UiElementSoundBinding("button--danger", UiSoundTrigger.Click, UiSoundType.Confirm),
         new UiElementSoundBinding("input", UiSoundTrigger.TextChanged, UiSoundType.Input),
         new UiElementSoundBinding("input", UiSoundTrigger.FocusIn, UiSoundType.Click),
+        new UiElementSoundBinding("unity-base-slider", UiSoundTrigger.PointerEnter, UiSoundType.Hover),
         new UiElementSoundBinding("unity-base-slider", UiSoundTrigger.ValueChanged, UiSoundType.Slider),
-        new UiElementSoundBinding("unity-toggle", UiSoundTrigger.Toggled, UiSoundType.Checkbox)
+        new UiElementSoundBinding("unity-toggle", UiSoundTrigger.PointerEnter, UiSoundType.Hover),
+        new UiElementSoundBinding("unity-toggle", UiSoundTrigger.Toggled, UiSoundType.Checkbox),
+        new UiElementSoundBinding("unity-base-popup-field", UiSoundTrigger.PointerEnter, UiSoundType.Hover),
+        new UiElementSoundBinding("unity-base-popup-field", UiSoundTrigger.Click, UiSoundType.Click),
+
+        // The list opens on pointer down and takes the pointer with it, so the
+        // click that opens it may never arrive here. Choosing from the list
+        // does arrive, and that is the half worth hearing anyway.
+        new UiElementSoundBinding("unity-base-popup-field", UiSoundTrigger.TextChanged, UiSoundType.Click)
     };
 
     // A dragged slider reports a change every frame it moves. Played as they
