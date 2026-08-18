@@ -1,202 +1,1274 @@
-/* The one place a screen's looks are decided.
- *
- * Two layers on purpose. The palette says which colours exist; the roles say
- * what each colour is for. Screens only ever ask for a role, so re-skinning
- * the game is a change here and nowhere else - and a role can be repointed
- * without hunting down every screen that used the colour behind it.
- *
- * Class naming is block, element, modifier: .panel, .panel__header,
- * .panel--narrow. A modifier never appears on its own; it rides on the block
- * it modifies, the way .button--danger does.
- */
+/* ==========================================================================
+   GLOBAL UI THEME
+   ========================================================================== */
 
 :root {
-    /* Palette */
+    /* ======================================================================
+       PALETTE
+       ====================================================================== */
+
     --palette-black: rgb(6, 6, 6);
+
     --palette-gray-950: rgb(17, 17, 17);
     --palette-gray-800: rgb(46, 46, 46);
+    --palette-gray-700: rgb(74, 74, 74);
     --palette-gray-500: rgb(138, 138, 138);
     --palette-gray-200: rgb(226, 226, 226);
+
     --palette-white: rgb(245, 245, 245);
 
-    /* Roles */
+
+    /* ======================================================================
+       SEMANTIC COLORS
+       ====================================================================== */
+
     --veil: rgba(6, 6, 6, 0.88);
 
     --surface: var(--palette-gray-950);
+    --surface-hover: var(--palette-gray-800);
+
     --line: var(--palette-gray-800);
+    --line-hover: var(--palette-gray-700);
 
     --text: var(--palette-gray-200);
     --text-dim: var(--palette-gray-500);
+    --text-disabled: var(--palette-gray-700);
     --text-on-accent: var(--palette-black);
 
     --accent: var(--palette-white);
     --accent-pressed: var(--palette-gray-500);
+
     --danger: var(--palette-gray-200);
+
+
+    /* ======================================================================
+       SPACING
+       ====================================================================== */
 
     --space-xs: 4px;
     --space-s: 8px;
     --space-m: 16px;
     --space-l: 28px;
 
+
+    /* ======================================================================
+       TYPOGRAPHY
+       ====================================================================== */
+
     --text-s: 16px;
     --text-m: 20px;
     --text-l: 40px;
+
+
+    /* ======================================================================
+       FORM LAYOUT
+       ====================================================================== */
+
+    --label-width: 200px;
+    --control-width: 260px;
+    --control-height: 36px;
+
+
+    /* ======================================================================
+       SCROLLBAR
+       ====================================================================== */
+
+    --scrollbar-width: 12px;
+    --scrollbar-thumb-width: 6px;
+
+
+    /* ======================================================================
+       SHAPE
+       ====================================================================== */
 
     --radius: 2px;
     --border: 1px;
 
 
-    --hover-time: 0.15s;
-    --open-time: 0.2s;
-    --ease: ease-out;
+    /* ======================================================================
+       MOTION
+       ====================================================================== */
+
+    --motion-fast: 0.10s;
+    --motion-normal: 0.15s;
+    --motion-screen: 0.20s;
+
+    --ease-standard: ease-out;
 }
 
-/* Layout helpers, so a screen's own stylesheet stays about that screen. */
+
+/* ==========================================================================
+   SCREEN
+   ========================================================================== */
 
 .screen {
-    /* Text properties inherit, so one line at the root of a screen dresses
-       everything inside it. This is a TextCore font asset - the TMP ones the
-       rest of the game uses are a different class and render nothing here. */
-    -unity-font-definition: url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
+    -unity-font-definition:
+        url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
+
     position: absolute;
+
     left: 0;
     right: 0;
     top: 0;
     bottom: 0;
-    background-color: var(--veil);
+
     align-items: center;
     justify-content: center;
 
-    /* Screens fade rather than appear. Opacity is animatable; display is not,
-       which is why hiding waits for the fade instead of cutting it off. */
+    background-color: var(--veil);
+
     opacity: 0;
+
     transition-property: opacity;
-    transition-duration: var(--open-time);
-    transition-timing-function: var(--ease);
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
 }
+
 
 .screen--open {
     opacity: 1;
 }
+
+
+/* ==========================================================================
+   LAYOUT
+   ========================================================================== */
 
 .stack {
     flex-grow: 0;
     flex-direction: column;
 }
 
+
 .row {
     flex-direction: row;
     align-items: center;
 }
 
+
+/* ==========================================================================
+   PANEL
+   ========================================================================== */
+
 .panel {
     background-color: var(--surface);
+
     border-left-color: var(--line);
     border-right-color: var(--line);
     border-top-color: var(--line);
     border-bottom-color: var(--line);
+
     border-left-width: var(--border);
     border-right-width: var(--border);
     border-top-width: var(--border);
     border-bottom-width: var(--border);
+
     border-radius: var(--radius);
+
     padding-left: var(--space-l);
     padding-right: var(--space-l);
     padding-top: var(--space-l);
     padding-bottom: var(--space-l);
 
-    /* A panel arrives from slightly too small, which reads as it coming
-       forward rather than being switched on. */
     scale: 0.97 0.97;
+
     transition-property: scale;
-    transition-duration: var(--open-time);
-    transition-timing-function: var(--ease);
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
 }
+
 
 .screen--open .panel {
     scale: 1 1;
 }
 
+
 .panel--narrow {
     width: 320px;
 }
 
+
+.panel--dialog {
+    width: 440px;
+}
+
+
+.panel--wide {
+    width: 720px;
+}
+
+
+/* ==========================================================================
+   TYPOGRAPHY
+   ========================================================================== */
+
 .title {
     color: var(--text);
     font-size: var(--text-l);
-    -unity-text-align: middle-center;
+
     margin-bottom: var(--space-l);
+
+    white-space: normal;
+
+    -unity-text-align: middle-center;
 }
+
+
+.question {
+    color: var(--text);
+    font-size: var(--text-m);
+
+    white-space: normal;
+
+    -unity-text-align: middle-center;
+}
+
 
 .hint {
     color: var(--text-dim);
     font-size: var(--text-s);
+
+    white-space: normal;
+
+    -unity-text-align: middle-center;
 }
+
+
+.section {
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    margin-top: var(--space-m);
+    margin-bottom: var(--space-xs);
+}
+
+
+/* ==========================================================================
+   BUTTON
+   ========================================================================== */
 
 .button {
     color: var(--text);
     font-size: var(--text-m);
+
     background-color: rgba(0, 0, 0, 0);
+
     border-left-color: var(--line);
     border-right-color: var(--line);
     border-top-color: var(--line);
     border-bottom-color: var(--line);
+
     border-left-width: var(--border);
     border-right-width: var(--border);
     border-top-width: var(--border);
     border-bottom-width: var(--border);
+
     border-radius: var(--radius);
+
     padding-top: var(--space-s);
     padding-bottom: var(--space-s);
+
     margin-top: var(--space-xs);
     margin-bottom: var(--space-xs);
-    transition-property: background-color, color, border-color, scale;
-    transition-duration: var(--hover-time);
-    transition-timing-function: var(--ease);
+
+    scale: 1 1;
+
+    transition-property:
+        color,
+        background-color,
+        border-left-color,
+        border-right-color,
+        border-top-color,
+        border-bottom-color,
+        scale;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
 }
 
-/* Unity's default runtime theme paints its own focus, hover and press states
-   on .unity-button, and some of its rules carry more weight than a single
-   class of ours. So each state is written against both classes at once: equal
-   weight between themselves, heavier than anything the default theme has, and
-   in an order where being focused never overrides being hovered. */
 
 .unity-button.button:focus:enabled {
+    color: var(--text);
+
+    background-color: rgba(0, 0, 0, 0);
+
     border-left-color: var(--line);
     border-right-color: var(--line);
     border-top-color: var(--line);
     border-bottom-color: var(--line);
 }
 
+
 .unity-button.button:hover:enabled {
     color: var(--text-on-accent);
+
     background-color: var(--accent);
+
     border-left-color: var(--accent);
     border-right-color: var(--accent);
     border-top-color: var(--accent);
     border-bottom-color: var(--accent);
 }
 
+
 .unity-button.button:active:enabled {
+    color: var(--text-on-accent);
+
     background-color: var(--accent-pressed);
+
     border-left-color: var(--accent-pressed);
     border-right-color: var(--accent-pressed);
     border-top-color: var(--accent-pressed);
     border-bottom-color: var(--accent-pressed);
 
-    /* The press is felt rather than watched: nothing here waits for it. */
     scale: 0.98 0.98;
+
+    transition-duration: var(--motion-fast);
 }
 
-.button:disabled {
-    color: var(--text-dim);
-    opacity: 0.6;
+
+.unity-button.button:disabled {
+    color: var(--text-disabled);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--text-disabled);
+    border-right-color: var(--text-disabled);
+    border-top-color: var(--text-disabled);
+    border-bottom-color: var(--text-disabled);
+
+    opacity: 1;
+
+    scale: 1 1;
 }
+
+
+/* ==========================================================================
+   DANGER BUTTON
+   ========================================================================== */
 
 .unity-button.button--danger:hover:enabled {
+    color: var(--text-on-accent);
+
     background-color: var(--danger);
+
     border-left-color: var(--danger);
     border-right-color: var(--danger);
     border-top-color: var(--danger);
     border-bottom-color: var(--danger);
+}
+
+
+.unity-button.button--danger:active:enabled {
+    color: var(--text-on-accent);
+
+    background-color: var(--accent-pressed);
+
+    border-left-color: var(--accent-pressed);
+    border-right-color: var(--accent-pressed);
+    border-top-color: var(--accent-pressed);
+    border-bottom-color: var(--accent-pressed);
+
+    scale: 0.98 0.98;
+}
+
+
+/* ==========================================================================
+   OVERLAY
+   ========================================================================== */
+
+.overlay {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    align-items: center;
+    justify-content: center;
+
+    background-color: var(--veil);
+}
+
+
+/* ==========================================================================
+   TABS
+   ========================================================================== */
+
+.tabs {
+    flex-direction: row;
+
+    margin-bottom: var(--space-m);
+}
+
+
+.tab {
+    color: var(--text-dim);
+    font-size: var(--text-m);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: var(--border);
+
+    border-bottom-color: var(--surface);
+
+    border-radius: 0;
+
+    padding-left: var(--space-m);
+    padding-right: var(--space-m);
+    padding-top: var(--space-s);
+    padding-bottom: var(--space-s);
+
+    margin-right: var(--space-xs);
+
+    transition-property:
+        color,
+        border-bottom-color;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.unity-button.tab:focus:enabled {
+    color: var(--text-dim);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-bottom-color: var(--surface);
+}
+
+
+.unity-button.tab:hover:enabled {
+    color: var(--text);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-bottom-color: var(--line-hover);
+}
+
+
+.tab--active {
+    color: var(--text);
+
+    border-bottom-color: var(--accent);
+}
+
+
+.unity-button.tab--active:focus:enabled {
+    color: var(--text);
+
+    border-bottom-color: var(--accent);
+}
+
+
+.unity-button.tab--active:hover:enabled {
+    color: var(--text);
+
+    border-bottom-color: var(--accent);
+}
+
+
+/* ==========================================================================
+   PAGE
+   ========================================================================== */
+
+.page {
+    flex-grow: 1;
+}
+
+
+/* ==========================================================================
+   FORM FIELD
+   ========================================================================== */
+
+.field {
+    flex-direction: row;
+    align-items: center;
+
+    margin-top: var(--space-xs);
+    margin-bottom: var(--space-xs);
+}
+
+
+.field__label {
+    width: var(--label-width);
+
+    flex-shrink: 0;
+
+    align-self: stretch;
+
+    color: var(--text);
+    font-size: var(--text-s);
+
+    -unity-text-align: middle-left;
+}
+
+
+.field__control {
+    width: var(--control-width);
+
+    flex-shrink: 0;
+
+    align-items: center;
+
+    margin-top: 0;
+    margin-bottom: 0;
+
+    color: var(--text);
+}
+
+
+.field__value {
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    margin-left: var(--space-s);
+
+    align-self: stretch;
+
+    -unity-text-align: middle-left;
+}
+
+
+/* ==========================================================================
+   FOOTER
+   ========================================================================== */
+
+.footer {
+    flex-direction: row;
+    justify-content: flex-end;
+
+    margin-top: var(--space-l);
+}
+
+
+.footer .button {
+    margin-left: var(--space-s);
+
+    padding-left: var(--space-m);
+    padding-right: var(--space-m);
+}
+
+
+/* ==========================================================================
+   SLIDER
+   ========================================================================== */
+
+.field__control .unity-base-slider__tracker {
+    background-color: var(--line);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    transition-property: background-color;
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.field__control:hover .unity-base-slider__tracker {
+    background-color: var(--line-hover);
+}
+
+
+.field__control .unity-base-slider__dragger {
+    background-color: var(--text);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-radius: var(--radius);
+
+    scale: 1 1;
+
+    transition-property:
+        background-color,
+        scale;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.field__control:hover .unity-base-slider__dragger {
+    background-color: var(--accent);
+
+    scale: 1.08 1.08;
+}
+
+
+/* ==========================================================================
+   DROPDOWN FIELD
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   CLOSED FIELD
+   -------------------------------------------------------------------------- */
+
+.field__control .unity-base-popup-field__input {
+    min-height: var(--control-height);
+
+    flex-direction: row;
+    align-items: center;
+
+    background-color: var(--surface);
+
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
+
+    border-radius: var(--radius);
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+
+    margin-left: 0;
+    margin-right: 0;
+
+    transition-property:
+        background-color,
+        border-left-color,
+        border-right-color,
+        border-top-color,
+        border-bottom-color;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+/* --------------------------------------------------------------------------
+   SELECTED VALUE
+   -------------------------------------------------------------------------- */
+
+.field__control .unity-base-popup-field__text {
+    flex-grow: 1;
+
+    color: var(--text);
+    font-size: var(--text-s);
+
+    -unity-text-align: middle-left;
+
+    transition-property: color;
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+/* --------------------------------------------------------------------------
+   ARROW
+   -------------------------------------------------------------------------- */
+
+.field__control .unity-base-popup-field__arrow {
+    width: 12px;
+    height: 12px;
+
+    margin-left: var(--space-s);
+
+    opacity: 0.65;
+
+    -unity-background-image-tint-color: var(--text);
+
+    transition-property:
+        opacity,
+        scale,
+        -unity-background-image-tint-color;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+/* --------------------------------------------------------------------------
+   FIELD HOVER
+   -------------------------------------------------------------------------- */
+
+.field__control:hover .unity-base-popup-field__input {
+    background-color: var(--accent);
+
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+
+.field__control:hover .unity-base-popup-field__text {
+    color: var(--text-on-accent);
+}
+
+
+.field__control:hover .unity-base-popup-field__arrow {
+    opacity: 1;
+
+    -unity-background-image-tint-color: var(--text-on-accent);
+}
+
+
+/* --------------------------------------------------------------------------
+   FIELD ACTIVE
+   -------------------------------------------------------------------------- */
+
+.field__control:active .unity-base-popup-field__input {
+    background-color: var(--accent-pressed);
+
+    border-left-color: var(--accent-pressed);
+    border-right-color: var(--accent-pressed);
+    border-top-color: var(--accent-pressed);
+    border-bottom-color: var(--accent-pressed);
+}
+
+
+.field__control:active .unity-base-popup-field__text {
+    color: var(--text-on-accent);
+}
+
+
+.field__control:active .unity-base-popup-field__arrow {
+    -unity-background-image-tint-color: var(--text-on-accent);
+}
+
+
+/* ==========================================================================
+   OPEN DROPDOWN
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   POPUP CONTAINER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer {
+    background-color: var(--surface);
+
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
+
+    border-radius: var(--radius);
+
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+
+.unity-base-dropdown__container-inner {
+    background-color: var(--surface);
+
+    color: var(--text);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   CHECKMARK
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__checkmark {
+    display: none;
+}
+
+
+/* ==========================================================================
+   DROPDOWN SCROLLBAR
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   VERTICAL SCROLLER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller {
+    width: var(--scrollbar-width);
+    min-width: var(--scrollbar-width);
+
+    background-color: var(--surface);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   REMOVE ALL SCROLLBAR BORDERS
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller .unity-scroller__slider,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller .unity-base-slider__input,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller .unity-base-slider__drag-container,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller .unity-base-slider__tracker,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller .unity-base-slider__dragger,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller .unity-base-slider__dragger-border {
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   REMOVE VIEWPORT / CONTENT SEPARATOR
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__content-and-vertical-scroll-container,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__content-viewport,
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__content-container {
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   REMOVE SCROLL ARROWS
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroller__low-button,
+
+.unity-base-dropdown__container-outer
+.unity-scroller__high-button {
+    display: none;
+}
+
+
+/* --------------------------------------------------------------------------
+   SCROLLER SLIDER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroller__slider {
+    flex-grow: 1;
+
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+
+    background-color: var(--surface);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   SCROLLBAR INPUT
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroller__slider
+.unity-base-slider__input {
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   SCROLLBAR DRAG CONTAINER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroller__slider
+.unity-base-slider__drag-container {
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   SCROLLBAR TRACK
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroller__slider
+.unity-base-slider__tracker {
+    width: 2px;
+
+    align-self: center;
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-radius: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   SCROLLBAR THUMB
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroller__slider
+.unity-base-slider__dragger {
+    width: var(--scrollbar-thumb-width);
+
+    background-color: var(--palette-gray-700);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-radius: 0;
+
+    scale: 1 1;
+
+    transition-property:
+        background-color,
+        scale;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+/* --------------------------------------------------------------------------
+   REMOVE DEFAULT THUMB BORDER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroller__slider
+.unity-base-slider__dragger-border {
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   SCROLLBAR HOVER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller:hover
+.unity-base-slider__tracker {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+
+.unity-base-dropdown__container-outer
+.unity-scroll-view__vertical-scroller:hover
+.unity-base-slider__dragger {
+    background-color: var(--palette-gray-500);
+}
+
+
+/* --------------------------------------------------------------------------
+   SCROLLBAR THUMB ACTIVE
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__container-outer
+.unity-base-slider__dragger:active {
+    background-color: var(--accent);
+}
+
+
+/* ==========================================================================
+   DROPDOWN ITEM
+   ========================================================================== */
+
+.unity-base-dropdown__item {
+    min-height: 34px;
+
+    flex-direction: row;
+    align-items: center;
+
+    color: var(--text-dim);
+    background-color: var(--surface);
+
+    border-left-color: var(--surface);
+
+    border-left-width: 2px;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-radius: 0;
+
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+    padding-top: 0;
+    padding-bottom: 0;
+
+    transition-property:
+        color,
+        background-color,
+        border-left-color;
+
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+/* --------------------------------------------------------------------------
+   ITEM TEXT
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item TextElement,
+.unity-base-dropdown__item Label {
+    flex-grow: 1;
+
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    -unity-text-align: middle-left;
+
+    transition-property: color;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+/* --------------------------------------------------------------------------
+   ITEM HOVER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:hover {
+    color: var(--text);
+
+    background-color: var(--surface-hover);
+
+    border-left-color: var(--line-hover);
+}
+
+
+.unity-base-dropdown__item.unity-base-dropdown__item:hover TextElement,
+.unity-base-dropdown__item.unity-base-dropdown__item:hover Label {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   ITEM ACTIVE
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:active {
+    color: var(--text);
+
+    background-color: var(--palette-gray-700);
+
+    border-left-color: var(--accent);
+}
+
+
+.unity-base-dropdown__item.unity-base-dropdown__item:active TextElement,
+.unity-base-dropdown__item.unity-base-dropdown__item:active Label {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   ITEM SELECTED
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:checked {
+    color: var(--text);
+
+    background-color: var(--surface);
+
+    border-left-color: var(--accent);
+}
+
+
+.unity-base-dropdown__item.unity-base-dropdown__item:checked TextElement,
+.unity-base-dropdown__item.unity-base-dropdown__item:checked Label {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   ITEM FOCUS
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:focus {
+    color: var(--text);
+
+    background-color: var(--surface);
+
+    border-left-color: var(--accent);
+}
+
+
+.unity-base-dropdown__item.unity-base-dropdown__item:focus TextElement,
+.unity-base-dropdown__item.unity-base-dropdown__item:focus Label {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   SELECTED + HOVER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:checked:hover {
+    color: var(--text);
+
+    background-color: var(--surface-hover);
+
+    border-left-color: var(--accent);
+}
+
+
+.unity-base-dropdown__item.unity-base-dropdown__item:checked:hover TextElement,
+.unity-base-dropdown__item.unity-base-dropdown__item:checked:hover Label {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   FOCUS + HOVER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:focus:hover {
+    color: var(--text);
+
+    background-color: var(--surface-hover);
+
+    border-left-color: var(--accent);
+}
+
+
+.unity-base-dropdown__item.unity-base-dropdown__item:focus:hover TextElement,
+.unity-base-dropdown__item.unity-base-dropdown__item:focus:hover Label {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   SELECTED + FOCUS
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:checked:focus {
+    color: var(--text);
+
+    background-color: var(--surface);
+
+    border-left-color: var(--accent);
+}
+
+
+/* --------------------------------------------------------------------------
+   SELECTED + FOCUS + HOVER
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:checked:focus:hover {
+    color: var(--text);
+
+    background-color: var(--surface-hover);
+
+    border-left-color: var(--accent);
+}
+
+
+/* --------------------------------------------------------------------------
+   ITEM DISABLED
+   -------------------------------------------------------------------------- */
+
+.unity-base-dropdown__item.unity-base-dropdown__item:disabled {
+    color: var(--text-disabled);
+
+    background-color: var(--surface);
+
+    border-left-color: var(--surface);
+
+    opacity: 1;
+}
+
+
+.unity-base-dropdown__item.unity-base-dropdown__item:disabled TextElement,
+.unity-base-dropdown__item.unity-base-dropdown__item:disabled Label {
+    color: var(--text-disabled);
 }

@@ -21,6 +21,9 @@ public interface ISettingsService
     void SetCrosshairSize(float value);
     void SetMouseSensitivity(float value);
     void SetFieldOfView(float value);
+    void SetCameraSmoothing(bool value);
+    void SetCameraSmoothingIntensity(float value);
+    void SetInvertVerticalLook(bool value);
 
     void SetDebugSectionVisible(string sectionId, bool visible);
     void SetDebugNoClipSpeed(float value);

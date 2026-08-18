@@ -16,9 +16,7 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
     [SerializeField] private HUDUI hudUI;
     [SerializeField] private UiDocumentSounds sounds;
 
-    // Settings are still a uGUI window. Opening one from here is what a partial
-    // move looks like, and it costs a single call.
-    [SerializeField] private SettingsWindow settingsWindow;
+    [SerializeField] private SettingsDocument settingsScreen;
 
     private IPauseService pauseService;
     private INetworkSessionService sessionService;
@@ -46,6 +44,14 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
 
         if (sounds == null)
             sounds = GetComponent<UiDocumentSounds>();
+    }
+
+    // Harmless before the scene feature constructs it: an invisible screen that
+    // still swallows clicks reads as a fault in whatever it happens to cover.
+    private void OnEnable()
+    {
+        if (TryBindDocument())
+            SetScreenVisible(false);
     }
 
     public void Construct(
@@ -186,8 +192,8 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
 
     private void OpenSettings()
     {
-        if (settingsWindow != null)
-            settingsWindow.Open();
+        if (settingsScreen != null)
+            settingsScreen.Open();
     }
 
     private void ReturnToMainMenu()
@@ -220,6 +226,12 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
         // teardown as well, and a pause sound on entering the level would be a
         // strange way to start a match.
         bool wasOpen = screen != null && screen.ClassListContains(OpenClass);
+
+        // Settings open from here, so they close from here too. Without this a
+        // player who unpauses with the key walks away with the settings screen
+        // still standing over the game.
+        if (settingsScreen != null)
+            settingsScreen.Close();
 
         SetScreenVisible(false);
 

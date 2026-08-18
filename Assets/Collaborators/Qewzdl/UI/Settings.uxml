@@ -1,0 +1,109 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <ui:VisualElement name="Screen" class="screen">
+        <ui:VisualElement name="Panel" class="panel panel--wide">
+            <ui:Label text="Settings" name="Title" class="title" />
+            <ui:VisualElement name="Tabs" class="tabs">
+                <ui:Button text="Graphics" name="GraphicsTab" class="button tab" />
+                <ui:Button text="Audio" name="AudioTab" class="button tab" />
+                <ui:Button text="Controls" name="ControlsTab" class="button tab" />
+                <ui:Button text="Interface" name="InterfaceTab" class="button tab" />
+            </ui:VisualElement>
+            <ui:VisualElement name="GraphicsPage" class="page">
+                <ui:VisualElement class="field">
+                    <ui:Label text="Resolution" class="field__label" />
+                    <ui:DropdownField name="Resolution" class="field__control" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Display mode" class="field__label" />
+                    <ui:DropdownField name="DisplayMode" class="field__control" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Quality" class="field__label" />
+                    <ui:DropdownField name="Quality" class="field__control" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Frame rate" class="field__label" />
+                    <ui:DropdownField name="FrameRate" class="field__control" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Vertical sync" class="field__label" />
+                    <ui:Toggle name="VerticalSync" class="field__control" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Field of view" class="field__label" />
+                    <ui:Slider name="FieldOfView" low-value="60" high-value="110" class="field__control" />
+                    <ui:Label name="FieldOfViewValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Camera smoothing" class="field__label" />
+                    <ui:Toggle name="CameraSmoothing" class="field__control" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Smoothing amount" class="field__label" />
+                    <ui:Slider name="SmoothingIntensity" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="SmoothingIntensityValue" class="field__value" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="AudioPage" class="page">
+                <ui:VisualElement class="field">
+                    <ui:Label text="Master" class="field__label" />
+                    <ui:Slider name="MasterVolume" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="MasterVolumeValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Music" class="field__label" />
+                    <ui:Slider name="MusicVolume" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="MusicVolumeValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Effects" class="field__label" />
+                    <ui:Slider name="EffectsVolume" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="EffectsVolumeValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Interface" class="field__label" />
+                    <ui:Slider name="InterfaceVolume" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="InterfaceVolumeValue" class="field__value" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="ControlsPage" class="page">
+                <ui:VisualElement class="field">
+                    <ui:Label text="Mouse sensitivity" class="field__label" />
+                    <ui:Slider name="MouseSensitivity" low-value="10" high-value="100" class="field__control" />
+                    <ui:Label name="MouseSensitivityValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Invert vertical look" class="field__label" />
+                    <ui:Toggle name="InvertVerticalLook" class="field__control" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="InterfacePage" class="page">
+                <ui:VisualElement class="field">
+                    <ui:Label text="Interface opacity" class="field__label" />
+                    <ui:Slider name="InterfaceOpacity" low-value="0.2" high-value="1" class="field__control" />
+                    <ui:Label name="InterfaceOpacityValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Crosshair size" class="field__label" />
+                    <ui:Slider name="CrosshairSize" low-value="0.5" high-value="2" class="field__control" />
+                    <ui:Label name="CrosshairSizeValue" class="field__value" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="Footer" class="footer">
+                <ui:Button text="Defaults" name="DefaultsButton" class="button" />
+                <ui:Button text="Apply" name="ApplyButton" class="button button--confirm" />
+                <ui:Button text="Close" name="CloseButton" class="button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="ConfirmPanel" class="overlay">
+            <ui:VisualElement class="panel panel--dialog">
+                <ui:Label name="ConfirmText" class="question" />
+                <ui:VisualElement class="footer">
+                    <ui:Button text="Keep" name="ConfirmButton" class="button button--confirm" />
+                    <ui:Button text="Revert" name="RevertButton" class="button button--cancel" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

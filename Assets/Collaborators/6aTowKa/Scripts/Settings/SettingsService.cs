@@ -151,6 +151,62 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         ScheduleSave();
     }
 
+    // Camera feel, applied the moment it is touched, for the same reason field
+    // of view is: it is chosen by moving it and watching, not by picking a
+    // number and hoping. CameraLook re-reads Current on SettingsChanged, so
+    // nothing else has to be told.
+    public void SetCameraSmoothing(bool value)
+    {
+        EnsureInitialized();
+
+        if (current.cameraSmoothing == value)
+            return;
+
+        current.cameraSmoothing = value;
+        committed.cameraSmoothing = value;
+
+        if (activeSession != null)
+            activeSession.Draft.cameraSmoothing = value;
+
+        MarkChanged();
+        ScheduleSave();
+    }
+
+    public void SetCameraSmoothingIntensity(float value)
+    {
+        EnsureInitialized();
+        float clamped = Mathf.Clamp01(value);
+
+        if (Mathf.Approximately(current.cameraSmoothingIntensity, clamped))
+            return;
+
+        current.cameraSmoothingIntensity = clamped;
+        committed.cameraSmoothingIntensity = clamped;
+
+        if (activeSession != null)
+            activeSession.Draft.cameraSmoothingIntensity = clamped;
+
+        MarkChanged();
+        ScheduleSave();
+    }
+
+    public void SetInvertVerticalLook(bool value)
+    {
+        EnsureInitialized();
+
+        if (current.invertVerticalLook == value)
+            return;
+
+        current.invertVerticalLook = value;
+        committed.invertVerticalLook = value;
+
+        if (activeSession != null)
+            activeSession.Draft.invertVerticalLook = value;
+
+        MarkChanged();
+        ScheduleSave();
+    }
+
     public void SetDebugSectionVisible(string sectionId, bool visible)
     {
         EnsureInitialized();
@@ -245,6 +301,9 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         draft.effectsVolume = committed.effectsVolume;
         draft.interfaceVolume = committed.interfaceVolume;
         draft.mouseSensitivity = committed.mouseSensitivity;
+        draft.cameraSmoothing = committed.cameraSmoothing;
+        draft.cameraSmoothingIntensity = committed.cameraSmoothingIntensity;
+        draft.invertVerticalLook = committed.invertVerticalLook;
         draft.debugShowPerformance = committed.debugShowPerformance;
         draft.debugShowPlayer = committed.debugShowPlayer;
         draft.debugShowNetwork = committed.debugShowNetwork;
