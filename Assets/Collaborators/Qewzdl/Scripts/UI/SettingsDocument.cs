@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 // The settings screen, in UI Toolkit.
@@ -12,7 +13,7 @@ using UnityEngine.UIElements;
 // spell out their own state - and where the looks come from.
 [DisallowMultipleComponent]
 [RequireComponent(typeof(UIDocument))]
-public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
+public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, ISettingsScreen
 {
     private const string OpenClass = "screen--open";
     private const string ActiveTabClass = "tab--active";
@@ -53,8 +54,13 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
     private Button applyButton;
     private bool isOpen;
 
+    // One screen for the whole game, so it outlives the scene it was loaded
+    // with - the same arrangement the audio and error UI already have.
     private void Awake()
     {
+        transform.SetParent(null);
+        DontDestroyOnLoad(gameObject);
+
         if (document == null)
             document = GetComponent<UIDocument>();
 
@@ -68,6 +74,8 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
     // the kind of fault that looks like a broken button somewhere else.
     private void OnEnable()
     {
+        SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
+        SceneManager.activeSceneChanged += HandleActiveSceneChanged;
         HideUntilOpened();
     }
 
@@ -105,7 +113,20 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer
 
     private void OnDestroy()
     {
+        SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
         ReleaseSettingsService();
+    }
+
+    public bool IsOpen => isOpen;
+
+    // Surviving the scene means surviving whatever was behind it. A screen left
+    // standing over the main menu after a match, still editing settings through
+    // a session nobody is in, is worse than one that shuts when the ground
+    // moves - so it shuts, without asking, because there is nobody left to ask.
+    private void HandleActiveSceneChanged(Scene from, Scene to)
+    {
+        if (isOpen)
+            CloseNow();
     }
 
     public void Open()

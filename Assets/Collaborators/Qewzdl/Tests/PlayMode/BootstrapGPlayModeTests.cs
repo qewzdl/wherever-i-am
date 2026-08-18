@@ -271,6 +271,7 @@ public sealed class BootstrapGPlayModeTests
         return root.GetComponentInChildren<ProjectContext>(true) != null ||
                root.GetComponentInChildren<AppRuntime>(true) != null ||
                root.GetComponentInChildren<AudioManager>(true) != null ||
-               root.GetComponentInChildren<UiErrorManager>(true) != null;
+               root.GetComponentInChildren<UiErrorManager>(true) != null ||
+               root.GetComponentInChildren<SettingsDocument>(true) != null;
     }
 }

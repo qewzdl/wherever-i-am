@@ -902,6 +902,7 @@ public sealed class GTests
             typeof(INetworkSessionAdmissionService),
             typeof(IUiErrorService),
             typeof(ISettingsService),
+            typeof(ISettingsScreen),
             typeof(IAudioService),
             typeof(IGameMapCatalog)
         };

@@ -5,8 +5,10 @@ using UnityEngine.UIElements;
 // the scene feature constructs it, the pause service drives it, and the local
 // player's input is switched off while it is up.
 //
-// What changed is only the view. Looks live in Theme.uss, so this class holds
-// no colours and no sizes - which is the whole point of the move.
+// What changed is only the view. Looks live in the theme, so this class holds
+// no colours and no sizes - which is the whole point of the move. The settings
+// screen is not owned here either: it belongs to the whole game, and this only
+// asks it to open.
 [DisallowMultipleComponent]
 [RequireComponent(typeof(UIDocument))]
 public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
@@ -16,9 +18,8 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
     [SerializeField] private HUDUI hudUI;
     [SerializeField] private UiDocumentSounds sounds;
 
-    [SerializeField] private SettingsDocument settingsScreen;
-
     private IPauseService pauseService;
+    private ISettingsScreen settingsScreen;
     private INetworkSessionService sessionService;
     private IPlayerScopeRegistry playerScopes;
     private ILocalPlayerInputService localInputService;
@@ -57,12 +58,14 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
     public void Construct(
         IPauseService pauseService,
         INetworkSessionService sessionService,
-        IPlayerScopeRegistry playerScopeRegistry)
+        IPlayerScopeRegistry playerScopeRegistry,
+        ISettingsScreen settingsScreen)
     {
         Unsubscribe();
 
         this.pauseService = pauseService;
         this.sessionService = sessionService;
+        this.settingsScreen = settingsScreen;
         playerScopes = playerScopeRegistry;
 
         if (!TryBindDocument())
@@ -75,7 +78,7 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
 
     public void BindPauseService(IPauseService pauseService)
     {
-        Construct(pauseService, sessionService, playerScopes);
+        Construct(pauseService, sessionService, playerScopes, settingsScreen);
     }
 
     public void Dispose()
@@ -88,6 +91,7 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
 
         pauseService = null;
         sessionService = null;
+        settingsScreen = null;
         playerScopes = null;
         localInputService = null;
     }

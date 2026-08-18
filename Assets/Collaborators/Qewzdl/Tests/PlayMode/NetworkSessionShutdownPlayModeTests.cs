@@ -1062,7 +1062,8 @@ public sealed class NetworkSessionShutdownPlayModeTests
         return root.GetComponentInChildren<ProjectContext>(true) != null ||
                root.GetComponentInChildren<AppRuntime>(true) != null ||
                root.GetComponentInChildren<AudioManager>(true) != null ||
-               root.GetComponentInChildren<UiErrorManager>(true) != null;
+               root.GetComponentInChildren<UiErrorManager>(true) != null ||
+               root.GetComponentInChildren<SettingsDocument>(true) != null;
     }
 
     private static IEnumerator WaitForCondition(Func<bool> condition, string failureMessage)

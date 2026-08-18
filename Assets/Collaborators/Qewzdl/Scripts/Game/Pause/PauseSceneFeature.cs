@@ -14,6 +14,7 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         valid &= RequireService<IGameStateService>(context, out _);
         valid &= RequireService<INetworkSessionService>(context, out _);
         valid &= RequireService<IPlayerScopeRegistry>(context, out _);
+        valid &= RequireService<ISettingsScreen>(context, out _);
 
         if (pauseConsumers != null)
         {
@@ -29,12 +30,13 @@ public sealed class PauseSceneFeature : SceneRuntimeFeature
         IGameStateService stateService = context.Services.Resolve<IGameStateService>();
         INetworkSessionService sessionService = context.Services.Resolve<INetworkSessionService>();
         IPlayerScopeRegistry playerScopes = context.Services.Resolve<IPlayerScopeRegistry>();
+        ISettingsScreen settingsScreen = context.Services.Resolve<ISettingsScreen>();
 
         pauseService.Construct(stateService);
         context.Register<IPauseService>(pauseService);
 
         IPauseService pauseServiceContract = context.Services.Resolve<IPauseService>();
-        pauseMenu.Construct(pauseServiceContract, sessionService, playerScopes);
+        pauseMenu.Construct(pauseServiceContract, sessionService, playerScopes, settingsScreen);
 
         return InstallPauseConsumers(pauseServiceContract);
     }

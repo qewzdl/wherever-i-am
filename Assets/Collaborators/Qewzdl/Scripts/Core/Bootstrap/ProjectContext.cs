@@ -21,6 +21,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private NetworkConnectionApprovalService connectionApprovalService;
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private SettingsService settingsService;
+    [SerializeField] private SettingsDocument settingsScreen;
     [SerializeField] private AudioManager audioManager;
     [SerializeField] private GameplayNoiseWorldService gameplayNoiseWorldService;
     [SerializeField] private GameMapService gameMapService;
@@ -366,6 +367,7 @@ public sealed class ProjectContext : MonoBehaviour
         valid &= ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService), logErrors);
         valid &= ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager), logErrors);
         valid &= ValidateRequiredReference(settingsService, nameof(settingsService), logErrors);
+        valid &= ValidateRequiredReference(settingsScreen, nameof(settingsScreen), logErrors);
         valid &= ValidateRequiredReference(audioManager, nameof(audioManager), logErrors);
         valid &= ValidateRequiredReference(gameplayNoiseWorldService, nameof(gameplayNoiseWorldService), logErrors);
         valid &= ValidateRequiredReference(gameMapService, nameof(gameMapService), logErrors);
@@ -409,6 +411,8 @@ public sealed class ProjectContext : MonoBehaviour
     {
         if (settingsService == null || !settingsService.Initialize())
             return false;
+
+        settingsScreen.Construct(settingsService);
 
         if (audioManager == null || !audioManager.Construct(sceneRegistry, settingsService))
             return false;
@@ -455,6 +459,15 @@ public sealed class ProjectContext : MonoBehaviour
         catch (Exception exception)
         {
             Debug.LogException(exception, uiErrorManager);
+        }
+
+        try
+        {
+            settingsScreen?.ReleaseSettingsService();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception, settingsScreen);
         }
 
         try
@@ -556,6 +569,7 @@ public sealed class ProjectContext : MonoBehaviour
             connectionApprovalService);
         globalServiceScope.Register<IUiErrorService>(uiErrorManager);
         globalServiceScope.Register<ISettingsService>(settingsService);
+        globalServiceScope.Register<ISettingsScreen>(settingsScreen);
         globalServiceScope.Register<IAudioService>(audioManager);
         globalServiceScope.Register<IGameMapCatalog>(mapCatalog);
         return true;
