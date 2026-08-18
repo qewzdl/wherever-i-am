@@ -9,7 +9,8 @@ public enum UiSoundTrigger
     Click,
     TextChanged,
     FocusIn,
-    ValueChanged
+    ValueChanged,
+    Toggled
 }
 
 // Which class, on which event, plays which sound. A screen earns its sounds by
@@ -54,7 +55,8 @@ public sealed class UiDocumentSounds : MonoBehaviour
         new UiElementSoundBinding("button--danger", UiSoundTrigger.Click, UiSoundType.Confirm),
         new UiElementSoundBinding("input", UiSoundTrigger.TextChanged, UiSoundType.Input),
         new UiElementSoundBinding("input", UiSoundTrigger.FocusIn, UiSoundType.Click),
-        new UiElementSoundBinding("unity-base-slider", UiSoundTrigger.ValueChanged, UiSoundType.Slider)
+        new UiElementSoundBinding("unity-base-slider", UiSoundTrigger.ValueChanged, UiSoundType.Slider),
+        new UiElementSoundBinding("unity-toggle", UiSoundTrigger.Toggled, UiSoundType.Checkbox)
     };
 
     // A dragged slider reports a change every frame it moves. Played as they
@@ -151,6 +153,10 @@ public sealed class UiDocumentSounds : MonoBehaviour
             case UiSoundTrigger.ValueChanged:
                 element.RegisterCallback<ChangeEvent<float>>(HandleValueChanged);
                 break;
+
+            case UiSoundTrigger.Toggled:
+                element.RegisterCallback<ChangeEvent<bool>>(HandleToggled);
+                break;
         }
 
         registered.Add((element, trigger));
@@ -185,6 +191,10 @@ public sealed class UiDocumentSounds : MonoBehaviour
 
                 case UiSoundTrigger.ValueChanged:
                     element.UnregisterCallback<ChangeEvent<float>>(HandleValueChanged);
+                    break;
+
+                case UiSoundTrigger.Toggled:
+                    element.UnregisterCallback<ChangeEvent<bool>>(HandleToggled);
                     break;
             }
         }
@@ -222,6 +232,13 @@ public sealed class UiDocumentSounds : MonoBehaviour
 
         nextValueChangeTime = Time.unscaledTime + valueChangeInterval;
         PlayFor(evt.currentTarget, UiSoundTrigger.ValueChanged);
+    }
+
+    // A checkbox changes once per click, so this one is not spaced out the way
+    // the slider is.
+    private void HandleToggled(ChangeEvent<bool> evt)
+    {
+        PlayFor(evt.currentTarget, UiSoundTrigger.Toggled);
     }
 
     private void PlayFor(IEventHandler target, UiSoundTrigger trigger)

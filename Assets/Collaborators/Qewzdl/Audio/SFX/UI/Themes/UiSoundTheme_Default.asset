@@ -31,3 +31,5 @@ MonoBehaviour:
     sound: {fileID: 11400000, guid: 82f493a9e71df5a4295a6b780335f041, type: 2}
   - type: 8
     sound: {fileID: 11400000, guid: 5cbb7e8877080f54cb4ead03dd179499, type: 2}
+  - type: 9
+    sound: {fileID: 11400000, guid: 89b66f1f00d45ab4881cdc31fb8200f5, type: 2}

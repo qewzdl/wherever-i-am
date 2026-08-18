@@ -1040,6 +1040,9 @@ MonoBehaviour:
   - className: unity-base-slider
     trigger: 4
     sound: 8
+  - className: unity-toggle
+    trigger: 5
+    sound: 9
   valueChangeInterval: 0.05
 --- !u!114 &556307081
 MonoBehaviour:
@@ -1478,6 +1481,9 @@ MonoBehaviour:
   - className: unity-base-slider
     trigger: 4
     sound: 8
+  - className: unity-toggle
+    trigger: 5
+    sound: 9
   valueChangeInterval: 0.05
 --- !u!1001 &1615178676
 PrefabInstance:
