@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7ecd4af83654fb4aa3b9a79655e585b, type: 3}
+  m_Name: Sfx_Slider
+  m_EditorClassIdentifier: 
+  clips:
+  - {fileID: 8300000, guid: f41e8f65814e99e47afdb77a9ed2a46e, type: 3}
+  - {fileID: 8300000, guid: 291ad5a512bbee146b5ad5a0f33db5a1, type: 3}
+  - {fileID: 8300000, guid: 21158e1b20fe4cc4a9ff510940f4f1f9, type: 3}
+  - {fileID: 8300000, guid: ab0342d94ce7bff43b1d2764c5c6179e, type: 3}
+  - {fileID: 8300000, guid: 2cdd2f05b1bbb5f4d8f8602df3874fb0, type: 3}
+  - {fileID: 8300000, guid: 83b1de1d6faee3c44a03775ef7acde74, type: 3}
+  - {fileID: 8300000, guid: 7c5b09e5597971241adf393d8ad8cd89, type: 3}
+  - {fileID: 8300000, guid: eb8d13888be4c714497580d65182bfef, type: 3}
+  volume: 0.6
+  randomizeVolume: 0
+  minVolume: 0.9
+  maxVolume: 1
+  randomizePitch: 1
+  minPitch: 0.95
+  maxPitch: 1.05
+  spatialBlend: 1
+  minDistance: 1
+  maxDistance: 25

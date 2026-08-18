@@ -8,7 +8,8 @@ public enum UiSoundTrigger
     PointerEnter,
     Click,
     TextChanged,
-    FocusIn
+    FocusIn,
+    ValueChanged
 }
 
 // Which class, on which event, plays which sound. A screen earns its sounds by
@@ -52,8 +53,17 @@ public sealed class UiDocumentSounds : MonoBehaviour
         new UiElementSoundBinding("button--cancel", UiSoundTrigger.Click, UiSoundType.Cancel),
         new UiElementSoundBinding("button--danger", UiSoundTrigger.Click, UiSoundType.Confirm),
         new UiElementSoundBinding("input", UiSoundTrigger.TextChanged, UiSoundType.Input),
-        new UiElementSoundBinding("input", UiSoundTrigger.FocusIn, UiSoundType.Click)
+        new UiElementSoundBinding("input", UiSoundTrigger.FocusIn, UiSoundType.Click),
+        new UiElementSoundBinding("unity-base-slider", UiSoundTrigger.ValueChanged, UiSoundType.Slider)
     };
+
+    // A dragged slider reports a change every frame it moves. Played as they
+    // come, the ticks run together into a rattle that says nothing about how
+    // far the value went; spaced out, they read as steps under the hand. Left
+    // adjustable because the right spacing depends on the clip.
+    [SerializeField, Min(0f)] private float valueChangeInterval = 0.05f;
+
+    private float nextValueChangeTime;
 
     private readonly Dictionary<(VisualElement, UiSoundTrigger), UiSoundType> bound = new();
     private readonly List<(VisualElement element, UiSoundTrigger trigger)> registered = new();
@@ -137,6 +147,10 @@ public sealed class UiDocumentSounds : MonoBehaviour
             case UiSoundTrigger.FocusIn:
                 element.RegisterCallback<FocusInEvent>(HandleFocusIn);
                 break;
+
+            case UiSoundTrigger.ValueChanged:
+                element.RegisterCallback<ChangeEvent<float>>(HandleValueChanged);
+                break;
         }
 
         registered.Add((element, trigger));
@@ -168,6 +182,10 @@ public sealed class UiDocumentSounds : MonoBehaviour
                 case UiSoundTrigger.FocusIn:
                     element.UnregisterCallback<FocusInEvent>(HandleFocusIn);
                     break;
+
+                case UiSoundTrigger.ValueChanged:
+                    element.UnregisterCallback<ChangeEvent<float>>(HandleValueChanged);
+                    break;
             }
         }
 
@@ -193,6 +211,17 @@ public sealed class UiDocumentSounds : MonoBehaviour
     private void HandleFocusIn(FocusInEvent evt)
     {
         PlayFor(evt.currentTarget, UiSoundTrigger.FocusIn);
+    }
+
+    // Unscaled, because the screens that own sliders are the ones that stop
+    // the game to show themselves.
+    private void HandleValueChanged(ChangeEvent<float> evt)
+    {
+        if (Time.unscaledTime < nextValueChangeTime)
+            return;
+
+        nextValueChangeTime = Time.unscaledTime + valueChangeInterval;
+        PlayFor(evt.currentTarget, UiSoundTrigger.ValueChanged);
     }
 
     private void PlayFor(IEventHandler target, UiSoundTrigger trigger)

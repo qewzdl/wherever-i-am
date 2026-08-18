@@ -1037,6 +1037,10 @@ MonoBehaviour:
   - className: input
     trigger: 3
     sound: 0
+  - className: unity-base-slider
+    trigger: 4
+    sound: 8
+  valueChangeInterval: 0.05
 --- !u!114 &556307081
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1471,6 +1475,10 @@ MonoBehaviour:
   - className: input
     trigger: 3
     sound: 0
+  - className: unity-base-slider
+    trigger: 4
+    sound: 8
+  valueChangeInterval: 0.05
 --- !u!1001 &1615178676
 PrefabInstance:
   m_ObjectHideFlags: 0

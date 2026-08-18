@@ -7,5 +7,6 @@ public enum UiSoundType
     Confirm,
     Cancel,
     Error,
-    Input
+    Input,
+    Slider
 }
