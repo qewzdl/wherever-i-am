@@ -40,6 +40,7 @@
     --text-on-accent: var(--palette-black);
 
     --accent: var(--palette-white);
+    --accent-hover: var(--palette-gray-200);
     --accent-pressed: var(--palette-gray-500);
 
     --danger: var(--palette-gray-200);
@@ -71,6 +72,8 @@
     --label-width: 200px;
     --control-width: 260px;
     --control-height: 36px;
+    --checkbox-size: 22px;
+    --checkbox-mark-size: 12px;
 
 
     /* ======================================================================
