@@ -1,0 +1,134 @@
+/* ==========================================================================
+   BUTTON
+   ========================================================================== */
+
+/* ==========================================================================
+   BUTTON
+   ========================================================================== */
+
+.button {
+    color: var(--text);
+    font-size: var(--text-m);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
+
+    border-radius: var(--radius);
+
+    padding-top: var(--space-s);
+    padding-bottom: var(--space-s);
+
+    margin-top: var(--space-xs);
+    margin-bottom: var(--space-xs);
+
+    scale: 1 1;
+
+    transition-property:
+        color,
+        background-color,
+        border-left-color,
+        border-right-color,
+        border-top-color,
+        border-bottom-color,
+        scale;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.unity-button.button:focus:enabled {
+    color: var(--text);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+}
+
+
+.unity-button.button:hover:enabled {
+    color: var(--text-on-accent);
+
+    background-color: var(--accent);
+
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+
+.unity-button.button:active:enabled {
+    color: var(--text-on-accent);
+
+    background-color: var(--accent-pressed);
+
+    border-left-color: var(--accent-pressed);
+    border-right-color: var(--accent-pressed);
+    border-top-color: var(--accent-pressed);
+    border-bottom-color: var(--accent-pressed);
+
+    scale: 0.98 0.98;
+
+    transition-duration: var(--motion-fast);
+}
+
+
+.unity-button.button:disabled {
+    color: var(--text-disabled);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--text-disabled);
+    border-right-color: var(--text-disabled);
+    border-top-color: var(--text-disabled);
+    border-bottom-color: var(--text-disabled);
+
+    opacity: 1;
+
+    scale: 1 1;
+}
+
+
+/* ==========================================================================
+   DANGER BUTTON
+   ========================================================================== */
+
+.unity-button.button--danger:hover:enabled {
+    color: var(--text-on-accent);
+
+    background-color: var(--danger);
+
+    border-left-color: var(--danger);
+    border-right-color: var(--danger);
+    border-top-color: var(--danger);
+    border-bottom-color: var(--danger);
+}
+
+
+.unity-button.button--danger:active:enabled {
+    color: var(--text-on-accent);
+
+    background-color: var(--accent-pressed);
+
+    border-left-color: var(--accent-pressed);
+    border-right-color: var(--accent-pressed);
+    border-top-color: var(--accent-pressed);
+    border-bottom-color: var(--accent-pressed);
+
+    scale: 0.98 0.98;
+}
+
+

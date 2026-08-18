@@ -1,0 +1,76 @@
+/* ==========================================================================
+   SCREEN
+
+   The full-screen layer a document opens into: how it covers the game, how it
+   fades, and the two stacking helpers every panel is built from. The overlay
+   is the same idea one level up - a screen standing over a screen.
+   ========================================================================== */
+
+/* ==========================================================================
+   SCREEN
+   ========================================================================== */
+
+.screen {
+    -unity-font-definition:
+        url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
+
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    align-items: center;
+    justify-content: center;
+
+    background-color: var(--veil);
+
+    opacity: 0;
+
+    transition-property: opacity;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.screen--open {
+    opacity: 1;
+}
+
+
+/* ==========================================================================
+   LAYOUT
+   ========================================================================== */
+
+.stack {
+    flex-grow: 0;
+    flex-direction: column;
+}
+
+
+.row {
+    flex-direction: row;
+    align-items: center;
+}
+
+
+/* ==========================================================================
+   OVERLAY
+   ========================================================================== */
+
+.overlay {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    align-items: center;
+    justify-content: center;
+
+    background-color: var(--veil);
+}
+
+

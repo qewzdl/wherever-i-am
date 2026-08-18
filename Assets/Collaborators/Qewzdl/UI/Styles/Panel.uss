@@ -1,0 +1,56 @@
+/* ==========================================================================
+   PANEL
+   ========================================================================== */
+
+/* ==========================================================================
+   PANEL
+   ========================================================================== */
+
+.panel {
+    background-color: var(--surface);
+
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
+
+    border-radius: var(--radius);
+
+    padding-left: var(--space-l);
+    padding-right: var(--space-l);
+    padding-top: var(--space-l);
+    padding-bottom: var(--space-l);
+
+    scale: 0.97 0.97;
+
+    transition-property: scale;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.screen--open .panel {
+    scale: 1 1;
+}
+
+
+.panel--narrow {
+    width: 320px;
+}
+
+
+.panel--dialog {
+    width: 440px;
+}
+
+
+.panel--wide {
+    width: 720px;
+}
+
+

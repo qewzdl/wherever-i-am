@@ -1,0 +1,49 @@
+/* ==========================================================================
+   TYPOGRAPHY
+   ========================================================================== */
+
+/* ==========================================================================
+   TYPOGRAPHY
+   ========================================================================== */
+
+.title {
+    color: var(--text);
+    font-size: var(--text-l);
+
+    margin-bottom: var(--space-l);
+
+    white-space: normal;
+
+    -unity-text-align: middle-center;
+}
+
+
+.question {
+    color: var(--text);
+    font-size: var(--text-m);
+
+    white-space: normal;
+
+    -unity-text-align: middle-center;
+}
+
+
+.hint {
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    white-space: normal;
+
+    -unity-text-align: middle-center;
+}
+
+
+.section {
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    margin-top: var(--space-m);
+    margin-bottom: var(--space-xs);
+}
+
+

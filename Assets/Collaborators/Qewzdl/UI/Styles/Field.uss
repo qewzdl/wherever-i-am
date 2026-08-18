@@ -1,0 +1,89 @@
+/* ==========================================================================
+   FORM
+
+   A page of labelled rows, and the footer that acts on them. The row owns the
+   alignment; the control inside it only says how wide it is.
+   ========================================================================== */
+
+/* ==========================================================================
+   PAGE
+   ========================================================================== */
+
+.page {
+    flex-grow: 1;
+}
+
+
+/* ==========================================================================
+   FORM FIELD
+   ========================================================================== */
+
+.field {
+    flex-direction: row;
+    align-items: center;
+
+    margin-top: var(--space-xs);
+    margin-bottom: var(--space-xs);
+}
+
+
+.field__label {
+    width: var(--label-width);
+
+    flex-shrink: 0;
+
+    align-self: stretch;
+
+    color: var(--text);
+    font-size: var(--text-s);
+
+    -unity-text-align: middle-left;
+}
+
+
+.field__control {
+    width: var(--control-width);
+
+    flex-shrink: 0;
+
+    align-items: center;
+
+    margin-top: 0;
+    margin-bottom: 0;
+
+    color: var(--text);
+}
+
+
+.field__value {
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    margin-left: var(--space-s);
+
+    align-self: stretch;
+
+    -unity-text-align: middle-left;
+}
+
+
+/* ==========================================================================
+   FOOTER
+   ========================================================================== */
+
+.footer {
+    flex-direction: row;
+    justify-content: flex-end;
+
+    margin-top: var(--space-l);
+}
+
+
+.footer .button {
+    margin-left: var(--space-s);
+
+    padding-left: var(--space-m);
+    padding-right: var(--space-m);
+}
+
+

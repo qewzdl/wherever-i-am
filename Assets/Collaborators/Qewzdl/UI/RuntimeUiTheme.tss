@@ -4,4 +4,4 @@
    remember to follow. */
 
 @import url("unity-theme://default");
-@import url("Theme.uss");
+@import url("Styles/Theme.uss");
