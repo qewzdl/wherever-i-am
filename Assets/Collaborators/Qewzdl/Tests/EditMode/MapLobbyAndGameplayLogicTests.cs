@@ -14,8 +14,11 @@ internal sealed class PendingSessionServiceStub : INetworkSessionService
 {
     private readonly TaskCompletionSource<bool> pending = new();
 
+    private readonly TaskCompletionSource<NetworkShutdownResult> pendingShutdown = new();
+
     public int HostCallCount { get; private set; }
     public int JoinCallCount { get; private set; }
+    public int ShutdownCallCount { get; private set; }
 
     public Task HostLanAsync()
     {
@@ -47,7 +50,8 @@ internal sealed class PendingSessionServiceStub : INetworkSessionService
 
     public Task<NetworkShutdownResult> ShutdownToMainMenuAsync()
     {
-        return Task.FromResult(NetworkShutdownResult.Success());
+        ShutdownCallCount++;
+        return pendingShutdown.Task;
     }
 }
 
@@ -608,6 +612,43 @@ public sealed class MapLobbyAndGameplayLogicTests
             menu.Dispose();
 
             Assert.That(menu.IsRequestInFlight, Is.False);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(menuObject);
+        }
+    }
+
+    // Cancelling is the way out of a join that is going nowhere, and it is
+    // itself an operation that takes time. Asking for it twice would start a
+    // second shutdown over the first, and asking for it with nothing running
+    // would tear down a session the player never started.
+    [Test]
+    public void MainMenu_CancelsAConnectionOnceAndOnlyWhileOneIsRunning()
+    {
+        GameObject menuObject = new(nameof(MainMenuDocument));
+
+        try
+        {
+            MainMenuDocument menu = menuObject.AddComponent<MainMenuDocument>();
+            PendingSessionServiceStub session = new();
+            menu.Construct(session, errorService: null, settingsScreen: null);
+
+            menu.CancelRequest();
+
+            Assert.That(
+                session.ShutdownCallCount,
+                Is.Zero,
+                "Cancelling with nothing in flight shut a session down.");
+
+            menu.Host();
+            menu.CancelRequest();
+            menu.CancelRequest();
+
+            Assert.That(
+                session.ShutdownCallCount,
+                Is.EqualTo(1),
+                "The second cancel started another shutdown.");
         }
         finally
         {

@@ -23,6 +23,12 @@ public sealed class MainMenuDocument : MonoBehaviour
     [Header("While connecting")]
     [SerializeField] private string hostingMessage = "Creating lobby...";
     [SerializeField] private string joiningMessage = "Connecting to {0}...";
+    [SerializeField] private string cancellingMessage = "Cancelling...";
+
+    // What is being waited for, and for how long. A connection that is going
+    // nowhere looks exactly like one that is about to arrive, and the player
+    // deciding whether to press Cancel has nothing else to go on.
+    [SerializeField] private string busyElapsedFormat = "{0}   {1} s";
 
     private INetworkSessionService sessionService;
     private IUiErrorService errorService;
@@ -42,6 +48,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     private Button quitButton;
     private Button connectButton;
     private Button cancelJoinButton;
+    private Button cancelRequestButton;
 
     // A click handler that awaits hands the click straight back at the first
     // await. The session service does refuse the second attempt, but only after
@@ -50,6 +57,17 @@ public sealed class MainMenuDocument : MonoBehaviour
     // Hosting and joining share the flag: both end in one session, and starting
     // one while the other is in flight is the same mistake.
     private bool isRequestInFlight;
+
+    // Cancelling is itself a request that takes time, and pressing Cancel twice
+    // would start a second shutdown over the first.
+    private bool isCancelling;
+
+    private string busyMessage = string.Empty;
+    private float requestStartedAt;
+
+    // The last whole second put on screen. Without it the label is rebuilt
+    // every frame to say what it already said.
+    private int shownSeconds = -1;
 
     public bool IsRequestInFlight => isRequestInFlight;
 
@@ -103,6 +121,23 @@ public sealed class MainMenuDocument : MonoBehaviour
         Dispose();
     }
 
+    // The clock runs from the moment the request started, not from the last
+    // thing that happened to it: cancelling keeps counting, because what the
+    // player is waiting on is still the same wait.
+    private void Update()
+    {
+        if (!isRequestInFlight || busyText == null)
+            return;
+
+        int seconds = Mathf.FloorToInt(Time.unscaledTime - requestStartedAt);
+
+        if (seconds == shownSeconds)
+            return;
+
+        shownSeconds = seconds;
+        busyText.text = string.Format(busyElapsedFormat, busyMessage, seconds);
+    }
+
     private void Show(bool complainIfMissing)
     {
         if (!Bind(complainIfMissing) || screen == null)
@@ -148,6 +183,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         quitButton = root.Q<Button>("QuitButton");
         connectButton = root.Q<Button>("ConnectButton");
         cancelJoinButton = root.Q<Button>("CancelJoinButton");
+        cancelRequestButton = root.Q<Button>("CancelRequestButton");
 
         if (screen == null)
         {
@@ -192,6 +228,9 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (cancelJoinButton != null)
             cancelJoinButton.clicked += HideJoinPrompt;
 
+        if (cancelRequestButton != null)
+            cancelRequestButton.clicked += CancelRequest;
+
         // Saved when the field is left, and again before connecting: a player
         // who types a name and presses Create without leaving the field would
         // otherwise arrive as the last name they used, or as nobody. Not on
@@ -219,6 +258,9 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         if (cancelJoinButton != null)
             cancelJoinButton.clicked -= HideJoinPrompt;
+
+        if (cancelRequestButton != null)
+            cancelRequestButton.clicked -= CancelRequest;
 
         playerName?.UnregisterCallback<FocusOutEvent>(HandleNameCommitted);
         address?.UnregisterCallback<FocusOutEvent>(HandleAddressCommitted);
@@ -332,6 +374,43 @@ public sealed class MainMenuDocument : MonoBehaviour
         Application.Quit();
     }
 
+    // A join to an address nobody is listening on takes as long as the
+    // transport's timeout, which is long enough for a player to decide they
+    // typed it wrong. Shutting the session down is what cancels the attempt:
+    // the connection service already carries a cancellation token for exactly
+    // this, and a cancelled attempt is the one failure the flow service does
+    // not report as an error - because the player is the one who asked.
+    //
+    // Cancelling ends with the main menu being loaded again, the same way a
+    // failed connection does. That is why nothing is restored here: what comes
+    // back is a fresh menu, not this one.
+    public async void CancelRequest()
+    {
+        if (!isRequestInFlight || isCancelling || sessionService == null)
+            return;
+
+        isCancelling = true;
+        SetBusy(true, cancellingMessage);
+        cancelRequestButton?.SetEnabled(false);
+
+        try
+        {
+            await sessionService.ShutdownToMainMenuAsync();
+        }
+        finally
+        {
+            isCancelling = false;
+
+            // The scene may have been reloaded under this object while the
+            // shutdown ran, and a destroyed component has no screen to tidy.
+            if (this != null)
+            {
+                cancelRequestButton?.SetEnabled(true);
+                EndRequest();
+            }
+        }
+    }
+
     // Released in a finally, so a service that throws leaves the menu usable
     // rather than dead until the scene reloads.
     private bool TryBeginRequest(string busyMessage)
@@ -340,6 +419,8 @@ public sealed class MainMenuDocument : MonoBehaviour
             return false;
 
         isRequestInFlight = true;
+        isCancelling = false;
+        requestStartedAt = Time.unscaledTime;
         HideError();
         SetBusy(true, busyMessage);
         return true;
@@ -359,8 +440,14 @@ public sealed class MainMenuDocument : MonoBehaviour
         SetDisplayed(busyPanel, isBusy);
         panel?.SetEnabled(!isBusy);
 
+        busyMessage = message;
+
+        // Forgotten rather than kept, so the next frame writes the label even
+        // if the wait is still on the same second it was on.
+        shownSeconds = -1;
+
         if (busyText != null && isBusy)
-            busyText.text = message;
+            busyText.text = string.Format(busyElapsedFormat, message, 0);
     }
 
     private static void SetDisplayed(VisualElement element, bool displayed)

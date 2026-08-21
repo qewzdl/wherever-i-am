@@ -29,6 +29,9 @@
         <ui:VisualElement name="BusyPanel" class="overlay">
             <ui:VisualElement class="panel panel--dialog">
                 <ui:Label name="BusyText" class="question" />
+                <ui:VisualElement class="footer">
+                    <ui:Button text="Cancel" name="CancelRequestButton" class="button button--cancel" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
