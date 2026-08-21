@@ -54,6 +54,31 @@
 
 
 /* ==========================================================================
+   MASTHEAD
+
+   The name of the game, lifted out of the column and set on the screen.
+   Placed rather than stacked: it holds the corner while the column runs the
+   height of the frame past it, and the two stop reading as one box with a
+   heading on top.
+
+   Its left edge lines up with the column's text, so the arrangement looks
+   composed rather than merely uncentred.
+   ========================================================================== */
+
+.masthead {
+    position: absolute;
+
+    left: var(--space-xl);
+    top: var(--space-xl);
+}
+
+
+.masthead .title {
+    -unity-text-align: middle-left;
+}
+
+
+/* ==========================================================================
    BACKDROP
 
    What the screen stands in front of. Sits behind everything else in the

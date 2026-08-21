@@ -65,10 +65,19 @@
    of the screen and looks accidental in a column against an edge. */
 
 .panel--rail {
-    width: 420px;
+    width: 460px;
 
     align-self: stretch;
     justify-content: flex-start;
+
+    /* A column that runs the height of the screen needs more room at its ends
+       than a dialog does. At the panel's own padding the title sat on the top
+       edge and the last button on the bottom one, which is what made it read
+       as a strip rather than as a page. */
+    padding-top: var(--space-xl);
+    padding-bottom: var(--space-xl);
+    padding-left: var(--space-xl);
+    padding-right: var(--space-xl);
 
     background-color: var(--veil);
 
@@ -93,10 +102,6 @@
 }
 
 
-.panel--rail .title,
-.panel--rail .hint {
-    -unity-text-align: middle-left;
-}
 
 
 /* Who you are stays with the title at the top; what you can do goes to the
@@ -104,8 +109,27 @@
    whatever is left over - the menu keeps its shape at any window height, and
    the empty middle is the point rather than an accident. */
 
-.panel--rail .stack {
+/* Everything the column holds now sits at the bottom of it, because the top
+   belongs to the name: the masthead is placed over that corner, and a field
+   starting there would be underneath it. The free space is taken once, by the
+   first thing in the group - two auto margins would split it and put the
+   controls back in the middle. */
+
+.panel--rail .hint {
     margin-top: auto;
+
+    -unity-text-align: middle-left;
+}
+
+
+.panel--rail .stack {
+    /* A line above the actions, the same one dialogs have over their footers.
+       Who you are is one thing and what you can do is another, and the gap
+       alone was not saying so. */
+    border-top-width: var(--border);
+    border-top-color: var(--line);
+
+    padding-top: var(--space-l);
 }
 
 

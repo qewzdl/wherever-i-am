@@ -29,6 +29,12 @@
 .title--display {
     font-size: var(--text-xl);
 
+    /* One line, whatever happens. The name is set large and spaced out, so a
+       wrap does not read as a second line of a title - it reads as the title
+       not fitting. It is placed on the screen rather than inside the column
+       now, so there is room to the right for it to run. */
+    white-space: nowrap;
+
     letter-spacing: var(--tracking-wider);
 
     /* A rule under the name, which is the cheapest way to say that this is a
