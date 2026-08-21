@@ -4,6 +4,10 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
+
+// Both UI systems are in this file now, and each has an Image.
+using Image = UnityEngine.UI.Image;
 
 [Category("UI")]
 public sealed class ChatAndUiMechanicsPlayModeTests
@@ -157,29 +161,42 @@ public sealed class ChatAndUiMechanicsPlayModeTests
         Assert.That(screen.GetComponent<RectMask2D>(), Is.Not.Null);
     }
 
+    // The screen this manager owns covers everything, so the thing worth
+    // guarding is that it only takes the pointer while it is actually saying
+    // something. An invisible screen that still swallows clicks reads as a
+    // dead menu, which is a fault this project has shipped more than once.
     [Test]
-    public void UiErrorView_CloseButtonsPublishExactlyOneRequestPerClick()
+    public void UiErrorManager_TakesThePointerOnlyWhileAnErrorIsUp()
     {
-        GameObject root = Track(new GameObject("Error view"));
+        GameObject root = Track(new GameObject("Error overlay"));
         root.SetActive(false);
-        Button close = CreateButton("Close", root.transform);
-        Button backdrop = CreateButton("Backdrop", root.transform);
-        UiErrorView view = root.AddComponent<UiErrorView>();
-        PlayModeTestReflection.SetField(view, "closeButton", close);
-        PlayModeTestReflection.SetField(view, "backdropButton", backdrop);
+
+        UIDocument document = root.AddComponent<UIDocument>();
+        document.panelSettings = Track(ScriptableObject.CreateInstance<PanelSettings>());
+        UiErrorManager manager = root.AddComponent<UiErrorManager>();
         root.SetActive(true);
 
-        int requests = 0;
-        view.CloseRequested += () => requests++;
+        // Built here rather than loaded, so the test is about the manager and
+        // not about the markup: it binds by name either way.
+        VisualElement screen = new() { name = "Screen" };
+        screen.Add(new Label { name = "ErrorText" });
+        document.rootVisualElement.Add(screen);
 
-        close.onClick.Invoke();
-        backdrop.onClick.Invoke();
-        Assert.That(requests, Is.EqualTo(2));
+        Assert.That(screen.pickingMode, Is.EqualTo(PickingMode.Position));
 
-        view.Hide();
-        Assert.That(root.activeSelf, Is.False);
-        view.Show("Network error");
-        Assert.That(root.activeSelf, Is.True);
+        // Blank messages still get a panel, because something went wrong even
+        // if nobody said what.
+        manager.ShowError("   ");
+
+        Assert.That(screen.Q<Label>("ErrorText").text, Is.EqualTo("Unknown error."));
+        Assert.That(screen.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+        Assert.That(screen.pickingMode, Is.EqualTo(PickingMode.Position));
+
+        manager.ShowError("Network error");
+        Assert.That(screen.Q<Label>("ErrorText").text, Is.EqualTo("Network error"));
+
+        manager.HideError();
+        Assert.That(screen.pickingMode, Is.EqualTo(PickingMode.Ignore));
     }
 
     private RectTransform CreateRect(string name, Transform parent)
@@ -187,17 +204,6 @@ public sealed class ChatAndUiMechanicsPlayModeTests
         GameObject gameObject = Track(new GameObject(name, typeof(RectTransform)));
         gameObject.transform.SetParent(parent, false);
         return gameObject.GetComponent<RectTransform>();
-    }
-
-    private Button CreateButton(string name, Transform parent)
-    {
-        GameObject gameObject = Track(new GameObject(
-            name,
-            typeof(RectTransform),
-            typeof(Image),
-            typeof(Button)));
-        gameObject.transform.SetParent(parent, false);
-        return gameObject.GetComponent<Button>();
     }
 
     private static ChatMessageReceivedEvent CreateMessage(

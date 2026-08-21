@@ -903,6 +903,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1020719286}
   - component: {fileID: 1020719287}
+  - component: {fileID: 1020719288}
+  - component: {fileID: 1020719289}
   m_Layer: 0
   m_Name: UiErrorManager
   m_TagString: Untagged
@@ -937,7 +939,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71d6adbfac174b75a1b0b4a29a191b9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  errorViewPrefab: {fileID: 100005, guid: ce9ca91825874e9a94cc21e0cc80427e, type: 3}
+  document: {fileID: 1020719288}
 --- !u!1 &1269671435
 GameObject:
   m_ObjectHideFlags: 0
@@ -1445,6 +1447,52 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   document: {fileID: 556307081}
   sounds: {fileID: 556307080}
+--- !u!114 &1020719288
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1020719285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
+  m_Name:
+  m_EditorClassIdentifier:
+  m_PanelSettings: {fileID: 11400000, guid: 0e86c38c1eb76744ab681379c03d6b95, type: 2}
+  m_ParentUI: {fileID: 0}
+  sourceAsset: {fileID: 9197481963319205126, guid: daedebecbed53cfb8460259186d79042, type: 3}
+  m_SortingOrder: 2
+  m_WorldSpaceSizeMode: 1
+  m_WorldSpaceWidth: 1920
+  m_WorldSpaceHeight: 1080
+--- !u!114 &1020719289
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1020719285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8319e1201706a444b54b64e01685e60, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  document: {fileID: 1020719288}
+  bindings:
+  - className: button
+    trigger: 0
+    sound: 1
+  - className: button
+    trigger: 1
+    sound: 0
+  - className: button--confirm
+    trigger: 1
+    sound: 4
+  - className: button--cancel
+    trigger: 1
+    sound: 5
+  valueChangeInterval: 0.05
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

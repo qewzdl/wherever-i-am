@@ -1,0 +1,11 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <ui:VisualElement name="Screen" class="screen">
+        <ui:VisualElement name="Panel" class="panel panel--dialog">
+            <ui:Label name="ErrorText" class="question" />
+            <ui:VisualElement class="footer">
+                <ui:Button text="OK" name="CloseButton" class="button button--confirm" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
