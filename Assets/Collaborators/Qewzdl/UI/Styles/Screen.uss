@@ -135,6 +135,14 @@
    OVERLAY
    ========================================================================== */
 
+/* A screen standing over a screen, and it fades like one. Everything else in
+   the interface arrives: the layer fades, the column slides, the panel rises.
+   A dialog that cut straight in was the one moment the whole thing looked
+   like a menu instead of a place.
+
+   Faster than a screen, though. This one is answering a question the player
+   just asked, and a wait they caused themselves is the one they notice. */
+
 .overlay {
     position: absolute;
 
@@ -147,6 +155,17 @@
     justify-content: center;
 
     background-color: var(--veil);
+
+    opacity: 0;
+
+    transition-property: opacity;
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.overlay--open {
+    opacity: 1;
 }
 
 

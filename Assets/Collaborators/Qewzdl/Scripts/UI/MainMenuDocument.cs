@@ -14,6 +14,7 @@ using UnityEngine.UIElements;
 public sealed class MainMenuDocument : MonoBehaviour
 {
     private const string OpenClass = "screen--open";
+    private const string OverlayOpenClass = "overlay--open";
     private const int NameLengthLimit = 16;
 
     [Header("References")]
@@ -463,8 +464,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private static void SetDisplayed(VisualElement element, bool displayed)
     {
-        if (element != null)
-            element.style.display = displayed ? DisplayStyle.Flex : DisplayStyle.None;
+        UiFade.Set(element, displayed, OverlayOpenClass);
     }
 
     private bool HasSessionService()

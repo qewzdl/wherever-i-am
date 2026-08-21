@@ -56,6 +56,27 @@
 }
 
 
+/* A dialog inside an overlay opens with the overlay, not with the screen
+   underneath it. Without this it is already at rest by the time anyone asks
+   for it - the screen opened minutes ago and the panel finished rising with
+   it, so the dialog would fade in fully assembled.
+
+   Written after the screen rule on purpose: same specificity, later wins. */
+
+.overlay .panel--dialog {
+    scale: 0.97 0.97;
+    translate: 0 10px;
+
+    transition-duration: var(--motion-normal);
+}
+
+
+.overlay--open .panel--dialog {
+    scale: 1 1;
+    translate: 0 0;
+}
+
+
 /* A panel that runs the height of the screen down one edge. Translucent
    rather than solid, because the point of standing beside the scene is to
    let it through; and it slides in from its own edge instead of zooming,

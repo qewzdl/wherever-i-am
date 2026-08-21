@@ -17,6 +17,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 {
     private const string OpenClass = "screen--open";
     private const string ActiveTabClass = "tab--active";
+    private const string OverlayOpenClass = "overlay--open";
     private const long FadeMilliseconds = 200;
 
     [Header("References")]
@@ -627,8 +628,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
         SetAnswerLabels();
 
-        if (confirmPanel != null)
-            confirmPanel.style.display = DisplayStyle.Flex;
+        UiFade.Set(confirmPanel, true, OverlayOpenClass);
     }
 
     // The left button always goes ahead with what was asked and the right one
@@ -662,8 +662,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
     private void HideConfirmation()
     {
-        if (confirmPanel != null)
-            confirmPanel.style.display = DisplayStyle.None;
+        UiFade.Set(confirmPanel, false, OverlayOpenClass);
     }
 
     private void CancelSession()
