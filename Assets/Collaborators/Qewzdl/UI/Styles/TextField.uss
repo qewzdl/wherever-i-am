@@ -1,0 +1,152 @@
+/* ==========================================================================
+   TEXT FIELD
+
+   Structure:
+
+   .input.unity-text-field
+       └── .unity-base-text-field__input      - the box
+               └── TextElement                - what was typed
+
+   Unity draws the box on the inner element and colours it from its own theme
+   variables, so both are overridden: the variables for the states Unity paints
+   itself, and the properties for everything else.
+
+   The class is `input` rather than a Unity one because the sound bindings
+   already listen for it - a field earns its typing sound by being one.
+   ========================================================================== */
+
+.input {
+    margin-top: 0;
+    margin-bottom: var(--space-s);
+}
+
+
+/* --------------------------------------------------------------------------
+   UNITY THEME OVERRIDES
+   -------------------------------------------------------------------------- */
+
+.input.unity-text-field {
+    --unity-colors-input_background: var(--surface);
+    --unity-colors-input_background-hover: var(--surface-hover);
+    --unity-colors-input_border: var(--line);
+    --unity-colors-input_border-hover: var(--line-hover);
+    --unity-colors-input_border-focus: var(--accent);
+    --unity-colors-input_border-accent: var(--accent);
+}
+
+
+/* --------------------------------------------------------------------------
+   BOX
+
+   Text colour is set wherever a background is, and on the element that holds
+   the letters as well: a rule that paints one without the other is how this
+   theme has produced unreadable controls before.
+   -------------------------------------------------------------------------- */
+
+.input > .unity-base-text-field__input {
+    min-height: var(--control-height);
+
+    background-color: var(--surface);
+    background-image: none;
+
+    color: var(--text);
+    font-size: var(--text-s);
+
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
+
+    border-left-color: var(--line);
+    border-right-color: var(--line);
+    border-top-color: var(--line);
+    border-bottom-color: var(--line);
+
+    border-top-left-radius: var(--radius);
+    border-top-right-radius: var(--radius);
+    border-bottom-left-radius: var(--radius);
+    border-bottom-right-radius: var(--radius);
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+    padding-top: 0;
+    padding-bottom: 0;
+
+    -unity-text-align: middle-left;
+
+    transition-property:
+        background-color,
+        border-color;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+.input > .unity-base-text-field__input TextElement,
+.input > .unity-base-text-field__input Label {
+    color: var(--text);
+    font-size: var(--text-s);
+
+    -unity-text-align: middle-left;
+}
+
+
+/* --------------------------------------------------------------------------
+   HOVER
+   -------------------------------------------------------------------------- */
+
+.input:hover > .unity-base-text-field__input {
+    background-color: var(--surface-hover);
+
+    border-left-color: var(--line-hover);
+    border-right-color: var(--line-hover);
+    border-top-color: var(--line-hover);
+    border-bottom-color: var(--line-hover);
+}
+
+.input:hover > .unity-base-text-field__input TextElement,
+.input:hover > .unity-base-text-field__input Label {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   FOCUS
+
+   The one control a player types into says so plainly: while it has the
+   caret, its outline is the accent.
+   -------------------------------------------------------------------------- */
+
+.input:focus > .unity-base-text-field__input,
+.input > .unity-base-text-field__input:focus {
+    background-color: var(--surface-hover);
+
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.input:focus > .unity-base-text-field__input TextElement,
+.input > .unity-base-text-field__input:focus TextElement {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   DISABLED
+   -------------------------------------------------------------------------- */
+
+.input:disabled > .unity-base-text-field__input {
+    background-color: var(--surface);
+
+    border-left-color: var(--text-disabled);
+    border-right-color: var(--text-disabled);
+    border-top-color: var(--text-disabled);
+    border-bottom-color: var(--text-disabled);
+}
+
+.input:disabled > .unity-base-text-field__input TextElement,
+.input:disabled > .unity-base-text-field__input Label {
+    color: var(--text-disabled);
+}

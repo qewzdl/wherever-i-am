@@ -584,23 +584,23 @@ public sealed class MapLobbyAndGameplayLogicTests
     [Test]
     public void MainMenu_IgnoresClicksWhileAHostOrJoinIsStillRunning()
     {
-        GameObject menuObject = new(nameof(MainMenuUI));
+        GameObject menuObject = new(nameof(MainMenuDocument));
 
         try
         {
-            MainMenuUI menu = menuObject.AddComponent<MainMenuUI>();
+            MainMenuDocument menu = menuObject.AddComponent<MainMenuDocument>();
             PendingSessionServiceStub session = new();
-            menu.Construct(session, errorService: null);
+            menu.Construct(session, errorService: null, settingsScreen: null);
 
-            menu.OnCreateLobbyButtonClicked();
-            menu.OnCreateLobbyButtonClicked();
+            menu.Host();
+            menu.Host();
 
             Assert.That(menu.IsRequestInFlight, Is.True);
             Assert.That(session.HostCallCount, Is.EqualTo(1), "Hosting was requested twice.");
 
             // Joining while a host is still going would be the same session
             // started from both ends.
-            menu.OnJoinLobbyButtonClicked();
+            menu.Join("127.0.0.1");
 
             Assert.That(session.JoinCallCount, Is.EqualTo(0), "Joining slipped past a running host.");
 

@@ -49,6 +49,55 @@
 }
 
 
+/* A panel that runs the height of the screen down one edge. Translucent
+   rather than solid, because the point of standing beside the scene is to
+   let it through; and it slides in from its own edge instead of zooming,
+   which is the movement a thing anchored to a side would make.
+
+   Text inside it reads from the left. Centring works in a box in the middle
+   of the screen and looks accidental in a column against an edge. */
+
+.panel--rail {
+    width: 420px;
+
+    align-self: stretch;
+    justify-content: center;
+
+    background-color: var(--veil);
+
+    border-left-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-radius: 0;
+
+    scale: 1 1;
+    translate: -16px 0;
+
+    transition-property: translate;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.screen--open .panel--rail {
+    translate: 0 0;
+}
+
+
+.panel--rail .title,
+.panel--rail .hint {
+    -unity-text-align: middle-left;
+}
+
+
+.panel--rail .button {
+    padding-left: var(--space-m);
+
+    -unity-text-align: middle-left;
+}
+
+
 .panel--wide {
     width: 720px;
 }

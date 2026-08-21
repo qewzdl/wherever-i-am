@@ -2,7 +2,7 @@ using UnityEngine;
 
 public sealed class MainMenuSceneFeature : SceneRuntimeFeature
 {
-    [SerializeField] private MainMenuUI mainMenu;
+    [SerializeField] private MainMenuDocument mainMenu;
 
     protected override bool ValidateFeature(SceneFeatureContext context)
     {
@@ -10,6 +10,7 @@ public sealed class MainMenuSceneFeature : SceneRuntimeFeature
         valid &= RequireReference(mainMenu, nameof(mainMenu));
         valid &= RequireService<INetworkSessionService>(context, out _);
         valid &= RequireService<IUiErrorService>(context, out _);
+        valid &= RequireService<ISettingsScreen>(context, out _);
 
         return valid;
     }
@@ -18,7 +19,8 @@ public sealed class MainMenuSceneFeature : SceneRuntimeFeature
     {
         INetworkSessionService sessionService = context.Services.Resolve<INetworkSessionService>();
         IUiErrorService errorService = context.Services.Resolve<IUiErrorService>();
-        mainMenu.Construct(sessionService, errorService);
+        ISettingsScreen settingsScreen = context.Services.Resolve<ISettingsScreen>();
+        mainMenu.Construct(sessionService, errorService, settingsScreen);
         return true;
     }
 

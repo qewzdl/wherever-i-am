@@ -1,0 +1,35 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <ui:VisualElement name="Screen" class="screen screen--left">
+        <ui:VisualElement name="Backdrop" picking-mode="Ignore" class="backdrop">
+            <ui:VisualElement picking-mode="Ignore" class="backdrop__shade" />
+        </ui:VisualElement>
+        <ui:VisualElement name="Panel" class="panel panel--rail">
+            <ui:Label text="Wherever I Am" name="Title" class="title" />
+            <ui:Label text="Name" class="hint" />
+            <ui:TextField name="PlayerName" max-length="16" class="input" />
+            <ui:VisualElement class="stack">
+                <ui:Button text="Create lobby" name="HostButton" class="button button--confirm" />
+                <ui:Button text="Join lobby" name="JoinButton" class="button" />
+                <ui:Button text="Settings" name="SettingsButton" class="button" />
+                <ui:Button text="Quit" name="QuitButton" class="button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="JoinPanel" class="overlay">
+            <ui:VisualElement class="panel panel--dialog">
+                <ui:Label text="Join a lobby" class="question" />
+                <ui:Label text="Host address" class="hint" />
+                <ui:TextField name="Address" class="input" />
+                <ui:VisualElement class="footer">
+                    <ui:Button text="Connect" name="ConnectButton" class="button button--confirm" />
+                    <ui:Button text="Cancel" name="CancelJoinButton" class="button button--cancel" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="BusyPanel" class="overlay">
+            <ui:VisualElement class="panel panel--dialog">
+                <ui:Label name="BusyText" class="question" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -39,6 +39,54 @@
 }
 
 
+/* A screen that stands beside what is behind it rather than over it: the menu
+   goes to one side and the rest of the frame is left to the scene. Anything
+   the camera is looking at becomes the backdrop. */
+
+.screen--left {
+    align-items: flex-start;
+
+    background-color: rgba(0, 0, 0, 0);
+}
+
+
+/* ==========================================================================
+   BACKDROP
+
+   What the screen stands in front of. Sits behind everything else in the
+   document and takes no clicks, so the menu above it behaves as though it
+   were not there.
+
+   The picture is set here and nowhere else - one line to change the whole
+   frame - and it is cropped rather than squashed, because a menu is seen at
+   whatever shape the player's window happens to be.
+   ========================================================================== */
+
+.backdrop {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    background-color: var(--palette-black);
+
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+
+/* Laid over the picture rather than mixed into it: art is chosen for how it
+   looks, not for how much text it can carry, and this is the dial that makes
+   any of it quiet enough to read across. */
+
+.backdrop__shade {
+    flex-grow: 1;
+
+    background-color: rgba(6, 6, 6, 0.35);
+}
+
+
 /* ==========================================================================
    LAYOUT
    ========================================================================== */
