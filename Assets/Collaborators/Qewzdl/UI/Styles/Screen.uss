@@ -28,6 +28,9 @@
 
     opacity: 0;
 
+    /* Fading, not moving: an overshoot on opacity has nowhere to overshoot to
+       and is clipped at one, which only makes the screen arrive early. The
+       overshoot belongs to the things that travel. */
     transition-property: opacity;
     transition-duration: var(--motion-screen);
     transition-timing-function: var(--ease-standard);
@@ -70,7 +73,7 @@
     top: 0;
     bottom: 0;
 
-    background-color: var(--palette-black);
+    background-color: var(--palette-ink-1000);
 
     -unity-background-scale-mode: scale-and-crop;
 }

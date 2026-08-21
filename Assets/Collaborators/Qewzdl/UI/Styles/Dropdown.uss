@@ -384,7 +384,7 @@
 .unity-base-slider__dragger {
     width: var(--scrollbar-thumb-width);
 
-    background-color: var(--palette-gray-700);
+    background-color: var(--line-hover);
 
     border-left-width: 0;
     border-right-width: 0;
@@ -434,7 +434,7 @@
 .unity-base-dropdown__container-outer
 .unity-scroll-view__vertical-scroller:hover
 .unity-base-slider__dragger {
-    background-color: var(--palette-gray-500);
+    background-color: var(--text-dim);
 }
 
 
@@ -535,7 +535,7 @@
 .unity-base-dropdown__item.unity-base-dropdown__item:active {
     color: var(--text);
 
-    background-color: var(--palette-gray-700);
+    background-color: var(--line-hover);
 
     border-left-color: var(--accent);
 }

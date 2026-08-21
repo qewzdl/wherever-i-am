@@ -22,9 +22,12 @@
     border-left-width: 0;
     border-right-width: 0;
     border-top-width: 0;
-    border-bottom-width: var(--border);
 
-    border-bottom-color: var(--surface);
+    /* Wide enough to be a mark rather than an edge, and present on every tab
+       so that choosing one moves no text. */
+    border-bottom-width: 2px;
+
+    border-bottom-color: rgba(0, 0, 0, 0);
 
     border-radius: 0;
 

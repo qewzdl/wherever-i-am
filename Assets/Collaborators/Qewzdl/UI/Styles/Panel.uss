@@ -27,15 +27,22 @@
     padding-bottom: var(--space-l);
 
     scale: 0.97 0.97;
+    translate: 0 10px;
 
-    transition-property: scale;
+    /* Two properties rather than one. A panel that only grows looks like a
+       zoom; a panel that rises while it grows looks like it was put there. */
+    transition-property:
+        scale,
+        translate;
+
     transition-duration: var(--motion-screen);
-    transition-timing-function: var(--ease-standard);
+    transition-timing-function: var(--ease-entrance);
 }
 
 
 .screen--open .panel {
     scale: 1 1;
+    translate: 0 0;
 }
 
 
@@ -77,7 +84,7 @@
 
     transition-property: translate;
     transition-duration: var(--motion-screen);
-    transition-timing-function: var(--ease-standard);
+    transition-timing-function: var(--ease-entrance);
 }
 
 
@@ -99,6 +106,132 @@
 
 .panel--rail .stack {
     margin-top: auto;
+}
+
+
+/* --------------------------------------------------------------------------
+   ARRIVAL
+
+   The column slides in as one piece, and the things in it follow one after
+   another rather than all at once. A menu that assembles itself reads as a
+   place being opened; a menu that appears whole reads as a screenshot.
+
+   USS cannot count children, so the order is written into the markup. Ugly
+   there, honest here: the alternative is a script that exists only to stagger
+   four labels.
+
+   The buttons arrive as one block rather than one by one. A delay in USS
+   applies to everything the element transitions, so a stagger class on a
+   button would also delay the colour it takes when the pointer reaches it -
+   and a menu item that lights up a fifth of a second late feels broken in a
+   way no entrance is worth.
+   -------------------------------------------------------------------------- */
+
+.rail__item {
+    opacity: 0;
+
+    translate: 0 12px;
+
+    transition-property:
+        opacity,
+        translate;
+
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.screen--open .rail__item {
+    opacity: 1;
+
+    translate: 0 0;
+}
+
+
+.rail__item--2 {
+    transition-delay: 0.04s;
+}
+
+
+.rail__item--3 {
+    transition-delay: 0.08s;
+}
+
+
+.rail__item--4 {
+    transition-delay: 0.12s;
+}
+
+
+/* --------------------------------------------------------------------------
+   MENU ITEMS
+
+   In a dialog a button is a box you press. In a column against the edge of the
+   screen it is a place to go, and the boxes get in the way of reading it as a
+   list. So the border comes off three sides and stays on the fourth, where it
+   does the work: transparent until the pointer arrives, accent under it.
+
+   The bar is always there and only changes colour, so nothing moves sideways
+   when it appears. What moves is the item itself, leaning six pixels towards
+   the pointer - small enough that nobody would call it an animation, large
+   enough that the row under the cursor is never in doubt.
+   -------------------------------------------------------------------------- */
+
+.panel--rail .unity-button.button {
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 3px;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-left-color: rgba(0, 0, 0, 0);
+
+    padding-top: var(--space-m);
+    padding-bottom: var(--space-m);
+}
+
+
+/* The one action the screen exists for keeps its bar lit, so the column has a
+   place the eye lands before it starts reading. */
+
+.panel--rail .unity-button.button--confirm {
+    color: var(--accent);
+
+    border-left-color: var(--line-hover);
+}
+
+
+.panel--rail .unity-button.button:hover:enabled {
+    color: var(--accent);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--accent);
+
+    translate: 6px 0;
+    scale: 1 1;
+}
+
+
+.panel--rail .unity-button.button:focus:enabled {
+    color: var(--text);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--line-hover);
+}
+
+
+.panel--rail .unity-button.button:active:enabled {
+    color: var(--accent-pressed);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--accent-pressed);
+
+    translate: 3px 0;
+    scale: 1 1;
 }
 
 

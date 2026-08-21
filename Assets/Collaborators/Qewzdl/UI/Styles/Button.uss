@@ -10,6 +10,10 @@
     color: var(--text);
     font-size: var(--text-m);
 
+    /* Set apart, like the titles. A button is scanned before it is read, and
+       spacing is what makes a row of them scannable. */
+    letter-spacing: var(--tracking-wide);
+
     background-color: rgba(0, 0, 0, 0);
 
     border-left-color: var(--line);
@@ -39,7 +43,8 @@
         border-right-color,
         border-top-color,
         border-bottom-color,
-        scale;
+        scale,
+        translate;
 
     transition-duration: var(--motion-normal);
     transition-timing-function: var(--ease-standard);
@@ -107,7 +112,7 @@
    ========================================================================== */
 
 .unity-button.button--danger:hover:enabled {
-    color: var(--text-on-accent);
+    color: var(--text-on-danger);
 
     background-color: var(--danger);
 
@@ -118,15 +123,18 @@
 }
 
 
+/* Pressed stays in the same colour rather than falling back to bone: a button
+   that changes hue under the finger reads as a different button. */
+
 .unity-button.button--danger:active:enabled {
-    color: var(--text-on-accent);
+    color: var(--text-on-danger);
 
-    background-color: var(--accent-pressed);
+    background-color: var(--danger-pressed);
 
-    border-left-color: var(--accent-pressed);
-    border-right-color: var(--accent-pressed);
-    border-top-color: var(--accent-pressed);
-    border-bottom-color: var(--accent-pressed);
+    border-left-color: var(--danger-pressed);
+    border-right-color: var(--danger-pressed);
+    border-top-color: var(--danger-pressed);
+    border-bottom-color: var(--danger-pressed);
 
     scale: 0.98 0.98;
 }

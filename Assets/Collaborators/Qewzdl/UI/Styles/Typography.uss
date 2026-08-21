@@ -1,20 +1,44 @@
 /* ==========================================================================
    TYPOGRAPHY
-   ========================================================================== */
 
-/* ==========================================================================
-   TYPOGRAPHY
+   Four voices, and they differ by more than size. Titles are lettered - set
+   apart, meant to be looked at. Questions are spoken at normal weight, because
+   somebody has to read them and answer. Hints are small and quiet and exist to
+   be glanced at rather than read. Sections are the quietest of all: they are
+   signposts, not content.
    ========================================================================== */
 
 .title {
     color: var(--text);
     font-size: var(--text-l);
 
+    letter-spacing: var(--tracking-wide);
+
     margin-bottom: var(--space-l);
 
     white-space: normal;
 
     -unity-text-align: middle-center;
+}
+
+
+/* The name of the game, which is the one string in the interface allowed to
+   behave like a picture. Wide enough that the letters stop being a word and
+   start being a shape. */
+
+.title--display {
+    font-size: var(--text-xl);
+
+    letter-spacing: var(--tracking-wider);
+
+    /* A rule under the name, which is the cheapest way to say that this is a
+       masthead and not the first row of something. */
+    border-bottom-width: var(--border);
+    border-bottom-color: var(--line);
+
+    padding-bottom: var(--space-m);
+
+    margin-bottom: var(--space-xl);
 }
 
 
@@ -30,7 +54,11 @@
 
 .hint {
     color: var(--text-dim);
-    font-size: var(--text-s);
+    font-size: var(--text-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-bottom: var(--space-xs);
 
     white-space: normal;
 
@@ -40,10 +68,10 @@
 
 .section {
     color: var(--text-dim);
-    font-size: var(--text-s);
+    font-size: var(--text-xs);
 
-    margin-top: var(--space-m);
+    letter-spacing: var(--tracking-wide);
+
+    margin-top: var(--space-l);
     margin-bottom: var(--space-xs);
 }
-
-

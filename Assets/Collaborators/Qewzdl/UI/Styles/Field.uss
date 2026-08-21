@@ -75,6 +75,13 @@
     flex-direction: row;
     justify-content: flex-end;
 
+    /* A hairline above the actions, so a panel has a floor rather than just
+       running out. Cheap detail, and it does the same work as whitespace at a
+       quarter of the height. */
+    border-top-width: var(--border);
+    border-top-color: var(--line);
+
+    padding-top: var(--space-m);
     margin-top: var(--space-l);
 }
 

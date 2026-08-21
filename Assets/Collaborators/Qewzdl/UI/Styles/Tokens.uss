@@ -4,65 +4,100 @@
    Every colour, size and duration the interface is allowed to use. Screens
    name a role - surface, text, accent - and never a value, so the whole game
    re-skins from this one block.
+
+   The palette is not grey. It reads as grey, but every dark step carries a
+   little blue and every light step a little yellow, which is what stops an
+   interface built out of near-black rectangles from looking like a spreadsheet
+   in the dark. The accent is bone rather than white for the same reason: pure
+   white on near-black is the one combination that always looks like a system
+   dialog.
    ========================================================================== */
 
 :root {
     /* ======================================================================
        PALETTE
+
+       Two families that meet in the middle. Ink is what the game is made of;
+       bone is what it says.
        ====================================================================== */
 
-    --palette-black: rgb(6, 6, 6);
+    --palette-ink-1000: rgb(5, 6, 8);
+    --palette-ink-950: rgb(14, 16, 20);
+    --palette-ink-900: rgb(21, 24, 29);
+    --palette-ink-800: rgb(38, 42, 50);
+    --palette-ink-700: rgb(58, 64, 74);
+    --palette-ink-500: rgb(112, 120, 133);
 
-    --palette-gray-950: rgb(17, 17, 17);
-    --palette-gray-800: rgb(46, 46, 46);
-    --palette-gray-700: rgb(74, 74, 74);
-    --palette-gray-500: rgb(138, 138, 138);
-    --palette-gray-200: rgb(226, 226, 226);
+    --palette-bone-300: rgb(168, 165, 156);
+    --palette-bone-200: rgb(213, 208, 196);
+    --palette-bone-100: rgb(237, 233, 223);
 
-    --palette-white: rgb(245, 245, 245);
+    --palette-rust: rgb(154, 74, 52);
+    --palette-rust-700: rgb(116, 54, 38);
 
 
     /* ======================================================================
        SEMANTIC COLORS
        ====================================================================== */
 
-    --veil: rgba(6, 6, 6, 0.88);
+    --veil: rgba(5, 6, 8, 0.9);
 
-    --surface: var(--palette-gray-950);
-    --surface-hover: var(--palette-gray-800);
+    --surface: var(--palette-ink-950);
+    --surface-hover: var(--palette-ink-900);
 
-    --line: var(--palette-gray-800);
-    --line-hover: var(--palette-gray-700);
+    --line: var(--palette-ink-800);
+    --line-hover: var(--palette-ink-700);
 
-    --text: var(--palette-gray-200);
-    --text-dim: var(--palette-gray-500);
-    --text-disabled: var(--palette-gray-700);
-    --text-on-accent: var(--palette-black);
+    --text: var(--palette-bone-200);
+    --text-dim: var(--palette-ink-500);
+    --text-disabled: var(--palette-ink-700);
+    --text-on-accent: var(--palette-ink-1000);
 
-    --accent: var(--palette-white);
-    --accent-hover: var(--palette-gray-200);
-    --accent-pressed: var(--palette-gray-500);
+    --accent: var(--palette-bone-100);
+    --accent-hover: var(--palette-bone-200);
+    --accent-pressed: var(--palette-bone-300);
 
-    --danger: var(--palette-gray-200);
+    /* The only colour in the interface, and it is spent on one thing: the
+       button that ends something. A palette this quiet does not need a second
+       hue to be interesting - it needs one place where the quiet breaks.
+
+       Its text is bone, not ink. Rust is dark enough that black on it is the
+       one pairing here that would actually be hard to read. */
+    --danger: var(--palette-rust);
+    --danger-pressed: var(--palette-rust-700);
+    --text-on-danger: var(--palette-bone-100);
 
 
     /* ======================================================================
        SPACING
+
+       Not a doubling. The steps grow faster than that on purpose, so that a
+       gap meant to separate two things can never be mistaken for a gap that
+       just sits between them.
        ====================================================================== */
 
     --space-xs: 4px;
     --space-s: 8px;
     --space-m: 16px;
     --space-l: 28px;
+    --space-xl: 48px;
 
 
     /* ======================================================================
        TYPOGRAPHY
        ====================================================================== */
 
+    --text-xs: 13px;
     --text-s: 16px;
     --text-m: 20px;
-    --text-l: 40px;
+    --text-l: 34px;
+    --text-xl: 56px;
+
+    /* Letters set apart read as lettering rather than as text, which is the
+       difference between a title and a label. Only worth it on short strings
+       set large, or on things meant to be scanned rather than read. */
+    --tracking-wide: 2px;
+    --tracking-wider: 6px;
 
 
     /* ======================================================================
@@ -71,7 +106,7 @@
 
     --label-width: 200px;
     --control-width: 260px;
-    --control-height: 36px;
+    --control-height: 38px;
     --checkbox-size: 22px;
     --checkbox-mark-size: 12px;
 
@@ -86,21 +121,28 @@
 
     /* ======================================================================
        SHAPE
+
+       Nothing is rounded. A rounded corner is a promise of softness that this
+       game does not keep, and at 2px it was never a corner anyway - just a
+       slightly dirty one.
        ====================================================================== */
 
-    --radius: 2px;
+    --radius: 0;
     --border: 1px;
 
 
     /* ======================================================================
        MOTION
+
+       Short enough not to be waited on, long enough to be seen. Screens move
+       slower than the things inside them, so a panel arrives and then settles
+       rather than snapping into place all at once.
        ====================================================================== */
 
-    --motion-fast: 0.10s;
-    --motion-normal: 0.15s;
-    --motion-screen: 0.20s;
+    --motion-fast: 0.09s;
+    --motion-normal: 0.16s;
+    --motion-screen: 0.26s;
 
-    --ease-standard: ease-out;
+    --ease-standard: ease-out-cubic;
+    --ease-entrance: ease-out-back;
 }
-
-
