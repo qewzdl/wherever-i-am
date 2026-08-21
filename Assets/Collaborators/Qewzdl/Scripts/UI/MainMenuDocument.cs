@@ -193,6 +193,17 @@ public sealed class MainMenuDocument : MonoBehaviour
             return false;
         }
 
+        // A text field selects everything it holds the moment it is touched,
+        // which is right for a field you are about to replace and wrong for
+        // one that already says what you wanted. Both of these arrive filled
+        // in - the name and the address are remembered between runs - so a
+        // click is far more likely to mean "fix a character" than "start over".
+        root.Query<TextField>().ForEach(field =>
+        {
+            field.selectAllOnFocus = false;
+            field.selectAllOnMouseUp = false;
+        });
+
         Subscribe();
         HideJoinPrompt();
         SetBusy(false, string.Empty);
