@@ -51,15 +51,23 @@
 }
 
 
+/* Unity's own focus ring is a blue rectangle from another program, so it was
+   taken off. Nothing replaced it, which left a menu that cannot be walked with
+   a keyboard or a stick - the button under the cursor lights up, the button
+   under the focus does not.
+
+   A brighter edge rather than a fill: hover already owns the fill, and the two
+   states have to stay tellable apart when they land on different buttons. */
+
 .unity-button.button:focus:enabled {
     color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-left-color: var(--line);
-    border-right-color: var(--line);
-    border-top-color: var(--line);
-    border-bottom-color: var(--line);
+    border-left-color: var(--text-dim);
+    border-right-color: var(--text-dim);
+    border-top-color: var(--text-dim);
+    border-bottom-color: var(--text-dim);
 }
 
 
@@ -104,6 +112,40 @@
     opacity: 1;
 
     scale: 1 1;
+}
+
+
+/* ==========================================================================
+   CONFIRM AND CANCEL
+
+   The rail styled its own confirm and nothing styled it anywhere else, so in
+   every dialog the button the screen exists for looked exactly like the one
+   that walks away from it. Connect read as Cancel; Apply read as Close.
+
+   Not a fill. Bone text on an accent edge is enough to be found first in a
+   footer of three, and a solid bone rectangle in a dialog this dark would be
+   the loudest thing in the game.
+   ========================================================================== */
+
+.button--confirm {
+    color: var(--accent);
+
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+
+/* The way out, kept quiet. It has to be findable, not chosen. */
+
+.button--cancel {
+    color: var(--text-dim);
+}
+
+
+.unity-button.button--cancel:hover:enabled {
+    color: var(--text-on-accent);
 }
 
 

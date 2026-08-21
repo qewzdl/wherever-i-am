@@ -48,11 +48,13 @@
 
 
 .unity-button.tab:focus:enabled {
-    color: var(--text-dim);
+    color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-bottom-color: var(--surface);
+    /* The mark stays where the active tab's is, so focus is read as "this one
+       next" rather than as a second selection. */
+    border-bottom-color: var(--text-dim);
 }
 
 
