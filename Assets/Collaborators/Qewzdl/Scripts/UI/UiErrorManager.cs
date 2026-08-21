@@ -22,7 +22,11 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
     // Matches --motion-screen in the theme. Two places for one number is a
     // cost; reading a resolved style before the first layout is not available
     // when this runs.
-    private const long FadeMilliseconds = 200;
+    // Longer than --motion-screen (0.26s), which is what the screen's opacity
+    // actually takes. Anything shorter switches display off mid-fade and the
+    // screen vanishes at half brightness - the one animation in the interface
+    // nobody could work out why it looked broken.
+    private const long FadeMilliseconds = 300;
 
     [SerializeField] private UIDocument document;
 

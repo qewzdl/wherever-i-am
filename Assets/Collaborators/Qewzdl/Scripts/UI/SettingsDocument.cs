@@ -18,7 +18,11 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     private const string OpenClass = "screen--open";
     private const string ActiveTabClass = "tab--active";
     private const string OverlayOpenClass = "overlay--open";
-    private const long FadeMilliseconds = 200;
+    // Longer than --motion-screen (0.26s), which is what the screen's opacity
+    // actually takes. Anything shorter switches display off mid-fade and the
+    // screen vanishes at half brightness - the one animation in the interface
+    // nobody could work out why it looked broken.
+    private const long FadeMilliseconds = 300;
 
     [Header("References")]
     [SerializeField] private UIDocument document;

@@ -29,7 +29,11 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
     // Matches --open-time in the theme. Two places for one number is a cost;
     // the alternative is reading a resolved style before the first layout,
     // which is not available when this runs.
-    private const long FadeMilliseconds = 120;
+    // Longer than --motion-screen (0.26s), which is what the screen's opacity
+    // actually takes. Anything shorter switches display off mid-fade and the
+    // screen vanishes at half brightness - the one animation in the interface
+    // nobody could work out why it looked broken.
+    private const long FadeMilliseconds = 300;
 
     private VisualElement screen;
     private IVisualElementScheduledItem hideAfterFade;
