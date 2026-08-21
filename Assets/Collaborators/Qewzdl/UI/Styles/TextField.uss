@@ -23,15 +23,28 @@
 
 /* --------------------------------------------------------------------------
    UNITY THEME OVERRIDES
+
+   Set on the field and on the box inside it. Unity paints the focus ring from
+   these variables on the inner element, and while variables do inherit, the
+   ring it draws for a focused field is the one thing in this theme that has
+   come back blue every time it was only told once.
    -------------------------------------------------------------------------- */
 
-.input.unity-text-field {
+.input.unity-text-field,
+.input.unity-text-field > .unity-base-text-field__input {
     --unity-colors-input_background: var(--surface);
     --unity-colors-input_background-hover: var(--surface-hover);
     --unity-colors-input_border: var(--line);
     --unity-colors-input_border-hover: var(--line-hover);
     --unity-colors-input_border-focus: var(--accent);
     --unity-colors-input_border-accent: var(--accent);
+
+    /* The blue itself. Unity keeps one highlight colour for everything it
+       wants to draw attention to, and a focused text field is one of them. */
+    --unity-colors-highlight: var(--accent);
+    --unity-colors-highlight-background: var(--surface-hover);
+    --unity-colors-highlight-background-inactive: var(--surface-hover);
+    --unity-colors-default-border: var(--line);
 }
 
 
@@ -117,8 +130,13 @@
    caret, its outline is the accent.
    -------------------------------------------------------------------------- */
 
-.input:focus > .unity-base-text-field__input,
-.input > .unity-base-text-field__input:focus {
+/* Three selectors for one state, because the element that takes focus is the
+   box inside the field rather than the field, and the class is doubled to get
+   above Unity's own rule for it - the same trick the dropdown needed. */
+
+.input.unity-text-field:focus > .unity-base-text-field__input,
+.input.unity-text-field > .unity-base-text-field__input:focus,
+.input.unity-text-field > .unity-base-text-field__input:focus:hover {
     background-color: var(--surface-hover);
 
     border-left-color: var(--accent);
@@ -127,8 +145,8 @@
     border-bottom-color: var(--accent);
 }
 
-.input:focus > .unity-base-text-field__input TextElement,
-.input > .unity-base-text-field__input:focus TextElement {
+.input.unity-text-field:focus > .unity-base-text-field__input TextElement,
+.input.unity-text-field > .unity-base-text-field__input:focus TextElement {
     color: var(--text);
 }
 
