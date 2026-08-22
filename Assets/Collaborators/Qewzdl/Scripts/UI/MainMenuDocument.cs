@@ -118,8 +118,31 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void OnDestroy()
     {
+        screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         Unsubscribe();
         Dispose();
+    }
+
+    // Backwards out of whatever is on top. A request in flight is cancelled
+    // first because it is the thing standing over everything else; the address
+    // prompt is next; and the menu itself has nowhere to go back to, so Escape
+    // there does nothing rather than quitting the game.
+    private void HandleCancelPressed(NavigationCancelEvent evt)
+    {
+        if (isRequestInFlight)
+        {
+            if (!isCancelling)
+                CancelRequest();
+
+            evt.StopPropagation();
+            return;
+        }
+
+        if (joinPanel != null && joinPanel.style.display == DisplayStyle.Flex)
+        {
+            HideJoinPrompt();
+            evt.StopPropagation();
+        }
     }
 
     // The clock runs from the moment the request started, not from the last
@@ -204,6 +227,12 @@ public sealed class MainMenuDocument : MonoBehaviour
             field.selectAllOnFocus = false;
             field.selectAllOnMouseUp = false;
         });
+
+        // Escape, and the cancel button on a pad - one event covers both. It
+        // reaches here by bubbling out of whatever is focused inside the
+        // screen, which is why every panel below hands focus to something when
+        // it opens.
+        screen.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
 
         Subscribe();
         HideJoinPrompt();
@@ -451,6 +480,12 @@ public sealed class MainMenuDocument : MonoBehaviour
     {
         SetDisplayed(busyPanel, isBusy);
         panel?.SetEnabled(!isBusy);
+
+        // Somewhere for the keyboard to be. Cancel is the only thing that can
+        // be done while a request is in flight, and a screen with nothing
+        // focused answers no key at all.
+        if (isBusy && cancelRequestButton != null)
+            cancelRequestButton.schedule.Execute(() => cancelRequestButton.Focus());
 
         busyMessage = message;
 

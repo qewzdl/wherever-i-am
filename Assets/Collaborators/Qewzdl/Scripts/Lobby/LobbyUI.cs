@@ -165,8 +165,18 @@ public class LobbyUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         Unsubscribe();
         Dispose();
+    }
+
+    private void HandleCancelPressed(NavigationCancelEvent evt)
+    {
+        if (pendingAction == PendingAction.None)
+            return;
+
+        CancelPendingAction();
+        evt.StopPropagation();
     }
 
     private void Show(bool complainIfMissing)
@@ -226,6 +236,11 @@ public class LobbyUI : MonoBehaviour
 
             return false;
         }
+
+        // Escape, and the cancel button on a pad. Only the dialog answers it:
+        // backing out of a lobby is leaving it, and that is too large a thing
+        // to happen because somebody reached for the key that closes windows.
+        screen.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
 
         PopulateDifficultyChoices();
         Subscribe();
@@ -613,6 +628,13 @@ public class LobbyUI : MonoBehaviour
             confirmButton.text = actionLabel;
 
         UiFade.Set(confirmPanel, true, OverlayOpenClass);
+
+        // The safe answer takes the focus, not the one being asked about. Both
+        // questions this dialog asks end something that cannot be undone, and
+        // a dialog that arrives with Enter aimed at the irreversible half is
+        // worse than no dialog at all.
+        if (confirmCancelButton != null)
+            confirmCancelButton.schedule.Execute(() => confirmCancelButton.Focus());
     }
 
     private void HandleConfirmed()

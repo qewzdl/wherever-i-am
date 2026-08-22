@@ -120,8 +120,35 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
     private void OnDestroy()
     {
+        screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
         ReleaseSettingsService();
+    }
+
+    // Answered the way the right button answers it: leave things alone. On the
+    // display countdown that means Revert, which is the whole point of the
+    // question - somebody looking at a screen mode they cannot read reaches for
+    // Escape long before they find a button.
+    private void HandleCancelPressed(NavigationCancelEvent evt)
+    {
+        if (!isOpen)
+            return;
+
+        // The pause menu reads the escape key straight off the keyboard rather
+        // than waiting to hear whether a window took it, so a screen that opens
+        // from the pause menu has to say it did. The chat window already had to
+        // do this; it is the mechanism that exists.
+        PauseMenuInput.SuppressToggleForCurrentFrame();
+
+        if (question != PendingQuestion.None)
+        {
+            RevertPending();
+            evt.StopPropagation();
+            return;
+        }
+
+        Close();
+        evt.StopPropagation();
     }
 
     public bool IsOpen => isOpen;
@@ -429,6 +456,11 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         confirmButton = confirm;
         revertButton = revert;
 
+        // Escape, and the cancel button on a pad. It backs out of the question
+        // first and out of the screen second, which is the order they are
+        // stacked in.
+        screen?.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
+
         if (confirm != null)
             confirm.clicked += ConfirmPending;
 
@@ -635,6 +667,13 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         SetAnswerLabels();
 
         UiFade.Set(confirmPanel, true, OverlayOpenClass);
+
+        // The right button takes the focus, because it is the one that leaves
+        // things alone. Two of the three questions put throwing work away on
+        // the left, and a dialog that arrives with Enter aimed at that is worse
+        // than no dialog.
+        if (revertButton != null)
+            revertButton.schedule.Execute(() => revertButton.Focus());
     }
 
     // The left button always goes ahead with what was asked and the right one

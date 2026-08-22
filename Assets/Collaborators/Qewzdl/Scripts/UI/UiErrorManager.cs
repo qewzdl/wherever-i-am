@@ -94,6 +94,10 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
             : message;
 
         SetVisible(true);
+
+        // OK is the only thing here, so it takes the focus and Enter works.
+        if (closeButton != null)
+            closeButton.schedule.Execute(() => closeButton.Focus());
         uiSoundService?.PlayError();
     }
 
@@ -152,6 +156,9 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
         // one did through a full-screen button behind it. Only the veil itself
         // counts: a click that started on the panel bubbles up to here too.
         screen.RegisterCallback<ClickEvent>(HandleBackdropClicked);
+
+        // And the key that closes windows, which is what this is.
+        screen.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         return true;
     }
 
@@ -161,12 +168,26 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
             closeButton.clicked -= HideError;
 
         screen?.UnregisterCallback<ClickEvent>(HandleBackdropClicked);
+        screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
     }
 
     private void HandleBackdropClicked(ClickEvent evt)
     {
         if (ReferenceEquals(evt.target, screen))
             HideError();
+    }
+
+    private void HandleCancelPressed(NavigationCancelEvent evt)
+    {
+        if (!isShown)
+            return;
+
+        // An error can stand over a paused game, and the pause menu reads the
+        // escape key directly. Without this, dismissing one unpauses.
+        PauseMenuInput.SuppressToggleForCurrentFrame();
+
+        HideError();
+        evt.StopPropagation();
     }
 
     // The fade lives in the stylesheet; this only says which side of it we are
