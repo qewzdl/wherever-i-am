@@ -24,34 +24,51 @@
     --palette-ink-1000: rgb(5, 6, 8);
     --palette-ink-950: rgb(14, 16, 20);
     --palette-ink-900: rgb(21, 24, 29);
-    --palette-ink-800: rgb(38, 42, 50);
     --palette-ink-700: rgb(58, 64, 74);
     --palette-ink-500: rgb(112, 120, 133);
 
+    /* The quiet end of the interface is bone too. It used to be borrowed from
+       the ink side, which is where the dark text came from: ink-500 and ink-700
+       were drawn to be a surface and a line, and reading them at four and two
+       to one was never something they were asked about. */
+    --palette-bone-500: rgb(110, 107, 101);
+    --palette-bone-400: rgb(140, 137, 130);
     --palette-bone-300: rgb(168, 165, 156);
     --palette-bone-200: rgb(213, 208, 196);
     --palette-bone-100: rgb(237, 233, 223);
 
+    /* Rust is worn as lettering now rather than as a fill, and lettering has
+       to clear the same bar everything else does. The old rust read at 2.7 to
+       one against the panel, which was fine underneath bone text and is not
+       fine as the text. The family grew a light half. */
+    --palette-rust-200: rgb(232, 152, 126);
+    --palette-rust-300: rgb(214, 126, 98);
     --palette-rust-400: rgb(196, 104, 76);
-    --palette-rust: rgb(154, 74, 52);
-    --palette-rust-700: rgb(116, 54, 38);
 
 
     /* ======================================================================
        SEMANTIC COLORS
        ====================================================================== */
 
-    --veil: rgba(5, 6, 8, 0.9);
+    /* Opaque enough that what is behind it stops mattering. At nine tenths a
+       column standing over a lit stage sat somewhere between rgb(8,10,13) and
+       rgb(28,29,29) depending on whether a player happened to be behind it, so
+       every contrast figure below was really a range, and the dim end of it
+       failed. At this much the worst case is rgb(17,17,19) - the panel colour,
+       near enough - and the numbers hold wherever the column is standing. */
+    --veil: rgba(5, 6, 8, 0.95);
 
     --surface: var(--palette-ink-950);
     --surface-hover: var(--palette-ink-900);
 
-    --line: var(--palette-ink-800);
-    --line-hover: var(--palette-ink-700);
+    /* A hairline over a veil is the first thing a bright scene behind it eats.
+       One step up, which is still a rule rather than a border. */
+    --line: var(--palette-ink-700);
+    --line-hover: var(--palette-ink-500);
 
     --text: var(--palette-bone-200);
-    --text-dim: var(--palette-ink-500);
-    --text-disabled: var(--palette-ink-700);
+    --text-dim: var(--palette-bone-400);
+    --text-disabled: var(--palette-bone-500);
     --text-on-accent: var(--palette-ink-1000);
 
     --accent: var(--palette-bone-100);
@@ -64,13 +81,13 @@
 
        It is worn as lettering now rather than as a fill, so there is nothing
        left to sit on top of it and no colour needed for that. */
-    --danger: var(--palette-rust);
+    --danger: var(--palette-rust-300);
 
     /* Rust needed a bright step. Bone always had one - the accent runs from
        bone up and down - while the rust family only ever had a dark half,
        because it used to be a fill with text on top rather than the text. */
-    --danger-hover: var(--palette-rust-400);
-    --danger-pressed: var(--palette-rust-700);
+    --danger-hover: var(--palette-rust-200);
+    --danger-pressed: var(--palette-rust-400);
 
 
     /* ======================================================================
