@@ -18,6 +18,8 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     private const string OpenClass = "screen--open";
     private const string ActiveTabClass = "tab--active";
     private const string OverlayOpenClass = "overlay--open";
+    private const string ConfirmToneClass = "button--confirm";
+    private const string DangerToneClass = "button--danger";
     // Longer than --motion-screen (0.26s), which is what the screen's opacity
     // actually takes. Anything shorter switches display off mid-fade and the
     // screen vanishes at half brightness - the one animation in the interface
@@ -636,32 +638,57 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     }
 
     // The left button always goes ahead with what was asked and the right one
-    // always leaves things alone; only the words change with the question.
+    // always leaves things alone. What changes with the question is not only
+    // the words but which of the two is the one you probably want.
+    //
+    // The markup used to decide that: confirm was nailed to the left button, so
+    // it wore the accent before anybody pointed at it - for Keep, which is what
+    // the accent is for, and equally for Reset and Discard, which throw work
+    // away. On the discard question it was pointing at the wrong answer
+    // outright: the one to take is Keep editing, and that was the dim one.
     private void SetAnswerLabels()
     {
         switch (question)
         {
             case PendingQuestion.Defaults:
-                SetAnswerText("Reset", "Cancel");
+                SetAnswer("Reset", DangerToneClass, "Cancel", null);
                 break;
 
             case PendingQuestion.DiscardChanges:
-                SetAnswerText("Discard", "Keep editing");
+                SetAnswer("Discard", DangerToneClass, "Keep editing", ConfirmToneClass);
                 break;
 
             case PendingQuestion.DisplayConfirmation:
-                SetAnswerText("Keep", "Revert");
+                SetAnswer("Keep", ConfirmToneClass, "Revert", null);
                 break;
         }
     }
 
-    private void SetAnswerText(string confirmLabel, string revertLabel)
+    private void SetAnswer(
+        string confirmLabel,
+        string confirmTone,
+        string revertLabel,
+        string revertTone)
     {
-        if (confirmButton != null)
-            confirmButton.text = confirmLabel;
+        SetAnswer(confirmButton, confirmLabel, confirmTone);
+        SetAnswer(revertButton, revertLabel, revertTone);
+    }
 
-        if (revertButton != null)
-            revertButton.text = revertLabel;
+    // Both tones come off before one goes on. The dialog is reused for every
+    // question, so a button that was rust last time is still rust unless
+    // somebody says otherwise.
+    private static void SetAnswer(Button button, string label, string tone)
+    {
+        if (button == null)
+            return;
+
+        button.text = label;
+
+        button.RemoveFromClassList(ConfirmToneClass);
+        button.RemoveFromClassList(DangerToneClass);
+
+        if (!string.IsNullOrEmpty(tone))
+            button.AddToClassList(tone);
     }
 
     private void HideConfirmation()

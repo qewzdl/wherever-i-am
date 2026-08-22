@@ -100,7 +100,7 @@
             <ui:VisualElement class="panel panel--dialog">
                 <ui:Label name="ConfirmText" class="question" />
                 <ui:VisualElement class="footer">
-                    <ui:Button text="Keep" name="ConfirmButton" class="button button--confirm" />
+                    <ui:Button name="ConfirmButton" class="button" />
                     <ui:Button text="Revert" name="RevertButton" class="button button--cancel" />
                 </ui:VisualElement>
             </ui:VisualElement>
