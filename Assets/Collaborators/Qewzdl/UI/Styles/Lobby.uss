@@ -136,8 +136,8 @@
 /* Small, and only on other people's rows. A control that removes somebody for
    the rest of the session should be reachable without being in the way. */
 
-/* Given a width for the same reason the footer's are: it sits beside a name
-   that grows to fill the row, and a word opening would squeeze it. */
+/* Framed like every other button in a panel, because it is a thing to press
+   rather than a place to go - but sized to sit inside a row, not to be one. */
 
 .roster__kick {
     width: 96px;

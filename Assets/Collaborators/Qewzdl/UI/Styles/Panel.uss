@@ -225,23 +225,33 @@
 /* --------------------------------------------------------------------------
    MENU ITEMS
 
-   The same mark as anywhere else, given room. In a dialog a button is one of
-   three things on a line and is sized to fit beside them; in a column it is a
-   place to go, and the list wants height between its entries more than it
-   wants anything else.
+   The one place the frame comes off. In a panel a button is a thing to press
+   and looks like one; in a column against the edge of the screen it is a place
+   to go, and four boxes stacked on top of each other read as a form to be
+   filled in rather than as a list to be chosen from.
 
-   It used to be a different button entirely - no frame, a bar down one side,
-   the whole item leaning towards the pointer. Two styles for one control, and
-   the reason given for the second was that boxes get in the way of reading a
-   column as a list. True of boxes. The mark is not a box.
+   What is left is the word, lighting the same way it lights everywhere else -
+   so this is one control with its edge removed rather than a second control,
+   which is what the two styles here used to be.
+
+   Given room, as well. A row in a dialog is sized to sit beside two others; a
+   list wants height between its entries more than it wants anything.
    -------------------------------------------------------------------------- */
 
 .panel--rail .stack .button {
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
     padding-top: var(--space-m);
     padding-bottom: var(--space-m);
 
-    /* No indent. The bar that used to sit out here is gone, and the word lines
-       up with everything else in the column. */
+    /* No indent either. The word lines up with everything else in the column,
+       which is the whole point of taking the box off it. */
+    padding-left: 0;
+    padding-right: 0;
+
     -unity-text-align: middle-left;
 }
 

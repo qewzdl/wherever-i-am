@@ -1,17 +1,19 @@
 /* ==========================================================================
    BUTTON
 
-   A word that lights.
+   A frame, and inside it a word that lights.
 
-   No frame, no block, no bar, no fill, and nothing that moves. A button here is
-   its own lettering, and pointing at it brings the letters up out of the dim.
-   That is the whole control.
+   Three steps of brightness carry all three states - dim at rest, bone under
+   the keyboard, full bone under the pointer - and the frame goes with them,
+   because a border and its label disagreeing about how lit they are is the one
+   thing that makes a button look broken. Nothing fills, nothing moves, nothing
+   changes size, so a row of these can be read while the pointer crosses it.
 
-   Three steps of brightness carry all three states, because it is the only
-   channel there is: dim at rest, bone under the keyboard, full bone under the
-   pointer. Nothing is animated but colour, so nothing on the screen changes
-   size or position at any point - which is the reason a row of these can be
-   read while the pointer is crossing it.
+   The frame comes off in one place: the column of menu entries down the side
+   of the main menu and the lobby. There a button is a place to go rather than
+   a thing to press, and a stack of four boxes reads as a form. It is taken off
+   there rather than added here because everything else in the game that can be
+   clicked lives in a panel.
    ========================================================================== */
 
 .button {
@@ -22,22 +24,35 @@
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    /* The brighter of the two rules. A hairline at --line is meant to divide
+       two things without being looked at, and the edge of a button is there to
+       be found. */
+    border-left-color: var(--line-hover);
+    border-right-color: var(--line-hover);
+    border-top-color: var(--line-hover);
+    border-bottom-color: var(--line-hover);
+
+    border-left-width: var(--border);
+    border-right-width: var(--border);
+    border-top-width: var(--border);
+    border-bottom-width: var(--border);
 
     border-radius: var(--radius);
 
     padding-top: var(--space-s);
     padding-bottom: var(--space-s);
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: var(--space-m);
+    padding-right: var(--space-m);
 
     margin-top: var(--space-xs);
     margin-bottom: var(--space-xs);
 
-    transition-property: color;
+    transition-property:
+        color,
+        border-left-color,
+        border-right-color,
+        border-top-color,
+        border-bottom-color;
 
     transition-duration: var(--motion-normal);
     transition-timing-function: var(--ease-standard);
@@ -53,6 +68,11 @@
     color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--text);
+    border-right-color: var(--text);
+    border-top-color: var(--text);
+    border-bottom-color: var(--text);
 }
 
 
@@ -60,6 +80,11 @@
     color: var(--accent);
 
     background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
 }
 
 
@@ -71,6 +96,11 @@
 
     background-color: rgba(0, 0, 0, 0);
 
+    border-left-color: var(--accent-pressed);
+    border-right-color: var(--accent-pressed);
+    border-top-color: var(--accent-pressed);
+    border-bottom-color: var(--accent-pressed);
+
     transition-duration: var(--motion-fast);
 }
 
@@ -81,6 +111,11 @@
     color: var(--text-disabled);
 
     background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--text-disabled);
+    border-right-color: var(--text-disabled);
+    border-top-color: var(--text-disabled);
+    border-bottom-color: var(--text-disabled);
 
     opacity: 1;
 }
@@ -119,6 +154,11 @@
 
 .button--confirm {
     color: var(--accent);
+
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
 }
 
 
@@ -137,6 +177,11 @@
 
 .button--danger {
     color: var(--danger);
+
+    border-left-color: var(--danger);
+    border-right-color: var(--danger);
+    border-top-color: var(--danger);
+    border-bottom-color: var(--danger);
 }
 
 
@@ -145,11 +190,21 @@
 
 .unity-button.button--danger:focus:enabled {
     color: var(--danger);
+
+    border-left-color: var(--danger);
+    border-right-color: var(--danger);
+    border-top-color: var(--danger);
+    border-bottom-color: var(--danger);
 }
 
 
 .unity-button.button--danger:hover:enabled {
     color: var(--danger-hover);
+
+    border-left-color: var(--danger-hover);
+    border-right-color: var(--danger-hover);
+    border-top-color: var(--danger-hover);
+    border-bottom-color: var(--danger-hover);
 }
 
 
@@ -158,4 +213,9 @@
 
 .unity-button.button--danger:active:enabled {
     color: var(--danger-pressed);
+
+    border-left-color: var(--danger-pressed);
+    border-right-color: var(--danger-pressed);
+    border-top-color: var(--danger-pressed);
+    border-bottom-color: var(--danger-pressed);
 }
