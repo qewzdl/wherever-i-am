@@ -23,6 +23,7 @@ public class LobbyUI : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private UIDocument document;
+    [SerializeField] private UiDocumentSounds sounds;
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
 
     [Header("Text")]
@@ -106,6 +107,9 @@ public class LobbyUI : MonoBehaviour
     {
         if (document == null)
             document = GetComponent<UIDocument>();
+
+        if (sounds == null)
+            sounds = GetComponent<UiDocumentSounds>();
     }
 
     // Quiet here on purpose: UIDocument builds its tree in its own OnEnable,
@@ -416,6 +420,13 @@ public class LobbyUI : MonoBehaviour
                 player.ClientId == readService.RoomOwnerClientId,
                 canKick && player.ClientId != localPlayer.ClientId));
         }
+
+        // The sound binder listens for the whole document and cannot hear
+        // elements that did not exist when it looked. Every other screen is
+        // built once from markup and never needs to say anything; this one
+        // makes a kick button per player, and a control that is silent under
+        // the pointer reads as one that cannot be used.
+        sounds?.Bind();
     }
 
     private VisualElement BuildPlayerRow(LobbyPlayerData player, bool isRoomOwner, bool canKick)
