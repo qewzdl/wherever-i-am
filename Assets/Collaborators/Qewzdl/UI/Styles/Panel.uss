@@ -130,16 +130,30 @@
    whatever is left over - the menu keeps its shape at any window height, and
    the empty middle is the point rather than an accident. */
 
-/* Everything the column holds now sits at the bottom of it, because the top
-   belongs to the name: the masthead is placed over that corner, and a field
-   starting there would be underneath it. The free space is taken once, by the
-   first thing in the group - two auto margins would split it and put the
-   controls back in the middle. */
+/* Text in a column reads from the left. Centring works in a box in the middle
+   of the screen and looks accidental against an edge. */
 
 .panel--rail .hint {
-    margin-top: auto;
-
     -unity-text-align: middle-left;
+}
+
+
+/* Where the column's empty space goes. One element claims all of it, and what
+   sits above that element stays at the top while everything below it is held
+   at the bottom - so the menu keeps its shape at any window height and the gap
+   is the composition rather than a leftover.
+
+   Said by one element rather than by the rule for a kind of element. It used
+   to be attached to .hint, which was true of the menu - it holds exactly one -
+   and stopped being true the moment a second column existed: the lobby has
+   three hints, and the first of them would have taken the space and pushed the
+   rest of the screen off the bottom.
+
+   Two of these in one column would split the space and put everything back in
+   the middle, so a column gets one. */
+
+.rail__gap {
+    margin-top: auto;
 }
 
 
@@ -220,9 +234,14 @@
    when it appears. What moves is the item itself, leaning six pixels towards
    the pointer - small enough that nobody would call it an animation, large
    enough that the row under the cursor is never in doubt.
+
+   Only the buttons in the action column, though. This used to claim every
+   button in the rail, which was the same set until the lobby put one on each
+   row of its player list - and a Remove button eighteen pixels tall does not
+   want a menu item's padding, its bar, or its lean.
    -------------------------------------------------------------------------- */
 
-.panel--rail .unity-button.button {
+.panel--rail .stack .unity-button.button {
     background-color: rgba(0, 0, 0, 0);
 
     border-left-width: 3px;
@@ -240,14 +259,14 @@
 /* The one action the screen exists for keeps its bar lit, so the column has a
    place the eye lands before it starts reading. */
 
-.panel--rail .unity-button.button--confirm {
+.panel--rail .stack .unity-button.button--confirm {
     color: var(--accent);
 
     border-left-color: var(--line-hover);
 }
 
 
-.panel--rail .unity-button.button:hover:enabled {
+.panel--rail .stack .unity-button.button:hover:enabled {
     color: var(--accent);
 
     background-color: rgba(0, 0, 0, 0);
@@ -259,7 +278,7 @@
 }
 
 
-.panel--rail .unity-button.button:focus:enabled {
+.panel--rail .stack .unity-button.button:focus:enabled {
     color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
@@ -268,7 +287,7 @@
 }
 
 
-.panel--rail .unity-button.button:active:enabled {
+.panel--rail .stack .unity-button.button:active:enabled {
     color: var(--accent-pressed);
 
     background-color: rgba(0, 0, 0, 0);
@@ -280,7 +299,7 @@
 }
 
 
-.panel--rail .button {
+.panel--rail .stack .button {
     padding-left: var(--space-m);
 
     -unity-text-align: middle-left;

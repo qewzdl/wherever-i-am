@@ -176,15 +176,64 @@
 }
 
 
-/* Why the match has not started, kept on the same line as the button that
-   would start it. It takes the free space so the actions still sit at the
-   right-hand end, and it is the reason the footer never looks empty while
-   the room is still filling up. */
+/* ==========================================================================
+   THE COLUMN
 
-.hint--footer {
-    flex-grow: 1;
+   The lobby stands beside the room rather than over it. It used to be a panel
+   in the middle of a black screen, which is the arrangement for a screen with
+   nothing behind it - and this one is meant to have the players standing in
+   it.
 
-    margin-bottom: 0;
+   So it takes the menu's column: the same width, the same edge, the same
+   lettering at the top, and the rest of the frame left to the camera. The two
+   screens are the same screen with different contents, which is what they
+   always were.
+   ========================================================================== */
 
-    -unity-text-align: middle-left;
+/* A form row is a label beside a control because a settings page is wide. A
+   column is not, and at the label's own width there would be a hundred pixels
+   left over for the control. So the row becomes what it is in any narrow
+   place - the name of the thing, and then the thing. */
+
+.panel--rail .field {
+    flex-direction: column;
+    align-items: stretch;
+
+    margin-top: var(--space-m);
+}
+
+
+.panel--rail .field__label {
+    width: auto;
+
+    align-self: auto;
+
+    margin-bottom: var(--space-xs);
+}
+
+
+.panel--rail .field__control {
+    width: auto;
+
+    align-self: stretch;
+}
+
+
+/* The line under a setting is indented to the control column on a settings
+   page. In a column there is no control column to indent to. */
+
+.panel--rail .hint--field {
+    margin-left: 0;
+}
+
+
+/* The list is floored at the height of a full room on a settings panel so the
+   footer does not walk as players arrive. In the column the actions are pinned
+   to the bottom by the space above them, nothing walks anywhere, and the list
+   can take what the room actually needs and give the rest back. */
+
+.panel--rail .roster {
+    min-height: auto;
+
+    margin-bottom: var(--space-m);
 }
