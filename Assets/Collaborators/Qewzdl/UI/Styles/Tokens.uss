@@ -32,6 +32,7 @@
     --palette-bone-200: rgb(213, 208, 196);
     --palette-bone-100: rgb(237, 233, 223);
 
+    --palette-rust-400: rgb(196, 104, 76);
     --palette-rust: rgb(154, 74, 52);
     --palette-rust-700: rgb(116, 54, 38);
 
@@ -61,11 +62,15 @@
        button that ends something. A palette this quiet does not need a second
        hue to be interesting - it needs one place where the quiet breaks.
 
-       Its text is bone, not ink. Rust is dark enough that black on it is the
-       one pairing here that would actually be hard to read. */
+       It is worn as lettering now rather than as a fill, so there is nothing
+       left to sit on top of it and no colour needed for that. */
     --danger: var(--palette-rust);
+
+    /* Rust needed a bright step. Bone always had one - the accent runs from
+       bone up and down - while the rust family only ever had a dark half,
+       because it used to be a fill with text on top rather than the text. */
+    --danger-hover: var(--palette-rust-400);
     --danger-pressed: var(--palette-rust-700);
-    --text-on-danger: var(--palette-bone-100);
 
 
     /* ======================================================================

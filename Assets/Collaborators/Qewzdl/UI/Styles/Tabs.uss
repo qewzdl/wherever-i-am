@@ -25,7 +25,12 @@
 
     /* Wide enough to be a mark rather than an edge, and present on every tab
        so that choosing one moves no text. */
-    border-bottom-width: 2px;
+    border-bottom-width: var(--border-strong);
+
+    /* Held where it is. Buttons open their tracking under the pointer; a row
+       of four tabs doing that would shove each other sideways, and a tab has
+       its own mark to move instead. */
+    letter-spacing: var(--tracking-wide);
 
     border-bottom-color: rgba(0, 0, 0, 0);
 
@@ -48,6 +53,8 @@
 
 
 .unity-button.tab:focus:enabled {
+    letter-spacing: var(--tracking-wide);
+
     color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
@@ -59,6 +66,8 @@
 
 
 .unity-button.tab:hover:enabled {
+    letter-spacing: var(--tracking-wide);
+
     color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
@@ -75,6 +84,8 @@
 
 
 .unity-button.tab--active:focus:enabled {
+    letter-spacing: var(--tracking-wide);
+
     color: var(--text);
 
     border-bottom-color: var(--accent);
@@ -82,6 +93,8 @@
 
 
 .unity-button.tab--active:hover:enabled {
+    letter-spacing: var(--tracking-wide);
+
     color: var(--text);
 
     border-bottom-color: var(--accent);

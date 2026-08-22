@@ -240,6 +240,8 @@
     padding-top: var(--space-m);
     padding-bottom: var(--space-m);
 
+    /* No indent. The bar that used to sit out here is gone, and the word lines
+       up with everything else in the column. */
     -unity-text-align: middle-left;
 }
 

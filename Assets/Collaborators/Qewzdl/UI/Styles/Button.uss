@@ -1,197 +1,185 @@
 /* ==========================================================================
    BUTTON
 
-   A bracket rather than a box.
+   A word that opens.
 
-   Three things were wrong with the boxes. A one pixel rectangle with rounded
-   nothing is what every settings dialog written since 2014 looks like, and it
-   said nothing about this game. Filling it with bone on hover made the thing
-   under the pointer the brightest object on the screen, in a game whose whole
-   palette is an argument against that. And the movement - an item leaning six
-   pixels towards the cursor, a box shrinking two percent under the click - is
-   a web page's idea of feedback, borrowed twice.
+   No frame, no block, no bar, no fill. A button here is its own lettering and
+   nothing else, and pointing at it does two things at once: the letters come
+   up out of the dim, and the spacing between them widens. The word opens.
 
-   So: the frame is open on two sides and closes when you point at it. At rest
-   a button is an L, a corner mark, the kind of thing stencilled on a crate or
-   drawn round a thing being measured. Under the pointer the other two sides
-   arrive and the mark becomes a frame - the interface closing around what you
-   are about to do.
+   That is the whole control. It is the quietest thing this interface could
+   have been and still be usable, which is the right register for a game about
+   a house nobody is supposed to be inside.
 
-   All four sides are always there and only the colour of two of them changes,
-   so nothing moves, nothing reflows, and nothing needs to be animated except
-   colour. That is the whole interaction: no travel, no scale, no fill.
+   Three steps of brightness carry all three states, because with the geometry
+   gone colour is the only channel left. Dim at rest, bone under the keyboard,
+   full bone under the pointer. The tracking opens for both of the last two -
+   whichever way you arrive at a button, arriving is what opens it.
+
+   THE THING TO WATCH
+
+   Tracking changes how wide a word is. In a column that costs nothing: the
+   entries are full width and the text simply spreads inside its own row. In a
+   row of three it would shove the neighbours sideways every time the pointer
+   crossed one, so anything that sits in a row is given a width and keeps it.
+   That is not a workaround bolted onto the idea - a row of actions all the
+   same width is what a row of actions should have looked like anyway.
    ========================================================================== */
 
 .button {
-    color: var(--text);
+    color: var(--text-dim);
     font-size: var(--text-m);
 
-    /* Set apart, like the titles. A button is scanned before it is read, and
-       spacing is what makes a row of them scannable. */
     letter-spacing: var(--tracking-wide);
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-left-width: var(--border-strong);
-    border-right-width: var(--border-strong);
-    border-top-width: var(--border-strong);
-    border-bottom-width: var(--border-strong);
-
-    /* The mark: down the left and along the bottom. Two sides present, two
-       held open and waiting. */
-    border-left-color: var(--line-hover);
-    border-bottom-color: var(--line-hover);
-    border-top-color: rgba(0, 0, 0, 0);
-    border-right-color: rgba(0, 0, 0, 0);
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
 
     border-radius: var(--radius);
 
     padding-top: var(--space-s);
     padding-bottom: var(--space-s);
-    padding-left: var(--space-m);
-    padding-right: var(--space-m);
+    padding-left: 0;
+    padding-right: 0;
 
     margin-top: var(--space-xs);
     margin-bottom: var(--space-xs);
 
     transition-property:
         color,
-        border-left-color,
-        border-right-color,
-        border-top-color,
-        border-bottom-color;
+        letter-spacing;
 
     transition-duration: var(--motion-normal);
     transition-timing-function: var(--ease-standard);
 }
 
 
-/* The frame closes and the lettering comes up with it. */
-
-.unity-button.button:hover:enabled {
-    color: var(--accent);
-
-    background-color: rgba(0, 0, 0, 0);
-
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
-}
-
-
-/* Focus closes it too, but stays dim. The two states have to be tellable apart
-   when they land on different buttons - which is the normal case the moment
-   anybody touches a key - and the difference is brightness rather than shape,
-   because a keyboard and a pointer are pointing at the same kind of thing. */
+/* Under the keyboard: up out of the dim, and open. Focus gets the movement as
+   well as the colour, because a player driving this with a stick is arriving
+   at the button in every sense that matters and should see the same thing
+   happen. It stops one step short of the pointer's brightness, so when the two
+   land on different buttons - which is the normal case the moment anybody
+   touches a key - they are still tellable apart. */
 
 .unity-button.button:focus:enabled {
     color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-left-color: var(--text-dim);
-    border-right-color: var(--text-dim);
-    border-top-color: var(--text-dim);
-    border-bottom-color: var(--text-dim);
+    letter-spacing: var(--tracking-wider);
 }
 
 
-/* Pressed does not move and does not fill. It goes down a step in brightness,
-   which on a frame this thin is the whole difference between held and not. */
+.unity-button.button:hover:enabled {
+    color: var(--accent);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    letter-spacing: var(--tracking-wider);
+}
+
+
+/* Held. It closes back down a little rather than going anywhere - the word
+   tightening under the finger is the only thing left to press. */
 
 .unity-button.button:active:enabled {
     color: var(--accent-pressed);
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-left-color: var(--accent-pressed);
-    border-right-color: var(--accent-pressed);
-    border-top-color: var(--accent-pressed);
-    border-bottom-color: var(--accent-pressed);
+    letter-spacing: var(--tracking-wide);
 
     transition-duration: var(--motion-fast);
 }
 
 
-/* A button that cannot be pressed keeps its mark open, because closing is what
-   pressing looks like and this one never will. */
+/* Never opens, because it never will. */
 
 .unity-button.button:disabled {
     color: var(--text-disabled);
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-left-color: var(--text-disabled);
-    border-bottom-color: var(--text-disabled);
-    border-top-color: rgba(0, 0, 0, 0);
-    border-right-color: rgba(0, 0, 0, 0);
+    letter-spacing: var(--tracking-wide);
 
     opacity: 1;
 }
 
 
 /* ==========================================================================
-   CONFIRM AND CANCEL
+   ROWS
 
-   The action a screen exists for is marked before anybody points at it, so a
-   footer of three has somewhere for the eye to land. It is still an open mark,
-   not a closed frame - closing is what the pointer does, and a button that
-   arrives closed would read as already pressed.
+   Everything that sits beside another button is given a width, so a word
+   opening never moves the word next to it. In a column nothing needs this:
+   the entries are already as wide as the column.
+
+   There is no .button--cancel here on purpose. With the frames gone the base
+   button already is the quiet one, and the class stays in the markup because
+   the sound binder listens for it - not because it needs a look of its own.
    ========================================================================== */
 
-.button--confirm {
-    color: var(--accent);
+.footer .button {
+    width: 160px;
 
-    border-left-color: var(--accent);
-    border-bottom-color: var(--accent);
-}
-
-
-/* The way out, kept quiet. It has to be findable, not chosen. */
-
-.button--cancel {
-    color: var(--text-dim);
-
-    border-left-color: var(--line);
-    border-bottom-color: var(--line);
+    -unity-text-align: middle-center;
 }
 
 
 /* ==========================================================================
-   DANGER BUTTON
+   CONFIRM
 
-   The one colour in the interface, spent on the one button that ends
-   something. It closes in rust rather than in bone, and stays rust while it is
-   held: a button that changes hue under the finger reads as a different
-   button.
+   The action the screen exists for, lit before anybody points at it, so a row
+   of three has somewhere for the eye to land. It does not arrive open - the
+   opening belongs to the pointer, and a word that arrived open would have
+   nothing left to do.
    ========================================================================== */
 
-/* Marked before it is touched, the same way the confirm is. A button that ends
-   something should be findable without pointing at every button to see which
-   one it was. */
+.button--confirm {
+    color: var(--accent);
+}
+
+
+/* ==========================================================================
+   DANGER
+
+   The one colour in the interface, spent on the one button that ends
+   something. It is worn at rest, because with the geometry gone there is no
+   other way to be told which button that is without pointing at each one.
+
+   Rust needs its own bright step. Bone had one already - the accent goes from
+   bone to bone-pressed and back - and the rust family only ever had a dark
+   half, because it used to be a fill with text on top rather than the text
+   itself.
+   ========================================================================== */
 
 .button--danger {
-    border-left-color: var(--danger);
-    border-bottom-color: var(--danger);
+    color: var(--danger);
+}
+
+
+.unity-button.button--danger:focus:enabled {
+    color: var(--danger);
+
+    letter-spacing: var(--tracking-wider);
 }
 
 
 .unity-button.button--danger:hover:enabled {
-    color: var(--danger);
+    color: var(--danger-hover);
 
-    border-left-color: var(--danger);
-    border-right-color: var(--danger);
-    border-top-color: var(--danger);
-    border-bottom-color: var(--danger);
+    letter-spacing: var(--tracking-wider);
 }
 
+
+/* Stays rust while it is held: a button that changes hue under the finger
+   reads as a different button. */
 
 .unity-button.button--danger:active:enabled {
     color: var(--danger-pressed);
 
-    border-left-color: var(--danger-pressed);
-    border-right-color: var(--danger-pressed);
-    border-top-color: var(--danger-pressed);
-    border-bottom-color: var(--danger-pressed);
+    letter-spacing: var(--tracking-wide);
 }

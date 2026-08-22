@@ -115,8 +115,15 @@
 /* Small, and only on other people's rows. A control that removes somebody for
    the rest of the session should be reachable without being in the way. */
 
+/* Given a width for the same reason the footer's are: it sits beside a name
+   that grows to fill the row, and a word opening would squeeze it. */
+
 .roster__kick {
+    width: 96px;
+
     font-size: var(--text-xs);
+
+    -unity-text-align: middle-center;
 
     margin-top: 0;
     margin-bottom: 0;
