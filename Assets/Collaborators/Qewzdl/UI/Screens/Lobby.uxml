@@ -13,13 +13,17 @@
                 <ui:DropdownField name="Difficulty" class="field__control" />
             </ui:VisualElement>
             <ui:Label name="DifficultyDescription" class="hint hint--field rail__item rail__item--3" />
+            <ui:VisualElement name="AddressField" class="field rail__item rail__item--3">
+                <ui:Label text="Address" class="field__label" />
+                <ui:Label name="Address" class="field__control field__control--code" />
+            </ui:VisualElement>
             <ui:VisualElement class="field rail__item rail__item--3">
                 <ui:Label text="Door" class="field__label" />
-                <ui:Label name="Visibility" class="field__control field__control--text" />
+                <ui:Toggle name="Visibility" class="field__control" />
             </ui:VisualElement>
+            <ui:Label name="DoorHint" class="hint hint--field rail__item rail__item--3" />
             <ui:VisualElement class="stack rail__gap rail__item rail__item--4">
                 <ui:Label name="StartHint" class="hint" />
-                <ui:Button name="VisibilityButton" class="button" />
                 <ui:Button text="Start" name="StartButton" class="button button--confirm" />
                 <ui:Button text="Ready" name="ReadyButton" class="button" />
                 <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />

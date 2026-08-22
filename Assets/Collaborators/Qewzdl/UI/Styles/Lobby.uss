@@ -55,6 +55,10 @@
 }
 
 
+/* The mark for your own row is carried by every row, transparent on the ones
+   that are not yours, so nothing shifts sideways when the list is rebuilt and
+   somebody else takes the place above you. */
+
 .roster__row {
     flex-direction: row;
     align-items: center;
@@ -62,6 +66,9 @@
     height: 54px;
 
     flex-shrink: 0;
+
+    border-left-width: var(--border-strong);
+    border-left-color: rgba(0, 0, 0, 0);
 
     border-bottom-width: var(--border);
     border-bottom-color: var(--line);
@@ -80,6 +87,20 @@
     overflow: hidden;
 
     -unity-text-align: middle-left;
+}
+
+
+/* Which of these four answers to you. Every other line on this screen is about
+   your own state - whether you are ready, whether you may start - and the list
+   was the one place that never said which row that was. */
+
+.roster__row--you {
+    border-left-color: var(--text-dim);
+}
+
+
+.roster__row--you .roster__name {
+    color: var(--accent);
 }
 
 
@@ -243,4 +264,22 @@
     min-height: auto;
 
     margin-bottom: var(--space-m);
+}
+
+
+/* An address is read out loud down a voice call, one character at a time, and
+   the whole point of it is that the person on the other end types back exactly
+   what was said. Set in the fixed-width face so a one is not an l, spaced so
+   the digits can be counted, and left in the full text colour rather than the
+   dim one - it is the only value on this screen anybody has to transcribe. */
+
+.field__control--code {
+    color: var(--text);
+    font-size: var(--text-s);
+
+    letter-spacing: var(--tracking-wide);
+
+    white-space: nowrap;
+
+    -unity-text-align: middle-left;
 }

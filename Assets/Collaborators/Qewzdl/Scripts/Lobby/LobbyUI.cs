@@ -27,8 +27,11 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
 
     [Header("Text")]
-    [SerializeField] private string readyActionText = "Ready";
-    [SerializeField] private string notReadyActionText = "Not ready";
+    // Both are verbs. The old pair said "Ready" and "Not ready", and the second
+    // of those reads as a state rather than as the thing pressing it does -
+    // which is the one question a button label exists to answer.
+    [SerializeField] private string readyActionText = "Ready up";
+    [SerializeField] private string standDownActionText = "Stand down";
     [SerializeField] private string playerCountFormat = "{0}/{1}";
     [SerializeField] private string kickConfirmFormat =
         "Remove {0}? They will not be able to join again this session.";
@@ -36,16 +39,21 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string waitingForReadyFormat = "Waiting for {0} to get ready";
     [SerializeField] private string startingText = "Starting the match...";
     [SerializeField] private string ownerOnlySettingText = "Only the host can change this";
-    [SerializeField] private string privateLobbyText = "Private - nobody can join";
-    [SerializeField] private string publicLobbyText = "Public - anybody can join";
-    [SerializeField] private string makePublicActionText = "Make public";
-    [SerializeField] private string makePrivateActionText = "Make private";
+    [SerializeField] private string doorShutText =
+        "Shut. Nobody can reach this lobby until you open it.";
+    [SerializeField] private string doorOpenFormat =
+        "Open. Anyone on this network can join by typing {0}.";
+    [SerializeField] private string doorNotYoursText = "Only the host can open the door.";
+    [SerializeField] private string addressUnknownText = "no network";
+    [SerializeField] private string readyToStartText = "Everybody is ready";
+    [SerializeField] private string waitingForHostText = "Waiting for the host to start";
 
     [Header("Player rows")]
     [SerializeField] private string ownerStatusText = "Owner";
     [SerializeField] private string readyStatusText = "Ready";
     [SerializeField] private string notReadyStatusText = "Not ready";
     [SerializeField] private string kickActionText = "Remove";
+    [SerializeField] private string localPlayerSuffix = "  (you)";
     [SerializeField] private string emptyRosterText = "Waiting for the room...";
 
     private ILobbyReadService readService;
@@ -58,11 +66,13 @@ public class LobbyUI : MonoBehaviour
     private VisualElement kickPanel;
     private Label playerCountLabel;
     private Label difficultyDescriptionLabel;
-    private Label visibilityLabel;
+    private Label doorHintLabel;
+    private Label addressLabel;
+    private VisualElement addressField;
     private Label startHintLabel;
     private Label kickTextLabel;
     private DropdownField difficultyField;
-    private Button visibilityButton;
+    private Toggle visibilityToggle;
     private Button readyButton;
     private Button startButton;
     private Button leaveButton;
@@ -172,11 +182,13 @@ public class LobbyUI : MonoBehaviour
         kickPanel = root.Q<VisualElement>("KickPanel");
         playerCountLabel = root.Q<Label>("PlayerCount");
         difficultyDescriptionLabel = root.Q<Label>("DifficultyDescription");
-        visibilityLabel = root.Q<Label>("Visibility");
+        doorHintLabel = root.Q<Label>("DoorHint");
+        addressLabel = root.Q<Label>("Address");
+        addressField = root.Q<VisualElement>("AddressField");
         startHintLabel = root.Q<Label>("StartHint");
         kickTextLabel = root.Q<Label>("KickText");
         difficultyField = root.Q<DropdownField>("Difficulty");
-        visibilityButton = root.Q<Button>("VisibilityButton");
+        visibilityToggle = root.Q<Toggle>("Visibility");
         readyButton = root.Q<Button>("ReadyButton");
         startButton = root.Q<Button>("StartButton");
         leaveButton = root.Q<Button>("LeaveButton");
@@ -209,8 +221,8 @@ public class LobbyUI : MonoBehaviour
         if (leaveButton != null)
             leaveButton.clicked += HandleLeaveLobbyClicked;
 
-        if (visibilityButton != null)
-            visibilityButton.clicked += HandleLobbyVisibilityToggleClicked;
+        if (visibilityToggle != null)
+            visibilityToggle.RegisterValueChangedCallback(HandleVisibilityChanged);
 
         if (kickConfirmButton != null)
             kickConfirmButton.clicked += HandleKickConfirmed;
@@ -233,8 +245,8 @@ public class LobbyUI : MonoBehaviour
         if (leaveButton != null)
             leaveButton.clicked -= HandleLeaveLobbyClicked;
 
-        if (visibilityButton != null)
-            visibilityButton.clicked -= HandleLobbyVisibilityToggleClicked;
+        if (visibilityToggle != null)
+            visibilityToggle.UnregisterValueChangedCallback(HandleVisibilityChanged);
 
         if (kickConfirmButton != null)
             kickConfirmButton.clicked -= HandleKickConfirmed;
@@ -261,7 +273,7 @@ public class LobbyUI : MonoBehaviour
         LeaveLobbyClicked?.Invoke();
     }
 
-    private void HandleLobbyVisibilityToggleClicked()
+    private void HandleVisibilityChanged(ChangeEvent<bool> evt)
     {
         LobbyVisibilityToggleClicked?.Invoke();
     }
@@ -418,6 +430,7 @@ public class LobbyUI : MonoBehaviour
             roster.Add(BuildPlayerRow(
                 player,
                 player.ClientId == readService.RoomOwnerClientId,
+                hasLocalPlayer && player.ClientId == localPlayer.ClientId,
                 canKick && player.ClientId != localPlayer.ClientId));
         }
 
@@ -429,12 +442,26 @@ public class LobbyUI : MonoBehaviour
         sounds?.Bind();
     }
 
-    private VisualElement BuildPlayerRow(LobbyPlayerData player, bool isRoomOwner, bool canKick)
+    private VisualElement BuildPlayerRow(
+        LobbyPlayerData player,
+        bool isRoomOwner,
+        bool isLocalPlayer,
+        bool canKick)
     {
         VisualElement row = new VisualElement();
         row.AddToClassList("roster__row");
 
-        Label name = new Label(player.PlayerName.ToString());
+        // Four names and no way to tell which one answers to you. Everything
+        // else on this screen is about your own state - are you ready, may you
+        // start - and the list was the one place that never said which row
+        // that was.
+        if (isLocalPlayer)
+            row.AddToClassList("roster__row--you");
+
+        Label name = new Label(isLocalPlayer
+            ? player.PlayerName + localPlayerSuffix
+            : player.PlayerName.ToString());
+
         name.AddToClassList("roster__name");
         row.Add(name);
 
@@ -537,35 +564,62 @@ public class LobbyUI : MonoBehaviour
 
             readyButton.SetEnabled(isLobbyPhaseOpen && hasLocalPlayer);
             readyButton.text = hasLocalPlayer && localPlayer.IsReady
-                ? notReadyActionText
+                ? standDownActionText
                 : readyActionText;
         }
 
         RefreshStartHint(isLobbyPhaseOpen);
 
-        // Everybody needs to know whether the door is open, not just whoever
-        // can move it - otherwise a player has no way to tell why their friend
-        // cannot get in.
-        if (visibilityLabel != null)
+        RefreshDoor(isLobbyPhaseOpen);
+    }
+
+    // A lobby starts shut, on purpose, so a host can set the room up before
+    // anybody walks into it. Nothing said so, and nothing said what to type to
+    // reach it either, so the two walls between a host and their friend were
+    // both invisible and the second one only showed up after the first was
+    // guessed past.
+    //
+    // They are one thing on screen now: the address is only worth reading out
+    // while the door is open, and the line under the switch says which of those
+    // is true in words rather than leaving it to a tick box.
+    private void RefreshDoor(bool isLobbyPhaseOpen)
+    {
+        bool isOwner = readService.IsLocalPlayerRoomOwner;
+        bool isPublic = readService.Settings.IsPublic;
+
+        // Everybody sees the state - a player whose friend cannot get in needs
+        // to know why - and only the host can move it, and only while the lobby
+        // is still a lobby.
+        if (visibilityToggle != null)
         {
-            visibilityLabel.text = readService.Settings.IsPublic
-                ? publicLobbyText
-                : privateLobbyText;
+            visibilityToggle.SetValueWithoutNotify(isPublic);
+            visibilityToggle.SetEnabled(isOwner && isLobbyPhaseOpen);
         }
 
-        // Only the owner decides who may walk in, and only while the lobby is
-        // still a lobby - once the match is starting it takes nobody anyway.
-        if (visibilityButton != null)
-        {
-            visibilityButton.style.display = readService.IsLocalPlayerRoomOwner
-                ? DisplayStyle.Flex
-                : DisplayStyle.None;
+        // Shown to the host alone. Everybody else reached this screen by
+        // typing it.
+        if (addressField != null)
+            addressField.style.display = isOwner ? DisplayStyle.Flex : DisplayStyle.None;
 
-            visibilityButton.SetEnabled(isLobbyPhaseOpen);
-            visibilityButton.text = readService.Settings.IsPublic
-                ? makePrivateActionText
-                : makePublicActionText;
+        string address = LanAddressProvider.Get();
+
+        if (addressLabel != null)
+            addressLabel.text = string.IsNullOrEmpty(address) ? addressUnknownText : address;
+
+        if (doorHintLabel == null)
+            return;
+
+        if (!isPublic)
+        {
+            doorHintLabel.text = isOwner ? doorShutText : doorNotYoursText;
+            return;
         }
+
+        doorHintLabel.text = isOwner
+            ? string.Format(doorOpenFormat, string.IsNullOrEmpty(address)
+                ? addressUnknownText
+                : address)
+            : string.Empty;
     }
 
     // The same reasons the server checks, in the same order, so the line never
@@ -593,9 +647,19 @@ public class LobbyUI : MonoBehaviour
 
         int notReadyCount = settings.RequireAllPlayersReady ? CountNotReady() : 0;
 
-        startHintLabel.text = notReadyCount > 0
-            ? string.Format(waitingForReadyFormat, notReadyCount)
-            : string.Empty;
+        if (notReadyCount > 0)
+        {
+            startHintLabel.text = string.Format(waitingForReadyFormat, notReadyCount);
+            return;
+        }
+
+        // It used to go blank here, which left a hole above the buttons at the
+        // exact moment the screen had the most to say. Everyone waiting on the
+        // host should be told they are waiting on the host, and the host should
+        // be told there is nothing left to wait for.
+        startHintLabel.text = readService.IsLocalPlayerRoomOwner
+            ? readyToStartText
+            : waitingForHostText;
     }
 
     private int CountNotReady()

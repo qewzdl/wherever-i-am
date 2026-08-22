@@ -357,22 +357,25 @@ MonoBehaviour:
   document: {fileID: 896598421}
   sounds: {fileID: 896598422}
   difficultyCatalog: {fileID: 11400000, guid: ad8721df252ddf04e99e6d550037f2fc, type: 2}
-  readyActionText: Ready
-  notReadyActionText: Not ready
+  readyActionText: Ready up
+  standDownActionText: Stand down
   playerCountFormat: '{0}/{1}'
   kickConfirmFormat: Remove {0}? They will not be able to join again this session.
   needMorePlayersFormat: Need {0} more to start
   waitingForReadyFormat: Waiting for {0} to get ready
   startingText: Starting the match...
   ownerOnlySettingText: Only the host can change this
-  privateLobbyText: Private - nobody can join
-  publicLobbyText: Public - anybody can join
-  makePublicActionText: Make public
-  makePrivateActionText: Make private
+  doorShutText: Shut. Nobody can reach this lobby until you open it.
+  doorOpenFormat: Open. Anyone on this network can join by typing {0}.
+  doorNotYoursText: Only the host can open the door.
+  addressUnknownText: no network
+  readyToStartText: Everybody is ready
+  waitingForHostText: Waiting for the host to start
   ownerStatusText: Owner
   readyStatusText: Ready
   notReadyStatusText: Not ready
   kickActionText: Remove
+  localPlayerSuffix: '  (you)'
   emptyRosterText: Waiting for the room...
 
 --- !u!114 &896598421
