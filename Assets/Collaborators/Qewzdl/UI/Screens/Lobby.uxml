@@ -15,7 +15,7 @@
             <ui:Label name="DifficultyDescription" class="hint hint--field rail__item rail__item--3" />
             <ui:VisualElement name="AddressField" class="field rail__item rail__item--3">
                 <ui:Label text="Address" class="field__label" />
-                <ui:Label name="Address" class="field__control field__control--code" />
+                <ui:Button name="Address" class="button field__control field__control--code" />
             </ui:VisualElement>
             <ui:VisualElement class="field rail__item rail__item--3">
                 <ui:Label text="Door" class="field__label" />
@@ -29,12 +29,12 @@
                 <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement name="KickPanel" class="overlay">
+        <ui:VisualElement name="ConfirmPanel" class="overlay">
             <ui:VisualElement class="panel panel--dialog">
-                <ui:Label name="KickText" class="question" />
+                <ui:Label name="ConfirmText" class="question" />
                 <ui:VisualElement class="footer">
-                    <ui:Button text="Remove" name="KickConfirmButton" class="button button--danger" />
-                    <ui:Button text="Cancel" name="KickCancelButton" class="button button--cancel" />
+                    <ui:Button name="ConfirmButton" class="button button--danger" />
+                    <ui:Button text="Cancel" name="ConfirmCancelButton" class="button button--cancel" />
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>

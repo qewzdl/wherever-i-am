@@ -257,7 +257,9 @@ public class LobbyController : NetworkBehaviour
 
         if (!ownershipService.CanChangeSettings(senderClientId)) return;
 
-        settingsService.SetGameMode(gameModeId);
+        if (settingsService.SetGameMode(gameModeId))
+            playerCustomizationService.ClearAllReady();
+
         startService.RefreshCanStartGame();
     }
 
@@ -270,7 +272,9 @@ public class LobbyController : NetworkBehaviour
 
         if (!ownershipService.CanChangeSettings(senderClientId)) return;
 
-        settingsService.SetMap(mapId);
+        if (settingsService.SetMap(mapId))
+            playerCustomizationService.ClearAllReady();
+
         startService.RefreshCanStartGame();
     }
 
@@ -283,7 +287,9 @@ public class LobbyController : NetworkBehaviour
 
         if (!ownershipService.CanChangeSettings(senderClientId)) return;
 
-        settingsService.SetDifficulty(difficultyId);
+        if (settingsService.SetDifficulty(difficultyId))
+            playerCustomizationService.ClearAllReady();
+
         startService.RefreshCanStartGame();
     }
 

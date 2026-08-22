@@ -20,30 +20,44 @@ public class LobbySettingsService
         lobbyState.Phase.Value = LobbyPhase.Open;
     }
 
-    public void SetGameMode(int gameModeId)
+    // Returns whether anything moved. The caller clears everybody's ready when
+    // it did, and re-picking the option already selected has to not count -
+    // otherwise a host tapping through a list to look at the descriptions
+    // stands the whole room down.
+    public bool SetGameMode(int gameModeId)
     {
         if (!CanChangeSettings())
-            return;
+            return false;
 
         if (!IsValidGameModeId(gameModeId))
-            return;
+            return false;
 
         LobbySettingsData settings = lobbyState.Settings.Value;
+
+        if (settings.GameModeId == gameModeId)
+            return false;
+
         settings.GameModeId = gameModeId;
         lobbyState.Settings.Value = settings;
+        return true;
     }
 
-    public void SetMap(int mapId)
+    public bool SetMap(int mapId)
     {
         if (!CanChangeSettings())
-            return;
+            return false;
 
         if (!IsValidMapId(mapId))
-            return;
+            return false;
 
         LobbySettingsData settings = lobbyState.Settings.Value;
+
+        if (settings.MapId == mapId)
+            return false;
+
         settings.MapId = mapId;
         lobbyState.Settings.Value = settings;
+        return true;
     }
 
     public void SetLobbyPublic(bool isPublic)
@@ -60,17 +74,22 @@ public class LobbySettingsService
         lobbyState.Settings.Value = settings;
     }
 
-    public void SetDifficulty(int difficultyId)
+    public bool SetDifficulty(int difficultyId)
     {
         if (!CanChangeSettings())
-            return;
+            return false;
 
         if (!IsValidDifficultyId(difficultyId))
-            return;
+            return false;
 
         LobbySettingsData settings = lobbyState.Settings.Value;
+
+        if (settings.DifficultyId == difficultyId)
+            return false;
+
         settings.DifficultyId = difficultyId;
         lobbyState.Settings.Value = settings;
+        return true;
     }
 
     private bool IsValidDifficultyId(int difficultyId)

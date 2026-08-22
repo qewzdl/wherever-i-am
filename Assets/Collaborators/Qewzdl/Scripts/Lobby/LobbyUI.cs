@@ -45,6 +45,9 @@ public class LobbyUI : MonoBehaviour
         "Open. Anyone on this network can join by typing {0}.";
     [SerializeField] private string doorNotYoursText = "Only the host can open the door.";
     [SerializeField] private string addressUnknownText = "no network";
+    [SerializeField] private string addressCopiedText = "copied";
+    [SerializeField] private string doorFullFormat =
+        "Open, but the room is full at {0}. Nobody else can get in.";
     [SerializeField] private string readyToStartText = "Everybody is ready";
     [SerializeField] private string waitingForHostText = "Waiting for the host to start";
 
@@ -54,6 +57,16 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string notReadyStatusText = "Not ready";
     [SerializeField] private string kickActionText = "Remove";
     [SerializeField] private string localPlayerSuffix = "  (you)";
+
+    // Leaving means two different things depending on who presses it, and the
+    // button used to say the smaller one to both.
+    [SerializeField] private string leaveActionText = "Leave";
+    [SerializeField] private string closeLobbyActionText = "Close lobby";
+    [SerializeField] private string closeLobbyConfirmText =
+        "Close the lobby? Everybody else in it goes back to the menu.";
+    [SerializeField] private string closeLobbyConfirmAloneText =
+        "Close the lobby and go back to the menu?";
+    [SerializeField] private string closeLobbyActionConfirmText = "Close";
     [SerializeField] private string emptyRosterText = "Waiting for the room...";
 
     private ILobbyReadService readService;
@@ -63,25 +76,36 @@ public class LobbyUI : MonoBehaviour
     private VisualElement boundRoot;
     private VisualElement screen;
     private VisualElement roster;
-    private VisualElement kickPanel;
+    private VisualElement confirmPanel;
     private Label playerCountLabel;
     private Label difficultyDescriptionLabel;
     private Label doorHintLabel;
-    private Label addressLabel;
+
     private VisualElement addressField;
     private Label startHintLabel;
-    private Label kickTextLabel;
+    private Label confirmTextLabel;
     private DropdownField difficultyField;
     private Toggle visibilityToggle;
     private Button readyButton;
     private Button startButton;
     private Button leaveButton;
-    private Button kickConfirmButton;
-    private Button kickCancelButton;
+    private Button confirmButton;
+    private Button confirmCancelButton;
+    private Button addressButton;
 
-    // Nobody is removed on one click: it cannot be undone for the rest of the
-    // session, and the row under the pointer moves as players come and go.
-    private bool hasPendingKick;
+    // Two things on this screen are worth asking about twice, and they are the
+    // two that cannot be taken back: removing somebody for the rest of the
+    // session, and closing a room three other people are standing in. One
+    // dialog serves both - it is the same question with a different noun, and
+    // a second overlay would have been the same markup twice.
+    private enum PendingAction
+    {
+        None,
+        Kick,
+        CloseLobby
+    }
+
+    private PendingAction pendingAction;
     private ulong pendingKickClientId;
 
     public event Action ReadyClicked;
@@ -179,21 +203,21 @@ public class LobbyUI : MonoBehaviour
         boundRoot = root;
         screen = root.Q<VisualElement>("Screen");
         roster = root.Q<VisualElement>("Roster");
-        kickPanel = root.Q<VisualElement>("KickPanel");
+        confirmPanel = root.Q<VisualElement>("ConfirmPanel");
         playerCountLabel = root.Q<Label>("PlayerCount");
         difficultyDescriptionLabel = root.Q<Label>("DifficultyDescription");
         doorHintLabel = root.Q<Label>("DoorHint");
-        addressLabel = root.Q<Label>("Address");
+        addressButton = root.Q<Button>("Address");
         addressField = root.Q<VisualElement>("AddressField");
         startHintLabel = root.Q<Label>("StartHint");
-        kickTextLabel = root.Q<Label>("KickText");
+        confirmTextLabel = root.Q<Label>("ConfirmText");
         difficultyField = root.Q<DropdownField>("Difficulty");
         visibilityToggle = root.Q<Toggle>("Visibility");
         readyButton = root.Q<Button>("ReadyButton");
         startButton = root.Q<Button>("StartButton");
         leaveButton = root.Q<Button>("LeaveButton");
-        kickConfirmButton = root.Q<Button>("KickConfirmButton");
-        kickCancelButton = root.Q<Button>("KickCancelButton");
+        confirmButton = root.Q<Button>("ConfirmButton");
+        confirmCancelButton = root.Q<Button>("ConfirmCancelButton");
 
         if (screen == null)
         {
@@ -205,7 +229,7 @@ public class LobbyUI : MonoBehaviour
 
         PopulateDifficultyChoices();
         Subscribe();
-        CancelPendingKick();
+        CancelPendingAction();
 
         return true;
     }
@@ -224,11 +248,14 @@ public class LobbyUI : MonoBehaviour
         if (visibilityToggle != null)
             visibilityToggle.RegisterValueChangedCallback(HandleVisibilityChanged);
 
-        if (kickConfirmButton != null)
-            kickConfirmButton.clicked += HandleKickConfirmed;
+        if (confirmButton != null)
+            confirmButton.clicked += HandleConfirmed;
 
-        if (kickCancelButton != null)
-            kickCancelButton.clicked += CancelPendingKick;
+        if (confirmCancelButton != null)
+            confirmCancelButton.clicked += CancelPendingAction;
+
+        if (addressButton != null)
+            addressButton.clicked += CopyAddress;
 
         if (difficultyField != null)
             difficultyField.RegisterValueChangedCallback(HandleDifficultyChanged);
@@ -248,11 +275,14 @@ public class LobbyUI : MonoBehaviour
         if (visibilityToggle != null)
             visibilityToggle.UnregisterValueChangedCallback(HandleVisibilityChanged);
 
-        if (kickConfirmButton != null)
-            kickConfirmButton.clicked -= HandleKickConfirmed;
+        if (confirmButton != null)
+            confirmButton.clicked -= HandleConfirmed;
 
-        if (kickCancelButton != null)
-            kickCancelButton.clicked -= CancelPendingKick;
+        if (confirmCancelButton != null)
+            confirmCancelButton.clicked -= CancelPendingAction;
+
+        if (addressButton != null)
+            addressButton.clicked -= CopyAddress;
 
         if (difficultyField != null)
             difficultyField.UnregisterValueChangedCallback(HandleDifficultyChanged);
@@ -268,9 +298,56 @@ public class LobbyUI : MonoBehaviour
         StartGameClicked?.Invoke();
     }
 
+    // For anybody else this is walking out of a room that carries on without
+    // them. For the host it is a shutdown: LeaveLobby ends the session, and
+    // everybody standing in the lobby lands back in the menu. Same button, same
+    // word, two very different things - so the host gets the other word, and is
+    // asked.
     private void HandleLeaveLobbyClicked()
     {
-        LeaveLobbyClicked?.Invoke();
+        if (readService == null || !readService.IsLocalPlayerRoomOwner)
+        {
+            LeaveLobbyClicked?.Invoke();
+            return;
+        }
+
+        AskToConfirm(
+            PendingAction.CloseLobby,
+            readService.PlayerCount > 1
+                ? closeLobbyConfirmText
+                : closeLobbyConfirmAloneText,
+            closeLobbyActionConfirmText);
+    }
+
+    // The address is meant to be handed to somebody, and reading four numbers
+    // and three dots down a voice call is the worst way to do that. One click
+    // puts it where a message can be pasted from.
+    private void CopyAddress()
+    {
+        string address = LanAddressProvider.Get();
+
+        if (string.IsNullOrEmpty(address))
+            return;
+
+        GUIUtility.systemCopyBuffer = address;
+
+        if (addressButton == null)
+            return;
+
+        // Said on the button itself and taken back a moment later. A copy that
+        // reports nothing looks exactly like a copy that did not happen.
+        addressButton.text = addressCopiedText;
+        addressButton.schedule.Execute(RefreshAddressText).StartingIn(1200);
+    }
+
+    private void RefreshAddressText()
+    {
+        if (addressButton == null)
+            return;
+
+        string address = LanAddressProvider.Get();
+
+        addressButton.text = string.IsNullOrEmpty(address) ? addressUnknownText : address;
     }
 
     private void HandleVisibilityChanged(ChangeEvent<bool> evt)
@@ -405,8 +482,15 @@ public class LobbyUI : MonoBehaviour
                        readService.Phase == LobbyPhase.Open;
         int playerCount = readService.PlayerCount;
 
-        if (hasPendingKick && string.IsNullOrEmpty(ResolvePlayerName(pendingKickClientId)))
-            CancelPendingKick();
+        // The row the question was about can leave while the question is still
+        // on screen, and answering it then would remove whoever took their
+        // place. Closing the lobby is about the room rather than a row, so it
+        // survives the list changing under it.
+        if (pendingAction == PendingAction.Kick &&
+            string.IsNullOrEmpty(ResolvePlayerName(pendingKickClientId)))
+        {
+            CancelPendingAction();
+        }
 
         // Rebuilt rather than rebound. The uGUI version kept its rows and hid
         // the spares because each one was a GameObject; these are three
@@ -501,35 +585,53 @@ public class LobbyUI : MonoBehaviour
 
     private void HandlePlayerKickRequested(ulong clientId)
     {
-        if (kickPanel == null)
+        if (confirmPanel == null)
         {
             PlayerKickRequested?.Invoke(clientId);
             return;
         }
 
-        hasPendingKick = true;
         pendingKickClientId = clientId;
 
-        if (kickTextLabel != null)
-            kickTextLabel.text = string.Format(kickConfirmFormat, ResolvePlayerName(clientId));
-
-        UiFade.Set(kickPanel, true, OverlayOpenClass);
+        AskToConfirm(
+            PendingAction.Kick,
+            string.Format(kickConfirmFormat, ResolvePlayerName(clientId)),
+            kickActionText);
     }
 
-    private void HandleKickConfirmed()
+    private void AskToConfirm(PendingAction action, string question, string actionLabel)
     {
-        if (!hasPendingKick)
-            return;
+        pendingAction = action;
 
+        if (confirmTextLabel != null)
+            confirmTextLabel.text = question;
+
+        // The button says what it does rather than saying Yes. A dialog whose
+        // answer is Yes makes the reader hold the question in their head to
+        // work out what they are agreeing to.
+        if (confirmButton != null)
+            confirmButton.text = actionLabel;
+
+        UiFade.Set(confirmPanel, true, OverlayOpenClass);
+    }
+
+    private void HandleConfirmed()
+    {
+        PendingAction action = pendingAction;
         ulong clientId = pendingKickClientId;
-        CancelPendingKick();
-        PlayerKickRequested?.Invoke(clientId);
+
+        CancelPendingAction();
+
+        if (action == PendingAction.Kick)
+            PlayerKickRequested?.Invoke(clientId);
+        else if (action == PendingAction.CloseLobby)
+            LeaveLobbyClicked?.Invoke();
     }
 
-    private void CancelPendingKick()
+    private void CancelPendingAction()
     {
-        hasPendingKick = false;
-        UiFade.Set(kickPanel, false, OverlayOpenClass);
+        pendingAction = PendingAction.None;
+        UiFade.Set(confirmPanel, false, OverlayOpenClass);
     }
 
     private string ResolvePlayerName(ulong clientId)
@@ -568,6 +670,13 @@ public class LobbyUI : MonoBehaviour
                 : readyActionText;
         }
 
+        if (leaveButton != null)
+        {
+            leaveButton.text = readService.IsLocalPlayerRoomOwner
+                ? closeLobbyActionText
+                : leaveActionText;
+        }
+
         RefreshStartHint(isLobbyPhaseOpen);
 
         RefreshDoor(isLobbyPhaseOpen);
@@ -603,8 +712,7 @@ public class LobbyUI : MonoBehaviour
 
         string address = LanAddressProvider.Get();
 
-        if (addressLabel != null)
-            addressLabel.text = string.IsNullOrEmpty(address) ? addressUnknownText : address;
+        RefreshAddressText();
 
         if (doorHintLabel == null)
             return;
@@ -612,6 +720,16 @@ public class LobbyUI : MonoBehaviour
         if (!isPublic)
         {
             doorHintLabel.text = isOwner ? doorShutText : doorNotYoursText;
+            return;
+        }
+
+        // An open door on a full room is still a closed one, and approval
+        // refuses on MaxPlayers whatever the door says. Promising that anybody
+        // can join at this point sends two people off to find out why the
+        // address does not work.
+        if (readService.PlayerCount >= readService.Settings.MaxPlayers)
+        {
+            doorHintLabel.text = string.Format(doorFullFormat, readService.Settings.MaxPlayers);
             return;
         }
 

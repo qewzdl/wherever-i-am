@@ -18,6 +18,30 @@ public class LobbyPlayerCustomizationService
         lobbyState.Players[index] = player;
     }
 
+    // Ready means "I agree to start this match". Change what the match is and
+    // nobody has agreed to the new one, so the whole room stands down and says
+    // so again - which is also the only way the host finds out that somebody
+    // minded.
+    public void ClearAllReady()
+    {
+        if (lobbyState == null)
+        {
+            Debug.LogError("LobbyState is missing.");
+            return;
+        }
+
+        for (int i = 0; i < lobbyState.Players.Count; i++)
+        {
+            LobbyPlayerData player = lobbyState.Players[i];
+
+            if (!player.IsReady)
+                continue;
+
+            player.IsReady = false;
+            lobbyState.Players[i] = player;
+        }
+    }
+
     private bool TryGetPlayer(ulong clientId, out int index, out LobbyPlayerData player)
     {
         index = -1;

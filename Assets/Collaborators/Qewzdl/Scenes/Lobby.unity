@@ -369,6 +369,8 @@ MonoBehaviour:
   doorOpenFormat: Open. Anyone on this network can join by typing {0}.
   doorNotYoursText: Only the host can open the door.
   addressUnknownText: no network
+  addressCopiedText: copied
+  doorFullFormat: Open, but the room is full at {0}. Nobody else can get in.
   readyToStartText: Everybody is ready
   waitingForHostText: Waiting for the host to start
   ownerStatusText: Owner
@@ -376,6 +378,11 @@ MonoBehaviour:
   notReadyStatusText: Not ready
   kickActionText: Remove
   localPlayerSuffix: '  (you)'
+  leaveActionText: Leave
+  closeLobbyActionText: Close lobby
+  closeLobbyConfirmText: Close the lobby? Everybody else in it goes back to the menu.
+  closeLobbyConfirmAloneText: Close the lobby and go back to the menu?
+  closeLobbyActionConfirmText: Close
   emptyRosterText: Waiting for the room...
 
 --- !u!114 &896598421
