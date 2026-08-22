@@ -8,6 +8,12 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
     [SerializeField] private LobbyUI lobbyUi;
     [SerializeField] private LobbyUICommandPresenter lobbyCommandPresenter;
 
+    // Optional on purpose. The stage is the room behind the column; a lobby
+    // with nobody standing in it still takes players, still starts matches and
+    // still says so, and failing to install the scene over a missing set of
+    // capsules would be the tail wagging the dog.
+    [SerializeField] private LobbyStage lobbyStage;
+
     protected override bool ValidateFeature(SceneFeatureContext context)
     {
         bool valid = true;
@@ -43,11 +49,15 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         lobbyUi.Construct(readService);
         lobbyCommandPresenter.Construct(lobbyUi, readService, commandService);
 
+        if (lobbyStage != null)
+            lobbyStage.Construct(readService);
+
         return true;
     }
 
     protected override void UninstallFeature(SceneFeatureContext context)
     {
+        RunCleanup(() => lobbyStage?.Dispose(), lobbyStage);
         RunCleanup(() => lobbyCommandPresenter?.Dispose(), lobbyCommandPresenter);
         RunCleanup(() => lobbyUi?.Dispose(), lobbyUi);
         RunCleanup(() => lobbyService?.Dispose(), lobbyService);
