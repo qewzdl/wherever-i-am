@@ -58,6 +58,12 @@
        near enough - and the numbers hold wherever the column is standing. */
     --veil: rgba(5, 6, 8, 0.95);
 
+    /* The same colour with the transparency taken out. A veil that lets a
+       little of the scene through is right over a backdrop chosen to be looked
+       through; it is wrong over a lit room, where what comes through is not
+       atmosphere but a player's shoulder behind the word Difficulty. */
+    --veil-solid: var(--palette-ink-1000);
+
     --surface: var(--palette-ink-950);
     --surface-hover: var(--palette-ink-900);
 

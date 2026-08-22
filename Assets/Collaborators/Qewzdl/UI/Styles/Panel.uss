@@ -168,6 +168,20 @@
 }
 
 
+/* A column that is a wall rather than a veil.
+
+   The menu's column stands over a backdrop that was picked to be stood over,
+   and letting a tenth of it through is the whole reason it is not a box. The
+   lobby's stands over a room with people lit in it, and there the same tenth
+   is not depth - it is a bright shape crossing behind the text, moving when
+   somebody readies up, and nothing written on top of it can be relied on to
+   stay readable. */
+
+.panel--solid {
+    background-color: var(--veil-solid);
+}
+
+
 /* --------------------------------------------------------------------------
    ARRIVAL
 

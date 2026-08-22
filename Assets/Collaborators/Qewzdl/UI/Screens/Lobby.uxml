@@ -1,7 +1,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
     <ui:VisualElement name="Screen" class="screen screen--left">
-        <ui:VisualElement name="Panel" class="panel panel--rail">
+        <ui:VisualElement name="Panel" class="panel panel--rail panel--solid">
             <ui:Label text="Lobby" name="Title" class="title title--display rail__item" />
             <ui:VisualElement class="roster__header rail__item rail__item--2">
                 <ui:Label text="Players" class="section section--flush" />
