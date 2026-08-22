@@ -1,29 +1,17 @@
 /* ==========================================================================
    BUTTON
 
-   A word that opens.
+   A word that lights.
 
-   No frame, no block, no bar, no fill. A button here is its own lettering and
-   nothing else, and pointing at it does two things at once: the letters come
-   up out of the dim, and the spacing between them widens. The word opens.
+   No frame, no block, no bar, no fill, and nothing that moves. A button here is
+   its own lettering, and pointing at it brings the letters up out of the dim.
+   That is the whole control.
 
-   That is the whole control. It is the quietest thing this interface could
-   have been and still be usable, which is the right register for a game about
-   a house nobody is supposed to be inside.
-
-   Three steps of brightness carry all three states, because with the geometry
-   gone colour is the only channel left. Dim at rest, bone under the keyboard,
-   full bone under the pointer. The tracking opens for both of the last two -
-   whichever way you arrive at a button, arriving is what opens it.
-
-   THE THING TO WATCH
-
-   Tracking changes how wide a word is. In a column that costs nothing: the
-   entries are full width and the text simply spreads inside its own row. In a
-   row of three it would shove the neighbours sideways every time the pointer
-   crossed one, so anything that sits in a row is given a width and keeps it.
-   That is not a workaround bolted onto the idea - a row of actions all the
-   same width is what a row of actions should have looked like anyway.
+   Three steps of brightness carry all three states, because it is the only
+   channel there is: dim at rest, bone under the keyboard, full bone under the
+   pointer. Nothing is animated but colour, so nothing on the screen changes
+   size or position at any point - which is the reason a row of these can be
+   read while the pointer is crossing it.
    ========================================================================== */
 
 .button {
@@ -49,28 +37,22 @@
     margin-top: var(--space-xs);
     margin-bottom: var(--space-xs);
 
-    transition-property:
-        color,
-        letter-spacing;
+    transition-property: color;
 
     transition-duration: var(--motion-normal);
     transition-timing-function: var(--ease-standard);
 }
 
 
-/* Under the keyboard: up out of the dim, and open. Focus gets the movement as
-   well as the colour, because a player driving this with a stick is arriving
-   at the button in every sense that matters and should see the same thing
-   happen. It stops one step short of the pointer's brightness, so when the two
-   land on different buttons - which is the normal case the moment anybody
-   touches a key - they are still tellable apart. */
+/* Under the keyboard: up out of the dim, but one step short of the pointer's
+   brightness. The two land on different buttons the moment anybody touches a
+   key, and with a single channel doing all the work they have to stay tellable
+   apart on that channel alone. */
 
 .unity-button.button:focus:enabled {
     color: var(--text);
 
     background-color: rgba(0, 0, 0, 0);
-
-    letter-spacing: var(--tracking-wider);
 }
 
 
@@ -78,33 +60,27 @@
     color: var(--accent);
 
     background-color: rgba(0, 0, 0, 0);
-
-    letter-spacing: var(--tracking-wider);
 }
 
 
-/* Held. It closes back down a little rather than going anywhere - the word
-   tightening under the finger is the only thing left to press. */
+/* Held. A step back down the same three, and quicker, because a press wants to
+   answer before the finger has finished. */
 
 .unity-button.button:active:enabled {
     color: var(--accent-pressed);
 
     background-color: rgba(0, 0, 0, 0);
 
-    letter-spacing: var(--tracking-wide);
-
     transition-duration: var(--motion-fast);
 }
 
 
-/* Never opens, because it never will. */
+/* Never lights, because it never will. */
 
 .unity-button.button:disabled {
     color: var(--text-disabled);
 
     background-color: rgba(0, 0, 0, 0);
-
-    letter-spacing: var(--tracking-wide);
 
     opacity: 1;
 }
@@ -113,9 +89,13 @@
 /* ==========================================================================
    ROWS
 
-   Everything that sits beside another button is given a width, so a word
-   opening never moves the word next to it. In a column nothing needs this:
-   the entries are already as wide as the column.
+   These widths arrived to stop a hover from shoving the neighbouring word
+   sideways, back when hovering changed how wide a word was. Nothing moves any
+   more, so they are not holding anything up - they stay because a row of
+   actions all the same width is what a row of actions should look like, which
+   was true before there was a problem for it to solve.
+
+   A column needs none of this: its entries are already as wide as the column.
 
    There is no .button--cancel here on purpose. With the frames gone the base
    button already is the quiet one, and the class stays in the markup because
@@ -133,9 +113,8 @@
    CONFIRM
 
    The action the screen exists for, lit before anybody points at it, so a row
-   of three has somewhere for the eye to land. It does not arrive open - the
-   opening belongs to the pointer, and a word that arrived open would have
-   nothing left to do.
+   of three has somewhere for the eye to land. One step short of the pointer's
+   brightness, so there is still somewhere for it to go.
    ========================================================================== */
 
 .button--confirm {
@@ -161,17 +140,16 @@
 }
 
 
+/* Stated even though it matches the resting colour: the plain focus rule would
+   otherwise turn a rust word bone the moment a key is touched. */
+
 .unity-button.button--danger:focus:enabled {
     color: var(--danger);
-
-    letter-spacing: var(--tracking-wider);
 }
 
 
 .unity-button.button--danger:hover:enabled {
     color: var(--danger-hover);
-
-    letter-spacing: var(--tracking-wider);
 }
 
 
@@ -180,6 +158,4 @@
 
 .unity-button.button--danger:active:enabled {
     color: var(--danger-pressed);
-
-    letter-spacing: var(--tracking-wide);
 }
