@@ -24,3 +24,8 @@
 @import url("Slider.uss");
 @import url("Toggle.uss");
 @import url("Dropdown.uss");
+
+/* Last, and on purpose. The roster trims a button and recolours a field, and a
+   rule that modifies a control has to be read after the control it modifies -
+   these carry the same weight, so order is the only thing deciding them. */
+@import url("Roster.uss");

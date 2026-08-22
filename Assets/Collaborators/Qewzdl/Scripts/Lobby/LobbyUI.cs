@@ -1,32 +1,31 @@
 using System;
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UIElements;
 
+// The lobby, in UI Toolkit.
+//
+// Same contract as the uGUI one it replaces, down to the six events: the scene
+// feature constructs it with the read service, and LobbyUICommandPresenter
+// turns what happens here into commands. Nothing above this file changed.
+//
+// What changed is where the view comes from. Twelve object references wired by
+// hand in the scene became one document, the player row prefab became four
+// elements built in code, and the screen now reads from the same tokens as
+// every other one - which is the actual point. The lobby is the second thing a
+// player sees, and it was the first thing that looked like another game.
+[DisallowMultipleComponent]
+[RequireComponent(typeof(UIDocument))]
 public class LobbyUI : MonoBehaviour
 {
-    [Header("UI")]
-    [SerializeField] private LobbyPlayerRow playerRowPrefab;
-    [SerializeField] private Transform playerListRoot;
-    [SerializeField] private TMP_Text playerCountText;
+    private const string OpenClass = "screen--open";
+    private const string OverlayOpenClass = "overlay--open";
 
-    [Header("Kick confirmation")]
-    [SerializeField] private GameObject kickConfirmPanel;
-    [SerializeField] private TMP_Text kickConfirmText;
-    [SerializeField] private Button kickConfirmButton;
-    [SerializeField] private Button kickCancelButton;
-    [SerializeField] private Button readyButton;
-    [SerializeField] private TMP_Text readyButtonLabel;
-    [SerializeField] private Button startGameButton;
-    [SerializeField] private TMP_Text startHintText;
-    [SerializeField] private Button leaveButton;
-    [SerializeField] private TMP_Text lobbyVisibilityText;
-    [SerializeField] private Button lobbyVisibilityButton;
-    [SerializeField] private TMP_Text lobbyVisibilityButtonLabel;
-    [SerializeField] private TMP_Dropdown difficultyDropdown;
-    [SerializeField] private TMP_Text difficultyDescriptionText;
+    [Header("References")]
+    [SerializeField] private UIDocument document;
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
+
+    [Header("Text")]
     [SerializeField] private string readyActionText = "Ready";
     [SerializeField] private string notReadyActionText = "Not ready";
     [SerializeField] private string playerCountFormat = "{0}/{1}";
@@ -41,10 +40,33 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string makePublicActionText = "Make public";
     [SerializeField] private string makePrivateActionText = "Make private";
 
+    [Header("Player rows")]
+    [SerializeField] private string ownerStatusText = "Owner";
+    [SerializeField] private string readyStatusText = "Ready";
+    [SerializeField] private string notReadyStatusText = "Not ready";
+    [SerializeField] private string kickActionText = "Remove";
+    [SerializeField] private string emptyRosterText = "Waiting for the room...";
+
     private ILobbyReadService readService;
     private int[] difficultyIds = Array.Empty<int>();
     private string[] difficultyDescriptions = Array.Empty<string>();
-    private readonly List<LobbyPlayerRow> playerRows = new List<LobbyPlayerRow>();
+
+    private VisualElement boundRoot;
+    private VisualElement screen;
+    private VisualElement roster;
+    private VisualElement kickPanel;
+    private Label playerCountLabel;
+    private Label difficultyDescriptionLabel;
+    private Label visibilityLabel;
+    private Label startHintLabel;
+    private Label kickTextLabel;
+    private DropdownField difficultyField;
+    private Button visibilityButton;
+    private Button readyButton;
+    private Button startButton;
+    private Button leaveButton;
+    private Button kickConfirmButton;
+    private Button kickCancelButton;
 
     // Nobody is removed on one click: it cannot be undone for the rest of the
     // session, and the row under the pointer moves as players come and go.
@@ -68,6 +90,7 @@ public class LobbyUI : MonoBehaviour
         if (this.readService != null)
             this.readService.LobbyChanged += Refresh;
 
+        Show(complainIfMissing: false);
         Refresh();
     }
 
@@ -81,63 +104,142 @@ public class LobbyUI : MonoBehaviour
 
     private void Awake()
     {
-        CacheReadyButtonLabel();
-        CacheLobbyVisibilityButtonLabel();
-        PopulateDifficultyDropdown();
-
-        if (difficultyDropdown != null)
-            difficultyDropdown.onValueChanged.AddListener(HandleDifficultySelected);
-
-        if (readyButton != null)
-            readyButton.onClick.AddListener(HandleReadyClicked);
-
-        if (startGameButton != null)
-            startGameButton.onClick.AddListener(HandleStartGameClicked);
-
-        if (leaveButton != null)
-            leaveButton.onClick.AddListener(HandleLeaveLobbyClicked);
-
-        if (lobbyVisibilityButton != null)
-            lobbyVisibilityButton.onClick.AddListener(HandleLobbyVisibilityToggleClicked);
-
-        if (kickConfirmButton != null)
-            kickConfirmButton.onClick.AddListener(HandleKickConfirmed);
-
-        if (kickCancelButton != null)
-            kickCancelButton.onClick.AddListener(CancelPendingKick);
-
-        CancelPendingKick();
+        if (document == null)
+            document = GetComponent<UIDocument>();
     }
 
+    // Quiet here on purpose: UIDocument builds its tree in its own OnEnable,
+    // and component order on one object is not something to rely on, so being
+    // too early is expected rather than wrong.
+    private void OnEnable()
+    {
+        Show(complainIfMissing: false);
+        Refresh();
+    }
+
+    // By Start the scene has finished waking up, so a document with nothing in
+    // it is a fault worth saying out loud.
     private void Start()
     {
+        Show(complainIfMissing: true);
         Refresh();
     }
 
     private void OnDestroy()
     {
-        if (difficultyDropdown != null)
-            difficultyDropdown.onValueChanged.RemoveListener(HandleDifficultySelected);
+        Unsubscribe();
+        Dispose();
+    }
 
+    private void Show(bool complainIfMissing)
+    {
+        if (!Bind(complainIfMissing) || screen == null)
+            return;
+
+        // A class added in the same frame as the tree never transitions: the
+        // element goes from "not laid out" straight to its end state.
+        screen.schedule.Execute(() => screen.AddToClassList(OpenClass));
+    }
+
+    private bool Bind(bool complainIfMissing)
+    {
+        if (document == null)
+            document = GetComponent<UIDocument>();
+
+        VisualElement root = document != null ? document.rootVisualElement : null;
+
+        if (root == null)
+        {
+            if (complainIfMissing)
+                Debug.LogError($"{nameof(LobbyUI)} has no document to bind.", this);
+
+            return false;
+        }
+
+        // Binding subscribes, so doing it twice would count every click twice;
+        // and a document that is switched off rebuilds its tree, which makes
+        // the old references stale rather than merely duplicated.
+        if (ReferenceEquals(root, boundRoot))
+            return screen != null;
+
+        boundRoot = root;
+        screen = root.Q<VisualElement>("Screen");
+        roster = root.Q<VisualElement>("Roster");
+        kickPanel = root.Q<VisualElement>("KickPanel");
+        playerCountLabel = root.Q<Label>("PlayerCount");
+        difficultyDescriptionLabel = root.Q<Label>("DifficultyDescription");
+        visibilityLabel = root.Q<Label>("Visibility");
+        startHintLabel = root.Q<Label>("StartHint");
+        kickTextLabel = root.Q<Label>("KickText");
+        difficultyField = root.Q<DropdownField>("Difficulty");
+        visibilityButton = root.Q<Button>("VisibilityButton");
+        readyButton = root.Q<Button>("ReadyButton");
+        startButton = root.Q<Button>("StartButton");
+        leaveButton = root.Q<Button>("LeaveButton");
+        kickConfirmButton = root.Q<Button>("KickConfirmButton");
+        kickCancelButton = root.Q<Button>("KickCancelButton");
+
+        if (screen == null)
+        {
+            if (complainIfMissing)
+                Debug.LogError($"{nameof(LobbyUI)} did not find 'Screen'.", this);
+
+            return false;
+        }
+
+        PopulateDifficultyChoices();
+        Subscribe();
+        CancelPendingKick();
+
+        return true;
+    }
+
+    private void Subscribe()
+    {
         if (readyButton != null)
-            readyButton.onClick.RemoveListener(HandleReadyClicked);
+            readyButton.clicked += HandleReadyClicked;
 
-        if (startGameButton != null)
-            startGameButton.onClick.RemoveListener(HandleStartGameClicked);
+        if (startButton != null)
+            startButton.clicked += HandleStartGameClicked;
 
         if (leaveButton != null)
-            leaveButton.onClick.RemoveListener(HandleLeaveLobbyClicked);
+            leaveButton.clicked += HandleLeaveLobbyClicked;
 
-        if (lobbyVisibilityButton != null)
-            lobbyVisibilityButton.onClick.RemoveListener(HandleLobbyVisibilityToggleClicked);
+        if (visibilityButton != null)
+            visibilityButton.clicked += HandleLobbyVisibilityToggleClicked;
 
         if (kickConfirmButton != null)
-            kickConfirmButton.onClick.RemoveListener(HandleKickConfirmed);
+            kickConfirmButton.clicked += HandleKickConfirmed;
 
         if (kickCancelButton != null)
-            kickCancelButton.onClick.RemoveListener(CancelPendingKick);
+            kickCancelButton.clicked += CancelPendingKick;
 
-        Dispose();
+        if (difficultyField != null)
+            difficultyField.RegisterValueChangedCallback(HandleDifficultyChanged);
+    }
+
+    private void Unsubscribe()
+    {
+        if (readyButton != null)
+            readyButton.clicked -= HandleReadyClicked;
+
+        if (startButton != null)
+            startButton.clicked -= HandleStartGameClicked;
+
+        if (leaveButton != null)
+            leaveButton.clicked -= HandleLeaveLobbyClicked;
+
+        if (visibilityButton != null)
+            visibilityButton.clicked -= HandleLobbyVisibilityToggleClicked;
+
+        if (kickConfirmButton != null)
+            kickConfirmButton.clicked -= HandleKickConfirmed;
+
+        if (kickCancelButton != null)
+            kickCancelButton.clicked -= CancelPendingKick;
+
+        if (difficultyField != null)
+            difficultyField.UnregisterValueChangedCallback(HandleDifficultyChanged);
     }
 
     private void HandleReadyClicked()
@@ -160,8 +262,13 @@ public class LobbyUI : MonoBehaviour
         LobbyVisibilityToggleClicked?.Invoke();
     }
 
-    private void HandleDifficultySelected(int optionIndex)
+    // The index is read off the field rather than out of the event, which
+    // carries the label. Two difficulties are allowed to be called the same
+    // thing, and a lobby is a bad place to find out that they were.
+    private void HandleDifficultyChanged(ChangeEvent<string> evt)
     {
+        int optionIndex = difficultyField != null ? difficultyField.index : -1;
+
         if (optionIndex < 0 || optionIndex >= difficultyIds.Length)
             return;
 
@@ -170,7 +277,7 @@ public class LobbyUI : MonoBehaviour
 
     private void Refresh()
     {
-        if (readService == null)
+        if (readService == null || boundRoot == null)
             return;
 
         RefreshPlayers();
@@ -178,14 +285,14 @@ public class LobbyUI : MonoBehaviour
         RefreshDifficulty();
     }
 
-    private void PopulateDifficultyDropdown()
+    private void PopulateDifficultyChoices()
     {
-        if (difficultyDropdown == null)
+        if (difficultyField == null)
             return;
 
         if (difficultyCatalog == null)
         {
-            difficultyDropdown.gameObject.SetActive(false);
+            difficultyField.style.display = DisplayStyle.None;
             return;
         }
 
@@ -208,21 +315,20 @@ public class LobbyUI : MonoBehaviour
             optionLabels.Add(entry.DisplayName);
         }
 
-        difficultyDropdown.ClearOptions();
-        difficultyDropdown.AddOptions(optionLabels);
+        difficultyField.choices = optionLabels;
     }
 
     // Everyone sees the choice, only the owner can move it. SetValueWithoutNotify
     // keeps the replicated value from bouncing straight back as a new command.
     private void RefreshDifficulty()
     {
-        if (difficultyDropdown == null || difficultyIds.Length == 0)
+        if (difficultyField == null || difficultyIds.Length == 0)
             return;
 
         bool canChangeDifficulty =
             readService.Phase == LobbyPhase.Open && readService.IsLocalPlayerRoomOwner;
 
-        difficultyDropdown.interactable = canChangeDifficulty;
+        difficultyField.SetEnabled(canChangeDifficulty);
 
         int selectedDifficultyId = readService.Settings.DifficultyId;
 
@@ -231,8 +337,9 @@ public class LobbyUI : MonoBehaviour
             if (difficultyIds[i] != selectedDifficultyId)
                 continue;
 
-            difficultyDropdown.SetValueWithoutNotify(i);
-            difficultyDropdown.RefreshShownValue();
+            if (difficultyField.choices != null && i < difficultyField.choices.Count)
+                difficultyField.SetValueWithoutNotify(difficultyField.choices[i]);
+
             SetDifficultyDescription(difficultyDescriptions[i], canChangeDifficulty);
             return;
         }
@@ -242,16 +349,16 @@ public class LobbyUI : MonoBehaviour
     // somebody else's to move, so the reason goes next to the description.
     private void SetDifficultyDescription(string description, bool canChangeDifficulty)
     {
-        if (difficultyDescriptionText == null)
+        if (difficultyDescriptionLabel == null)
             return;
 
         if (canChangeDifficulty)
         {
-            difficultyDescriptionText.text = description;
+            difficultyDescriptionLabel.text = description;
             return;
         }
 
-        difficultyDescriptionText.text = string.IsNullOrWhiteSpace(description)
+        difficultyDescriptionLabel.text = string.IsNullOrWhiteSpace(description)
             ? ownerOnlySettingText
             : description + Environment.NewLine + ownerOnlySettingText;
     }
@@ -261,15 +368,15 @@ public class LobbyUI : MonoBehaviour
         // Before the rows, and regardless of them: a full lobby is the reason a
         // friend is turned away, and they find that out at connect time unless
         // somebody in here can see it coming.
-        if (playerCountText != null)
+        if (playerCountLabel != null)
         {
-            playerCountText.text = string.Format(
+            playerCountLabel.text = string.Format(
                 playerCountFormat,
                 readService.PlayerCount,
                 readService.Settings.MaxPlayers);
         }
 
-        if (playerRowPrefab == null || playerListRoot == null)
+        if (roster == null)
             return;
 
         // Not knowing which player is us is reason enough to offer no kick at
@@ -285,44 +392,78 @@ public class LobbyUI : MonoBehaviour
         if (hasPendingKick && string.IsNullOrEmpty(ResolvePlayerName(pendingKickClientId)))
             CancelPendingKick();
 
-        EnsurePlayerRowCount(playerCount);
+        // Rebuilt rather than rebound. The uGUI version kept its rows and hid
+        // the spares because each one was a GameObject; these are three
+        // elements, a room holds four of them, and the list only changes when
+        // a person presses something.
+        roster.Clear();
 
-        for (int i = 0; i < playerRows.Count; i++)
+        if (playerCount == 0)
         {
-            LobbyPlayerRow row = playerRows[i];
+            Label empty = new Label(emptyRosterText);
 
-            if (i >= playerCount)
-            {
-                row.gameObject.SetActive(false);
-                continue;
-            }
+            empty.AddToClassList("roster__empty");
+            roster.Add(empty);
+            return;
+        }
 
+        for (int i = 0; i < playerCount; i++)
+        {
             LobbyPlayerData player = readService.GetPlayer(i);
 
-            row.gameObject.SetActive(true);
-            row.Bind(
+            roster.Add(BuildPlayerRow(
                 player,
                 player.ClientId == readService.RoomOwnerClientId,
-                canKick && player.ClientId != localPlayer.ClientId);
+                canKick && player.ClientId != localPlayer.ClientId));
         }
     }
 
-    // Rows are made once and reused. A lobby holds a handful of players, so
-    // hiding the spare rows costs less than rebuilding the list on every change.
-    private void EnsurePlayerRowCount(int playerCount)
+    private VisualElement BuildPlayerRow(LobbyPlayerData player, bool isRoomOwner, bool canKick)
     {
-        while (playerRows.Count < playerCount)
-        {
-            LobbyPlayerRow row = Instantiate(playerRowPrefab, playerListRoot);
+        VisualElement row = new VisualElement();
+        row.AddToClassList("roster__row");
 
-            row.KickClicked += HandlePlayerKickRequested;
-            playerRows.Add(row);
+        Label name = new Label(player.PlayerName.ToString());
+        name.AddToClassList("roster__name");
+        row.Add(name);
+
+        Label status = new Label(isRoomOwner
+            ? ownerStatusText
+            : player.IsReady
+                ? readyStatusText
+                : notReadyStatusText);
+
+        status.AddToClassList("roster__status");
+
+        if (isRoomOwner)
+            status.AddToClassList("roster__status--owner");
+        else if (player.IsReady)
+            status.AddToClassList("roster__status--ready");
+
+        row.Add(status);
+
+        if (canKick)
+        {
+            // Captured once per row rather than read back off the list. Rows
+            // are rebuilt whenever anything changes, so a handler that looked
+            // up an index would be pointing at whoever took that place.
+            ulong clientId = player.ClientId;
+            Button kick = new Button(() => HandlePlayerKickRequested(clientId))
+            {
+                text = kickActionText
+            };
+
+            kick.AddToClassList("button");
+            kick.AddToClassList("roster__kick");
+            row.Add(kick);
         }
+
+        return row;
     }
 
     private void HandlePlayerKickRequested(ulong clientId)
     {
-        if (kickConfirmPanel == null)
+        if (kickPanel == null)
         {
             PlayerKickRequested?.Invoke(clientId);
             return;
@@ -331,14 +472,10 @@ public class LobbyUI : MonoBehaviour
         hasPendingKick = true;
         pendingKickClientId = clientId;
 
-        if (kickConfirmText != null)
-        {
-            kickConfirmText.text = string.Format(
-                kickConfirmFormat,
-                ResolvePlayerName(clientId));
-        }
+        if (kickTextLabel != null)
+            kickTextLabel.text = string.Format(kickConfirmFormat, ResolvePlayerName(clientId));
 
-        kickConfirmPanel.SetActive(true);
+        UiFade.Set(kickPanel, true, OverlayOpenClass);
     }
 
     private void HandleKickConfirmed()
@@ -354,9 +491,7 @@ public class LobbyUI : MonoBehaviour
     private void CancelPendingKick()
     {
         hasPendingKick = false;
-
-        if (kickConfirmPanel != null)
-            kickConfirmPanel.SetActive(false);
+        UiFade.Set(kickPanel, false, OverlayOpenClass);
     }
 
     private string ResolvePlayerName(ulong clientId)
@@ -376,18 +511,23 @@ public class LobbyUI : MonoBehaviour
     {
         bool isLobbyPhaseOpen = readService.Phase == LobbyPhase.Open;
 
-        if (startGameButton != null)
+        if (startButton != null)
         {
-            startGameButton.gameObject.SetActive(readService.IsLocalPlayerRoomOwner);
-            startGameButton.interactable = isLobbyPhaseOpen && readService.CanStartGame;
+            startButton.style.display = readService.IsLocalPlayerRoomOwner
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
+
+            startButton.SetEnabled(isLobbyPhaseOpen && readService.CanStartGame);
         }
 
         if (readyButton != null)
         {
             bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
 
-            readyButton.interactable = isLobbyPhaseOpen && hasLocalPlayer;
-            SetReadyButtonLabel(hasLocalPlayer && localPlayer.IsReady);
+            readyButton.SetEnabled(isLobbyPhaseOpen && hasLocalPlayer);
+            readyButton.text = hasLocalPlayer && localPlayer.IsReady
+                ? notReadyActionText
+                : readyActionText;
         }
 
         RefreshStartHint(isLobbyPhaseOpen);
@@ -395,41 +535,26 @@ public class LobbyUI : MonoBehaviour
         // Everybody needs to know whether the door is open, not just whoever
         // can move it - otherwise a player has no way to tell why their friend
         // cannot get in.
-        if (lobbyVisibilityText != null)
+        if (visibilityLabel != null)
         {
-            lobbyVisibilityText.text = readService.Settings.IsPublic
+            visibilityLabel.text = readService.Settings.IsPublic
                 ? publicLobbyText
                 : privateLobbyText;
         }
 
         // Only the owner decides who may walk in, and only while the lobby is
         // still a lobby - once the match is starting it takes nobody anyway.
-        if (lobbyVisibilityButton != null)
+        if (visibilityButton != null)
         {
-            lobbyVisibilityButton.gameObject.SetActive(readService.IsLocalPlayerRoomOwner);
-            lobbyVisibilityButton.interactable = isLobbyPhaseOpen;
-            SetLobbyVisibilityButtonLabel(readService.Settings.IsPublic);
+            visibilityButton.style.display = readService.IsLocalPlayerRoomOwner
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
+
+            visibilityButton.SetEnabled(isLobbyPhaseOpen);
+            visibilityButton.text = readService.Settings.IsPublic
+                ? makePrivateActionText
+                : makePublicActionText;
         }
-    }
-
-    private void CacheLobbyVisibilityButtonLabel()
-    {
-        if (lobbyVisibilityButtonLabel != null || lobbyVisibilityButton == null)
-            return;
-
-        lobbyVisibilityButtonLabel =
-            lobbyVisibilityButton.GetComponentInChildren<TMP_Text>(true);
-    }
-
-    private void SetLobbyVisibilityButtonLabel(bool isPublic)
-    {
-        CacheLobbyVisibilityButtonLabel();
-
-        if (lobbyVisibilityButtonLabel == null)
-            return;
-
-        lobbyVisibilityButtonLabel.text =
-            isPublic ? makePrivateActionText : makePublicActionText;
     }
 
     // The same reasons the server checks, in the same order, so the line never
@@ -437,12 +562,12 @@ public class LobbyUI : MonoBehaviour
     // are holding the match up are the ones who need to hear it.
     private void RefreshStartHint(bool isLobbyPhaseOpen)
     {
-        if (startHintText == null)
+        if (startHintLabel == null)
             return;
 
         if (!isLobbyPhaseOpen)
         {
-            startHintText.text = startingText;
+            startHintLabel.text = startingText;
             return;
         }
 
@@ -451,13 +576,13 @@ public class LobbyUI : MonoBehaviour
 
         if (missingPlayers > 0)
         {
-            startHintText.text = string.Format(needMorePlayersFormat, missingPlayers);
+            startHintLabel.text = string.Format(needMorePlayersFormat, missingPlayers);
             return;
         }
 
         int notReadyCount = settings.RequireAllPlayersReady ? CountNotReady() : 0;
 
-        startHintText.text = notReadyCount > 0
+        startHintLabel.text = notReadyCount > 0
             ? string.Format(waitingForReadyFormat, notReadyCount)
             : string.Empty;
     }
@@ -473,23 +598,5 @@ public class LobbyUI : MonoBehaviour
         }
 
         return notReadyCount;
-    }
-
-    private void CacheReadyButtonLabel()
-    {
-        if (readyButtonLabel != null || readyButton == null)
-            return;
-
-        readyButtonLabel = readyButton.GetComponentInChildren<TMP_Text>(true);
-    }
-
-    private void SetReadyButtonLabel(bool isReady)
-    {
-        CacheReadyButtonLabel();
-
-        if (readyButtonLabel == null)
-            return;
-
-        readyButtonLabel.text = isReady ? notReadyActionText : readyActionText;
     }
 }

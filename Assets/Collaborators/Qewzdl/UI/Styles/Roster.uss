@@ -1,0 +1,190 @@
+/* ==========================================================================
+   ROSTER
+
+   The list of who is in the room, and the two things the lobby needs that a
+   settings page does not: a row that is a person rather than a setting, and a
+   field whose value is a sentence rather than a control.
+
+   A lobby is the one screen the player sits on while waiting, so it is also
+   the one screen where things arrive and leave underneath them. Everything
+   here is built so that a player joining moves nothing that was already being
+   read.
+   ========================================================================== */
+
+/* ==========================================================================
+   HEADER
+   ========================================================================== */
+
+.roster__header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+
+/* The section label carries a top margin for the gap it needs when it follows
+   content. Directly under the title it has that gap already. */
+
+.section--flush {
+    margin-top: 0;
+}
+
+
+/* ==========================================================================
+   LIST
+   ========================================================================== */
+
+/* Floored at the height of a full room rather than growing into it from empty.
+   Otherwise the panel gets taller with every player who joins and the buttons
+   at the bottom walk away from the hand that was about to press them - during
+   the one moment the screen is guaranteed to be changing under somebody.
+
+   Only a floor, though. Four is the default room and this holds four; a room
+   configured for many more grows the panel until it runs off the screen, and
+   the fix for that is a ScrollView with a scrollbar styled to match, which is
+   a day of work for a number nobody has set yet. */
+
+.roster {
+    min-height: 216px;
+
+    border-top-width: var(--border);
+    border-top-color: var(--line);
+
+    margin-top: var(--space-xs);
+    margin-bottom: var(--space-l);
+}
+
+
+.roster__row {
+    flex-direction: row;
+    align-items: center;
+
+    height: 54px;
+
+    flex-shrink: 0;
+
+    border-bottom-width: var(--border);
+    border-bottom-color: var(--line);
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+}
+
+
+.roster__name {
+    flex-grow: 1;
+
+    color: var(--text);
+    font-size: var(--text-s);
+
+    overflow: hidden;
+
+    -unity-text-align: middle-left;
+}
+
+
+/* Two states told apart by colour rather than by reading them: waiting on
+   somebody is the whole content of this screen, and the host scanning the
+   list wants the count, not the words. */
+
+.roster__status {
+    color: var(--text-dim);
+    font-size: var(--text-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-left: var(--space-m);
+
+    -unity-text-align: middle-right;
+}
+
+
+.roster__status--ready {
+    color: var(--accent);
+}
+
+
+/* The host's own mark. Not an achievement and not a state anybody is waiting
+   on, so it stays the quietest thing in the row. */
+
+.roster__status--owner {
+    color: var(--text-dim);
+}
+
+
+/* Small, and only on other people's rows. A control that removes somebody for
+   the rest of the session should be reachable without being in the way. */
+
+.roster__kick {
+    font-size: var(--text-xs);
+
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--space-m);
+
+    padding-top: var(--space-xs);
+    padding-bottom: var(--space-xs);
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+}
+
+
+/* A room with nobody in it is a room that has not answered yet. Said in words,
+   because an empty bordered box says nothing at all. */
+
+.roster__empty {
+    flex-grow: 1;
+
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    -unity-text-align: middle-center;
+}
+
+
+/* ==========================================================================
+   FIELDS THAT ARE NOT CONTROLS
+   ========================================================================== */
+
+/* Whether the door is open is everybody's business and only the host's to
+   change, so the state is a sentence in the control column and the button
+   that moves it stands next to it - present for one player, absent for the
+   rest, and the sentence reads the same either way. */
+
+.field__control--text {
+    color: var(--text-dim);
+    font-size: var(--text-s);
+
+    /* One line. The control column is a fixed width and a wrap here would
+       make this row taller than the one above it, which reads as the two
+       settings not belonging to the same list. */
+    white-space: nowrap;
+
+    -unity-text-align: middle-left;
+}
+
+
+/* The line under a setting, set in the control column rather than under the
+   label: it explains the thing on the right, and starting it on the left
+   would make it look like a second label. */
+
+.hint--field {
+    margin-left: var(--label-width);
+    margin-bottom: var(--space-m);
+
+    -unity-text-align: middle-left;
+}
+
+
+/* Why the match has not started, kept on the same line as the button that
+   would start it. It takes the free space so the actions still sit at the
+   right-hand end, and it is the reason the footer never looks empty while
+   the room is still filling up. */
+
+.hint--footer {
+    flex-grow: 1;
+
+    margin-bottom: 0;
+
+    -unity-text-align: middle-left;
+}

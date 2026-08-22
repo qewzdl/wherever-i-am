@@ -1,0 +1,38 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <ui:VisualElement name="Screen" class="screen">
+        <ui:VisualElement name="Panel" class="panel panel--wide">
+            <ui:Label text="Lobby" name="Title" class="title" />
+            <ui:VisualElement class="roster__header">
+                <ui:Label text="Players" class="section section--flush" />
+                <ui:Label name="PlayerCount" class="section section--flush" />
+            </ui:VisualElement>
+            <ui:VisualElement name="Roster" class="roster" />
+            <ui:VisualElement class="field">
+                <ui:Label text="Difficulty" class="field__label" />
+                <ui:DropdownField name="Difficulty" class="field__control" />
+            </ui:VisualElement>
+            <ui:Label name="DifficultyDescription" class="hint hint--field" />
+            <ui:VisualElement class="field">
+                <ui:Label text="Lobby" class="field__label" />
+                <ui:Label name="Visibility" class="field__control field__control--text" />
+                <ui:Button name="VisibilityButton" class="button" />
+            </ui:VisualElement>
+            <ui:VisualElement name="Footer" class="footer">
+                <ui:Label name="StartHint" class="hint hint--footer" />
+                <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
+                <ui:Button text="Ready" name="ReadyButton" class="button" />
+                <ui:Button text="Start" name="StartButton" class="button button--confirm" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="KickPanel" class="overlay">
+            <ui:VisualElement class="panel panel--dialog">
+                <ui:Label name="KickText" class="question" />
+                <ui:VisualElement class="footer">
+                    <ui:Button text="Remove" name="KickConfirmButton" class="button button--danger" />
+                    <ui:Button text="Cancel" name="KickCancelButton" class="button button--cancel" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
