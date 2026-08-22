@@ -86,11 +86,11 @@
 }
 
 
+/* Only the gap between them. The mark brings its own proportions now, and a
+   footer that restated them was doing it because the button had none. */
+
 .footer .button {
     margin-left: var(--space-s);
-
-    padding-left: var(--space-m);
-    padding-right: var(--space-m);
 }
 
 

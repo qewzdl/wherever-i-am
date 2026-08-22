@@ -225,82 +225,20 @@
 /* --------------------------------------------------------------------------
    MENU ITEMS
 
-   In a dialog a button is a box you press. In a column against the edge of the
-   screen it is a place to go, and the boxes get in the way of reading it as a
-   list. So the border comes off three sides and stays on the fourth, where it
-   does the work: transparent until the pointer arrives, accent under it.
+   The same mark as anywhere else, given room. In a dialog a button is one of
+   three things on a line and is sized to fit beside them; in a column it is a
+   place to go, and the list wants height between its entries more than it
+   wants anything else.
 
-   The bar is always there and only changes colour, so nothing moves sideways
-   when it appears. What moves is the item itself, leaning six pixels towards
-   the pointer - small enough that nobody would call it an animation, large
-   enough that the row under the cursor is never in doubt.
-
-   Only the buttons in the action column, though. This used to claim every
-   button in the rail, which was the same set until the lobby put one on each
-   row of its player list - and a Remove button eighteen pixels tall does not
-   want a menu item's padding, its bar, or its lean.
+   It used to be a different button entirely - no frame, a bar down one side,
+   the whole item leaning towards the pointer. Two styles for one control, and
+   the reason given for the second was that boxes get in the way of reading a
+   column as a list. True of boxes. The mark is not a box.
    -------------------------------------------------------------------------- */
 
-.panel--rail .stack .unity-button.button {
-    background-color: rgba(0, 0, 0, 0);
-
-    border-left-width: 3px;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
-
-    border-left-color: rgba(0, 0, 0, 0);
-
+.panel--rail .stack .button {
     padding-top: var(--space-m);
     padding-bottom: var(--space-m);
-}
-
-
-/* The one action the screen exists for keeps its bar lit, so the column has a
-   place the eye lands before it starts reading. */
-
-.panel--rail .stack .unity-button.button--confirm {
-    color: var(--accent);
-
-    border-left-color: var(--line-hover);
-}
-
-
-.panel--rail .stack .unity-button.button:hover:enabled {
-    color: var(--accent);
-
-    background-color: rgba(0, 0, 0, 0);
-
-    border-left-color: var(--accent);
-
-    translate: 6px 0;
-    scale: 1 1;
-}
-
-
-.panel--rail .stack .unity-button.button:focus:enabled {
-    color: var(--text);
-
-    background-color: rgba(0, 0, 0, 0);
-
-    border-left-color: var(--line-hover);
-}
-
-
-.panel--rail .stack .unity-button.button:active:enabled {
-    color: var(--accent-pressed);
-
-    background-color: rgba(0, 0, 0, 0);
-
-    border-left-color: var(--accent-pressed);
-
-    translate: 3px 0;
-    scale: 1 1;
-}
-
-
-.panel--rail .stack .button {
-    padding-left: var(--space-m);
 
     -unity-text-align: middle-left;
 }

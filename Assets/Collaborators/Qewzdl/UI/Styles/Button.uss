@@ -1,9 +1,25 @@
 /* ==========================================================================
    BUTTON
-   ========================================================================== */
 
-/* ==========================================================================
-   BUTTON
+   A bracket rather than a box.
+
+   Three things were wrong with the boxes. A one pixel rectangle with rounded
+   nothing is what every settings dialog written since 2014 looks like, and it
+   said nothing about this game. Filling it with bone on hover made the thing
+   under the pointer the brightest object on the screen, in a game whose whole
+   palette is an argument against that. And the movement - an item leaning six
+   pixels towards the cursor, a box shrinking two percent under the click - is
+   a web page's idea of feedback, borrowed twice.
+
+   So: the frame is open on two sides and closes when you point at it. At rest
+   a button is an L, a corner mark, the kind of thing stencilled on a crate or
+   drawn round a thing being measured. Under the pointer the other two sides
+   arrive and the mark becomes a frame - the interface closing around what you
+   are about to do.
+
+   All four sides are always there and only the colour of two of them changes,
+   so nothing moves, nothing reflows, and nothing needs to be animated except
+   colour. That is the whole interaction: no travel, no scale, no fill.
    ========================================================================== */
 
 .button {
@@ -16,48 +32,58 @@
 
     background-color: rgba(0, 0, 0, 0);
 
-    border-left-color: var(--line);
-    border-right-color: var(--line);
-    border-top-color: var(--line);
-    border-bottom-color: var(--line);
+    border-left-width: var(--border-strong);
+    border-right-width: var(--border-strong);
+    border-top-width: var(--border-strong);
+    border-bottom-width: var(--border-strong);
 
-    border-left-width: var(--border);
-    border-right-width: var(--border);
-    border-top-width: var(--border);
-    border-bottom-width: var(--border);
+    /* The mark: down the left and along the bottom. Two sides present, two
+       held open and waiting. */
+    border-left-color: var(--line-hover);
+    border-bottom-color: var(--line-hover);
+    border-top-color: rgba(0, 0, 0, 0);
+    border-right-color: rgba(0, 0, 0, 0);
 
     border-radius: var(--radius);
 
     padding-top: var(--space-s);
     padding-bottom: var(--space-s);
+    padding-left: var(--space-m);
+    padding-right: var(--space-m);
 
     margin-top: var(--space-xs);
     margin-bottom: var(--space-xs);
 
-    scale: 1 1;
-
     transition-property:
         color,
-        background-color,
         border-left-color,
         border-right-color,
         border-top-color,
-        border-bottom-color,
-        scale,
-        translate;
+        border-bottom-color;
 
     transition-duration: var(--motion-normal);
     transition-timing-function: var(--ease-standard);
 }
 
 
-/* Unity's own focus ring is a blue rectangle from another program, so it was
-   taken off. Nothing replaced it, which left a menu that cannot be walked with
-   a keyboard or a stick - the button under the cursor lights up, the button
-   under the focus does not.
+/* The frame closes and the lettering comes up with it. */
 
-   A brighter edge rather than a fill: hover already owns the fill, and the two
-   states have to stay tellable apart when they land on different buttons. */
+.unity-button.button:hover:enabled {
+    color: var(--accent);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-color: var(--accent);
+    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+
+/* Focus closes it too, but stays dim. The two states have to be tellable apart
+   when they land on different buttons - which is the normal case the moment
+   anybody touches a key - and the difference is brightness rather than shape,
+   because a keyboard and a pointer are pointing at the same kind of thing. */
 
 .unity-button.button:focus:enabled {
     color: var(--text);
@@ -71,33 +97,25 @@
 }
 
 
-.unity-button.button:hover:enabled {
-    color: var(--text-on-accent);
-
-    background-color: var(--accent);
-
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
-}
-
+/* Pressed does not move and does not fill. It goes down a step in brightness,
+   which on a frame this thin is the whole difference between held and not. */
 
 .unity-button.button:active:enabled {
-    color: var(--text-on-accent);
+    color: var(--accent-pressed);
 
-    background-color: var(--accent-pressed);
+    background-color: rgba(0, 0, 0, 0);
 
     border-left-color: var(--accent-pressed);
     border-right-color: var(--accent-pressed);
     border-top-color: var(--accent-pressed);
     border-bottom-color: var(--accent-pressed);
 
-    scale: 0.98 0.98;
-
     transition-duration: var(--motion-fast);
 }
 
+
+/* A button that cannot be pressed keeps its mark open, because closing is what
+   pressing looks like and this one never will. */
 
 .unity-button.button:disabled {
     color: var(--text-disabled);
@@ -105,34 +123,27 @@
     background-color: rgba(0, 0, 0, 0);
 
     border-left-color: var(--text-disabled);
-    border-right-color: var(--text-disabled);
-    border-top-color: var(--text-disabled);
     border-bottom-color: var(--text-disabled);
+    border-top-color: rgba(0, 0, 0, 0);
+    border-right-color: rgba(0, 0, 0, 0);
 
     opacity: 1;
-
-    scale: 1 1;
 }
 
 
 /* ==========================================================================
    CONFIRM AND CANCEL
 
-   The rail styled its own confirm and nothing styled it anywhere else, so in
-   every dialog the button the screen exists for looked exactly like the one
-   that walks away from it. Connect read as Cancel; Apply read as Close.
-
-   Not a fill. Bone text on an accent edge is enough to be found first in a
-   footer of three, and a solid bone rectangle in a dialog this dark would be
-   the loudest thing in the game.
+   The action a screen exists for is marked before anybody points at it, so a
+   footer of three has somewhere for the eye to land. It is still an open mark,
+   not a closed frame - closing is what the pointer does, and a button that
+   arrives closed would read as already pressed.
    ========================================================================== */
 
 .button--confirm {
     color: var(--accent);
 
     border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
     border-bottom-color: var(--accent);
 }
 
@@ -141,22 +152,33 @@
 
 .button--cancel {
     color: var(--text-dim);
-}
 
-
-.unity-button.button--cancel:hover:enabled {
-    color: var(--text-on-accent);
+    border-left-color: var(--line);
+    border-bottom-color: var(--line);
 }
 
 
 /* ==========================================================================
    DANGER BUTTON
+
+   The one colour in the interface, spent on the one button that ends
+   something. It closes in rust rather than in bone, and stays rust while it is
+   held: a button that changes hue under the finger reads as a different
+   button.
    ========================================================================== */
 
-.unity-button.button--danger:hover:enabled {
-    color: var(--text-on-danger);
+/* Marked before it is touched, the same way the confirm is. A button that ends
+   something should be findable without pointing at every button to see which
+   one it was. */
 
-    background-color: var(--danger);
+.button--danger {
+    border-left-color: var(--danger);
+    border-bottom-color: var(--danger);
+}
+
+
+.unity-button.button--danger:hover:enabled {
+    color: var(--danger);
 
     border-left-color: var(--danger);
     border-right-color: var(--danger);
@@ -165,20 +187,11 @@
 }
 
 
-/* Pressed stays in the same colour rather than falling back to bone: a button
-   that changes hue under the finger reads as a different button. */
-
 .unity-button.button--danger:active:enabled {
-    color: var(--text-on-danger);
-
-    background-color: var(--danger-pressed);
+    color: var(--danger-pressed);
 
     border-left-color: var(--danger-pressed);
     border-right-color: var(--danger-pressed);
     border-top-color: var(--danger-pressed);
     border-bottom-color: var(--danger-pressed);
-
-    scale: 0.98 0.98;
 }
-
-

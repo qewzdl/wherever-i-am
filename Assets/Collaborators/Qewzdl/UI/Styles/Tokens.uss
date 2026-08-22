@@ -130,6 +130,11 @@
     --radius: 0;
     --border: 1px;
 
+    /* A hairline is a rule: it divides two things and is not meant to be
+       looked at. A mark is drawn on purpose and has to survive being seen
+       against a photograph, so it gets its own weight. */
+    --border-strong: 2px;
+
 
     /* ======================================================================
        MOTION
