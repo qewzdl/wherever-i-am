@@ -542,6 +542,8 @@ public sealed class ProjectContext : MonoBehaviour
         GameMapCatalog mapCatalog = gameMapService != null
             ? gameMapService.Catalog
             : null;
+        INetworkSessionReadService sessionReadService =
+            sessionOrchestrator != null ? sessionOrchestrator.SessionState : null;
 
         if (projectSceneFlowService == null)
         {
@@ -561,10 +563,21 @@ public sealed class ProjectContext : MonoBehaviour
             return false;
         }
 
+        if (sessionReadService == null)
+        {
+            Debug.LogError(
+                $"Cannot register {nameof(INetworkSessionReadService)} because " +
+                $"{nameof(NetworkSessionOrchestrator)} has no session state.",
+                this);
+
+            return false;
+        }
+
         globalServiceScope.Register<IProjectSceneRegistry>(sceneRegistry);
         globalServiceScope.Register<IGameStateService>(stateMachine);
         globalServiceScope.Register<IProjectSceneFlowService>(projectSceneFlowService);
         globalServiceScope.Register<INetworkSessionService>(sessionOrchestrator);
+        globalServiceScope.Register<INetworkSessionReadService>(sessionReadService);
         globalServiceScope.Register<INetworkSessionAdmissionService>(
             connectionApprovalService);
         globalServiceScope.Register<IUiErrorService>(uiErrorManager);

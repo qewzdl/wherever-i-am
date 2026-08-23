@@ -19,7 +19,18 @@ internal static class ClientSessionReadinessGate
                 // InGame is a finished match coming back to the lobby. The
                 // state stays until Commit, because until the lobby's services
                 // are there the client has not arrived anywhere.
-                if (currentState == NetworkSessionState.StartingClient ||
+                if (currentState == NetworkSessionState.StartingClient)
+                {
+                    bool changed = stateMachine.TryChangeState(
+                        NetworkSessionState.LoadingLobby,
+                        "Server synchronized the Lobby scene to this client.");
+                    error = changed
+                        ? string.Empty
+                        : "Failed to enter client LoadingLobby state.";
+                    return changed;
+                }
+
+                if (currentState == NetworkSessionState.LoadingLobby ||
                     currentState == NetworkSessionState.Lobby ||
                     currentState == NetworkSessionState.InGame)
                 {
@@ -37,6 +48,7 @@ internal static class ClientSessionReadinessGate
                 }
 
                 if (currentState == NetworkSessionState.StartingClient ||
+                    currentState == NetworkSessionState.LoadingLobby ||
                     currentState == NetworkSessionState.Lobby)
                 {
                     bool changed = stateMachine.TryChangeState(
@@ -87,7 +99,8 @@ internal static class ClientSessionReadinessGate
                 if (stateMachine.CurrentState == NetworkSessionState.Lobby)
                     return true;
 
-                if (stateMachine.CurrentState == NetworkSessionState.StartingClient &&
+                if ((stateMachine.CurrentState == NetworkSessionState.StartingClient ||
+                     stateMachine.CurrentState == NetworkSessionState.LoadingLobby) &&
                     stateMachine.TryChangeState(
                         NetworkSessionState.Lobby,
                         "Client Lobby scene and dynamic services are ready."))
@@ -109,7 +122,8 @@ internal static class ClientSessionReadinessGate
                 if (stateMachine.CurrentState == NetworkSessionState.InGame)
                     return true;
 
-                if (stateMachine.CurrentState == NetworkSessionState.StartingClient &&
+                if ((stateMachine.CurrentState == NetworkSessionState.StartingClient ||
+                     stateMachine.CurrentState == NetworkSessionState.LoadingLobby) &&
                     !stateMachine.TryChangeState(
                         NetworkSessionState.LoadingGame,
                         "Late-joining client synchronized directly into Game."))

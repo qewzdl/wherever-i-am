@@ -22,6 +22,7 @@
                 <ui:Label text="Join a lobby" class="question" />
                 <ui:Label text="Host address" class="hint" />
                 <ui:TextField name="Address" class="input" />
+                <ui:Label name="AddressHint" class="hint input__hint" />
                 <ui:VisualElement class="footer">
                     <ui:Button text="Connect" name="ConnectButton" class="button button--confirm" />
                     <ui:Button text="Cancel" name="CancelJoinButton" class="button button--cancel" />
@@ -30,7 +31,10 @@
         </ui:VisualElement>
         <ui:VisualElement name="BusyPanel" class="overlay">
             <ui:VisualElement class="panel panel--dialog">
+                <ui:Label name="BusyStep" class="section connection-status__step" />
                 <ui:Label name="BusyText" class="question" />
+                <ui:Label name="BusyDetail" class="hint connection-status__detail" />
+                <ui:Label name="BusyElapsed" class="hint connection-status__elapsed" />
                 <ui:VisualElement class="footer">
                     <ui:Button text="Cancel" name="CancelRequestButton" class="button button--cancel" />
                 </ui:VisualElement>

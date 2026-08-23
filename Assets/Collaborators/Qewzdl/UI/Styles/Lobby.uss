@@ -22,6 +22,34 @@
 }
 
 
+.roster__summary {
+    flex-direction: row;
+    align-items: flex-end;
+}
+
+
+/* Readiness is the host's next decision, player count is room capacity. They
+   belong together in the header, but readiness stays quieter until everybody
+   is ready and the remaining blocker disappears. */
+
+.roster__ready-count {
+    color: var(--text-dim);
+    font-size: var(--text-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-right: var(--space-s);
+    margin-bottom: 2px;
+
+    -unity-text-align: lower-right;
+}
+
+
+.roster__ready-count--complete {
+    color: var(--accent);
+}
+
+
 /* The section label carries a top margin for the gap it needs when it follows
    content. Directly under the title it has that gap already. */
 
@@ -34,19 +62,11 @@
    LIST
    ========================================================================== */
 
-/* Floored at the height of a full room rather than growing into it from empty.
-   Otherwise the panel gets taller with every player who joins and the buttons
-   at the bottom walk away from the hand that was about to press them - during
-   the one moment the screen is guaranteed to be changing under somebody.
-
-   Only a floor, though. Four is the default room and this holds four; a room
-   configured for many more grows the panel until it runs off the screen, and
-   the fix for that is a ScrollView with a scrollbar styled to match, which is
-   a day of work for a number nobody has set yet. */
+/* Rows grow inside the lobby's scrollable content. The action block is outside
+   that viewport, so joining players add information without moving Ready,
+   Start or Leave underneath somebody's pointer. */
 
 .roster {
-    min-height: 216px;
-
     border-top-width: var(--border);
     border-top-color: var(--line);
 
@@ -90,6 +110,15 @@
 }
 
 
+.roster__badges {
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+
+    margin-left: var(--space-m);
+}
+
+
 /* Which of these four answers to you. Every other line on this screen is about
    your own state - whether you are ready, whether you may start - and the list
    was the one place that never said which row that was. */
@@ -114,7 +143,7 @@
 
     letter-spacing: var(--tracking-wide);
 
-    margin-left: var(--space-m);
+    margin-left: var(--space-s);
 
     -unity-text-align: middle-right;
 }
@@ -128,8 +157,18 @@
 /* The host's own mark. Not an achievement and not a state anybody is waiting
    on, so it stays the quietest thing in the row. */
 
-.roster__status--owner {
+.roster__role {
     color: var(--text-dim);
+    font-size: var(--text-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    border-right-width: var(--border);
+    border-right-color: var(--line);
+
+    padding-right: var(--space-s);
+
+    -unity-text-align: middle-right;
 }
 
 
@@ -255,15 +294,36 @@
 }
 
 
-/* The list is floored at the height of a full room on a settings panel so the
-   footer does not walk as players arrive. In the column the actions are pinned
-   to the bottom by the space above them, nothing walks anywhere, and the list
-   can take what the room actually needs and give the rest back. */
+/* The list takes exactly the room its rows need. Overflow belongs to the
+   surrounding ScrollView rather than to this element. */
 
 .panel--rail .roster {
-    min-height: auto;
+    margin-bottom: var(--space-m);
+}
+
+
+/* Everything above the actions is allowed to shrink, and then to scroll. The
+   action block itself stays visible, so a short window or a room configured
+   above four players never hides Ready, Start or Leave below the frame. */
+
+.lobby__content {
+    min-height: 96px;
+
+    flex-grow: 1;
+    flex-shrink: 1;
 
     margin-bottom: var(--space-m);
+}
+
+
+.lobby__content > .unity-scroll-view__content-and-vertical-scroll-container,
+.lobby__content .unity-scroll-view__content-viewport {
+    flex-grow: 1;
+}
+
+
+.lobby__content .unity-scroll-view__content-container {
+    padding-right: var(--space-s);
 }
 
 
@@ -282,4 +342,45 @@
     white-space: nowrap;
 
     -unity-text-align: middle-left;
+}
+
+
+/* The address stays readable while copy feedback changes beside it. Replacing
+   the value with "copied" made confirmation clear but forced the player to
+   wait before checking or reading the address again. */
+
+.address-copy {
+    flex-direction: row;
+    align-items: center;
+
+    min-height: 46px;
+
+    margin-top: 0;
+    margin-bottom: 0;
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+}
+
+
+.address-copy__value {
+    flex-grow: 1;
+
+    padding-left: 0;
+    padding-right: var(--space-m);
+}
+
+
+.address-copy__icon {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    max-width: 22px;
+    max-height: 22px;
+
+    flex-basis: 22px;
+    flex-grow: 0;
+    flex-shrink: 0;
+    align-self: center;
 }

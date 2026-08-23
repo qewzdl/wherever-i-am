@@ -32,6 +32,11 @@ internal sealed class PendingSessionServiceStub : INetworkSessionService
         return pending.Task;
     }
 
+    internal void CompleteConnection()
+    {
+        pending.TrySetResult(true);
+    }
+
     public void StartGame(int mapId)
     {
     }
@@ -654,6 +659,65 @@ public sealed class MapLobbyAndGameplayLogicTests
         {
             UnityEngine.Object.DestroyImmediate(menuObject);
         }
+    }
+
+    [Test]
+    public async Task MainMenu_KeepsBusyStateUntilTheSessionLifecycleFinishes()
+    {
+        GameObject menuObject = new(nameof(MainMenuDocument));
+
+        try
+        {
+            MainMenuDocument menu = menuObject.AddComponent<MainMenuDocument>();
+            NetworkSessionStateMachine state =
+                menuObject.AddComponent<NetworkSessionStateMachine>();
+            PendingSessionServiceStub session = new();
+
+            menu.Construct(
+                session,
+                errorService: null,
+                settingsScreen: null,
+                sessionReadService: state);
+
+            menu.Host();
+            state.TryChangeState(NetworkSessionState.StartingHost);
+            state.TryChangeState(NetworkSessionState.LoadingLobby);
+            session.CompleteConnection();
+            await Task.Yield();
+
+            Assert.That(
+                menu.IsRequestInFlight,
+                Is.True,
+                "The command task hid Busy before Lobby finished loading.");
+
+            state.TryChangeState(NetworkSessionState.Failed);
+
+            Assert.That(menu.IsRequestInFlight, Is.False);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(menuObject);
+        }
+    }
+
+    [TestCase("127.0.0.1", true, "127.0.0.1")]
+    [TestCase(" 192.168.1.25 ", true, "192.168.1.25")]
+    [TestCase("", false, "")]
+    [TestCase("192.168.1", false, "192.168.1")]
+    [TestCase("256.1.1.1", false, "256.1.1.1")]
+    [TestCase("0.0.0.0", false, "0.0.0.0")]
+    [TestCase("255.255.255.255", false, "255.255.255.255")]
+    public void LanAddressValidator_AgreesWithTheLanConnectionBoundary(
+        string value,
+        bool expectedValid,
+        string expectedNormalized)
+    {
+        bool isValid = LanAddressValidator.TryNormalize(
+            value,
+            out string normalized);
+
+        Assert.That(isValid, Is.EqualTo(expectedValid));
+        Assert.That(normalized, Is.EqualTo(expectedNormalized));
     }
 
     [Test]

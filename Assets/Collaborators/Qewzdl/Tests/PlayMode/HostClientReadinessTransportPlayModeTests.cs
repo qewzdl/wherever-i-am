@@ -359,7 +359,7 @@ public sealed class HostClientReadinessTransportPlayModeTests
             Is.False);
         Assert.That(
             client.SessionState.CurrentState,
-            Is.EqualTo(NetworkSessionState.StartingClient));
+            Is.EqualTo(NetworkSessionState.LoadingLobby));
 
         GameObject spawnedObject = UnityEngine.Object.Instantiate(networkPrefab);
         spawnedObject.name = "Spawned readiness probe";

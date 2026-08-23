@@ -3,30 +3,49 @@
     <ui:VisualElement name="Screen" class="screen screen--left">
         <ui:VisualElement name="Panel" class="panel panel--rail panel--solid">
             <ui:Label text="Lobby" name="Title" class="title title--display rail__item" />
-            <ui:VisualElement class="roster__header rail__item rail__item--2">
-                <ui:Label text="Players" class="section section--flush" />
-                <ui:Label name="PlayerCount" class="section section--flush" />
-            </ui:VisualElement>
-            <ui:VisualElement name="Roster" class="roster rail__item rail__item--2" />
-            <ui:VisualElement class="field rail__item rail__item--3">
-                <ui:Label text="Difficulty" class="field__label" />
-                <ui:DropdownField name="Difficulty" class="field__control" />
-            </ui:VisualElement>
-            <ui:Label name="DifficultyDescription" class="hint hint--field rail__item rail__item--3" />
-            <ui:VisualElement name="AddressField" class="field rail__item rail__item--3">
-                <ui:Label text="Address" class="field__label" />
-                <ui:Button name="Address" class="button field__control field__control--code" />
-            </ui:VisualElement>
-            <ui:VisualElement class="field rail__item rail__item--3">
-                <ui:Label text="Door" class="field__label" />
-                <ui:Toggle name="Visibility" class="field__control" />
-            </ui:VisualElement>
-            <ui:Label name="DoorHint" class="hint hint--field rail__item rail__item--3" />
-            <ui:VisualElement class="stack rail__gap rail__item rail__item--4">
+            <ui:ScrollView name="LobbyContent" class="scroll lobby__content rail__item rail__item--2">
+                <ui:VisualElement class="roster__header">
+                    <ui:Label text="Players" class="section section--flush" />
+                    <ui:VisualElement class="roster__summary">
+                        <ui:Label name="ReadyCount" class="roster__ready-count" />
+                        <ui:Label name="PlayerCount" class="section section--flush" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement name="Roster" class="roster" />
+                <ui:VisualElement class="field">
+                    <ui:Label text="Difficulty" class="field__label" />
+                    <ui:DropdownField name="Difficulty" class="field__control" />
+                </ui:VisualElement>
+                <ui:Label name="DifficultyDescription" class="hint hint--field" />
+                <ui:VisualElement name="AddressField" class="field">
+                    <ui:Label text="Invite address" class="field__label" />
+                    <ui:Button name="CopyAddressButton" tooltip="Copy invite address" class="button field__control address-copy">
+                        <ui:Label name="Address" class="field__control--code address-copy__value" />
+                        <ui:Image name="AddressCopyIcon" class="address-copy__icon" />
+                    </ui:Button>
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Allow joins" class="field__label" />
+                    <ui:Toggle name="Visibility" class="field__control" />
+                </ui:VisualElement>
+                <ui:Label name="DoorHint" class="hint hint--field" />
+            </ui:ScrollView>
+            <ui:VisualElement class="stack rail__gap rail__item rail__item--3">
                 <ui:Label name="StartHint" class="hint" />
                 <ui:Button text="Start" name="StartButton" class="button button--confirm" />
                 <ui:Button text="Ready" name="ReadyButton" class="button" />
                 <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="MatchTransitionPanel" class="overlay">
+            <ui:VisualElement class="panel panel--dialog">
+                <ui:Label name="MatchTransitionStage" class="section connection-status__step" />
+                <ui:Label name="MatchTransitionText" class="question" />
+                <ui:Label name="MatchTransitionDetail" class="hint connection-status__detail" />
+                <ui:Label name="MatchTransitionElapsed" class="hint connection-status__elapsed" />
+                <ui:VisualElement class="footer">
+                    <ui:Button text="Leave session" name="TransitionLeaveButton" class="button button--cancel" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="ConfirmPanel" class="overlay">

@@ -357,22 +357,38 @@ MonoBehaviour:
   document: {fileID: 896598421}
   sounds: {fileID: 896598422}
   difficultyCatalog: {fileID: 11400000, guid: ad8721df252ddf04e99e6d550037f2fc, type: 2}
+  copyAddressIcon: {fileID: 2800000, guid: 57631a37957f40818c537c090d65741f, type: 3}
+  copiedAddressIcon: {fileID: 2800000, guid: d700dd2f69e64507b36bfae3ffbe789f, type: 3}
   readyActionText: Ready up
   standDownActionText: Stand down
   playerCountFormat: '{0}/{1}'
+  readyCountFormat: '{0} READY'
   kickConfirmFormat: Remove {0}? They will not be able to join again this session.
   needMorePlayersFormat: Need {0} more to start
   waitingForReadyFormat: Waiting for {0} to get ready
   startingText: Starting the match...
   ownerOnlySettingText: Only the host can change this
   doorShutText: Shut. Nobody can reach this lobby until you open it.
-  doorOpenFormat: Open. Anyone on this network can join by typing {0}.
+  doorOpenFormat: Open. Share {0}. Use the copy button above.
   doorNotYoursText: Only the host can open the door.
   addressUnknownText: no network
-  addressCopiedText: copied
+  addressCopyTooltip: Copy invite address
+  addressCopiedText: Address copied
   doorFullFormat: Open, but the room is full at {0}. Nobody else can get in.
   readyToStartText: Everybody is ready
   waitingForHostText: Waiting for the host to start
+  preparingMatchStageText: PREPARING
+  loadingMatchStageText: LOADING SCENE
+  enteringMatchStageText: ENTERING MATCH
+  leavingMatchStageText: LEAVING SESSION
+  preparingMatchText: Starting the match...
+  loadingMatchText: Loading the selected map...
+  enteringMatchText: Match is ready...
+  leavingMatchText: Returning to the menu...
+  hostTransitionDetail: Synchronizing the scene with every player.
+  clientTransitionDetail: The host started the match. Waiting for scene synchronization.
+  leavingTransitionDetail: Stopping network services safely.
+  transitionElapsedFormat: '{0} s elapsed'
   ownerStatusText: Owner
   readyStatusText: Ready
   notReadyStatusText: Not ready

@@ -21,6 +21,25 @@
 }
 
 
+/* A field that gates a network request explains why the action is unavailable
+   before the player spends a connection timeout finding out. Kept beside the
+   field rather than in the global error overlay because nothing has failed. */
+
+.input__hint {
+    min-height: 32px;
+
+    margin-top: 0;
+    margin-bottom: var(--space-s);
+
+    -unity-text-align: middle-left;
+}
+
+
+.input__hint--error {
+    color: var(--danger);
+}
+
+
 /* --------------------------------------------------------------------------
    UNITY THEME OVERRIDES
 
@@ -167,4 +186,19 @@
 .input:disabled > .unity-base-text-field__input TextElement,
 .input:disabled > .unity-base-text-field__input Label {
     color: var(--text-disabled);
+}
+
+
+/* Validation is written last so hover and retained focus cannot make an
+   invalid address look valid again before its value changes. */
+
+.input--invalid.unity-text-field > .unity-base-text-field__input,
+.input--invalid.unity-text-field:hover > .unity-base-text-field__input,
+.input--invalid.unity-text-field:focus > .unity-base-text-field__input,
+.input--invalid.unity-text-field > .unity-base-text-field__input:focus,
+.input--invalid.unity-text-field > .unity-base-text-field__input:focus:hover {
+    border-left-color: var(--danger);
+    border-right-color: var(--danger);
+    border-top-color: var(--danger);
+    border-bottom-color: var(--danger);
 }

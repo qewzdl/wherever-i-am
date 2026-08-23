@@ -15,6 +15,8 @@ public sealed class MainMenuDocument : MonoBehaviour
 {
     private const string OpenClass = "screen--open";
     private const string OverlayOpenClass = "overlay--open";
+    private const string InvalidInputClass = "input--invalid";
+    private const string InputErrorClass = "input__hint--error";
     private const int NameLengthLimit = 16;
 
     [Header("References")]
@@ -22,16 +24,34 @@ public sealed class MainMenuDocument : MonoBehaviour
     [SerializeField] private UiDocumentSounds sounds;
 
     [Header("While connecting")]
-    [SerializeField] private string hostingMessage = "Creating lobby...";
-    [SerializeField] private string joiningMessage = "Connecting to {0}...";
-    [SerializeField] private string cancellingMessage = "Cancelling...";
+    [SerializeField] private string preparingMessage = "Preparing network...";
+    [SerializeField] private string hostingMessage = "Starting LAN host...";
+    [SerializeField] private string joiningMessage =
+        "Contacting host and awaiting approval...";
+    [SerializeField] private string loadingLobbyMessage = "Loading lobby...";
+    [SerializeField] private string openingLobbyMessage = "Opening lobby...";
+    [SerializeField] private string loadingGameMessage = "Joining match...";
+    [SerializeField] private string cancellingMessage = "Cancelling connection...";
+    [SerializeField] private string hostingDetail =
+        "This device will host the LAN session.";
+    [SerializeField] private string joiningDetailFormat = "Host {0}";
+    [SerializeField] private string cancellingDetail =
+        "Stopping network services safely.";
+    [SerializeField] private string busyStepFormat = "STEP {0} / {1}";
 
     // What is being waited for, and for how long. A connection that is going
     // nowhere looks exactly like one that is about to arrive, and the player
     // deciding whether to press Cancel has nothing else to go on.
-    [SerializeField] private string busyElapsedFormat = "{0}   {1} s";
+    [SerializeField] private string busyElapsedFormat = "{0} s elapsed";
+
+    [Header("Join address")]
+    [SerializeField] private string addressHintText =
+        "IPv4 address, for example 192.168.1.10";
+    [SerializeField] private string invalidAddressText =
+        "Enter a valid IPv4 address.";
 
     private INetworkSessionService sessionService;
+    private INetworkSessionReadService sessionReadService;
     private IUiErrorService errorService;
     private ISettingsScreen settingsScreen;
 
@@ -41,6 +61,10 @@ public sealed class MainMenuDocument : MonoBehaviour
     private VisualElement joinPanel;
     private VisualElement busyPanel;
     private Label busyText;
+    private Label busyStep;
+    private Label busyDetail;
+    private Label busyElapsed;
+    private Label addressHint;
     private TextField playerName;
     private TextField address;
     private Button hostButton;
@@ -63,7 +87,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     // would start a second shutdown over the first.
     private bool isCancelling;
 
-    private string busyMessage = string.Empty;
+    private string requestDetail = string.Empty;
     private float requestStartedAt;
 
     // The last whole second put on screen. Without it the label is rebuilt
@@ -99,18 +123,25 @@ public sealed class MainMenuDocument : MonoBehaviour
     public void Construct(
         INetworkSessionService sessionService,
         IUiErrorService errorService,
-        ISettingsScreen settingsScreen)
+        ISettingsScreen settingsScreen,
+        INetworkSessionReadService sessionReadService = null)
     {
+        UnsubscribeFromSessionState();
+
         this.sessionService = sessionService;
+        this.sessionReadService = sessionReadService;
         this.errorService = errorService;
         this.settingsScreen = settingsScreen;
 
+        SubscribeToSessionState();
         Show(complainIfMissing: false);
     }
 
     public void Dispose()
     {
+        UnsubscribeFromSessionState();
         sessionService = null;
+        sessionReadService = null;
         errorService = null;
         settingsScreen = null;
         EndRequest();
@@ -119,6 +150,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     private void OnDestroy()
     {
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
+        joinPanel?.UnregisterCallback<ClickEvent>(HandleJoinBackdropClicked);
         Unsubscribe();
         Dispose();
     }
@@ -150,7 +182,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     // player is waiting on is still the same wait.
     private void Update()
     {
-        if (!isRequestInFlight || busyText == null)
+        if (!isRequestInFlight || busyElapsed == null)
             return;
 
         int seconds = Mathf.FloorToInt(Time.unscaledTime - requestStartedAt);
@@ -159,7 +191,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             return;
 
         shownSeconds = seconds;
-        busyText.text = string.Format(busyElapsedFormat, busyMessage, seconds);
+        busyElapsed.text = string.Format(busyElapsedFormat, seconds);
     }
 
     private void Show(bool complainIfMissing)
@@ -199,6 +231,10 @@ public sealed class MainMenuDocument : MonoBehaviour
         joinPanel = root.Q<VisualElement>("JoinPanel");
         busyPanel = root.Q<VisualElement>("BusyPanel");
         busyText = root.Q<Label>("BusyText");
+        busyStep = root.Q<Label>("BusyStep");
+        busyDetail = root.Q<Label>("BusyDetail");
+        busyElapsed = root.Q<Label>("BusyElapsed");
+        addressHint = root.Q<Label>("AddressHint");
         playerName = root.Q<TextField>("PlayerName");
         address = root.Q<TextField>("Address");
         hostButton = root.Q<Button>("HostButton");
@@ -233,10 +269,11 @@ public sealed class MainMenuDocument : MonoBehaviour
         // screen, which is why every panel below hands focus to something when
         // it opens.
         screen.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
+        joinPanel?.RegisterCallback<ClickEvent>(HandleJoinBackdropClicked);
 
         Subscribe();
-        HideJoinPrompt();
-        SetBusy(false, string.Empty);
+        SetDisplayed(joinPanel, false);
+        SetBusy(false, string.Empty, string.Empty, string.Empty);
 
         if (playerName != null)
         {
@@ -245,6 +282,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         }
 
         address?.SetValueWithoutNotify(JoinAddressProvider.Get());
+        RefreshAddressValidation();
 
         return true;
     }
@@ -278,6 +316,8 @@ public sealed class MainMenuDocument : MonoBehaviour
         // every keystroke, because storing it writes to disk.
         playerName?.RegisterCallback<FocusOutEvent>(HandleNameCommitted);
         address?.RegisterCallback<FocusOutEvent>(HandleAddressCommitted);
+        address?.RegisterValueChangedCallback(HandleAddressChanged);
+        address?.RegisterCallback<KeyDownEvent>(HandleAddressKeyDown);
     }
 
     private void Unsubscribe()
@@ -305,6 +345,8 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         playerName?.UnregisterCallback<FocusOutEvent>(HandleNameCommitted);
         address?.UnregisterCallback<FocusOutEvent>(HandleAddressCommitted);
+        address?.UnregisterValueChangedCallback(HandleAddressChanged);
+        address?.UnregisterCallback<KeyDownEvent>(HandleAddressKeyDown);
     }
 
     private void HandleNameCommitted(FocusOutEvent evt)
@@ -315,6 +357,31 @@ public sealed class MainMenuDocument : MonoBehaviour
     private void HandleAddressCommitted(FocusOutEvent evt)
     {
         SaveJoinAddress();
+    }
+
+    private void HandleAddressChanged(ChangeEvent<string> evt)
+    {
+        RefreshAddressValidation();
+    }
+
+    private void HandleAddressKeyDown(KeyDownEvent evt)
+    {
+        if (evt.keyCode != KeyCode.Return && evt.keyCode != KeyCode.KeypadEnter)
+            return;
+
+        if (connectButton == null || !connectButton.enabledSelf)
+            return;
+
+        evt.StopPropagation();
+        Join();
+    }
+
+    private void HandleJoinBackdropClicked(ClickEvent evt)
+    {
+        if (!ReferenceEquals(evt.target, joinPanel) || isRequestInFlight)
+            return;
+
+        HideJoinPrompt();
     }
 
     private void SavePlayerName()
@@ -334,6 +401,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (isRequestInFlight)
             return;
 
+        RefreshAddressValidation();
         SetDisplayed(joinPanel, true);
         sounds?.Play(UiSoundType.Open);
         address?.Focus();
@@ -341,7 +409,33 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void HideJoinPrompt()
     {
+        bool wasOpen = joinPanel != null &&
+                       joinPanel.style.display == DisplayStyle.Flex;
+
         SetDisplayed(joinPanel, false);
+
+        if (wasOpen && !isRequestInFlight && joinButton != null)
+            screen?.schedule.Execute(() => joinButton.Focus());
+    }
+
+    private void RefreshAddressValidation()
+    {
+        if (address == null)
+            return;
+
+        string value = address.value;
+        bool isEmpty = string.IsNullOrWhiteSpace(value);
+        bool isValid = LanAddressValidator.TryNormalize(value, out _);
+        bool showError = !isEmpty && !isValid;
+
+        connectButton?.SetEnabled(isValid && !isRequestInFlight);
+        address.EnableInClassList(InvalidInputClass, showError);
+
+        if (addressHint == null)
+            return;
+
+        addressHint.text = showError ? invalidAddressText : addressHintText;
+        addressHint.EnableInClassList(InputErrorClass, showError);
     }
 
     private void OpenSettings()
@@ -362,7 +456,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     {
         SavePlayerName();
 
-        if (!TryBeginRequest(hostingMessage))
+        if (!TryBeginRequest(hostingDetail))
             return;
 
         try
@@ -374,7 +468,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         }
         finally
         {
-            EndRequest();
+            CompleteRequestInvocation();
         }
     }
 
@@ -392,7 +486,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         // whatever reaches the session service should be what was stored.
         host = JoinAddressProvider.Normalize(host);
 
-        if (!TryBeginRequest(string.Format(joiningMessage, host)))
+        if (!TryBeginRequest(string.Format(joiningDetailFormat, host)))
             return;
 
         HideJoinPrompt();
@@ -406,7 +500,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         }
         finally
         {
-            EndRequest();
+            CompleteRequestInvocation();
         }
     }
 
@@ -431,7 +525,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             return;
 
         isCancelling = true;
-        SetBusy(true, cancellingMessage);
+        SetBusy(true, cancellingMessage, string.Empty, cancellingDetail);
         cancelRequestButton?.SetEnabled(false);
 
         try
@@ -454,7 +548,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     // Released in a finally, so a service that throws leaves the menu usable
     // rather than dead until the scene reloads.
-    private bool TryBeginRequest(string busyMessage)
+    private bool TryBeginRequest(string detail)
     {
         if (isRequestInFlight)
             return false;
@@ -462,21 +556,42 @@ public sealed class MainMenuDocument : MonoBehaviour
         isRequestInFlight = true;
         isCancelling = false;
         requestStartedAt = Time.unscaledTime;
+        requestDetail = detail;
         HideError();
-        SetBusy(true, busyMessage);
+        SetBusy(
+            true,
+            preparingMessage,
+            FormatStep(current: 1, total: 2),
+            requestDetail);
         return true;
+    }
+
+    private void CompleteRequestInvocation()
+    {
+        if (sessionReadService != null &&
+            KeepsBusyOverlayOpen(sessionReadService.CurrentState))
+        {
+            return;
+        }
+
+        EndRequest();
     }
 
     private void EndRequest()
     {
         isRequestInFlight = false;
-        SetBusy(false, string.Empty);
+        requestDetail = string.Empty;
+        SetBusy(false, string.Empty, string.Empty, string.Empty);
     }
 
     // The whole panel is switched off rather than a named list of controls:
     // in uGUI that list had to be kept by hand, and anything left out of it
     // stayed clickable while the menu was busy.
-    private void SetBusy(bool isBusy, string message)
+    private void SetBusy(
+        bool isBusy,
+        string message,
+        string step,
+        string detail)
     {
         SetDisplayed(busyPanel, isBusy);
         panel?.SetEnabled(!isBusy);
@@ -487,14 +602,118 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (isBusy && cancelRequestButton != null)
             cancelRequestButton.schedule.Execute(() => cancelRequestButton.Focus());
 
-        busyMessage = message;
-
         // Forgotten rather than kept, so the next frame writes the label even
         // if the wait is still on the same second it was on.
         shownSeconds = -1;
 
-        if (busyText != null && isBusy)
-            busyText.text = string.Format(busyElapsedFormat, message, 0);
+        if (!isBusy)
+            return;
+
+        if (busyText != null)
+            busyText.text = message;
+
+        if (busyStep != null)
+            busyStep.text = step;
+
+        if (busyDetail != null)
+            busyDetail.text = detail;
+
+        if (busyElapsed != null)
+            busyElapsed.text = string.Format(busyElapsedFormat, 0);
+    }
+
+    private void SubscribeToSessionState()
+    {
+        if (sessionReadService != null)
+            sessionReadService.StateChanged += HandleSessionStateChanged;
+    }
+
+    private void UnsubscribeFromSessionState()
+    {
+        if (sessionReadService != null)
+            sessionReadService.StateChanged -= HandleSessionStateChanged;
+    }
+
+    private void HandleSessionStateChanged(
+        NetworkSessionState previous,
+        NetworkSessionState current)
+    {
+        if (!isRequestInFlight)
+            return;
+
+        if (!KeepsBusyOverlayOpen(current))
+        {
+            EndRequest();
+            return;
+        }
+
+        switch (current)
+        {
+            case NetworkSessionState.StartingHost:
+                SetBusy(
+                    true,
+                    hostingMessage,
+                    FormatStep(1, 2),
+                    requestDetail);
+                break;
+
+            case NetworkSessionState.StartingClient:
+                SetBusy(
+                    true,
+                    joiningMessage,
+                    FormatStep(1, 2),
+                    requestDetail);
+                break;
+
+            case NetworkSessionState.LoadingLobby:
+                SetBusy(
+                    true,
+                    loadingLobbyMessage,
+                    FormatStep(2, 2),
+                    requestDetail);
+                break;
+
+            case NetworkSessionState.Lobby:
+                SetBusy(
+                    true,
+                    openingLobbyMessage,
+                    FormatStep(2, 2),
+                    requestDetail);
+                break;
+
+            case NetworkSessionState.LoadingGame:
+            case NetworkSessionState.InGame:
+                SetBusy(
+                    true,
+                    loadingGameMessage,
+                    FormatStep(2, 2),
+                    requestDetail);
+                break;
+
+            case NetworkSessionState.Disconnecting:
+                SetBusy(
+                    true,
+                    cancellingMessage,
+                    string.Empty,
+                    cancellingDetail);
+                break;
+        }
+    }
+
+    private string FormatStep(int current, int total)
+    {
+        return string.Format(busyStepFormat, current, total);
+    }
+
+    private static bool KeepsBusyOverlayOpen(NetworkSessionState state)
+    {
+        return state == NetworkSessionState.StartingHost ||
+               state == NetworkSessionState.StartingClient ||
+               state == NetworkSessionState.LoadingLobby ||
+               state == NetworkSessionState.Lobby ||
+               state == NetworkSessionState.LoadingGame ||
+               state == NetworkSessionState.InGame ||
+               state == NetworkSessionState.Disconnecting;
     }
 
     private static void SetDisplayed(VisualElement element, bool displayed)

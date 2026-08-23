@@ -50,6 +50,7 @@ internal sealed class ProductionBootstrapProcessHarness : MonoBehaviour
     private bool resultWritten;
     private bool startingHostObserved;
     private bool startingClientObserved;
+    private bool loadingLobbyObserved;
     private bool lobbyObserved;
     private bool loadingGameObserved;
     private bool inGameObserved;
@@ -169,6 +170,7 @@ internal sealed class ProductionBootstrapProcessHarness : MonoBehaviour
     {
         startingHostObserved |= state == NetworkSessionState.StartingHost;
         startingClientObserved |= state == NetworkSessionState.StartingClient;
+        loadingLobbyObserved |= state == NetworkSessionState.LoadingLobby;
         lobbyObserved |= state == NetworkSessionState.Lobby;
         loadingGameObserved |= state == NetworkSessionState.LoadingGame;
         inGameObserved |= state == NetworkSessionState.InGame;
@@ -466,6 +468,7 @@ internal sealed class ProductionBootstrapProcessHarness : MonoBehaviour
     private void ValidateHostStateHistory()
     {
         if (!startingHostObserved ||
+            !loadingLobbyObserved ||
             !lobbyObserved ||
             !loadingGameObserved ||
             !inGameObserved ||
@@ -474,7 +477,7 @@ internal sealed class ProductionBootstrapProcessHarness : MonoBehaviour
         {
             throw new InvalidOperationException(
                 "Host did not observe the complete " +
-                "StartingHost -> Lobby -> LoadingGame -> InGame -> " +
+                "StartingHost -> LoadingLobby -> Lobby -> LoadingGame -> InGame -> " +
                 "Disconnecting -> Offline state history.");
         }
     }
@@ -497,6 +500,12 @@ internal sealed class ProductionBootstrapProcessHarness : MonoBehaviour
         {
             throw new InvalidOperationException(
                 "The first client did not commit Lobby before Game.");
+        }
+
+        if (!lateClient && !loadingLobbyObserved)
+        {
+            throw new InvalidOperationException(
+                "The first client did not observe LoadingLobby before Lobby.");
         }
 
         if (lateClient && lobbyObserved)

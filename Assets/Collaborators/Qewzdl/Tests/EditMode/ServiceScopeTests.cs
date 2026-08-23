@@ -899,6 +899,7 @@ public sealed class GTests
             typeof(IGameStateService),
             typeof(IProjectSceneFlowService),
             typeof(INetworkSessionService),
+            typeof(INetworkSessionReadService),
             typeof(INetworkSessionAdmissionService),
             typeof(IUiErrorService),
             typeof(ISettingsService),

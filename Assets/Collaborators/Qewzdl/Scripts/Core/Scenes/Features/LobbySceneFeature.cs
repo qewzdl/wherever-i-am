@@ -23,6 +23,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         valid &= RequireReference(lobbyUi, nameof(lobbyUi));
         valid &= RequireReference(lobbyCommandPresenter, nameof(lobbyCommandPresenter));
         valid &= RequireService<INetworkSessionService>(context, out _);
+        valid &= RequireService<INetworkSessionReadService>(context, out _);
         valid &= RequireService<INetworkSessionAdmissionService>(context, out _);
 
         if (lobbyController != null)
@@ -34,6 +35,8 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
     protected override bool InstallFeature(SceneFeatureContext context)
     {
         INetworkSessionService sessionService = context.Services.Resolve<INetworkSessionService>();
+        INetworkSessionReadService sessionReadService =
+            context.Services.Resolve<INetworkSessionReadService>();
         INetworkSessionAdmissionService admissionService =
             context.Services.Resolve<INetworkSessionAdmissionService>();
 
@@ -46,7 +49,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
 
         ILobbyReadService readService = context.Services.Resolve<ILobbyReadService>();
         ILobbyCommandService commandService = context.Services.Resolve<ILobbyCommandService>();
-        lobbyUi.Construct(readService);
+        lobbyUi.Construct(readService, sessionReadService);
         lobbyCommandPresenter.Construct(lobbyUi, readService, commandService);
 
         if (lobbyStage != null)

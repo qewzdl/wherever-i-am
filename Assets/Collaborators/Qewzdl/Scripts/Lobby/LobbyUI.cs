@@ -20,11 +20,14 @@ public class LobbyUI : MonoBehaviour
 {
     private const string OpenClass = "screen--open";
     private const string OverlayOpenClass = "overlay--open";
+    private const string ReadyCompleteClass = "roster__ready-count--complete";
 
     [Header("References")]
     [SerializeField] private UIDocument document;
     [SerializeField] private UiDocumentSounds sounds;
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
+    [SerializeField] private Texture2D copyAddressIcon;
+    [SerializeField] private Texture2D copiedAddressIcon;
 
     [Header("Text")]
     // Both are verbs. The old pair said "Ready" and "Not ready", and the second
@@ -33,6 +36,7 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string readyActionText = "Ready up";
     [SerializeField] private string standDownActionText = "Stand down";
     [SerializeField] private string playerCountFormat = "{0}/{1}";
+    [SerializeField] private string readyCountFormat = "{0} READY";
     [SerializeField] private string kickConfirmFormat =
         "Remove {0}? They will not be able to join again this session.";
     [SerializeField] private string needMorePlayersFormat = "Need {0} more to start";
@@ -42,14 +46,32 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string doorShutText =
         "Shut. Nobody can reach this lobby until you open it.";
     [SerializeField] private string doorOpenFormat =
-        "Open. Anyone on this network can join by typing {0}.";
+        "Open. Share {0}. Use the copy button above.";
     [SerializeField] private string doorNotYoursText = "Only the host can open the door.";
     [SerializeField] private string addressUnknownText = "no network";
-    [SerializeField] private string addressCopiedText = "copied";
+    [SerializeField] private string addressCopyTooltip = "Copy invite address";
+    [SerializeField] private string addressCopiedText = "Address copied";
     [SerializeField] private string doorFullFormat =
         "Open, but the room is full at {0}. Nobody else can get in.";
     [SerializeField] private string readyToStartText = "Everybody is ready";
     [SerializeField] private string waitingForHostText = "Waiting for the host to start";
+
+    [Header("Match transition")]
+    [SerializeField] private string preparingMatchStageText = "PREPARING";
+    [SerializeField] private string loadingMatchStageText = "LOADING SCENE";
+    [SerializeField] private string enteringMatchStageText = "ENTERING MATCH";
+    [SerializeField] private string leavingMatchStageText = "LEAVING SESSION";
+    [SerializeField] private string preparingMatchText = "Starting the match...";
+    [SerializeField] private string loadingMatchText = "Loading the selected map...";
+    [SerializeField] private string enteringMatchText = "Match is ready...";
+    [SerializeField] private string leavingMatchText = "Returning to the menu...";
+    [SerializeField] private string hostTransitionDetail =
+        "Synchronizing the scene with every player.";
+    [SerializeField] private string clientTransitionDetail =
+        "The host started the match. Waiting for scene synchronization.";
+    [SerializeField] private string leavingTransitionDetail =
+        "Stopping network services safely.";
+    [SerializeField] private string transitionElapsedFormat = "{0} s elapsed";
 
     [Header("Player rows")]
     [SerializeField] private string ownerStatusText = "Owner";
@@ -70,20 +92,30 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string emptyRosterText = "Waiting for the room...";
 
     private ILobbyReadService readService;
+    private INetworkSessionReadService sessionReadService;
     private int[] difficultyIds = Array.Empty<int>();
     private string[] difficultyDescriptions = Array.Empty<string>();
 
     private VisualElement boundRoot;
     private VisualElement screen;
+    private VisualElement panel;
     private VisualElement roster;
     private VisualElement confirmPanel;
+    private VisualElement matchTransitionPanel;
     private Label playerCountLabel;
+    private Label readyCountLabel;
     private Label difficultyDescriptionLabel;
     private Label doorHintLabel;
+    private Label addressLabel;
+    private Image addressCopyIcon;
 
     private VisualElement addressField;
     private Label startHintLabel;
     private Label confirmTextLabel;
+    private Label matchTransitionStageLabel;
+    private Label matchTransitionTextLabel;
+    private Label matchTransitionDetailLabel;
+    private Label matchTransitionElapsedLabel;
     private DropdownField difficultyField;
     private Toggle visibilityToggle;
     private Button readyButton;
@@ -92,6 +124,13 @@ public class LobbyUI : MonoBehaviour
     private Button confirmButton;
     private Button confirmCancelButton;
     private Button addressButton;
+    private Button transitionLeaveButton;
+
+    private bool isMatchTransitionVisible;
+    private float matchTransitionStartedAt;
+    private int shownTransitionSeconds = -1;
+    private bool isAddressCopyFeedbackVisible;
+    private int addressCopyFeedbackVersion;
 
     // Two things on this screen are worth asking about twice, and they are the
     // two that cannot be taken back: removing somebody for the rest of the
@@ -107,6 +146,7 @@ public class LobbyUI : MonoBehaviour
 
     private PendingAction pendingAction;
     private ulong pendingKickClientId;
+    private Button pendingFocusTarget;
 
     public event Action ReadyClicked;
     public event Action StartGameClicked;
@@ -115,15 +155,22 @@ public class LobbyUI : MonoBehaviour
     public event Action LobbyVisibilityToggleClicked;
     public event Action<ulong> PlayerKickRequested;
 
-    public void Construct(ILobbyReadService readService)
+    public void Construct(
+        ILobbyReadService readService,
+        INetworkSessionReadService sessionReadService = null)
     {
         if (this.readService != null)
             this.readService.LobbyChanged -= Refresh;
 
+        UnsubscribeFromSessionState();
+
         this.readService = readService;
+        this.sessionReadService = sessionReadService;
 
         if (this.readService != null)
             this.readService.LobbyChanged += Refresh;
+
+        SubscribeToSessionState();
 
         Show(complainIfMissing: false);
         Refresh();
@@ -134,7 +181,12 @@ public class LobbyUI : MonoBehaviour
         if (readService != null)
             readService.LobbyChanged -= Refresh;
 
+        UnsubscribeFromSessionState();
         readService = null;
+        sessionReadService = null;
+        isAddressCopyFeedbackVisible = false;
+        addressCopyFeedbackVersion++;
+        SetMatchTransitionVisible(false);
     }
 
     private void Awake()
@@ -163,9 +215,27 @@ public class LobbyUI : MonoBehaviour
         Refresh();
     }
 
+    private void Update()
+    {
+        if (!isMatchTransitionVisible || matchTransitionElapsedLabel == null)
+            return;
+
+        int seconds = Mathf.FloorToInt(
+            Time.unscaledTime - matchTransitionStartedAt);
+
+        if (seconds == shownTransitionSeconds)
+            return;
+
+        shownTransitionSeconds = seconds;
+        matchTransitionElapsedLabel.text = string.Format(
+            transitionElapsedFormat,
+            seconds);
+    }
+
     private void OnDestroy()
     {
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
+        confirmPanel?.UnregisterCallback<ClickEvent>(HandleConfirmBackdropClicked);
         Unsubscribe();
         Dispose();
     }
@@ -212,15 +282,24 @@ public class LobbyUI : MonoBehaviour
 
         boundRoot = root;
         screen = root.Q<VisualElement>("Screen");
+        panel = root.Q<VisualElement>("Panel");
         roster = root.Q<VisualElement>("Roster");
         confirmPanel = root.Q<VisualElement>("ConfirmPanel");
+        matchTransitionPanel = root.Q<VisualElement>("MatchTransitionPanel");
         playerCountLabel = root.Q<Label>("PlayerCount");
+        readyCountLabel = root.Q<Label>("ReadyCount");
         difficultyDescriptionLabel = root.Q<Label>("DifficultyDescription");
         doorHintLabel = root.Q<Label>("DoorHint");
-        addressButton = root.Q<Button>("Address");
+        addressLabel = root.Q<Label>("Address");
+        addressButton = root.Q<Button>("CopyAddressButton");
+        addressCopyIcon = root.Q<Image>("AddressCopyIcon");
         addressField = root.Q<VisualElement>("AddressField");
         startHintLabel = root.Q<Label>("StartHint");
         confirmTextLabel = root.Q<Label>("ConfirmText");
+        matchTransitionStageLabel = root.Q<Label>("MatchTransitionStage");
+        matchTransitionTextLabel = root.Q<Label>("MatchTransitionText");
+        matchTransitionDetailLabel = root.Q<Label>("MatchTransitionDetail");
+        matchTransitionElapsedLabel = root.Q<Label>("MatchTransitionElapsed");
         difficultyField = root.Q<DropdownField>("Difficulty");
         visibilityToggle = root.Q<Toggle>("Visibility");
         readyButton = root.Q<Button>("ReadyButton");
@@ -228,6 +307,7 @@ public class LobbyUI : MonoBehaviour
         leaveButton = root.Q<Button>("LeaveButton");
         confirmButton = root.Q<Button>("ConfirmButton");
         confirmCancelButton = root.Q<Button>("ConfirmCancelButton");
+        transitionLeaveButton = root.Q<Button>("TransitionLeaveButton");
 
         if (screen == null)
         {
@@ -241,10 +321,15 @@ public class LobbyUI : MonoBehaviour
         // backing out of a lobby is leaving it, and that is too large a thing
         // to happen because somebody reached for the key that closes windows.
         screen.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
+        confirmPanel?.RegisterCallback<ClickEvent>(HandleConfirmBackdropClicked);
 
         PopulateDifficultyChoices();
         Subscribe();
         CancelPendingAction();
+        SetMatchTransitionVisible(false);
+
+        if (addressCopyIcon != null)
+            addressCopyIcon.scaleMode = ScaleMode.ScaleToFit;
 
         return true;
     }
@@ -259,6 +344,9 @@ public class LobbyUI : MonoBehaviour
 
         if (leaveButton != null)
             leaveButton.clicked += HandleLeaveLobbyClicked;
+
+        if (transitionLeaveButton != null)
+            transitionLeaveButton.clicked += HandleTransitionLeaveClicked;
 
         if (visibilityToggle != null)
             visibilityToggle.RegisterValueChangedCallback(HandleVisibilityChanged);
@@ -286,6 +374,9 @@ public class LobbyUI : MonoBehaviour
 
         if (leaveButton != null)
             leaveButton.clicked -= HandleLeaveLobbyClicked;
+
+        if (transitionLeaveButton != null)
+            transitionLeaveButton.clicked -= HandleTransitionLeaveClicked;
 
         if (visibilityToggle != null)
             visibilityToggle.UnregisterValueChangedCallback(HandleVisibilityChanged);
@@ -320,6 +411,16 @@ public class LobbyUI : MonoBehaviour
     // asked.
     private void HandleLeaveLobbyClicked()
     {
+        RequestLeaveLobby(leaveButton);
+    }
+
+    private void HandleTransitionLeaveClicked()
+    {
+        RequestLeaveLobby(transitionLeaveButton);
+    }
+
+    private void RequestLeaveLobby(Button focusTarget)
+    {
         if (readService == null || !readService.IsLocalPlayerRoomOwner)
         {
             LeaveLobbyClicked?.Invoke();
@@ -331,7 +432,8 @@ public class LobbyUI : MonoBehaviour
             readService.PlayerCount > 1
                 ? closeLobbyConfirmText
                 : closeLobbyConfirmAloneText,
-            closeLobbyActionConfirmText);
+            closeLobbyActionConfirmText,
+            focusTarget);
     }
 
     // The address is meant to be handed to somebody, and reading four numbers
@@ -349,20 +451,52 @@ public class LobbyUI : MonoBehaviour
         if (addressButton == null)
             return;
 
-        // Said on the button itself and taken back a moment later. A copy that
-        // reports nothing looks exactly like a copy that did not happen.
-        addressButton.text = addressCopiedText;
-        addressButton.schedule.Execute(RefreshAddressText).StartingIn(1200);
+        // The filled icon is confirmation without replacing the address the
+        // player may still be reading. A version keeps repeated clicks from
+        // letting the first scheduled reset cut the second confirmation short.
+        isAddressCopyFeedbackVisible = true;
+        int feedbackVersion = ++addressCopyFeedbackVersion;
+        RefreshAddressText();
+
+        addressButton.schedule
+            .Execute(() => HideAddressCopyFeedback(feedbackVersion))
+            .StartingIn(1200);
     }
 
     private void RefreshAddressText()
     {
-        if (addressButton == null)
+        string address = LanAddressProvider.Get();
+        bool hasAddress = !string.IsNullOrEmpty(address);
+
+        if (!hasAddress)
+            isAddressCopyFeedbackVisible = false;
+
+        if (addressLabel != null)
+            addressLabel.text = hasAddress ? address : addressUnknownText;
+
+        if (addressButton != null)
+        {
+            addressButton.tooltip = isAddressCopyFeedbackVisible
+                ? addressCopiedText
+                : addressCopyTooltip;
+            addressButton.SetEnabled(hasAddress);
+        }
+
+        if (addressCopyIcon != null)
+        {
+            addressCopyIcon.image = isAddressCopyFeedbackVisible
+                ? copiedAddressIcon
+                : copyAddressIcon;
+        }
+    }
+
+    private void HideAddressCopyFeedback(int feedbackVersion)
+    {
+        if (feedbackVersion != addressCopyFeedbackVersion)
             return;
 
-        string address = LanAddressProvider.Get();
-
-        addressButton.text = string.IsNullOrEmpty(address) ? addressUnknownText : address;
+        isAddressCopyFeedbackVisible = false;
+        RefreshAddressText();
     }
 
     private void HandleVisibilityChanged(ChangeEvent<bool> evt)
@@ -391,6 +525,7 @@ public class LobbyUI : MonoBehaviour
         RefreshPlayers();
         RefreshButtons();
         RefreshDifficulty();
+        RefreshMatchTransition();
     }
 
     private void PopulateDifficultyChoices()
@@ -473,6 +608,8 @@ public class LobbyUI : MonoBehaviour
 
     private void RefreshPlayers()
     {
+        int readyCount = CountReady();
+
         // Before the rows, and regardless of them: a full lobby is the reason a
         // friend is turned away, and they find that out at connect time unless
         // somebody in here can see it coming.
@@ -482,6 +619,15 @@ public class LobbyUI : MonoBehaviour
                 playerCountFormat,
                 readService.PlayerCount,
                 readService.Settings.MaxPlayers);
+        }
+
+        if (readyCountLabel != null)
+        {
+            readyCountLabel.text = string.Format(readyCountFormat, readyCount);
+            readyCountLabel.EnableInClassList(
+                ReadyCompleteClass,
+                readService.PlayerCount > 0 &&
+                readyCount == readService.PlayerCount);
         }
 
         if (roster == null)
@@ -508,9 +654,8 @@ public class LobbyUI : MonoBehaviour
         }
 
         // Rebuilt rather than rebound. The uGUI version kept its rows and hid
-        // the spares because each one was a GameObject; these are three
-        // elements, a room holds four of them, and the list only changes when
-        // a person presses something.
+        // the spares because each one was a GameObject; these are small visual
+        // element trees, and the list only changes when lobby state changes.
         roster.Clear();
 
         if (playerCount == 0)
@@ -564,20 +709,31 @@ public class LobbyUI : MonoBehaviour
         name.AddToClassList("roster__name");
         row.Add(name);
 
-        Label status = new Label(isRoomOwner
-            ? ownerStatusText
-            : player.IsReady
-                ? readyStatusText
-                : notReadyStatusText);
+        VisualElement badges = new VisualElement();
+        badges.AddToClassList("roster__badges");
+
+        // Ownership and readiness are independent facts. The old row replaced
+        // the host's ready state with "Owner", while the start rule still
+        // counted that state; clients were told to wait for somebody the list
+        // could never identify.
+        if (isRoomOwner)
+        {
+            Label role = new Label(ownerStatusText);
+            role.AddToClassList("roster__role");
+            badges.Add(role);
+        }
+
+        Label status = new Label(player.IsReady
+            ? readyStatusText
+            : notReadyStatusText);
 
         status.AddToClassList("roster__status");
 
-        if (isRoomOwner)
-            status.AddToClassList("roster__status--owner");
-        else if (player.IsReady)
+        if (player.IsReady)
             status.AddToClassList("roster__status--ready");
 
-        row.Add(status);
+        badges.Add(status);
+        row.Add(badges);
 
         if (canKick)
         {
@@ -585,7 +741,8 @@ public class LobbyUI : MonoBehaviour
             // are rebuilt whenever anything changes, so a handler that looked
             // up an index would be pointing at whoever took that place.
             ulong clientId = player.ClientId;
-            Button kick = new Button(() => HandlePlayerKickRequested(clientId))
+            Button kick = null;
+            kick = new Button(() => HandlePlayerKickRequested(clientId, kick))
             {
                 text = kickActionText
             };
@@ -598,7 +755,7 @@ public class LobbyUI : MonoBehaviour
         return row;
     }
 
-    private void HandlePlayerKickRequested(ulong clientId)
+    private void HandlePlayerKickRequested(ulong clientId, Button focusTarget)
     {
         if (confirmPanel == null)
         {
@@ -611,12 +768,18 @@ public class LobbyUI : MonoBehaviour
         AskToConfirm(
             PendingAction.Kick,
             string.Format(kickConfirmFormat, ResolvePlayerName(clientId)),
-            kickActionText);
+            kickActionText,
+            focusTarget);
     }
 
-    private void AskToConfirm(PendingAction action, string question, string actionLabel)
+    private void AskToConfirm(
+        PendingAction action,
+        string question,
+        string actionLabel,
+        Button focusTarget)
     {
         pendingAction = action;
+        pendingFocusTarget = focusTarget;
 
         if (confirmTextLabel != null)
             confirmTextLabel.text = question;
@@ -642,18 +805,56 @@ public class LobbyUI : MonoBehaviour
         PendingAction action = pendingAction;
         ulong clientId = pendingKickClientId;
 
-        CancelPendingAction();
+        ClosePendingAction(restoreFocus: false);
 
         if (action == PendingAction.Kick)
+        {
             PlayerKickRequested?.Invoke(clientId);
+            screen?.schedule.Execute(() => readyButton?.Focus());
+        }
         else if (action == PendingAction.CloseLobby)
             LeaveLobbyClicked?.Invoke();
     }
 
     private void CancelPendingAction()
     {
+        ClosePendingAction(restoreFocus: true);
+    }
+
+    private void ClosePendingAction(bool restoreFocus)
+    {
+        bool wasOpen = pendingAction != PendingAction.None;
+        Button focusTarget = pendingFocusTarget;
+
         pendingAction = PendingAction.None;
+        pendingFocusTarget = null;
         UiFade.Set(confirmPanel, false, OverlayOpenClass);
+
+        if (!restoreFocus || !wasOpen || screen == null)
+            return;
+
+        // Kick buttons are rebuilt with the roster. Resolve the target when
+        // the scheduled focus actually runs and fall back to a stable action
+        // if the row disappeared while the question was open.
+        screen.schedule.Execute(() =>
+        {
+            Button target = focusTarget != null && focusTarget.panel != null
+                ? focusTarget
+                : readyButton;
+
+            target?.Focus();
+        });
+    }
+
+    private void HandleConfirmBackdropClicked(ClickEvent evt)
+    {
+        if (!ReferenceEquals(evt.target, confirmPanel) ||
+            pendingAction == PendingAction.None)
+        {
+            return;
+        }
+
+        CancelPendingAction();
     }
 
     private string ResolvePlayerName(ulong clientId)
@@ -802,16 +1003,138 @@ public class LobbyUI : MonoBehaviour
             : waitingForHostText;
     }
 
-    private int CountNotReady()
+    private void SubscribeToSessionState()
     {
-        int notReadyCount = 0;
+        if (sessionReadService != null)
+            sessionReadService.StateChanged += HandleSessionStateChanged;
+    }
+
+    private void UnsubscribeFromSessionState()
+    {
+        if (sessionReadService != null)
+            sessionReadService.StateChanged -= HandleSessionStateChanged;
+    }
+
+    private void HandleSessionStateChanged(
+        NetworkSessionState previous,
+        NetworkSessionState current)
+    {
+        RefreshMatchTransition();
+    }
+
+    // Starting a match changes two replicated lifecycles: LobbyPhase closes
+    // interaction first, then the global session enters LoadingGame. Reading
+    // both means every peer gets immediate feedback without guessing which
+    // network callback will arrive first on that machine.
+    private void RefreshMatchTransition()
+    {
+        if (readService == null || boundRoot == null)
+            return;
+
+        NetworkSessionState sessionState = sessionReadService != null
+            ? sessionReadService.CurrentState
+            : NetworkSessionState.Lobby;
+
+        bool show = sessionState != NetworkSessionState.Offline &&
+                    sessionState != NetworkSessionState.Failed &&
+                    (readService.Phase == LobbyPhase.Starting ||
+                     sessionState == NetworkSessionState.LoadingGame ||
+                     sessionState == NetworkSessionState.InGame ||
+                     sessionState == NetworkSessionState.Disconnecting);
+
+        SetMatchTransitionVisible(show);
+
+        if (!show)
+            return;
+
+        string stage;
+        string message;
+        string detail;
+
+        switch (sessionState)
+        {
+            case NetworkSessionState.LoadingGame:
+                stage = loadingMatchStageText;
+                message = loadingMatchText;
+                detail = ResolveMatchTransitionDetail();
+                break;
+
+            case NetworkSessionState.InGame:
+                stage = enteringMatchStageText;
+                message = enteringMatchText;
+                detail = ResolveMatchTransitionDetail();
+                break;
+
+            case NetworkSessionState.Disconnecting:
+                stage = leavingMatchStageText;
+                message = leavingMatchText;
+                detail = leavingTransitionDetail;
+                break;
+
+            default:
+                stage = preparingMatchStageText;
+                message = preparingMatchText;
+                detail = ResolveMatchTransitionDetail();
+                break;
+        }
+
+        if (matchTransitionStageLabel != null)
+            matchTransitionStageLabel.text = stage;
+
+        if (matchTransitionTextLabel != null)
+            matchTransitionTextLabel.text = message;
+
+        if (matchTransitionDetailLabel != null)
+            matchTransitionDetailLabel.text = detail;
+    }
+
+    private string ResolveMatchTransitionDetail()
+    {
+        return readService != null && readService.IsLocalPlayerRoomOwner
+            ? hostTransitionDetail
+            : clientTransitionDetail;
+    }
+
+    private void SetMatchTransitionVisible(bool visible)
+    {
+        if (visible && !isMatchTransitionVisible)
+        {
+            matchTransitionStartedAt = Time.unscaledTime;
+            shownTransitionSeconds = -1;
+
+            if (matchTransitionElapsedLabel != null)
+            {
+                matchTransitionElapsedLabel.text = string.Format(
+                    transitionElapsedFormat,
+                    0);
+            }
+        }
+
+        isMatchTransitionVisible = visible;
+        panel?.SetEnabled(!visible);
+        UiFade.Set(matchTransitionPanel, visible, OverlayOpenClass);
+    }
+
+    private int CountReady()
+    {
+        if (readService == null)
+            return 0;
+
+        int readyCount = 0;
 
         for (int i = 0; i < readService.PlayerCount; i++)
         {
-            if (!readService.GetPlayer(i).IsReady)
-                notReadyCount++;
+            if (readService.GetPlayer(i).IsReady)
+                readyCount++;
         }
 
-        return notReadyCount;
+        return readyCount;
+    }
+
+    private int CountNotReady()
+    {
+        return readService != null
+            ? readService.PlayerCount - CountReady()
+            : 0;
     }
 }

@@ -23,6 +23,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     internal IServiceResolver SessionServices => shutdownCoordinator != null
         ? shutdownCoordinator.SessionServices
         : null;
+    internal INetworkSessionReadService SessionState => sessionStateMachine;
     internal bool RequiresCoordinatedShutdown =>
         shutdownCoordinator != null && shutdownCoordinator.RequiresCoordinatedShutdown;
 
@@ -76,6 +77,9 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
+        if (!TryBeginLobbyLoading("Host connection is ready; loading Lobby."))
+            return;
+
         if (!sceneFlowService.LoadScene(ProjectSceneKind.Lobby))
         {
             await FailAsync(ConnectionResult.Fail(
@@ -119,6 +123,15 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         if (!connectionService.IsConnectionReady)
         {
             await FailAsync(CreateConnectionLostDuringStartupResult());
+            return;
+        }
+
+        // A late client can begin synchronizing the Game scene before this
+        // continuation resumes. In that case the readiness gate already moved
+        // the state to LoadingGame and there is no Lobby phase to enter.
+        if (sessionStateMachine.CurrentState == NetworkSessionState.StartingClient &&
+            !TryBeginLobbyLoading("Client connection is ready; synchronizing Lobby."))
+        {
             return;
         }
 
@@ -400,7 +413,8 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         {
             case ProjectSceneKind.Lobby:
                 if (sessionStateMachine.CurrentState == NetworkSessionState.StartingHost ||
-                    sessionStateMachine.CurrentState == NetworkSessionState.StartingClient)
+                    sessionStateMachine.CurrentState == NetworkSessionState.StartingClient ||
+                    sessionStateMachine.CurrentState == NetworkSessionState.LoadingLobby)
                 {
                     if (!ValidateSessionReadiness(scene))
                         return;
@@ -432,7 +446,8 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
 
         if (scene == ProjectSceneKind.Lobby &&
             (state == NetworkSessionState.StartingHost ||
-             state == NetworkSessionState.StartingClient))
+             state == NetworkSessionState.StartingClient ||
+             state == NetworkSessionState.LoadingLobby))
         {
             _ = FailAsync(ConnectionResult.Fail(
                 ConnectionErrorCode.LobbySceneLoadFailed,
@@ -507,6 +522,23 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             $"Failed to enter session state '{startingState}'.",
             true));
 
+        return false;
+    }
+
+    private bool TryBeginLobbyLoading(string reason)
+    {
+        if (sessionStateMachine.TryChangeState(
+                NetworkSessionState.LoadingLobby,
+                reason))
+        {
+            return true;
+        }
+
+        _ = shutdownCoordinator.ShutdownAndWaitAsync(ConnectionResult.Fail(
+            ConnectionErrorCode.LobbySceneLoadFailed,
+            "Failed to load the lobby.",
+            $"Failed to enter {nameof(NetworkSessionState.LoadingLobby)} state.",
+            true));
         return false;
     }
 

@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class NetworkSessionStateMachine : MonoBehaviour
+public sealed class NetworkSessionStateMachine : MonoBehaviour, INetworkSessionReadService
 {
     public NetworkSessionState CurrentState { get; private set; } = NetworkSessionState.Offline;
 
@@ -17,6 +17,7 @@ public sealed class NetworkSessionStateMachine : MonoBehaviour
     public bool IsActiveSession =>
         CurrentState == NetworkSessionState.StartingHost ||
         CurrentState == NetworkSessionState.StartingClient ||
+        CurrentState == NetworkSessionState.LoadingLobby ||
         CurrentState == NetworkSessionState.Lobby ||
         CurrentState == NetworkSessionState.LoadingGame ||
         CurrentState == NetworkSessionState.InGame;
@@ -65,11 +66,19 @@ public sealed class NetworkSessionStateMachine : MonoBehaviour
                        to == NetworkSessionState.StartingClient;
 
             case NetworkSessionState.StartingHost:
-                return to == NetworkSessionState.Lobby ||
+                return to == NetworkSessionState.LoadingLobby ||
+                       to == NetworkSessionState.Lobby ||
                        to == NetworkSessionState.Disconnecting ||
                        to == NetworkSessionState.Failed;
 
             case NetworkSessionState.StartingClient:
+                return to == NetworkSessionState.LoadingLobby ||
+                       to == NetworkSessionState.Lobby ||
+                       to == NetworkSessionState.LoadingGame ||
+                       to == NetworkSessionState.Disconnecting ||
+                       to == NetworkSessionState.Failed;
+
+            case NetworkSessionState.LoadingLobby:
                 return to == NetworkSessionState.Lobby ||
                        to == NetworkSessionState.LoadingGame ||
                        to == NetworkSessionState.Disconnecting ||

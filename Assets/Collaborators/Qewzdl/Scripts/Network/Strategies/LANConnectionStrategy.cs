@@ -1,6 +1,4 @@
 using System;
-using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Netcode;
@@ -51,9 +49,7 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             );
         }
 
-        string ip = config.Address.Trim();
-
-        if (!IsValidTargetIpAddress(ip))
+        if (!LanAddressValidator.TryNormalize(config.Address, out string ip))
         {
             return ConnectionResult.Fail(
                 ConnectionErrorCode.InvalidIpAddress,
@@ -208,28 +204,6 @@ public class LanConnectionStrategy : BaseConnectionStrategy
             networkManager.OnTransportFailure -= HandleTransportFailure;
             networkManager.OnClientStopped -= HandleClientStopped;
         }
-    }
-
-    private static bool IsValidTargetIpAddress(string ip)
-    {
-        string[] parts = ip.Split('.');
-
-        if (parts.Length != 4)
-            return false;
-
-        for (int i = 0; i < parts.Length; i++)
-        {
-            if (!byte.TryParse(parts[i], out _))
-                return false;
-        }
-
-        if (!IPAddress.TryParse(ip, out IPAddress address))
-            return false;
-
-        return address.AddressFamily == AddressFamily.InterNetwork &&
-               !IPAddress.Any.Equals(address) &&
-               !IPAddress.Broadcast.Equals(address) &&
-               !IPAddress.IPv6Any.Equals(address);
     }
 
     private string GetServerDisconnectReason()

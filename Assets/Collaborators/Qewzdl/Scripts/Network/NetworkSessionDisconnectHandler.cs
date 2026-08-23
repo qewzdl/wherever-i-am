@@ -77,7 +77,8 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
         }
 
         if (state == NetworkSessionState.StartingHost ||
-            state == NetworkSessionState.StartingClient)
+            state == NetworkSessionState.StartingClient ||
+            state == NetworkSessionState.LoadingLobby)
         {
             StopListening();
             failureHandler.FailAndReturnToMainMenu(

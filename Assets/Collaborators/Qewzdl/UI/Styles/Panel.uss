@@ -56,6 +56,32 @@
 }
 
 
+/* Network work is described as a changing stage, a stable target and a clock.
+   Keeping those as separate lines lets the stage change without making the
+   address or elapsed time jump sideways with it. */
+
+.connection-status__step {
+    margin-top: 0;
+    margin-bottom: var(--space-s);
+
+    -unity-text-align: middle-center;
+}
+
+
+.connection-status__detail {
+    min-height: 20px;
+
+    margin-top: var(--space-m);
+    margin-bottom: 0;
+}
+
+
+.connection-status__elapsed {
+    margin-top: var(--space-s);
+    margin-bottom: 0;
+}
+
+
 /* A dialog inside an overlay opens with the overlay, not with the screen
    underneath it. Without this it is already at rest by the time anyone asks
    for it - the screen opened minutes ago and the panel finished rising with

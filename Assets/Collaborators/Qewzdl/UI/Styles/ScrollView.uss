@@ -1,0 +1,125 @@
+/* ========================================================================== 
+   SCROLL VIEW
+
+   A quiet scrollbar for content that has to survive both a short window and
+   a larger configuration. Arrows are removed because this interface already
+   supports wheel, drag, keyboard and gamepad navigation; the remaining mark
+   only has to say where the viewport is in the page.
+   ========================================================================== */
+
+.scroll .unity-scroll-view__content-and-vertical-scroll-container,
+.scroll .unity-scroll-view__content-viewport,
+.scroll .unity-scroll-view__content-container {
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+.scroll .unity-scroll-view__vertical-scroller {
+    width: var(--scrollbar-width);
+    min-width: var(--scrollbar-width);
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    margin-left: var(--space-xs);
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+
+.scroll .unity-scroller__low-button,
+.scroll .unity-scroller__high-button {
+    display: none;
+}
+
+
+.scroll .unity-scroller__slider {
+    flex-grow: 1;
+
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+
+.scroll .unity-scroller__slider .unity-base-slider__input,
+.scroll .unity-scroller__slider .unity-base-slider__drag-container,
+.scroll .unity-scroller__slider .unity-base-slider__dragger-border {
+    background-color: rgba(0, 0, 0, 0);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+
+.scroll .unity-scroller__slider .unity-base-slider__tracker {
+    width: 2px;
+
+    align-self: center;
+
+    background-color: var(--line);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-radius: 0;
+}
+
+
+.scroll .unity-scroller__slider .unity-base-slider__dragger {
+    width: var(--scrollbar-thumb-width);
+
+    background-color: var(--line-hover);
+
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+
+    border-radius: 0;
+
+    transition-property: background-color;
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.scroll .unity-scroll-view__vertical-scroller:hover
+.unity-base-slider__dragger {
+    background-color: var(--text-dim);
+}
+
+
+.scroll .unity-base-slider__dragger:active {
+    background-color: var(--accent);
+}

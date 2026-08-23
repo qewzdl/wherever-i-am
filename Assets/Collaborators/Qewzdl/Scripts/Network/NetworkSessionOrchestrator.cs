@@ -11,6 +11,9 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
     internal IServiceResolver SessionServices => sessionFlowService != null
         ? sessionFlowService.SessionServices
         : null;
+    internal INetworkSessionReadService SessionState => sessionFlowService != null
+        ? sessionFlowService.SessionState
+        : null;
     internal bool RequiresCoordinatedShutdown =>
         sessionFlowService != null && sessionFlowService.RequiresCoordinatedShutdown;
 
