@@ -51,6 +51,14 @@
     margin-top: var(--space-xs);
     margin-bottom: var(--space-xs);
 
+    /* Nothing down the sides. Unity's theme leaves a few pixels there, which is
+       what stopped a column of menu entries lining up with the title above them
+       and a footer's last button from meeting the panel's edge. A gap between
+       two buttons is a decision the row makes - see .footer .button - not
+       something a button brings with it. */
+    margin-left: 0;
+    margin-right: 0;
+
     transition-property:
         color,
         background-color,

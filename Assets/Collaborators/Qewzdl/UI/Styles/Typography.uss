@@ -8,6 +8,35 @@
    signposts, not content.
    ========================================================================== */
 
+/* Nothing down the sides of a label, and this is the rule the whole left edge
+   of the interface hangs on.
+
+   Unity's theme puts a horizontal margin on a label the same way it puts one on
+   a control. Every control in this theme has had that turned off, and until now
+   the labels had not - which was the wrong half to leave, because a label in a
+   form row is not just text sitting there: it is the thing the control after it
+   is pushed off. .field__label is a fixed 200 wide, so a margin on it put the
+   dropdown at 200 plus the margin twice, while the hint underneath - which
+   states its own margin-left of exactly 200 and so overwrote the theme's -
+   stayed where it was told.
+
+   That is the gap. Everything in the control column at one x, the hints a few
+   pixels to the left of it, and the same few pixels everywhere because the
+   thing doing the pushing was the same in every row.
+
+   Said of every label rather than of that one, because the same margin was also
+   holding the panel's own left edge open: a title, a hint and a section were all
+   sitting a couple of pixels inside the padding while a button beside them met
+   it. Every deliberate horizontal margin in the interface - the hint's indent to
+   the control column, the gap before a slider's value, the roster's spacing - is
+   written in a file imported after this one and still wins. */
+
+.unity-label {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+
 .title {
     color: var(--text);
     font-size: var(--font-size-l);

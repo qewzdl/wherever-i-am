@@ -41,6 +41,21 @@
 }
 
 
+/* Every control in a row starts where the label column ends, and so does the
+   line of text under it. That was three pixels short of true.
+
+   Unity's own theme puts a small margin down both sides of every control it
+   ships, and a Label has none - so a dropdown, a toggle and a slider all sat a
+   few pixels right of the hint explaining them. Small enough to look like
+   nothing and exactly the size that makes a form look untidy without saying
+   why.
+
+   The vertical half of that margin was already being turned off here. The
+   horizontal half was being turned off further in, one inner element at a time
+   - the dropdown's box, the toggle's checkmark - which fixed what those parts
+   looked like and never reached the control they hang off. This is where every
+   control in a row passes through, so this is where it goes. */
+
 .field__control {
     width: var(--control-width);
 
@@ -50,6 +65,8 @@
 
     margin-top: 0;
     margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
 
     color: var(--text);
 }

@@ -15,9 +15,14 @@
    already listen for it - a field earns its typing sound by being one.
    ========================================================================== */
 
+/* Same as every other control: the sides are cleared so the box lines up with
+   the label above it rather than sitting a few pixels inside it. */
+
 .input {
     margin-top: 0;
     margin-bottom: var(--space-s);
+    margin-left: 0;
+    margin-right: 0;
 }
 
 
