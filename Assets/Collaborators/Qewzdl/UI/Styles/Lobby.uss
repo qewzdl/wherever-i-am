@@ -288,7 +288,19 @@
 .lobby__content {
     min-height: 96px;
 
-    flex-grow: 1;
+    /* Takes the room its rows need and no more. It used to claim the leftover
+       as well, which was invisible while the column was only ever as tall as
+       its contents - there was no leftover. Against a column that now runs the
+       full height it would put an empty scroll area between the last player and
+       the actions, and the roster would end in a hairline followed by nothing.
+
+       The empty space belongs to .rail__gap instead, which is the class written
+       for it: the roster sits under the title, the actions sit on the floor, and
+       what is between them is the composition rather than a gap inside a list.
+
+       It still shrinks, so a screen too short for all of this scrolls rather
+       than losing the bottom of the room. */
+    flex-grow: 0;
     flex-shrink: 1;
 
     margin-bottom: var(--space-m);

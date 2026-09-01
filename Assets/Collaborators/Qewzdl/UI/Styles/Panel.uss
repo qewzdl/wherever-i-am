@@ -112,7 +112,23 @@
 .panel--rail {
     width: 460px;
 
-    align-self: stretch;
+    /* Said as a height, because align-self does not mean this here. A screen is
+       a column, so its cross axis is the horizontal one - align-self: stretch
+       was reaching sideways, where the fixed width already had an answer, and
+       the panel took the height of whatever was in it and sat in the middle of
+       the frame.
+
+       It looked right for as long as every rail overflowed: a column too tall
+       for the screen shrinks to it, which is the same shape by accident. The
+       moment the lobby's contents fit, the wall became a box floating off both
+       ends, and the main menu had been quietly holding its name and its buttons
+       in the middle rather than at the bottom, which is what .rail__gap is for.
+
+       Everything else in this file that talks about a column running the height
+       of the screen was describing an intention. This is the line that makes it
+       true. */
+    height: 100%;
+
     justify-content: flex-start;
 
     /* A column that runs the height of the screen needs more room at its ends
