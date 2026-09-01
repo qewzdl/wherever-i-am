@@ -124,6 +124,163 @@
 
 
 /* ==========================================================================
+   MENU
+
+   The main menu is not a panel, and this is where it stopped being one.
+
+   It wore the lobby's column for a long time, which is how a title screen ended
+   up with a 460-wide wall painted over the picture it was built around. Reading
+   back, the wall was never its idea: --veil went to nine tenths because the
+   lobby stands over a lit room and a tenth of that is a bright shape moving
+   behind the text. The lobby has since been given a wall of its own. The main
+   menu kept the opacity, and the reason for it had never applied here.
+
+   The two are different objects. The lobby is a document - a roster somebody
+   sits and watches, settings, four actions - and it needs a ground to be read
+   against. The main menu is four words and a name field over a photograph, and
+   the photograph is the screen. It needs no ground: the shade already laid over
+   the picture is what makes it readable, and that is the dial if it ever is not.
+
+   So it is placed rather than contained, the way the masthead already is. The
+   name holds the top corner, the menu holds the bottom one, and what is between
+   them is the picture. They share a left edge, which is what makes the two read
+   as one composition rather than as two things that happen to be on the left.
+   ========================================================================== */
+
+.menu {
+    position: absolute;
+
+    left: var(--space-xl);
+    bottom: var(--space-xl);
+
+    /* What the column's text column measured: the rail's 460 with its padding
+       taken off both sides. Nothing here needs a width except the name field,
+       and the name field is the width it has always been. */
+    width: 364px;
+}
+
+
+/* Left, like everything else down this edge. The base hint is centred because
+   most of them sit in a dialog. */
+
+.menu .hint {
+    -unity-text-align: middle-left;
+}
+
+
+/* --------------------------------------------------------------------------
+   ENTRIES
+
+   A word rather than a box. Four framed rectangles stacked up read as a form to
+   be filled in; these are places to go, and what is left when the frame comes
+   off is the word, lighting the way words light everywhere else.
+
+   Written here rather than shared with the lobby's column. The two want the
+   same thing today and they are two screens, so they get two rules - that is
+   the whole point of pulling them apart, and a shared selector would have put
+   them back together the first time either one needed to change.
+   -------------------------------------------------------------------------- */
+
+.menu .stack .button {
+    border-width: 0;
+
+    padding-top: var(--space-m);
+    padding-bottom: var(--space-m);
+
+    /* No indent. The word lines up with the name field above it and with the
+       masthead at the far corner, which is the whole reason the box came off. */
+    padding-left: 0;
+    padding-right: 0;
+
+    -unity-text-align: middle-left;
+}
+
+
+/* The word lights; it does not fill. A button in a panel inverts under the
+   pointer because it has an edge for the colour to come from. An entry here has
+   none, and a fill would be a slab arriving out of nothing over the picture. */
+
+.menu .stack .button:hover:enabled {
+    color: var(--accent);
+
+    background-color: var(--transparent);
+}
+
+
+.menu .stack .button:active:enabled {
+    color: var(--accent-pressed);
+
+    background-color: var(--transparent);
+}
+
+
+/* Rests a step down from the accent so the pointer has somewhere to take it.
+   Brighter than the three words beside it, and not already at the top. */
+
+.menu .stack .button--confirm {
+    color: var(--text);
+}
+
+
+/* --------------------------------------------------------------------------
+   ARRIVAL
+
+   A screen assembles itself rather than appearing whole: the parts follow one
+   after another, which reads as a place being opened instead of a screenshot.
+
+   Said of a screen rather than of a rail. It was .rail__item, on the theory
+   that a column was the only thing that arrived this way, and the main menu has
+   no rail any more - its masthead and its entries stagger in exactly the same
+   way while sitting on a picture.
+
+   USS cannot count children, so the order is written into the markup. Ugly
+   there, honest here: the alternative is a script that exists only to stagger
+   four labels.
+
+   The buttons arrive as one block rather than one by one. A delay in USS
+   applies to everything the element transitions, so a stagger class on a
+   button would also delay the colour it takes when the pointer reaches it -
+   and a menu item that lights up a fifth of a second late feels broken in a
+   way no entrance is worth.
+   -------------------------------------------------------------------------- */
+
+.enter {
+    opacity: 0;
+
+    translate: 0 12px;
+
+    transition-property:
+        opacity,
+        translate;
+
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.screen--open .enter {
+    opacity: 1;
+
+    translate: 0 0;
+}
+
+
+.enter--2 {
+    transition-delay: 0.04s;
+}
+
+
+.enter--3 {
+    transition-delay: 0.08s;
+}
+
+
+.enter--4 {
+    transition-delay: 0.12s;
+}
+
+
+/* ==========================================================================
    LAYOUT
    ========================================================================== */
 

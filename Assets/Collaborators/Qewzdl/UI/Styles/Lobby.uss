@@ -253,10 +253,10 @@
    nothing behind it - and this one is meant to have the players standing in
    it.
 
-   So it takes the menu's column: the same width, the same edge, the same
-   lettering at the top, and the rest of the frame left to the camera. The two
-   screens are the same screen with different contents, which is what they
-   always were.
+   So it is a column: standing on one edge with the rest of the frame left to
+   the camera. It took that shape from the main menu, which has since stopped
+   being a column at all - the menu is placed on its picture now, and what it
+   handed over is the only rail in the game.
    ========================================================================== */
 
 /* There are no form rows in this column any more. The three settings it used
@@ -303,7 +303,10 @@
     flex-grow: 0;
     flex-shrink: 1;
 
-    margin-bottom: var(--space-m);
+    /* No gap of its own under the list. The action block already carries a rule
+       and a --space-l above itself, the same one a dialog's footer has, and a
+       margin here was a second gap stacked on the first. */
+    margin-bottom: 0;
 }
 
 

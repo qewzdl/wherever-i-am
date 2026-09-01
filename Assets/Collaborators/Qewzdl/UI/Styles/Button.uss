@@ -19,11 +19,13 @@
    Still nothing moves and nothing changes size, so a row of these can be read
    while the pointer crosses it.
 
-   The frame comes off in one place: the column of menu entries down the side
-   of the main menu and the lobby. There a button is a place to go rather than
-   a thing to press, and a stack of four boxes reads as a form. It is taken off
-   there rather than added here because everything else in the game that can be
-   clicked lives in a panel.
+   The frame comes off in two places, and they are two decisions rather than
+   one: the main menu's entries in Screen.uss and the lobby's column in
+   Panel.uss. In both, a button is a place to go rather than a thing to press
+   and a stack of four boxes reads as a form - but the two are different screens
+   and each says so where it stands. It is taken off there rather than added
+   here because everything else in the game that can be clicked lives in a
+   panel.
    ========================================================================== */
 
 .button {

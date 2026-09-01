@@ -131,16 +131,29 @@
 
     justify-content: flex-start;
 
-    /* A column that runs the height of the screen needs more room at its ends
-       than a dialog does. At the panel's own padding the title sat on the top
-       edge and the last button on the bottom one, which is what made it read
-       as a strip rather than as a page. */
-    padding-top: var(--space-xl);
-    padding-bottom: var(--space-xl);
+    /* Wide at the sides, and the panel's own measure at the ends.
+
+       The sides are what make a column read as a page rather than as a strip.
+       The ends wanted the same once, back when a rail held a name and four
+       words; a rail holding a roster cannot afford it. There are 675 logical
+       pixels of height on a sixteen-by-nine screen - the panel scales to the
+       width of the window, so the aspect ratio fixes the height and no monitor
+       buys more - and twenty of the forty this would cost at each end come
+       straight out of the list. */
+    padding-top: var(--space-l);
+    padding-bottom: var(--space-l);
     padding-left: var(--space-xl);
     padding-right: var(--space-xl);
 
-    background-color: var(--veil);
+    /* A wall, not a veil. This used to be --veil with .panel--solid painting
+       over it, back when the main menu wore this class too and wanted the
+       backdrop to come through. The main menu is placed on the picture now and
+       has no column at all, so the only rail left is the lobby's - and the
+       lobby's stands over a room with people lit in it, where a tenth coming
+       through is not depth but a bright shape crossing behind the text, moving
+       whenever somebody readies up. A modifier that is applied every time it is
+       applicable is not a choice, so the choice is gone and the value is here. */
+    background-color: var(--veil-solid);
 
     border-width: 0;
 
@@ -181,10 +194,11 @@
    is the composition rather than a leftover.
 
    Said by one element rather than by the rule for a kind of element. It used
-   to be attached to .hint, which was true of the menu - it holds exactly one -
-   and stopped being true the moment a second column existed: the lobby has
-   three hints, and the first of them would have taken the space and pushed the
-   rest of the screen off the bottom.
+   to be attached to .hint, which held while the main menu was a column with one
+   hint in it, and stopped holding the moment a second column existed. The main
+   menu is not a column any more and the lobby is the only thing here, but the
+   reasoning survives it: a rule about a kind of element cannot know which one of
+   them is meant to hold the empty space.
 
    Two of these in one column would split the space and put everything back in
    the middle, so a column gets one. */
@@ -202,74 +216,6 @@
     border-top-color: var(--line);
 
     padding-top: var(--space-l);
-}
-
-
-/* A column that is a wall rather than a veil.
-
-   The menu's column stands over a backdrop that was picked to be stood over,
-   and letting a tenth of it through is the whole reason it is not a box. The
-   lobby's stands over a room with people lit in it, and there the same tenth
-   is not depth - it is a bright shape crossing behind the text, moving when
-   somebody readies up, and nothing written on top of it can be relied on to
-   stay readable. */
-
-.panel--solid {
-    background-color: var(--veil-solid);
-}
-
-
-/* --------------------------------------------------------------------------
-   ARRIVAL
-
-   The column slides in as one piece, and the things in it follow one after
-   another rather than all at once. A menu that assembles itself reads as a
-   place being opened; a menu that appears whole reads as a screenshot.
-
-   USS cannot count children, so the order is written into the markup. Ugly
-   there, honest here: the alternative is a script that exists only to stagger
-   four labels.
-
-   The buttons arrive as one block rather than one by one. A delay in USS
-   applies to everything the element transitions, so a stagger class on a
-   button would also delay the colour it takes when the pointer reaches it -
-   and a menu item that lights up a fifth of a second late feels broken in a
-   way no entrance is worth.
-   -------------------------------------------------------------------------- */
-
-.rail__item {
-    opacity: 0;
-
-    translate: 0 12px;
-
-    transition-property:
-        opacity,
-        translate;
-
-    transition-duration: var(--motion-screen);
-    transition-timing-function: var(--ease-standard);
-}
-
-
-.screen--open .rail__item {
-    opacity: 1;
-
-    translate: 0 0;
-}
-
-
-.rail__item--2 {
-    transition-delay: 0.04s;
-}
-
-
-.rail__item--3 {
-    transition-delay: 0.08s;
-}
-
-
-.rail__item--4 {
-    transition-delay: 0.12s;
 }
 
 
@@ -355,34 +301,6 @@
 
 .panel--wide {
     width: 720px;
-}
-
-
-/* ==========================================================================
-   DENSE
-
-   A column whose content is a list rather than four words.
-
-   The rail was drawn for the main menu: a name, a field and four places to go,
-   in a frame 675 logical pixels tall on any sixteen-by-nine screen. That is the
-   whole height there is - the panel scales to the width of the window, so the
-   height is fixed by the aspect ratio and no monitor buys more of it.
-
-   The lobby puts a roster in the same column and runs out. Everything here is
-   the same rhythm one step quieter: the ends of the column at the panel's own
-   padding rather than the rail's, and entries sized for a list of five rather
-   than a menu of four.
-   ========================================================================== */
-
-.panel--dense {
-    padding-top: var(--space-l);
-    padding-bottom: var(--space-l);
-}
-
-
-.panel--rail.panel--dense .stack .button {
-    padding-top: var(--space-s);
-    padding-bottom: var(--space-s);
 }
 
 

@@ -4,17 +4,17 @@
         <ui:VisualElement name="Backdrop" picking-mode="Ignore" class="backdrop">
             <ui:VisualElement picking-mode="Ignore" class="backdrop__shade" />
         </ui:VisualElement>
-        <ui:VisualElement name="Panel" class="panel panel--rail">
-            <ui:Label text="Name" class="hint rail__gap rail__item rail__item--2" />
-            <ui:TextField name="PlayerName" max-length="16" class="input rail__item rail__item--3" />
-            <ui:VisualElement class="stack rail__item rail__item--4">
+        <ui:VisualElement name="Panel" class="menu">
+            <ui:Label text="Name" class="hint enter enter--2" />
+            <ui:TextField name="PlayerName" max-length="16" class="input enter enter--3" />
+            <ui:VisualElement class="stack enter enter--4">
                 <ui:Button text="Create lobby" name="HostButton" class="button button--confirm" />
                 <ui:Button text="Join lobby" name="JoinButton" class="button" />
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Quit" name="QuitButton" class="button" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead rail__item">
+        <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead enter">
             <ui:Label text="Wherever I Am" name="Title" class="title title--display" />
         </ui:VisualElement>
         <ui:VisualElement name="JoinPanel" class="overlay">
