@@ -4,9 +4,6 @@
         <ui:VisualElement name="Backdrop" picking-mode="Ignore" class="backdrop">
             <ui:VisualElement picking-mode="Ignore" class="backdrop__shade" />
         </ui:VisualElement>
-        <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead rail__item">
-            <ui:Label text="Wherever I Am" name="Title" class="title title--display" />
-        </ui:VisualElement>
         <ui:VisualElement name="Panel" class="panel panel--rail">
             <ui:Label text="Name" class="hint rail__gap rail__item rail__item--2" />
             <ui:TextField name="PlayerName" max-length="16" class="input rail__item rail__item--3" />
@@ -16,6 +13,9 @@
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Quit" name="QuitButton" class="button" />
             </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead rail__item">
+            <ui:Label text="Wherever I Am" name="Title" class="title title--display" />
         </ui:VisualElement>
         <ui:VisualElement name="JoinPanel" class="overlay">
             <ui:VisualElement class="panel panel--dialog">

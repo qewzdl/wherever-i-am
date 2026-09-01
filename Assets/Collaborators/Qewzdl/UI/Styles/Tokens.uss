@@ -19,7 +19,8 @@
    interface built out of near-black rectangles from looking like a spreadsheet
    in the dark. The accent is bone rather than white for the same reason: pure
    white on near-black is the one combination that always looks like a system
-   dialog.
+   dialog - which holds for every part of the interface a player operates, and
+   is set aside once, for the name of the game. A masthead is not a control.
    ========================================================================== */
 
 :root {
@@ -51,6 +52,14 @@
     --palette-bone-300: rgb(168, 165, 156);
     --palette-bone-200: rgb(213, 208, 196);
     --palette-bone-100: rgb(237, 233, 223);
+
+    /* Not part of a family, which is why it is not called bone-050. Bone runs
+       warm all the way up and this has nothing in it; putting it at the top of
+       that ladder would have been a name that lies about its own value, and the
+       rest of this file is built on names that do not.
+
+       One string in the game is allowed to use it. */
+    --palette-white: rgb(255, 255, 255);
 
     /* Rust is worn as lettering now rather than as a fill, and lettering has
        to clear the same bar everything else does. The old rust read at 2.7 to
@@ -129,6 +138,13 @@
     --text-dim: var(--palette-bone-400);
     --text-disabled: var(--palette-bone-500);
     --text-on-accent: var(--palette-ink-1000);
+
+    /* Off the top of the ladder entirely. The masthead is the one string
+       Typography.uss lets behave like a picture rather than like text, and a
+       picture is not held to the steps the labels climb. Nothing else may name
+       this: white is the exception the rest of the interface is defined
+       against, and a second one would make it the rule. */
+    --text-display: var(--palette-white);
 
 
     /* ======================================================================

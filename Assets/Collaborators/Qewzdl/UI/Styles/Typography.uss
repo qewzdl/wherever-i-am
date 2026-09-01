@@ -56,6 +56,12 @@
    start being a shape. */
 
 .title--display {
+    /* Brighter than any text in the game, because it is not text. Set at this
+       size with the letters this far apart, the name reads as the thing on the
+       cover rather than as the first line of a menu, and the resting text
+       colour was leaving it looking like a heading somebody forgot to finish. */
+    color: var(--text-display);
+
     font-size: var(--font-size-xl);
 
     /* One line, whatever happens. The name is set large and spaced out, so a
@@ -66,14 +72,18 @@
 
     letter-spacing: var(--tracking-wider);
 
-    /* A rule under the name, which is the cheapest way to say that this is a
-       masthead and not the first row of something. */
-    border-bottom-width: var(--border);
-    border-bottom-color: var(--line);
+    /* No rule under it, and nothing holding space for one.
 
-    padding-bottom: var(--space-m);
+       The line was the cheapest way to say this is a masthead and not the first
+       row of something, back when the name sat at the top of a column with the
+       menu directly beneath it. There is nothing beneath it now: the name is
+       placed on the screen, the column runs the full height past it, and what
+       follows it down the frame is empty until the actions at the floor. A rule
+       divides two things, and there was only ever one.
 
-    margin-bottom: var(--space-xl);
+       The padding and the margin went with it. Both existed to hold the name
+       off that line and off whatever came after; in an absolutely placed
+       masthead holding one label they were measuring a gap nobody can see. */
 }
 
 

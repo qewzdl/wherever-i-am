@@ -62,7 +62,15 @@
    heading on top.
 
    Its left edge lines up with the column's text, so the arrangement looks
-   composed rather than merely uncentred.
+   composed rather than merely uncentred - and its right end runs off the column
+   onto the picture, which is why the name is set here and not inside the panel.
+
+   It has to be written after the panel in the markup. Nothing in USS says so:
+   both are absolutely placed, neither has a z-index, and the one declared later
+   is the one on top. While the column was only as tall as its contents the name
+   sat in clear air above it and the order never came up; the moment the column
+   ran the full height it covered the name with nine tenths of near-black, and a
+   masthead at any colour at all came out at a twentieth of it.
    ========================================================================== */
 
 .masthead {
