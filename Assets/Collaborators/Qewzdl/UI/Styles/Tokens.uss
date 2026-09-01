@@ -14,13 +14,24 @@
    The rule that makes it worth having: a screen names a role and never a
    value, so the whole game re-skins from tier 1 and 2 alone.
 
-   The palette is not grey. It reads as grey, but every dark step carries a
-   little blue and every light step a little yellow, which is what stops an
-   interface built out of near-black rectangles from looking like a spreadsheet
-   in the dark. The accent is bone rather than white for the same reason: pure
-   white on near-black is the one combination that always looks like a system
-   dialog - which holds for every part of the interface a player operates, and
-   is set aside once, for the name of the game. A masthead is not a control.
+   The palette is grey, and it is grey on purpose. Every step used to carry a
+   tint - blue going down, yellow coming up - on the theory that a wholly
+   neutral interface reads as a spreadsheet in the dark. What it actually did
+   was spend a little colour everywhere, which left the one place that has
+   something to say with colour competing against a warm cast in the walls.
+
+   So the chassis is neutral and hue is reserved for meaning. There is exactly
+   one hue in the whole interface now, it is worn by the button that ends
+   something, and it is loud because nothing else is.
+
+   The greys are the old colours at their own brightness rather than new values:
+   each is the luminance of the tinted step it replaces, so every contrast
+   figure quoted further down this file is still true to within one percent.
+
+   The accent is grey rather than white for a related reason: pure white on
+   near-black is the one combination that always looks like a system dialog -
+   which holds for every part of the interface a player operates, and is set
+   aside once, for the name of the game. A masthead is not a control.
    ========================================================================== */
 
 :root {
@@ -31,32 +42,39 @@
        what the game is made of; bone is what it says; rust is the one place
        the quiet breaks.
 
+       Ink and bone are the same grey now, and they are still two families,
+       because what separates them is what they are for rather than what
+       temperature they are. A surface and a line are drawn from one, a word
+       from the other, and the two ranges overlap on purpose - reading a value
+       off the wrong family is how this theme once ended up with text at two to
+       one against its own panel.
+
        Numbers run the way they do everywhere else: the higher the step, the
        darker the colour. Nothing below this block should ever name one of
        these - if a rule needs a colour there is no role for, the missing role
        is the bug.
        ====================================================================== */
 
-    --palette-ink-1000: rgb(5, 6, 8);
-    --palette-ink-950: rgb(14, 16, 20);
-    --palette-ink-900: rgb(21, 24, 29);
-    --palette-ink-700: rgb(58, 64, 74);
-    --palette-ink-500: rgb(112, 120, 133);
+    --palette-ink-1000: rgb(6, 6, 6);
+    --palette-ink-950: rgb(16, 16, 16);
+    --palette-ink-900: rgb(24, 24, 24);
+    --palette-ink-700: rgb(63, 63, 63);
+    --palette-ink-500: rgb(119, 119, 119);
 
     /* The quiet end of the interface is bone too. It used to be borrowed from
        the ink side, which is where the dark text came from: ink-500 and ink-700
        were drawn to be a surface and a line, and reading them at four and two
        to one was never something they were asked about. */
-    --palette-bone-500: rgb(110, 107, 101);
-    --palette-bone-400: rgb(140, 137, 130);
-    --palette-bone-300: rgb(168, 165, 156);
-    --palette-bone-200: rgb(213, 208, 196);
-    --palette-bone-100: rgb(237, 233, 223);
+    --palette-bone-500: rgb(107, 107, 107);
+    --palette-bone-400: rgb(137, 137, 137);
+    --palette-bone-300: rgb(165, 165, 165);
+    --palette-bone-200: rgb(208, 208, 208);
+    --palette-bone-100: rgb(233, 233, 233);
 
-    /* Not part of a family, which is why it is not called bone-050. Bone runs
-       warm all the way up and this has nothing in it; putting it at the top of
-       that ladder would have been a name that lies about its own value, and the
-       rest of this file is built on names that do not.
+    /* Not part of a family, which is why it is not called bone-050. Bone is a
+       range that words are set in and this is not for words - it is for the one
+       string that is a picture. Shelving it at the top of that ladder would
+       have put it within reach of anything that reads a bone step.
 
        One string in the game is allowed to use it. */
     --palette-white: rgb(255, 255, 255);
@@ -89,7 +107,7 @@
     /* Laid over the picture rather than mixed into it: art is chosen for how
        it looks, not for how much text it can carry, and this is the dial that
        makes any of it quiet enough to read across. */
-    --backdrop-shade: rgba(5, 6, 8, 0.35);
+    --backdrop-shade: rgba(6, 6, 6, 0.35);
 
     /* Opaque enough that what is behind it stops mattering. At nine tenths a
        column standing over a lit stage sat somewhere between rgb(8,10,13) and
@@ -97,7 +115,7 @@
        every contrast figure below was really a range, and the dim end of it
        failed. At this much the worst case is rgb(17,17,19) - the panel colour,
        near enough - and the numbers hold wherever the column is standing. */
-    --veil: rgba(5, 6, 8, 0.95);
+    --veil: rgba(6, 6, 6, 0.95);
 
     /* The same colour with the transparency taken out. A veil that lets a
        little of the scene through is right over a backdrop chosen to be looked
@@ -162,9 +180,12 @@
     /* ======================================================================
        2  ROLES / DANGER
 
-       The only colour in the interface, and it is spent on one thing: the
-       button that ends something. A palette this quiet does not need a second
-       hue to be interesting - it needs one place where the quiet breaks.
+       The only colour in the interface, now meaning the only one - the walls
+       used to carry a warm cast that this had to shout over, and they have
+       stopped. It is spent on one thing: the button that ends something, and
+       the line that says a field is wrong. A palette this quiet does not need a
+       second hue to be interesting; it needs one place where the quiet breaks,
+       and everything else in the file exists to keep that place rare.
 
        It is worn as lettering rather than as a fill, so there is nothing left
        to sit on top of it and no colour needed for that. Three steps, matching
