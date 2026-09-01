@@ -102,6 +102,7 @@ public class LobbyUI : MonoBehaviour
     private VisualElement roster;
     private VisualElement confirmPanel;
     private VisualElement matchTransitionPanel;
+    private VisualElement roomSettingsPanel;
     private Label playerCountLabel;
     private Label readyCountLabel;
     private Label difficultyDescriptionLabel;
@@ -125,7 +126,10 @@ public class LobbyUI : MonoBehaviour
     private Button confirmCancelButton;
     private Button addressButton;
     private Button transitionLeaveButton;
+    private Button roomSettingsButton;
+    private Button roomSettingsCloseButton;
 
+    private bool isRoomSettingsOpen;
     private bool isMatchTransitionVisible;
     private float matchTransitionStartedAt;
     private int shownTransitionSeconds = -1;
@@ -236,16 +240,28 @@ public class LobbyUI : MonoBehaviour
     {
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         confirmPanel?.UnregisterCallback<ClickEvent>(HandleConfirmBackdropClicked);
+        roomSettingsPanel?.UnregisterCallback<ClickEvent>(HandleRoomSettingsBackdropClicked);
         Unsubscribe();
         Dispose();
     }
 
+    // Topmost first. The two dialogs cannot normally be open together - an
+    // overlay takes every click aimed past it - but the order is stated rather
+    // than left to whichever check came first, because closing the wrong one is
+    // not something a player can undo by pressing the key again.
     private void HandleCancelPressed(NavigationCancelEvent evt)
     {
-        if (pendingAction == PendingAction.None)
+        if (pendingAction != PendingAction.None)
+        {
+            CancelPendingAction();
+            evt.StopPropagation();
+            return;
+        }
+
+        if (!isRoomSettingsOpen)
             return;
 
-        CancelPendingAction();
+        CloseRoomSettings();
         evt.StopPropagation();
     }
 
@@ -286,6 +302,7 @@ public class LobbyUI : MonoBehaviour
         roster = root.Q<VisualElement>("Roster");
         confirmPanel = root.Q<VisualElement>("ConfirmPanel");
         matchTransitionPanel = root.Q<VisualElement>("MatchTransitionPanel");
+        roomSettingsPanel = root.Q<VisualElement>("RoomSettingsPanel");
         playerCountLabel = root.Q<Label>("PlayerCount");
         readyCountLabel = root.Q<Label>("ReadyCount");
         difficultyDescriptionLabel = root.Q<Label>("DifficultyDescription");
@@ -308,6 +325,8 @@ public class LobbyUI : MonoBehaviour
         confirmButton = root.Q<Button>("ConfirmButton");
         confirmCancelButton = root.Q<Button>("ConfirmCancelButton");
         transitionLeaveButton = root.Q<Button>("TransitionLeaveButton");
+        roomSettingsButton = root.Q<Button>("RoomSettingsButton");
+        roomSettingsCloseButton = root.Q<Button>("RoomSettingsCloseButton");
 
         if (screen == null)
         {
@@ -317,15 +336,17 @@ public class LobbyUI : MonoBehaviour
             return false;
         }
 
-        // Escape, and the cancel button on a pad. Only the dialog answers it:
+        // Escape, and the cancel button on a pad. Only a dialog answers it:
         // backing out of a lobby is leaving it, and that is too large a thing
         // to happen because somebody reached for the key that closes windows.
         screen.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         confirmPanel?.RegisterCallback<ClickEvent>(HandleConfirmBackdropClicked);
+        roomSettingsPanel?.RegisterCallback<ClickEvent>(HandleRoomSettingsBackdropClicked);
 
         PopulateDifficultyChoices();
         Subscribe();
         CancelPendingAction();
+        SetRoomSettingsOpen(false, restoreFocus: false);
         SetMatchTransitionVisible(false);
 
         if (addressCopyIcon != null)
@@ -362,6 +383,12 @@ public class LobbyUI : MonoBehaviour
 
         if (difficultyField != null)
             difficultyField.RegisterValueChangedCallback(HandleDifficultyChanged);
+
+        if (roomSettingsButton != null)
+            roomSettingsButton.clicked += OpenRoomSettings;
+
+        if (roomSettingsCloseButton != null)
+            roomSettingsCloseButton.clicked += CloseRoomSettings;
     }
 
     private void Unsubscribe()
@@ -392,6 +419,12 @@ public class LobbyUI : MonoBehaviour
 
         if (difficultyField != null)
             difficultyField.UnregisterValueChangedCallback(HandleDifficultyChanged);
+
+        if (roomSettingsButton != null)
+            roomSettingsButton.clicked -= OpenRoomSettings;
+
+        if (roomSettingsCloseButton != null)
+            roomSettingsCloseButton.clicked -= CloseRoomSettings;
     }
 
     private void HandleReadyClicked()
@@ -857,6 +890,56 @@ public class LobbyUI : MonoBehaviour
         CancelPendingAction();
     }
 
+    // The room's three settings, a click away instead of down the column.
+    //
+    // The lobby has 675 logical pixels of height on a sixteen-by-nine screen -
+    // the panel scales to the width of the window, so the height is whatever
+    // the aspect ratio leaves and no monitor buys more of it - and the title,
+    // the roster and the four actions spend nearly all of it. Difficulty, the
+    // invite address and the door are the part a player reads once and then
+    // stops looking at, so they are the part that moved.
+    private void OpenRoomSettings()
+    {
+        SetRoomSettingsOpen(true, restoreFocus: false);
+    }
+
+    private void CloseRoomSettings()
+    {
+        SetRoomSettingsOpen(false, restoreFocus: true);
+    }
+
+    private void SetRoomSettingsOpen(bool open, bool restoreFocus)
+    {
+        bool wasOpen = isRoomSettingsOpen;
+
+        isRoomSettingsOpen = open;
+        UiFade.Set(roomSettingsPanel, open, OverlayOpenClass);
+
+        if (open)
+        {
+            // Done takes the focus rather than the first setting. Nothing in
+            // here has to be answered, and the way out is what somebody who
+            // opened it to look at the address wants next.
+            roomSettingsCloseButton?.schedule
+                .Execute(() => roomSettingsCloseButton.Focus());
+
+            return;
+        }
+
+        if (!restoreFocus || !wasOpen)
+            return;
+
+        roomSettingsButton?.schedule.Execute(() => roomSettingsButton.Focus());
+    }
+
+    private void HandleRoomSettingsBackdropClicked(ClickEvent evt)
+    {
+        if (!ReferenceEquals(evt.target, roomSettingsPanel) || !isRoomSettingsOpen)
+            return;
+
+        CloseRoomSettings();
+    }
+
     private string ResolvePlayerName(ulong clientId)
     {
         for (int i = 0; i < readService.PlayerCount; i++)
@@ -1109,6 +1192,13 @@ public class LobbyUI : MonoBehaviour
                     0);
             }
         }
+
+        // Settings go away when the match starts. Two overlays fading over
+        // each other is legible only because one was declared after the other,
+        // and the room's difficulty stops being anybody's business the moment
+        // the room stops being a lobby.
+        if (visible)
+            SetRoomSettingsOpen(false, restoreFocus: false);
 
         isMatchTransitionVisible = visible;
         panel?.SetEnabled(!visible);

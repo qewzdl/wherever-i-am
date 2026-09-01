@@ -76,14 +76,18 @@
 }
 
 
-/* A dialog inside an overlay opens with the overlay, not with the screen
+/* A panel inside an overlay opens with the overlay, not with the screen
    underneath it. Without this it is already at rest by the time anyone asks
    for it - the screen opened minutes ago and the panel finished rising with
    it, so the dialog would fade in fully assembled.
 
+   Said of any panel in an overlay rather than of .panel--dialog, which is a
+   width. Tying the entrance to one width meant a wider dialog had to wear both
+   classes and hope the stylesheet resolved them in the right order.
+
    Written after the screen rule on purpose: same specificity, later wins. */
 
-.overlay .panel--dialog {
+.overlay .panel {
     scale: 0.97 0.97;
     translate: 0 10px;
 
@@ -91,7 +95,7 @@
 }
 
 
-.overlay--open .panel--dialog {
+.overlay--open .panel {
     scale: 1 1;
     translate: 0 0;
 }
@@ -335,6 +339,34 @@
 
 .panel--wide {
     width: 720px;
+}
+
+
+/* ==========================================================================
+   DENSE
+
+   A column whose content is a list rather than four words.
+
+   The rail was drawn for the main menu: a name, a field and four places to go,
+   in a frame 675 logical pixels tall on any sixteen-by-nine screen. That is the
+   whole height there is - the panel scales to the width of the window, so the
+   height is fixed by the aspect ratio and no monitor buys more of it.
+
+   The lobby puts a roster in the same column and runs out. Everything here is
+   the same rhythm one step quieter: the ends of the column at the panel's own
+   padding rather than the rail's, and entries sized for a list of five rather
+   than a menu of four.
+   ========================================================================== */
+
+.panel--dense {
+    padding-top: var(--space-l);
+    padding-bottom: var(--space-l);
+}
+
+
+.panel--rail.panel--dense .stack .button {
+    padding-top: var(--space-s);
+    padding-bottom: var(--space-s);
 }
 
 

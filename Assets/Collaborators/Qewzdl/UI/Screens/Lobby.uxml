@@ -1,8 +1,8 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
     <ui:VisualElement name="Screen" class="screen screen--left">
-        <ui:VisualElement name="Panel" class="panel panel--rail panel--solid">
-            <ui:Label text="Lobby" name="Title" class="title title--display rail__item" />
+        <ui:VisualElement name="Panel" class="panel panel--rail panel--solid panel--dense">
+            <ui:Label text="Lobby" name="Title" class="title rail__item" />
             <ui:ScrollView name="LobbyContent" class="scroll lobby__content rail__item rail__item--2">
                 <ui:VisualElement class="roster__header">
                     <ui:Label text="Players" class="section section--flush" />
@@ -12,6 +12,18 @@
                     </ui:VisualElement>
                 </ui:VisualElement>
                 <ui:VisualElement name="Roster" class="roster" />
+            </ui:ScrollView>
+            <ui:VisualElement class="stack rail__gap rail__item rail__item--3">
+                <ui:Label name="StartHint" class="hint" />
+                <ui:Button text="Start" name="StartButton" class="button button--confirm" />
+                <ui:Button text="Ready" name="ReadyButton" class="button" />
+                <ui:Button text="Room settings" name="RoomSettingsButton" class="button" />
+                <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="RoomSettingsPanel" class="overlay">
+            <ui:VisualElement class="panel panel--wide">
+                <ui:Label text="Room settings" class="title" />
                 <ui:VisualElement class="field">
                     <ui:Label text="Difficulty" class="field__label" />
                     <ui:DropdownField name="Difficulty" class="field__control" />
@@ -29,12 +41,9 @@
                     <ui:Toggle name="Visibility" class="field__control" />
                 </ui:VisualElement>
                 <ui:Label name="DoorHint" class="hint hint--field" />
-            </ui:ScrollView>
-            <ui:VisualElement class="stack rail__gap rail__item rail__item--3">
-                <ui:Label name="StartHint" class="hint" />
-                <ui:Button text="Start" name="StartButton" class="button button--confirm" />
-                <ui:Button text="Ready" name="ReadyButton" class="button" />
-                <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
+                <ui:VisualElement class="footer">
+                    <ui:Button text="Done" name="RoomSettingsCloseButton" class="button button--cancel" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="MatchTransitionPanel" class="overlay">

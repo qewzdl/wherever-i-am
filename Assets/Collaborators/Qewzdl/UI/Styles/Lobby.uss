@@ -83,7 +83,9 @@
     flex-direction: row;
     align-items: center;
 
-    height: 54px;
+    /* Sized against the column's budget rather than against nothing. Four rows
+       at the old height were a fifth of every pixel the screen has. */
+    height: 46px;
 
     flex-shrink: 0;
 
@@ -257,42 +259,14 @@
    always were.
    ========================================================================== */
 
-/* A form row is a label beside a control because a settings page is wide. A
-   column is not, and at the label's own width there would be a hundred pixels
-   left over for the control. So the row becomes what it is in any narrow
-   place - the name of the thing, and then the thing. */
+/* There are no form rows in this column any more. The three settings it used
+   to carry - difficulty, the invite address, the door - are a dialog now,
+   because the column has 675 pixels on a sixteen-by-nine screen and the roster
+   alone is most of what is left after the title and the actions.
 
-.panel--rail .field {
-    flex-direction: column;
-    align-items: stretch;
-
-    margin-top: var(--space-m);
-}
-
-
-.panel--rail .field__label {
-    width: auto;
-
-    align-self: auto;
-
-    margin-bottom: var(--space-xs);
-}
-
-
-.panel--rail .field__control {
-    width: auto;
-
-    align-self: stretch;
-}
-
-
-/* The line under a setting is indented to the control column on a settings
-   page. In a column there is no control column to indent to. */
-
-.panel--rail .hint--field {
-    margin-left: 0;
-}
-
+   The rules that made a form row stack into a narrow place went with them.
+   They were good, and they were holding up content that is no longer here; a
+   settings page is wide, and this one is again. */
 
 /* The list takes exactly the room its rows need. Overflow belongs to the
    surrounding ScrollView rather than to this element. */
@@ -302,9 +276,14 @@
 }
 
 
-/* Everything above the actions is allowed to shrink, and then to scroll. The
-   action block itself stays visible, so a short window or a room configured
-   above four players never hides Ready, Start or Leave below the frame. */
+/* The roster is allowed to shrink, and then to scroll. The action block stays
+   visible, so a room configured above four players, or a screen wider than
+   sixteen by nine - which is a shorter screen, the panel scales to the width -
+   never hides Ready, Start or Leave below the frame.
+
+   Kept as a safety net rather than as the plan. Everything fits without it at
+   the shapes anybody plays at; what it prevents is the one where content goes
+   off the bottom with no way to reach it. */
 
 .lobby__content {
     min-height: 96px;
@@ -372,6 +351,15 @@
 .address-copy {
     flex-direction: row;
     align-items: center;
+
+    /* The one control on the screen that is sized by its content rather than
+       by the column. An address is set nowrap in a fixed-width face with the
+       digits spaced apart, and at the control column's own width a long one
+       ran out of room to be read in - which is the only thing this control is
+       for. It takes the rest of the row instead. */
+    width: auto;
+
+    flex-grow: 1;
 
     min-height: 46px;
 
