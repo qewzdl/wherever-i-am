@@ -86,11 +86,25 @@
 }
 
 
-/* Only the gap between them. The mark brings its own proportions now, and a
-   footer that restated them was doing it because the button had none. */
+/* What a button looks like in a row of actions, said here rather than in
+   Button.uss: the button carries what it means, the place carries how it sits.
+   It was split across both files, and a selector whose declarations live in two
+   places agrees with itself only for as long as nobody reorders the imports.
+
+   The width arrived to stop a hover from shoving the neighbouring word
+   sideways, back when hovering changed how wide a word was. Nothing moves any
+   more, so it is not holding anything up - it stays because a row of actions
+   all the same width is what a row of actions should look like, which was true
+   before there was a problem for it to solve.
+
+   A column needs none of this: its entries are already as wide as the column. */
 
 .footer .button {
+    width: 160px;
+
     margin-left: var(--space-s);
+
+    -unity-text-align: middle-center;
 }
 
 

@@ -104,27 +104,24 @@
 
 
 /* ==========================================================================
-   ROWS
+   WHAT IS NOT IN THIS FILE
 
-   These widths arrived to stop a hover from shoving the neighbouring word
-   sideways, back when hovering changed how wide a word was. Nothing moves any
-   more, so they are not holding anything up - they stay because a row of
-   actions all the same width is what a row of actions should look like, which
-   was true before there was a problem for it to solve.
+   Two things, and the line between them is what keeps a button one control
+   instead of six.
 
-   A column needs none of this: its entries are already as wide as the column.
+   This file says what a button means: neutral, confirm, danger. That travels
+   with the button, so it is a class on the button.
 
-   There is no .button--cancel here on purpose. With the frames gone the base
-   button already is the quiet one, and the class stays in the markup because
-   the sound binder listens for it - not because it needs a look of its own.
+   Where a button stands is said by whatever it is standing in, next to the
+   rule for that place - a row of actions in Field.uss, a column of menu
+   entries in Panel.uss, the lobby's own in Lobby.uss. A button does not know
+   what it was put inside, and a modifier claiming otherwise would have to be
+   kept in step with the markup by hand.
+
+   There is no .button--cancel either. With the frames gone the base button
+   already is the quiet one, and the class stays in the markup because the
+   sound binder listens for it - not because it needs a look of its own.
    ========================================================================== */
-
-.footer .button {
-    width: 160px;
-
-    -unity-text-align: middle-center;
-}
-
 
 /* ==========================================================================
    CONFIRM
