@@ -308,6 +308,31 @@
 }
 
 
+/* The entry the column exists for rests one step up rather than at the top.
+
+   In a panel confirm is the brightest thing in the footer and the pointer
+   answers by filling it, so resting at the accent costs nothing. Here the
+   pointer answers on the same channel confirm was using, and a button already
+   at the top of a ladder has nowhere to go: Create lobby and Start were lit at
+   rest, lit under the pointer, and lit while held - the whole column responded
+   to a pointer except the one entry anybody was going to press.
+
+   So it starts at the text step. Still plainly brighter than the three dim
+   words beside it, still the thing that changes when a lobby fills up and
+   Start becomes available, and now with two steps left above it.
+
+   Focus lands on that same step and so does not show on this one button. The
+   channel has three places on it and confirm is standing on the middle one;
+   buying focus back means giving the column a mark, and a mark on a frameless
+   entry either shifts the word off the column's left edge or has to be carried
+   by every entry to avoid it. Not worth it for a menu that is four items long
+   and answers the pointer correctly. */
+
+.panel--rail .stack .button--confirm {
+    color: var(--text);
+}
+
+
 .panel--wide {
     width: 720px;
 }
