@@ -49,7 +49,7 @@
 .screen--left {
     align-items: flex-start;
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 }
 
 
@@ -98,7 +98,7 @@
     top: 0;
     bottom: 0;
 
-    background-color: var(--palette-ink-1000);
+    background-color: var(--backdrop);
 
     -unity-background-scale-mode: scale-and-crop;
 }
@@ -111,7 +111,7 @@
 .backdrop__shade {
     flex-grow: 1;
 
-    background-color: rgba(6, 6, 6, 0.35);
+    background-color: var(--backdrop-shade);
 }
 
 

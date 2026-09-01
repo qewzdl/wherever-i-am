@@ -9,10 +9,7 @@
 .field__control .unity-base-slider__tracker {
     background-color: var(--line);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     transition-property: background-color;
     transition-duration: var(--motion-normal);
@@ -21,17 +18,14 @@
 
 
 .field__control:hover .unity-base-slider__tracker {
-    background-color: var(--line-hover);
+    background-color: var(--line-strong);
 }
 
 
 .field__control .unity-base-slider__dragger {
     background-color: var(--text);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     border-radius: var(--radius);
 

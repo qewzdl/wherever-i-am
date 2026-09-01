@@ -15,9 +15,9 @@
 
 .tab {
     color: var(--text-dim);
-    font-size: var(--text-m);
+    font-size: var(--font-size-m);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
     border-left-width: 0;
     border-right-width: 0;
@@ -28,7 +28,7 @@
     border-bottom-width: var(--border-strong);
 
 
-    border-bottom-color: rgba(0, 0, 0, 0);
+    border-bottom-color: var(--transparent);
 
     border-radius: 0;
 
@@ -51,7 +51,7 @@
 .unity-button.tab:focus:enabled {
     color: var(--text);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
     /* The mark stays where the active tab's is, so focus is read as "this one
        next" rather than as a second selection. */
@@ -62,9 +62,9 @@
 .unity-button.tab:hover:enabled {
     color: var(--text);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-bottom-color: var(--line-hover);
+    border-bottom-color: var(--line-strong);
 }
 
 

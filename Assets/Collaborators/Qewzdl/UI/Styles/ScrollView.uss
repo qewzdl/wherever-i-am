@@ -10,10 +10,7 @@
 .scroll .unity-scroll-view__content-and-vertical-scroll-container,
 .scroll .unity-scroll-view__content-viewport,
 .scroll .unity-scroll-view__content-container {
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 }
 
 
@@ -21,12 +18,9 @@
     width: var(--scrollbar-width);
     min-width: var(--scrollbar-width);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     margin-left: var(--space-xs);
     margin-right: 0;
@@ -49,12 +43,9 @@
 .scroll .unity-scroller__slider {
     flex-grow: 1;
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     margin-left: 0;
     margin-right: 0;
@@ -71,12 +62,9 @@
 .scroll .unity-scroller__slider .unity-base-slider__input,
 .scroll .unity-scroller__slider .unity-base-slider__drag-container,
 .scroll .unity-scroller__slider .unity-base-slider__dragger-border {
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 }
 
 
@@ -87,10 +75,7 @@
 
     background-color: var(--line);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     border-radius: 0;
 }
@@ -99,12 +84,9 @@
 .scroll .unity-scroller__slider .unity-base-slider__dragger {
     width: var(--scrollbar-thumb-width);
 
-    background-color: var(--line-hover);
+    background-color: var(--line-strong);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     border-radius: 0;
 

@@ -21,8 +21,8 @@
    -------------------------------------------------------------------------- */
 
 .unity-toggle.field__control {
-    --unity-colors-toggle_checkmark-background: rgba(0, 0, 0, 0);
-    --unity-colors-toggle_checkmark-background-disabled: rgba(0, 0, 0, 0);
+    --unity-colors-toggle_checkmark-background: var(--transparent);
+    --unity-colors-toggle_checkmark-background-disabled: var(--transparent);
 
     --unity-colors-toggle_checkmark-border: var(--line);
     --unity-colors-toggle_checkmark-border-hover: var(--accent);
@@ -60,17 +60,11 @@
     padding-bottom: 0;
 
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-width: var(--border);
-    border-right-width: var(--border);
-    border-top-width: var(--border);
-    border-bottom-width: var(--border);
+    border-width: var(--border);
 
-    border-left-color: var(--line);
-    border-right-color: var(--line);
-    border-top-color: var(--line);
-    border-bottom-color: var(--line);
+    border-color: var(--line);
 
     border-top-left-radius: var(--radius);
     border-top-right-radius: var(--radius);
@@ -115,12 +109,9 @@
     padding-bottom: 0;
 
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     border-top-left-radius: var(--radius);
     border-top-right-radius: var(--radius);
@@ -198,10 +189,7 @@
 
 .unity-toggle.field__control:hover
 > .unity-toggle__input {
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
+    border-color: var(--accent);
 }
 
 
@@ -215,19 +203,16 @@
 .unity-toggle.field__control:focus
 > .unity-toggle__input {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
+    border-color: var(--accent);
 }
 
 .unity-toggle.field__control:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 }
 
 
@@ -239,10 +224,7 @@
 > .unity-toggle__input {
     scale: 0.9 0.9;
 
-    border-left-color: var(--accent-pressed);
-    border-right-color: var(--accent-pressed);
-    border-top-color: var(--accent-pressed);
-    border-bottom-color: var(--accent-pressed);
+    border-color: var(--accent-pressed);
 }
 
 
@@ -282,12 +264,9 @@
 .unity-toggle.field__control:checked:focus
 > .unity-toggle__input {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
+    border-color: var(--accent);
 
     scale: 1 1;
 }
@@ -306,10 +285,7 @@
 
 .unity-toggle.field__control:checked:hover:focus
 > .unity-toggle__input {
-    border-left-color: var(--accent-hover);
-    border-right-color: var(--accent-hover);
-    border-top-color: var(--accent-hover);
-    border-bottom-color: var(--accent-hover);
+    border-color: var(--accent-hover);
 }
 
 .unity-toggle.field__control:checked:hover:focus
@@ -328,10 +304,7 @@
 > .unity-toggle__input {
     scale: 0.9 0.9;
 
-    border-left-color: var(--accent-pressed);
-    border-right-color: var(--accent-pressed);
-    border-top-color: var(--accent-pressed);
-    border-bottom-color: var(--accent-pressed);
+    border-color: var(--accent-pressed);
 }
 
 .unity-toggle.field__control:checked:active
@@ -350,10 +323,7 @@
 > .unity-toggle__input {
     scale: 0.9 0.9;
 
-    border-left-color: var(--accent-pressed);
-    border-right-color: var(--accent-pressed);
-    border-top-color: var(--accent-pressed);
-    border-bottom-color: var(--accent-pressed);
+    border-color: var(--accent-pressed);
 }
 
 .unity-toggle.field__control:checked:active:focus
@@ -371,19 +341,16 @@
 .unity-toggle.field__control:hover:focus
 > .unity-toggle__input {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
+    border-color: var(--accent);
 }
 
 .unity-toggle.field__control:hover:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 }
 
 
@@ -394,12 +361,9 @@
 .unity-toggle.field__control:disabled
 > .unity-toggle__input {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--text-disabled);
-    border-right-color: var(--text-disabled);
-    border-top-color: var(--text-disabled);
-    border-bottom-color: var(--text-disabled);
+    border-color: var(--text-disabled);
 
     scale: 1 1;
 
@@ -410,7 +374,7 @@
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 }
 
 
@@ -421,12 +385,9 @@
 .unity-toggle.field__control:checked:disabled
 > .unity-toggle__input {
     background-image: none;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--text-disabled);
-    border-right-color: var(--text-disabled);
-    border-top-color: var(--text-disabled);
-    border-bottom-color: var(--text-disabled);
+    border-color: var(--text-disabled);
 
     scale: 1 1;
 

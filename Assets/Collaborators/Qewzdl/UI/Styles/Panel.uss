@@ -9,15 +9,9 @@
 .panel {
     background-color: var(--surface);
 
-    border-left-color: var(--line);
-    border-right-color: var(--line);
-    border-top-color: var(--line);
-    border-bottom-color: var(--line);
+    border-color: var(--line);
 
-    border-left-width: var(--border);
-    border-right-width: var(--border);
-    border-top-width: var(--border);
-    border-bottom-width: var(--border);
+    border-width: var(--border);
 
     border-radius: var(--radius);
 
@@ -128,10 +122,7 @@
 
     background-color: var(--veil);
 
-    border-left-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
-    border-right-width: 0;
+    border-width: 0;
 
     border-radius: 0;
 
@@ -279,10 +270,7 @@
    -------------------------------------------------------------------------- */
 
 .panel--rail .stack .button {
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+    border-width: 0;
 
     padding-top: var(--space-m);
     padding-bottom: var(--space-m);

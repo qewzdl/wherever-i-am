@@ -1,9 +1,18 @@
 /* ==========================================================================
    DESIGN TOKENS
 
-   Every colour, size and duration the interface is allowed to use. Screens
-   name a role - surface, text, accent - and never a value, so the whole game
-   re-skins from this one block.
+   Every colour, size and duration the interface is allowed to use, in three
+   tiers, and the tiers are the whole architecture:
+
+     1  PALETTE     raw values. Nothing outside tier 2 may name one.
+     2  ROLES       what a value is for - surface, line, text, accent. This is
+                    the only tier a stylesheet is allowed to read for colour.
+     3  DIMENSION   space, type, shape, motion. Scales rather than roles: a
+                    gap is a gap, and naming every one of them by purpose
+                    would be a dictionary nobody keeps up to date.
+
+   The rule that makes it worth having: a screen names a role and never a
+   value, so the whole game re-skins from tier 1 and 2 alone.
 
    The palette is not grey. It reads as grey, but every dark step carries a
    little blue and every light step a little yellow, which is what stops an
@@ -15,10 +24,16 @@
 
 :root {
     /* ======================================================================
-       PALETTE
+       1  PALETTE
 
-       Two families that meet in the middle. Ink is what the game is made of;
-       bone is what it says.
+       Two families that meet in the middle, and one that breaks them. Ink is
+       what the game is made of; bone is what it says; rust is the one place
+       the quiet breaks.
+
+       Numbers run the way they do everywhere else: the higher the step, the
+       darker the colour. Nothing below this block should ever name one of
+       these - if a rule needs a colour there is no role for, the missing role
+       is the bug.
        ====================================================================== */
 
     --palette-ink-1000: rgb(5, 6, 8);
@@ -45,10 +60,27 @@
     --palette-rust-300: rgb(214, 126, 98);
     --palette-rust-400: rgb(196, 104, 76);
 
+    /* Not a colour, a way of saying to paint nothing here. It has a name
+       because it is written more often in this interface than any real colour,
+       and thirty copies of a literal are thirty chances to mistype one. */
+    --transparent: rgba(0, 0, 0, 0);
+
 
     /* ======================================================================
-       SEMANTIC COLORS
+       2  ROLES / SURFACE
+
+       Ordered back to front: what the game is seen through, then what stands
+       in front of it, then what things are made of.
        ====================================================================== */
+
+    /* Behind the picture, so that a frame the art does not reach still reads
+       as part of the same room. */
+    --backdrop: var(--palette-ink-1000);
+
+    /* Laid over the picture rather than mixed into it: art is chosen for how
+       it looks, not for how much text it can carry, and this is the dial that
+       makes any of it quiet enough to read across. */
+    --backdrop-shade: rgba(5, 6, 8, 0.35);
 
     /* Opaque enough that what is behind it stops mattering. At nine tenths a
        column standing over a lit stage sat somewhere between rgb(8,10,13) and
@@ -67,37 +99,70 @@
     --surface: var(--palette-ink-950);
     --surface-hover: var(--palette-ink-900);
 
+
+    /* ======================================================================
+       2  ROLES / LINE
+
+       Two weights, and they are two jobs rather than two states. A hairline
+       divides things and is not meant to be looked at; a strong line is the
+       edge of something that can be pressed - and it is also what a hairline
+       becomes when the pointer arrives, which is why one value serves both.
+       That double duty was hidden while this was called --line-hover: most of
+       the places using it were not hovering anything.
+       ====================================================================== */
+
     /* A hairline over a veil is the first thing a bright scene behind it eats.
        One step up, which is still a rule rather than a border. */
     --line: var(--palette-ink-700);
-    --line-hover: var(--palette-ink-500);
+    --line-strong: var(--palette-ink-500);
+
+
+    /* ======================================================================
+       2  ROLES / TEXT
+
+       A ladder rather than a set. Dim at rest, full when the thing it belongs
+       to is the one being addressed, and one step below either when it never
+       will be.
+       ====================================================================== */
 
     --text: var(--palette-bone-200);
     --text-dim: var(--palette-bone-400);
     --text-disabled: var(--palette-bone-500);
     --text-on-accent: var(--palette-ink-1000);
 
+
+    /* ======================================================================
+       2  ROLES / ACCENT
+
+       The top of the same ladder the text runs on, which is why a button can
+       carry rest, focus and hover on one channel: dim, text, accent.
+       ====================================================================== */
+
     --accent: var(--palette-bone-100);
     --accent-hover: var(--palette-bone-200);
     --accent-pressed: var(--palette-bone-300);
 
-    /* The only colour in the interface, and it is spent on one thing: the
+
+    /* ======================================================================
+       2  ROLES / DANGER
+
+       The only colour in the interface, and it is spent on one thing: the
        button that ends something. A palette this quiet does not need a second
        hue to be interesting - it needs one place where the quiet breaks.
 
-       It is worn as lettering now rather than as a fill, so there is nothing
-       left to sit on top of it and no colour needed for that. */
-    --danger: var(--palette-rust-300);
+       It is worn as lettering rather than as a fill, so there is nothing left
+       to sit on top of it and no colour needed for that. Three steps, matching
+       the accent's, because a rust button has to answer a pointer the same way
+       every other button does.
+       ====================================================================== */
 
-    /* Rust needed a bright step. Bone always had one - the accent runs from
-       bone up and down - while the rust family only ever had a dark half,
-       because it used to be a fill with text on top rather than the text. */
+    --danger: var(--palette-rust-300);
     --danger-hover: var(--palette-rust-200);
     --danger-pressed: var(--palette-rust-400);
 
 
     /* ======================================================================
-       SPACING
+       3  DIMENSION / SPACING
 
        Not a doubling. The steps grow faster than that on purpose, so that a
        gap meant to separate two things can never be mistaken for a gap that
@@ -112,14 +177,20 @@
 
 
     /* ======================================================================
-       TYPOGRAPHY
+       3  DIMENSION / TYPE
+
+       Sizes, not voices. What a title or a hint looks like is settled in
+       Typography.uss; this is only the ladder those four stand on.
+
+       Spelled font-size rather than text, because --text is a colour and one
+       word meaning both was a trap laid for whoever read the file next.
        ====================================================================== */
 
-    --text-xs: 13px;
-    --text-s: 16px;
-    --text-m: 20px;
-    --text-l: 34px;
-    --text-xl: 56px;
+    --font-size-xs: 13px;
+    --font-size-s: 16px;
+    --font-size-m: 20px;
+    --font-size-l: 34px;
+    --font-size-xl: 56px;
 
     /* Letters set apart read as lettering rather than as text, which is the
        difference between a title and a label. Only worth it on short strings
@@ -129,7 +200,7 @@
 
 
     /* ======================================================================
-       FORM LAYOUT
+       3  DIMENSION / FORM LAYOUT
        ====================================================================== */
 
     --label-width: 200px;
@@ -140,7 +211,7 @@
 
 
     /* ======================================================================
-       SCROLLBAR
+       3  DIMENSION / SCROLLBAR
        ====================================================================== */
 
     --scrollbar-width: 12px;
@@ -148,7 +219,7 @@
 
 
     /* ======================================================================
-       SHAPE
+       3  DIMENSION / SHAPE
 
        Nothing is rounded. A rounded corner is a promise of softness that this
        game does not keep, and at 2px it was never a corner anyway - just a
@@ -165,7 +236,7 @@
 
 
     /* ======================================================================
-       MOTION
+       3  DIMENSION / MOTION
 
        Short enough not to be waited on, long enough to be seen. Screens move
        slower than the things inside them, so a panel arrives and then settles

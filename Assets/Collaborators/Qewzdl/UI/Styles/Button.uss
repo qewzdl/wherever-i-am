@@ -18,24 +18,18 @@
 
 .button {
     color: var(--text-dim);
-    font-size: var(--text-m);
+    font-size: var(--font-size-m);
 
     letter-spacing: var(--tracking-wide);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
     /* The brighter of the two rules. A hairline at --line is meant to divide
        two things without being looked at, and the edge of a button is there to
        be found. */
-    border-left-color: var(--line-hover);
-    border-right-color: var(--line-hover);
-    border-top-color: var(--line-hover);
-    border-bottom-color: var(--line-hover);
+    border-color: var(--line-strong);
 
-    border-left-width: var(--border);
-    border-right-width: var(--border);
-    border-top-width: var(--border);
-    border-bottom-width: var(--border);
+    border-width: var(--border);
 
     border-radius: var(--radius);
 
@@ -67,24 +61,18 @@
 .unity-button.button:focus:enabled {
     color: var(--text);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--text);
-    border-right-color: var(--text);
-    border-top-color: var(--text);
-    border-bottom-color: var(--text);
+    border-color: var(--text);
 }
 
 
 .unity-button.button:hover:enabled {
     color: var(--accent);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
+    border-color: var(--accent);
 }
 
 
@@ -94,12 +82,9 @@
 .unity-button.button:active:enabled {
     color: var(--accent-pressed);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--accent-pressed);
-    border-right-color: var(--accent-pressed);
-    border-top-color: var(--accent-pressed);
-    border-bottom-color: var(--accent-pressed);
+    border-color: var(--accent-pressed);
 
     transition-duration: var(--motion-fast);
 }
@@ -110,12 +95,9 @@
 .unity-button.button:disabled {
     color: var(--text-disabled);
 
-    background-color: rgba(0, 0, 0, 0);
+    background-color: var(--transparent);
 
-    border-left-color: var(--text-disabled);
-    border-right-color: var(--text-disabled);
-    border-top-color: var(--text-disabled);
-    border-bottom-color: var(--text-disabled);
+    border-color: var(--text-disabled);
 
     opacity: 1;
 }
@@ -155,10 +137,7 @@
 .button--confirm {
     color: var(--accent);
 
-    border-left-color: var(--accent);
-    border-right-color: var(--accent);
-    border-top-color: var(--accent);
-    border-bottom-color: var(--accent);
+    border-color: var(--accent);
 }
 
 
@@ -178,10 +157,7 @@
 .button--danger {
     color: var(--danger);
 
-    border-left-color: var(--danger);
-    border-right-color: var(--danger);
-    border-top-color: var(--danger);
-    border-bottom-color: var(--danger);
+    border-color: var(--danger);
 }
 
 
@@ -191,20 +167,14 @@
 .unity-button.button--danger:focus:enabled {
     color: var(--danger);
 
-    border-left-color: var(--danger);
-    border-right-color: var(--danger);
-    border-top-color: var(--danger);
-    border-bottom-color: var(--danger);
+    border-color: var(--danger);
 }
 
 
 .unity-button.button--danger:hover:enabled {
     color: var(--danger-hover);
 
-    border-left-color: var(--danger-hover);
-    border-right-color: var(--danger-hover);
-    border-top-color: var(--danger-hover);
-    border-bottom-color: var(--danger-hover);
+    border-color: var(--danger-hover);
 }
 
 
@@ -214,8 +184,5 @@
 .unity-button.button--danger:active:enabled {
     color: var(--danger-pressed);
 
-    border-left-color: var(--danger-pressed);
-    border-right-color: var(--danger-pressed);
-    border-top-color: var(--danger-pressed);
-    border-bottom-color: var(--danger-pressed);
+    border-color: var(--danger-pressed);
 }

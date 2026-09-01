@@ -35,7 +35,7 @@
     align-self: stretch;
 
     color: var(--text);
-    font-size: var(--text-s);
+    font-size: var(--font-size-s);
 
     -unity-text-align: middle-left;
 }
@@ -57,7 +57,7 @@
 
 .field__value {
     color: var(--text-dim);
-    font-size: var(--text-s);
+    font-size: var(--font-size-s);
 
     margin-left: var(--space-s);
 
