@@ -284,6 +284,30 @@
 }
 
 
+/* And with the frame goes the fill. A button in a panel inverts under the
+   pointer, because it has an edge for the colour to come from; an entry in
+   this column has none, so a fill would not be the frame flooding inwards -
+   it would be a bone bar appearing out of nothing, four of them taking turns
+   as the pointer runs down the list.
+
+   So here the word lights, the way it did everywhere before the pointer
+   learned to fill things. Stated with the container rather than on the button,
+   for the same reason the frame is. */
+
+.panel--rail .stack .button:hover:enabled {
+    color: var(--accent);
+
+    background-color: var(--transparent);
+}
+
+
+.panel--rail .stack .button:active:enabled {
+    color: var(--accent-pressed);
+
+    background-color: var(--transparent);
+}
+
+
 .panel--wide {
     width: 720px;
 }

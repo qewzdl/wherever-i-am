@@ -1,13 +1,23 @@
 /* ==========================================================================
    BUTTON
 
-   A frame, and inside it a word that lights.
+   A frame, and inside it a word that lights - until the pointer arrives, and
+   then the two trade places.
 
-   Three steps of brightness carry all three states - dim at rest, bone under
-   the keyboard, full bone under the pointer - and the frame goes with them,
-   because a border and its label disagreeing about how lit they are is the one
-   thing that makes a button look broken. Nothing fills, nothing moves, nothing
-   changes size, so a row of these can be read while the pointer crosses it.
+   Rest and focus are the frame doing the work: dim, then bone under the
+   keyboard, with the label matching it, because a border and its label
+   disagreeing about how lit they are is the one thing that makes a button look
+   broken. Under the pointer the button inverts - the colour the frame had
+   floods the inside of it and the word goes to ink - which is the loudest
+   thing a flat interface can say without moving anything.
+
+   Inverting rather than brightening also settles an argument the old version
+   was having with itself. Focus and hover were two steps of the same channel,
+   and telling bone from slightly-more-bone across a row was work. Now they are
+   different in kind: the keyboard outlines, the pointer fills.
+
+   Still nothing moves and nothing changes size, so a row of these can be read
+   while the pointer crosses it.
 
    The frame comes off in one place: the column of menu entries down the side
    of the main menu and the lobby. There a button is a place to go rather than
@@ -43,6 +53,7 @@
 
     transition-property:
         color,
+        background-color,
         border-left-color,
         border-right-color,
         border-top-color,
@@ -67,22 +78,28 @@
 }
 
 
-.unity-button.button:hover:enabled {
-    color: var(--accent);
+/* Under the pointer: inverted. The frame keeps its colour and the fill takes
+   the same one, so the button does not gain an edge it did not have - it
+   becomes the edge. The word goes to ink because there is nothing else it
+   could be once the bone is underneath it. */
 
-    background-color: var(--transparent);
+.unity-button.button:hover:enabled {
+    color: var(--text-on-accent);
+
+    background-color: var(--accent);
 
     border-color: var(--accent);
 }
 
 
-/* Held. A step back down the same three, and quicker, because a press wants to
-   answer before the finger has finished. */
+/* Held. A step back down the same fill, and quicker, because a press wants to
+   answer before the finger has finished. The word stays ink: it is the surface
+   under it that darkens, not the writing. */
 
 .unity-button.button:active:enabled {
-    color: var(--accent-pressed);
+    color: var(--text-on-accent);
 
-    background-color: var(--transparent);
+    background-color: var(--accent-pressed);
 
     border-color: var(--accent-pressed);
 
@@ -168,8 +185,14 @@
 }
 
 
+/* Inverts like everything else, in its own hue. This is the one button in the
+   game that fills with colour, and it only does it while somebody is pointing
+   at the thing that ends the session - which is the moment to be loud. */
+
 .unity-button.button--danger:hover:enabled {
-    color: var(--danger-hover);
+    color: var(--text-on-danger);
+
+    background-color: var(--danger-hover);
 
     border-color: var(--danger-hover);
 }
@@ -179,7 +202,9 @@
    reads as a different button. */
 
 .unity-button.button--danger:active:enabled {
-    color: var(--danger-pressed);
+    color: var(--text-on-danger);
+
+    background-color: var(--danger-pressed);
 
     border-color: var(--danger-pressed);
 }

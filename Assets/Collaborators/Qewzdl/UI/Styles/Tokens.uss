@@ -160,6 +160,12 @@
     --danger-hover: var(--palette-rust-200);
     --danger-pressed: var(--palette-rust-400);
 
+    /* The same ink as --text-on-accent, and it still gets its own name. A rule
+       that fills with rust and then asks for the colour that goes on the accent
+       is describing the wrong thing, and it would keep being wrong for as long
+       as the two happened to match. */
+    --text-on-danger: var(--palette-ink-1000);
+
 
     /* ======================================================================
        3  DIMENSION / SPACING

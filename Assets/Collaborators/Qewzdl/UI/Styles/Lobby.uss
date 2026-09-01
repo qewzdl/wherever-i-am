@@ -349,17 +349,78 @@
    the value with "copied" made confirmation clear but forced the player to
    wait before checking or reading the address again. */
 
+/* --------------------------------------------------------------------------
+   It is a Button because it has to be pressed, and it is the only one in the
+   game that is not an action. It stands in the control column, it holds a
+   value, and what a player does with it is read it - the pressing is a
+   shortcut for selecting the text by hand.
+
+   So it wears the input's clothes rather than the button's: a surface, a
+   hairline, one step brighter under the pointer. The button's own answer is to
+   invert, which is right for a word that is a verb and wrong here twice over.
+   Loud, first - a bone slab appearing in the middle of a form to say nothing
+   has happened yet. And blind: the address is a Label carrying
+   .field__control--code, which sets its own colour and so ignores the ink the
+   button hands down to its children. The value stayed bone while the fill
+   became bone, and the one string on this screen anybody has to transcribe
+   disappeared exactly while it was being pointed at.
+
+   Written with the field rather than with the button for the usual reason: the
+   control column decides how a control in it looks.
+   -------------------------------------------------------------------------- */
+
 .address-copy {
     flex-direction: row;
     align-items: center;
 
     min-height: 46px;
 
+    background-color: var(--surface);
+
+    border-color: var(--line);
+
     margin-top: 0;
     margin-bottom: 0;
 
     padding-left: var(--space-s);
     padding-right: var(--space-s);
+}
+
+
+/* One step up on both channels, the way every other field in the column
+   answers a pointer. */
+
+.unity-button.address-copy:hover:enabled {
+    background-color: var(--surface-hover);
+
+    border-color: var(--line-strong);
+}
+
+
+/* Under the keyboard, and under the finger: the accent outline, which is what
+   the text field wears while it has the caret. The same sentence in both
+   places - this control is the one being addressed - and here it is also the
+   press, because a copy is over before there is time to show anything else.
+
+   What actually confirms the copy is the icon swapping and the tooltip
+   changing, which the screen does for itself. */
+
+.unity-button.address-copy:focus:enabled,
+.unity-button.address-copy:active:enabled {
+    background-color: var(--surface-hover);
+
+    border-color: var(--accent);
+}
+
+
+/* There is no address until the room has one, and until then this is a box
+   with nothing in it rather than a button that has stopped working. Keeps its
+   surface for that reason - a control that empties out reads as missing. */
+
+.unity-button.address-copy:disabled {
+    background-color: var(--surface);
+
+    border-color: var(--text-disabled);
 }
 
 
@@ -383,4 +444,11 @@
     flex-grow: 0;
     flex-shrink: 0;
     align-self: center;
+
+    /* Tinted rather than left at whatever the texture is, so the glyph reads
+       as part of the label instead of as a picture sitting next to it.
+
+       One value covers every state: the surface under it moves a step and
+       stays dark, so a tint readable at rest is readable pressed. */
+    --unity-image-tint-color: var(--text);
 }
