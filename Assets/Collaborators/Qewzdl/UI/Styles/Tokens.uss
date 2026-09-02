@@ -79,13 +79,28 @@
        One string in the game is allowed to use it. */
     --palette-white: rgb(255, 255, 255);
 
-    /* Rust is worn as lettering now rather than as a fill, and lettering has
-       to clear the same bar everything else does. The old rust read at 2.7 to
-       one against the panel, which was fine underneath bone text and is not
-       fine as the text. The family grew a light half. */
-    --palette-rust-200: rgb(232, 152, 126);
-    --palette-rust-300: rgb(214, 126, 98);
-    --palette-rust-400: rgb(196, 104, 76);
+    /* Rust is worn as lettering rather than as a fill, and lettering has to
+       clear the same bar everything else does. The old rust read at 2.7 to one
+       against the panel, which was fine underneath bone text and is not fine as
+       the text. The family grew a light half for it.
+
+       It was also drawn to sit among walls that carried a warm cast of their
+       own, so it was mixed muted enough not to fight them. The walls are grey
+       now and it was the only thing left holding a hue - which made it read as
+       washed out rather than as restrained. Saturation up to nine tenths.
+
+       The brightness did not move. Both steps are their old relative luminance
+       to within a hundredth, so the figures above and the reasoning underneath
+       them still hold: 6.4 and 4.9 to one against a panel. Only the colour in
+       them changed.
+
+       Two steps, not three. There was a pale one above these, kept for the
+       button's hover, and hover stopped needing a shade of its own the moment
+       it became a fill - the frame's own rust floods inwards, which says more
+       than any lighter rust could. A step that exists for one rule that no
+       longer wants it is a step that will be reached for by mistake. */
+    --palette-rust-300: rgb(245, 107, 62);
+    --palette-rust-400: rgb(238, 65, 13);
 
     /* Not a colour, a way of saying to paint nothing here. It has a name
        because it is written more often in this interface than any real colour,
@@ -194,7 +209,6 @@
        ====================================================================== */
 
     --danger: var(--palette-rust-300);
-    --danger-hover: var(--palette-rust-200);
     --danger-pressed: var(--palette-rust-400);
 
     /* The same ink as --text-on-accent, and it still gets its own name. A rule

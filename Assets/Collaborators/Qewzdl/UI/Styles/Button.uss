@@ -172,10 +172,12 @@
    something. It is worn at rest, because with the geometry gone there is no
    other way to be told which button that is without pointing at each one.
 
-   Rust needs its own bright step. Bone had one already - the accent goes from
-   bone to bone-pressed and back - and the rust family only ever had a dark
-   half, because it used to be a fill with text on top rather than the text
-   itself.
+   One rust does rest and hover both. What changes between them is not the shade
+   but which side of the line the colour is on: a word in a rust frame, then a
+   rust field with the word cut out of it. That is a larger difference than any
+   two shades of the same hue could be, and it left the pale step with no job -
+   it had been the hover, and pale is what made this button look washed out at
+   the one moment it is meant to be loud.
    ========================================================================== */
 
 .button--danger {
@@ -195,16 +197,19 @@
 }
 
 
-/* Inverts like everything else, in its own hue. This is the one button in the
+/* Inverts like everything else, in its own hue, and at its own strength. The
+   frame does not change colour at all - the rust it was already wearing simply
+   floods inwards and the word is cut out of it. This is the one button in the
    game that fills with colour, and it only does it while somebody is pointing
-   at the thing that ends the session - which is the moment to be loud. */
+   at the thing that ends the session, which is the moment to be loud rather
+   than the moment to go pale. */
 
 .unity-button.button--danger:hover:enabled {
     color: var(--text-on-danger);
 
-    background-color: var(--danger-hover);
+    background-color: var(--danger);
 
-    border-color: var(--danger-hover);
+    border-color: var(--danger);
 }
 
 
