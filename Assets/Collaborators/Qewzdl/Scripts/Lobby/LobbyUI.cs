@@ -106,6 +106,7 @@ public class LobbyUI : MonoBehaviour
     private Label playerCountLabel;
     private Label readyCountLabel;
     private Label difficultyDescriptionLabel;
+    private Label difficultyOwnerNoteLabel;
     private Label doorHintLabel;
     private Label addressLabel;
     private Image addressCopyIcon;
@@ -306,6 +307,7 @@ public class LobbyUI : MonoBehaviour
         playerCountLabel = root.Q<Label>("PlayerCount");
         readyCountLabel = root.Q<Label>("ReadyCount");
         difficultyDescriptionLabel = root.Q<Label>("DifficultyDescription");
+        difficultyOwnerNoteLabel = root.Q<Label>("DifficultyOwnerNote");
         doorHintLabel = root.Q<Label>("DoorHint");
         addressLabel = root.Q<Label>("Address");
         addressButton = root.Q<Button>("CopyAddressButton");
@@ -623,20 +625,23 @@ public class LobbyUI : MonoBehaviour
 
     // A greyed out control with no reason given reads as broken rather than as
     // somebody else's to move, so the reason goes next to the description.
+    //
+    // On its own line rather than appended to the description: the description
+    // is the one thing here that changes length as the dropdown moves, and it
+    // keeps a fixed height so the dialog stops resizing under the pointer.
+    // Hanging a constant sentence off the end of it would have paid for that
+    // sentence in reserved room the host never uses.
     private void SetDifficultyDescription(string description, bool canChangeDifficulty)
     {
-        if (difficultyDescriptionLabel == null)
-            return;
-
-        if (canChangeDifficulty)
-        {
+        if (difficultyDescriptionLabel != null)
             difficultyDescriptionLabel.text = description;
-            return;
-        }
 
-        difficultyDescriptionLabel.text = string.IsNullOrWhiteSpace(description)
-            ? ownerOnlySettingText
-            : description + Environment.NewLine + ownerOnlySettingText;
+        if (difficultyOwnerNoteLabel == null)
+            return;
+
+        difficultyOwnerNoteLabel.text = ownerOnlySettingText;
+        difficultyOwnerNoteLabel.style.display =
+            canChangeDifficulty ? DisplayStyle.None : DisplayStyle.Flex;
     }
 
     private void RefreshPlayers()

@@ -29,6 +29,7 @@
                     <ui:DropdownField name="Difficulty" class="field__control" />
                 </ui:VisualElement>
                 <ui:Label name="DifficultyDescription" class="hint hint--field" />
+                <ui:Label name="DifficultyOwnerNote" class="hint hint--field" />
                 <ui:VisualElement name="AddressField" class="field">
                     <ui:Label text="Invite address" class="field__label" />
                     <ui:Button name="CopyAddressButton" tooltip="Copy invite address" class="button field__control address-copy">

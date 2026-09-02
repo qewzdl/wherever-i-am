@@ -245,6 +245,34 @@
 }
 
 
+/* The difficulty descriptions are three to five lines long, so the dialog used
+   to grow and shrink under the pointer every time the dropdown moved - the
+   fields below it walking up and down while you are still reading the one
+   above.
+
+   So the line keeps room for the longest of them and the rest of the dialog
+   stops moving. Five lines of --font-size-xs in the 462 pixels this column has
+   inside .panel--wide. If the wording grows past that, raise this rather than
+   let the dialog breathe again. */
+
+#DifficultyDescription {
+    min-height: 80px;
+
+    /* The host-only note is the next line rather than a sixth line of this
+       one: it says the same thing whichever difficulty is showing, so stacking
+       it onto text that changes would have cost the reserve above another line
+       of empty room for every player who is not the host. The gap under a
+       setting belongs to whichever of the two is last, so it is dropped here. */
+    margin-bottom: 0;
+
+    /* Top of the box rather than the middle of it, so a short description
+       stays under the control it explains instead of floating in the reserved
+       room. */
+    -unity-text-align: upper-left;
+}
+
+
+
 /* ==========================================================================
    THE COLUMN
 
