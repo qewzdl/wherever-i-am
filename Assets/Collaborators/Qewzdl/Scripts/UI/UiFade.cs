@@ -33,9 +33,41 @@ internal static class UiFade
         element.schedule
             .Execute(() =>
             {
-                if (!element.ClassListContains(openClass))
-                    element.style.display = DisplayStyle.None;
+                if (element.ClassListContains(openClass))
+                    return;
+
+                element.style.display = DisplayStyle.None;
+                ForgetThePointer(element);
             })
             .StartingIn(FadeMilliseconds);
+    }
+
+    // A dialog is usually closed by pressing something inside it, which means
+    // the pointer is sitting on that button at the moment the panel goes away.
+    // Nothing leaves anything: the element does not move out from under the
+    // cursor, it stops being drawn, so no PointerLeave is ever sent and the
+    // hover flag stays set on the button. Open the dialog again and its Cancel
+    // arrives already lit, and stays lit until a real enter and leave clear it -
+    // which is why hovering the button once fixes it.
+    //
+    // Taking the panel out of the tree and putting it straight back is what
+    // does send the leave: display is a paint decision and the panel keeps its
+    // place under the pointer, while a detach is the element genuinely going
+    // away. The index is kept because these are overlays, and which one is on
+    // top of which is decided by sibling order.
+    private static void ForgetThePointer(VisualElement element)
+    {
+        VisualElement parent = element.parent;
+
+        if (parent == null)
+            return;
+
+        int index = parent.IndexOf(element);
+
+        if (index < 0)
+            return;
+
+        element.RemoveFromHierarchy();
+        parent.Insert(index, element);
     }
 }
