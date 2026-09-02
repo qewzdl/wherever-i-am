@@ -290,6 +290,23 @@
 }
 
 
+/* The gap a column of buttons keeps between its entries, the same way
+   .footer .button is the gap a row keeps between its own. Here it is none.
+
+   A button carries --space-xs above and below itself, and in a column those
+   met and held four menu entries apart as four separate things. They are one
+   list, so they are stacked: the entries touch, and what runs between any two
+   of them is their two edges meeting rather than a gap. Nothing above the
+   first or below the last either - the ends belong to whatever the column
+   sits in, the panel's padding in the menu and the rule over the actions in
+   the lobby. */
+
+.stack .button {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+
 .row {
     flex-direction: row;
     align-items: center;
