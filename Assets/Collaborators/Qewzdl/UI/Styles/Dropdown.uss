@@ -129,6 +129,59 @@
 }
 
 
+/* --------------------------------------------------------------------------
+   FIELD FOCUS
+
+   Unity's own theme puts a blue rim on a focused field, which is the one
+   colour this game does not own. The rim stays - a player on the keyboard has
+   to see where they are - and it becomes the accent, the same edge the text
+   field and the toggle take when they hold focus.
+
+   The class is doubled and :enabled is spelled out to get above Unity's rule
+   rather than tie with it - the same trick the text field needed.
+   -------------------------------------------------------------------------- */
+
+.field__control.unity-base-popup-field:focus:enabled .unity-base-popup-field__input {
+    background-color: var(--surface);
+
+    border-color: var(--accent);
+}
+
+
+/* Focus outlives the click that gave it, so the pointer states have to be
+   said again above it: otherwise a dropdown you just clicked would drop its
+   fill while your pointer is still sitting on it. */
+
+.field__control.unity-base-popup-field:focus:enabled:hover .unity-base-popup-field__input {
+    background-color: var(--accent);
+
+    border-color: var(--accent);
+}
+
+
+.field__control.unity-base-popup-field:focus:enabled:active .unity-base-popup-field__input {
+    background-color: var(--accent-pressed);
+
+    border-color: var(--accent-pressed);
+}
+
+
+.field__control.unity-base-popup-field:focus:enabled:hover .unity-base-popup-field__text,
+
+.field__control.unity-base-popup-field:focus:enabled:active .unity-base-popup-field__text {
+    color: var(--text-on-accent);
+}
+
+
+.field__control.unity-base-popup-field:focus:enabled:hover .unity-base-popup-field__arrow,
+
+.field__control.unity-base-popup-field:focus:enabled:active .unity-base-popup-field__arrow {
+    opacity: 1;
+
+    -unity-background-image-tint-color: var(--text-on-accent);
+}
+
+
 /* ==========================================================================
    OPEN DROPDOWN
    ========================================================================== */
