@@ -2,10 +2,11 @@
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
     <ui:VisualElement name="Screen" class="screen">
         <ui:VisualElement name="Panel" class="panel panel--narrow">
-            <ui:Label text="Paused" name="Title" class="title" />
+            <ui:Label text="Game menu" name="Title" class="title title--subtitled" />
+            <ui:Label text="The match continues while this menu is open." name="Note" class="hint subtitle" />
             <!-- Not a .stack. That class exists to make four entries touch and
                  read as one list, which is what the main menu and the lobby rail
-                 want. Four things you do to a paused game are four separate
+                 want. Four things you do to a running match are four separate
                  decisions, so they keep the gap a button brings with it. -->
             <ui:VisualElement name="Buttons">
                 <ui:Button text="Resume" name="ResumeButton" class="button" />

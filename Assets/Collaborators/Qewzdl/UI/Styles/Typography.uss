@@ -51,6 +51,17 @@
 }
 
 
+/* A title with a line under it that belongs to it. The title's own bottom
+   margin is the gap to whatever the screen holds next, and a subtitle is not
+   next - it is the second half of the same sentence. Nothing between them at
+   all, so the two lines are read as one thing; the gap that used to be here
+   moves below the pair, where it separates them from the screen. */
+
+.title--subtitled {
+    margin-bottom: 0;
+}
+
+
 /* The name of the game, which is the one string in the interface allowed to
    behave like a picture. Wide enough that the letters stop being a word and
    start being a shape. */
@@ -108,6 +119,20 @@
     white-space: normal;
 
     -unity-text-align: middle-center;
+}
+
+
+/* A hint that is the second line of a title rather than a note under a
+   control. It carries the whole gap the pair needs underneath it - the title's
+   own, and then some, because two lines read as one block need more air below
+   them than one line did.
+
+   Written after .hint and not before it. The two weigh the same, so the later
+   one wins, and on the wrong side of that line this rule was handing its
+   margin straight back to the one it exists to override. */
+
+.subtitle {
+    margin-bottom: var(--space-l);
 }
 
 
