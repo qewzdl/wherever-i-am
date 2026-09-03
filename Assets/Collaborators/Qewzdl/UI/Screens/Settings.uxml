@@ -28,7 +28,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement class="field">
                     <ui:Label text="Vertical sync" class="field__label" />
-                    <ui:Toggle name="VerticalSync" class="field__control" />
+                    <ui:Toggle name="VerticalSync" class="toggle field__control" />
                 </ui:VisualElement>
                 <ui:VisualElement class="field">
                     <ui:Label text="Field of view" class="field__label" />
@@ -37,7 +37,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement class="field">
                     <ui:Label text="Camera smoothing" class="field__label" />
-                    <ui:Toggle name="CameraSmoothing" class="field__control" />
+                    <ui:Toggle name="CameraSmoothing" class="toggle field__control" />
                 </ui:VisualElement>
                 <ui:VisualElement class="field">
                     <ui:Label text="Smoothing amount" class="field__label" />
@@ -75,7 +75,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement class="field">
                     <ui:Label text="Invert vertical look" class="field__label" />
-                    <ui:Toggle name="InvertVerticalLook" class="field__control" />
+                    <ui:Toggle name="InvertVerticalLook" class="toggle field__control" />
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement name="InterfacePage" class="page">

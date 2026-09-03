@@ -39,7 +39,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement class="field">
                     <ui:Label text="Allow joins" class="field__label" />
-                    <ui:Toggle name="Visibility" class="field__control" />
+                    <ui:Toggle name="Visibility" class="toggle field__control" />
                 </ui:VisualElement>
                 <ui:Label name="DoorHint" class="hint hint--field" />
                 <ui:VisualElement class="footer">

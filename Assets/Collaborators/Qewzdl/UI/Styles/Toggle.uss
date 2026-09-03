@@ -3,9 +3,19 @@
 
    Structure:
 
-   .unity-toggle.field__control
+   .unity-toggle.toggle
        └── .unity-toggle__input
                └── .unity-toggle__checkmark
+
+   Hung off .toggle, which is the control, the way .button, .input and .tab
+   are. It used to hang off .field__control - the class that says a control
+   stands in the right-hand column of a form row - and that quietly made the
+   look of a checkbox conditional on where it was standing. The first toggle
+   put anywhere else, on the lobby's door, came out as Unity's own grey tick
+   box in the middle of this interface, and nothing about the markup said why.
+
+   A control carries what it looks like; a row says how it sits. Two classes,
+   and a toggle in a form row wears both.
 
    Unity's built-in checkbox graphics are fully suppressed for every relevant
    state. The input draws the outer box, while the checkmark element draws the
@@ -20,7 +30,7 @@
    UNITY THEME OVERRIDES
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control {
+.unity-toggle.toggle {
     --unity-colors-toggle_checkmark-background: var(--transparent);
     --unity-colors-toggle_checkmark-background-disabled: var(--transparent);
 
@@ -36,7 +46,7 @@
    BOX
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control > .unity-toggle__input {
+.unity-toggle.toggle > .unity-toggle__input {
     width: var(--checkbox-size);
     height: var(--checkbox-size);
 
@@ -86,7 +96,7 @@
    MARK
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control
+.unity-toggle.toggle
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     width: var(--checkbox-mark-size);
@@ -132,51 +142,51 @@
    those images so that focus retained after clicking cannot restore them.
    ========================================================================== */
 
-.unity-toggle.field__control
+.unity-toggle.toggle
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:hover
+.unity-toggle.toggle:hover
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:focus
+.unity-toggle.toggle:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:active
+.unity-toggle.toggle:active
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:checked
+.unity-toggle.toggle:checked
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:checked:hover
+.unity-toggle.toggle:checked:hover
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:checked:focus
+.unity-toggle.toggle:checked:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:checked:active
+.unity-toggle.toggle:checked:active
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:checked:hover:focus
+.unity-toggle.toggle:checked:hover:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:checked:active:focus
+.unity-toggle.toggle:checked:active:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:disabled
+.unity-toggle.toggle:disabled
 > .unity-toggle__input
 > .unity-toggle__checkmark,
 
-.unity-toggle.field__control:checked:disabled
+.unity-toggle.toggle:checked:disabled
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -187,7 +197,7 @@
    HOVER
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:hover
+.unity-toggle.toggle:hover
 > .unity-toggle__input {
     border-color: var(--accent);
 }
@@ -200,7 +210,7 @@
    box and mark are explicitly styled here.
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:focus
+.unity-toggle.toggle:focus
 > .unity-toggle__input {
     background-image: none;
     background-color: var(--transparent);
@@ -208,7 +218,7 @@
     border-color: var(--accent);
 }
 
-.unity-toggle.field__control:focus
+.unity-toggle.toggle:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -220,7 +230,7 @@
    PRESSED
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:active
+.unity-toggle.toggle:active
 > .unity-toggle__input {
     scale: 0.9 0.9;
 
@@ -232,7 +242,7 @@
    CHECKED
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:checked
+.unity-toggle.toggle:checked
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -244,7 +254,7 @@
    CHECKED + HOVER
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:checked:hover
+.unity-toggle.toggle:checked:hover
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -261,7 +271,7 @@
    The control remains :checked:focus even when :hover disappears.
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:checked:focus
+.unity-toggle.toggle:checked:focus
 > .unity-toggle__input {
     background-image: none;
     background-color: var(--transparent);
@@ -271,7 +281,7 @@
     scale: 1 1;
 }
 
-.unity-toggle.field__control:checked:focus
+.unity-toggle.toggle:checked:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -283,12 +293,12 @@
    CHECKED + HOVER + FOCUS
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:checked:hover:focus
+.unity-toggle.toggle:checked:hover:focus
 > .unity-toggle__input {
     border-color: var(--accent-hover);
 }
 
-.unity-toggle.field__control:checked:hover:focus
+.unity-toggle.toggle:checked:hover:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -300,14 +310,14 @@
    CHECKED + PRESSED
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:checked:active
+.unity-toggle.toggle:checked:active
 > .unity-toggle__input {
     scale: 0.9 0.9;
 
     border-color: var(--accent-pressed);
 }
 
-.unity-toggle.field__control:checked:active
+.unity-toggle.toggle:checked:active
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -319,14 +329,14 @@
    CHECKED + PRESSED + FOCUS
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:checked:active:focus
+.unity-toggle.toggle:checked:active:focus
 > .unity-toggle__input {
     scale: 0.9 0.9;
 
     border-color: var(--accent-pressed);
 }
 
-.unity-toggle.field__control:checked:active:focus
+.unity-toggle.toggle:checked:active:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -338,7 +348,7 @@
    UNCHECKED + HOVER + FOCUS
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:hover:focus
+.unity-toggle.toggle:hover:focus
 > .unity-toggle__input {
     background-image: none;
     background-color: var(--transparent);
@@ -346,7 +356,7 @@
     border-color: var(--accent);
 }
 
-.unity-toggle.field__control:hover:focus
+.unity-toggle.toggle:hover:focus
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -358,7 +368,7 @@
    DISABLED
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:disabled
+.unity-toggle.toggle:disabled
 > .unity-toggle__input {
     background-image: none;
     background-color: var(--transparent);
@@ -370,7 +380,7 @@
     opacity: 0.55;
 }
 
-.unity-toggle.field__control:disabled
+.unity-toggle.toggle:disabled
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
@@ -382,7 +392,7 @@
    CHECKED + DISABLED
    -------------------------------------------------------------------------- */
 
-.unity-toggle.field__control:checked:disabled
+.unity-toggle.toggle:checked:disabled
 > .unity-toggle__input {
     background-image: none;
     background-color: var(--transparent);
@@ -394,7 +404,7 @@
     opacity: 0.55;
 }
 
-.unity-toggle.field__control:checked:disabled
+.unity-toggle.toggle:checked:disabled
 > .unity-toggle__input
 > .unity-toggle__checkmark {
     background-image: none;
