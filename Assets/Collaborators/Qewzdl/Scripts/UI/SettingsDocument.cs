@@ -56,6 +56,9 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         DisplayConfirmation
     }
 
+    // Both are what the key does, in the order a player thinks of them.
+    private static readonly string[] CrouchModeNames = { "Toggle", "Hold" };
+
     private string selectedTab = "Graphics";
     private PendingQuestion question;
     private Button applyButton;
@@ -456,6 +459,41 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     {
         BindSlider(root, "MouseSensitivity", value => session.Draft.mouseSensitivity = value, FormatWhole);
         BindToggle(root, "InvertVerticalLook", value => session.Draft.invertVerticalLook = value);
+
+        // A list rather than a tick box called "hold to crouch". Both options
+        // are things the key does, and a tick box makes one of them the absence
+        // of the other - which is fine to write and horrible to read when the
+        // question is what happens when I press this.
+        DropdownField crouch = root.Q<DropdownField>("CrouchMode");
+
+        if (crouch == null)
+            return;
+
+        crouch.choices = new List<string>(CrouchModeNames);
+        crouch.RegisterValueChangedCallback(evt =>
+        {
+            int index = crouch.choices.IndexOf(evt.newValue);
+
+            if (session != null && index >= 0)
+                session.Draft.crouchIsHold = index == 1;
+
+            RefreshCrouchHint();
+            RefreshApplyButton();
+        });
+    }
+
+    private void RefreshCrouchHint()
+    {
+        Label hint = document == null
+            ? null
+            : document.rootVisualElement.Q<Label>("CrouchModeHint");
+
+        if (hint == null || session == null)
+            return;
+
+        hint.text = session.Draft.crouchIsHold
+            ? "Crouched while the key is down, standing the moment it is let go."
+            : "One press to crouch, another to stand.";
     }
 
     private void BindInterface(VisualElement root)
@@ -593,8 +631,10 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
         SetSlider(root, "UiScale", draft.uiScale, FormatPercent);
         SetDropdown(root, "TextSize", IndexLabel(GameSettingsData.TextSizeNames, draft.textSize));
+        SetDropdown(root, "CrouchMode", IndexLabel(CrouchModeNames, draft.crouchIsHold ? 1 : 0));
         SetToggle(root, "ReducedMotion", draft.reducedMotion);
 
+        RefreshCrouchHint();
         RefreshApplyButton();
     }
 

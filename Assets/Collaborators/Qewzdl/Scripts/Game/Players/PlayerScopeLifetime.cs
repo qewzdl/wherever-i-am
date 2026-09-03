@@ -15,6 +15,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     [Header("Local-only Services")]
     [SerializeField] private PlayerInputHandler inputService;
     [SerializeField] private CameraLook cameraService;
+    [SerializeField] private PlayerController movementService;
     [SerializeField] private PlayerUI presentationService;
 
     private IDisposable scopeRegistration;
@@ -78,10 +79,13 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         if (!createLocalScope)
             return;
 
-        // The camera is the only thing on a player that wants settings, and
-        // this class already holds it. Searching the object for whoever might
-        // implement an interface was never anything but a way of not saying so.
+        // The camera and the movement are the two things on a player that want
+        // settings - one for how far it sees and how fast it turns, the other
+        // for whether crouch is held or flipped - and this class already holds
+        // both. Searching the object for whoever might implement an interface
+        // was never anything but a way of not saying so.
         cameraService.Construct(settingsService);
+        movementService.Construct(settingsService);
     }
 
     public override void OnNetworkDespawn()
@@ -99,6 +103,9 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     {
         if (cameraService != null)
             cameraService.ReleaseSettingsService();
+
+        if (movementService != null)
+            movementService.ReleaseSettingsService();
 
         IDisposable registration = scopeRegistration;
         scopeRegistration = null;
@@ -118,6 +125,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         {
             valid &= ValidateReference(inputService, nameof(inputService));
             valid &= ValidateReference(cameraService, nameof(cameraService));
+            valid &= ValidateReference(movementService, nameof(movementService));
             valid &= ValidateReference(presentationService, nameof(presentationService));
         }
 
@@ -143,6 +151,9 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 
         if (cameraService == null)
             cameraService = GetComponentInChildren<CameraLook>(true);
+
+        if (movementService == null)
+            movementService = GetComponent<PlayerController>();
 
         if (presentationService == null)
             presentationService = GetComponent<PlayerUI>();

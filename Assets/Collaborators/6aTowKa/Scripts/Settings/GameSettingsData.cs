@@ -52,6 +52,10 @@ public sealed class GameSettingsData
     public float mouseSensitivity = 100f;
     public bool invertVerticalLook;
 
+    // Приседание удержанием вместо переключателя. По умолчанию переключатель -
+    // так игра вела себя до появления этой настройки.
+    public bool crouchIsHold;
+
     public float fieldOfView = 75f;
     public bool cameraSmoothing;
     public float cameraSmoothingIntensity = 0.35f;

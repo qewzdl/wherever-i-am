@@ -78,6 +78,11 @@
                     <ui:Label text="Invert vertical look" class="field__label" />
                     <ui:Toggle name="InvertVerticalLook" class="toggle field__control" />
                 </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Crouch" class="field__label" />
+                    <ui:DropdownField name="CrouchMode" class="field__control" />
+                </ui:VisualElement>
+                <ui:Label name="CrouchModeHint" class="hint hint--field" />
             </ui:VisualElement>
             <ui:VisualElement name="InterfacePage" class="page">
                 <ui:VisualElement class="field">

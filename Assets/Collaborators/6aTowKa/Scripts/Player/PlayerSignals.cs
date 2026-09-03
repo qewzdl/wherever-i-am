@@ -6,7 +6,10 @@ public class PlayerSignals
     public readonly List<object> SignalsList = new List<object>();
 
     public readonly PlayerSignal<Vector2> MoveSignal;
-    public readonly PlayerSignal CrouchInputSignal;
+    // Carries whether the crouch key is down, rather than that it was touched.
+    // Which of those a press means - flip the stance, or hold it - is a setting
+    // now, and only the thing that owns the stance can answer it.
+    public readonly PlayerSignal<bool> CrouchInputSignal;
     public readonly PlayerSignal<bool> CrouchUpdateSignal;
     public readonly PlayerSignal<bool> CrouchSyncSignal;
     public readonly PlayerSignal<Sprite> CrosshairSpriteSignal;

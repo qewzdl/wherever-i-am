@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
-public class PlayerController : PlayerComponent, IPlayerSignalListener
+public class PlayerController : PlayerComponent, IPlayerSignalListener, ISettingsServiceConsumer
 {
     [Header("Movement")]
     [SerializeField, Min(0f)] private float speed = 5f;
@@ -31,6 +31,9 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
 
     private Vector2 direction;
     private bool isCrouching;
+    private bool crouchIsHold;
+    private bool wantsToStand;
+    private ISettingsService settingsService;
     private bool hasLocalControl;
     private bool listensToCrouchSync;
     private readonly HashSet<object> movementBlockers = new();
@@ -94,6 +97,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
     {
         bool isGrounded = IsGrounded();
 
+        UpdatePendingStand();
         CacheDraggedItemConstraints();
         Move(isGrounded);
         ApplyExtraGravity(isGrounded);
@@ -432,17 +436,115 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener
             : Vector2.ClampMagnitude(value, 1f);
     }
 
-    public void UpdateIsCrouching()
+    // Hold and toggle are the same two rules read in a different order.
+    //
+    // Toggle only has an opinion about the key going down: a press asks for the
+    // other stance. Hold has one about both edges: down is crouched, up is
+    // standing, and there is nothing to remember between them.
+    //
+    // Standing is the half that can be refused - there may be a ceiling - so it
+    // goes through the same clearance check either way. A hold that is let go
+    // under a table leaves the player crouched, which is the truth, and the
+    // stance comes back the moment they walk out from under it.
+    public void UpdateIsCrouching(bool isCrouchKeyDown)
     {
         if (movementBlockers.Count > 0)
             return;
 
-        bool nextIsCrouching = !isCrouching;
-
-        if (!nextIsCrouching && !CanStandUp())
+        if (!NextCrouchState(crouchIsHold, isCrouchKeyDown, isCrouching, out bool nextIsCrouching))
             return;
 
+        if (!nextIsCrouching && !CanStandUp())
+        {
+            // Only a hold keeps asking. A toggle that could not stand has been
+            // answered - the player presses again when they have room.
+            wantsToStand = crouchIsHold;
+            return;
+        }
+
+        wantsToStand = false;
         SetCrouchState(nextIsCrouching, true);
+    }
+
+    // The decision on its own, with no body attached to it and nothing it can
+    // refuse - whether the stance is possible is the caller's question, and this
+    // one is only what the player asked for. Both modes read off the same two
+    // facts, which is the whole reason it fits in one function.
+    //
+    // False means the key said nothing: a toggle hearing a release, or either
+    // mode being asked for the stance it is already in.
+    public static bool NextCrouchState(
+        bool isHold,
+        bool isKeyDown,
+        bool isCrouching,
+        out bool nextIsCrouching)
+    {
+        nextIsCrouching = isHold
+            ? isKeyDown
+            : isKeyDown && !isCrouching;
+
+        if (!isHold && !isKeyDown)
+            return false;
+
+        return nextIsCrouching != isCrouching;
+    }
+
+    // Handed over when the local player's scope opens, the same way the camera
+    // gets it. Only the local player's stance is decided here - everybody
+    // else's arrives over the network already decided - so a remote copy of a
+    // player never asks for this and is never given it.
+    public void Construct(ISettingsService settings)
+    {
+        if (settings == null)
+            throw new System.ArgumentNullException(nameof(settings));
+
+        if (ReferenceEquals(settingsService, settings))
+            return;
+
+        ReleaseSettingsService();
+        settingsService = settings;
+        settingsService.SettingsChanged += ApplySettings;
+        ApplySettings();
+    }
+
+    public void ReleaseSettingsService()
+    {
+        if (settingsService == null)
+            return;
+
+        settingsService.SettingsChanged -= ApplySettings;
+        settingsService = null;
+    }
+
+    // Switching to hold while crouched leaves the stance where it is: the next
+    // press is what decides, and standing somebody up because they opened a
+    // settings screen is not what the setting says.
+    private void ApplySettings()
+    {
+        if (settingsService != null)
+            crouchIsHold = settingsService.Current.crouchIsHold;
+    }
+
+    // A hold let go under a table cannot stand up yet, and the key will not be
+    // released a second time to ask again. So the wish is remembered and tried
+    // once a tick until the ceiling is gone - which, from the player's side, is
+    // standing up the moment they walk out from under it.
+    private void UpdatePendingStand()
+    {
+        if (!wantsToStand)
+            return;
+
+        if (!crouchIsHold || !isCrouching)
+        {
+            wantsToStand = false;
+            return;
+        }
+
+        if (movementBlockers.Count > 0 || !CanStandUp())
+            return;
+
+        wantsToStand = false;
+        SetCrouchState(false, true);
     }
 
     private void SyncCrouchState(bool value)
