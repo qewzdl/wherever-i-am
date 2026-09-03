@@ -13,7 +13,21 @@
                 </ui:VisualElement>
                 <ui:VisualElement name="Roster" class="roster" />
             </ui:ScrollView>
-            <ui:VisualElement class="stack rail__gap enter enter--3">
+            <ui:VisualElement name="Door" class="door rail__gap enter enter--3">
+                <ui:VisualElement class="door__state">
+                    <ui:Label name="DoorStatus" class="door__status" />
+                    <ui:Toggle name="Visibility" class="toggle door__switch" />
+                </ui:VisualElement>
+                <ui:VisualElement name="AddressField" class="door__address">
+                    <ui:DropdownField name="AddressPick" class="field__control door__pick" />
+                    <ui:Button name="CopyAddressButton" tooltip="Copy invite address" class="button field__control address-copy">
+                        <ui:Label name="Address" class="field__control--code address-copy__value" />
+                        <ui:Image name="AddressCopyIcon" class="address-copy__icon" />
+                    </ui:Button>
+                </ui:VisualElement>
+                <ui:Label name="DoorHint" class="hint" />
+            </ui:VisualElement>
+            <ui:VisualElement class="stack enter enter--4">
                 <ui:Label name="StartHint" class="hint" />
                 <ui:Button text="Start" name="StartButton" class="button button--confirm" />
                 <ui:Button text="Ready" name="ReadyButton" class="button" />
@@ -30,18 +44,6 @@
                 </ui:VisualElement>
                 <ui:Label name="DifficultyDescription" class="hint hint--field" />
                 <ui:Label name="DifficultyOwnerNote" class="hint hint--field" />
-                <ui:VisualElement name="AddressField" class="field">
-                    <ui:Label text="Invite address" class="field__label" />
-                    <ui:Button name="CopyAddressButton" tooltip="Copy invite address" class="button field__control address-copy">
-                        <ui:Label name="Address" class="field__control--code address-copy__value" />
-                        <ui:Image name="AddressCopyIcon" class="address-copy__icon" />
-                    </ui:Button>
-                </ui:VisualElement>
-                <ui:VisualElement class="field">
-                    <ui:Label text="Allow joins" class="field__label" />
-                    <ui:Toggle name="Visibility" class="toggle field__control" />
-                </ui:VisualElement>
-                <ui:Label name="DoorHint" class="hint hint--field" />
                 <ui:VisualElement class="footer">
                     <ui:Button text="Done" name="RoomSettingsCloseButton" class="button button--cancel" />
                 </ui:VisualElement>

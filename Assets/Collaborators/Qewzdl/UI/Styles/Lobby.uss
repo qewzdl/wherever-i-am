@@ -483,3 +483,94 @@
        stays dark, so a tint readable at rest is readable pressed. */
     --unity-image-tint-color: var(--text);
 }
+
+
+/* ==========================================================================
+   THE DOOR
+
+   Whether anybody can get in, what to send them so they can, and which of a
+   machine's networks that address is on. All three in the column, above the
+   actions, where a host looks anyway.
+
+   They were behind Room settings, which is where the first run of this game
+   goes wrong: a lobby is created shut on purpose so the room can be set up
+   before anybody walks into it, and nothing on screen said so. A host sent
+   their friend four numbers and the two of them sat there - one of them
+   watching a lobby that was never going to admit anybody, the other watching a
+   connection time out. Two walls, both invisible, and the second only turns up
+   after the first has been guessed past.
+
+   A setting is something you go and change. This is the state of the room, and
+   the state of the room belongs on the wall of it.
+   ========================================================================== */
+
+.door {
+    flex-shrink: 0;
+
+    margin-bottom: var(--space-m);
+}
+
+
+.door__state {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+
+/* Said in words, and it is the loudest text in the column after the title -
+   the tick box beside it is the control, not the answer. A player should be
+   able to tell an open lobby from a shut one across the room. */
+
+.door__status {
+    color: var(--text-dim);
+    font-size: var(--font-size-m);
+
+    letter-spacing: var(--tracking-wide);
+}
+
+
+/* Open is the state worth colouring, because open is the state with a
+   consequence: strangers on the same network can walk in. */
+
+.door__status--open {
+    color: var(--accent);
+}
+
+
+/* Out of the control column. A toggle in a form is one of a stack of them and
+   lines up with its siblings; this one is the right-hand end of a sentence. */
+
+.door__switch {
+    width: auto;
+
+    flex-shrink: 0;
+
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: var(--space-m);
+    margin-right: 0;
+}
+
+
+.door__address {
+    margin-top: var(--space-s);
+}
+
+
+/* The picker sits above the address rather than beside it. A rail is 460
+   logical pixels wide and an adapter is called things like "Radmin VPN" or
+   "Ethernet 2" next to an address set in a fixed-width face with the digits
+   spaced apart - side by side, both are cut off, and the whole point of this
+   control is reading the two together.
+
+   Hidden outright when a machine has one address, which is most of them.
+   Choosing between one thing is a question that should not have been asked. */
+
+.door__pick {
+    width: auto;
+
+    flex-grow: 1;
+
+    margin-bottom: var(--space-xs);
+}

@@ -21,6 +21,7 @@ public class LobbyUI : MonoBehaviour
     private const string OpenClass = "screen--open";
     private const string OverlayOpenClass = "overlay--open";
     private const string ReadyCompleteClass = "roster__ready-count--complete";
+    private const string DoorOpenClass = "door__status--open";
 
     [Header("References")]
     [SerializeField] private UIDocument document;
@@ -43,10 +44,17 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string waitingForReadyFormat = "Waiting for {0} to get ready";
     [SerializeField] private string startingText = "Starting the match...";
     [SerializeField] private string ownerOnlySettingText = "Only the host can change this";
+    // The status line is the state; the hint is what to do about it. They are
+    // two lines because the first is read at a glance from across the room and
+    // the second is read once, by the host, while they work out what to send.
+    [SerializeField] private string doorShutStatusText = "Lobby closed";
+    [SerializeField] private string doorOpenStatusText = "Lobby open";
     [SerializeField] private string doorShutText =
-        "Shut. Nobody can reach this lobby until you open it.";
+        "Nobody can reach this lobby until you open it.";
     [SerializeField] private string doorOpenFormat =
-        "Open. Share {0}. Use the copy button above.";
+        "Anybody who has {0} can join.";
+    [SerializeField] private string doorOpenNoAddressText =
+        "Open, but this machine has no network address to hand out.";
     [SerializeField] private string doorNotYoursText = "Only the host can open the door.";
     [SerializeField] private string addressUnknownText = "no network";
     [SerializeField] private string addressCopyTooltip = "Copy invite address";
@@ -108,6 +116,7 @@ public class LobbyUI : MonoBehaviour
     private Label difficultyDescriptionLabel;
     private Label difficultyOwnerNoteLabel;
     private Label doorHintLabel;
+    private Label doorStatusLabel;
     private Label addressLabel;
     private Image addressCopyIcon;
 
@@ -119,6 +128,7 @@ public class LobbyUI : MonoBehaviour
     private Label matchTransitionDetailLabel;
     private Label matchTransitionElapsedLabel;
     private DropdownField difficultyField;
+    private DropdownField addressPickField;
     private Toggle visibilityToggle;
     private Button readyButton;
     private Button startButton;
@@ -136,6 +146,8 @@ public class LobbyUI : MonoBehaviour
     private int shownTransitionSeconds = -1;
     private bool isAddressCopyFeedbackVisible;
     private int addressCopyFeedbackVersion;
+    private IReadOnlyList<LanAddressProvider.Option> addressOptions =
+        Array.Empty<LanAddressProvider.Option>();
 
     // Two things on this screen are worth asking about twice, and they are the
     // two that cannot be taken back: removing somebody for the rest of the
@@ -309,6 +321,7 @@ public class LobbyUI : MonoBehaviour
         difficultyDescriptionLabel = root.Q<Label>("DifficultyDescription");
         difficultyOwnerNoteLabel = root.Q<Label>("DifficultyOwnerNote");
         doorHintLabel = root.Q<Label>("DoorHint");
+        doorStatusLabel = root.Q<Label>("DoorStatus");
         addressLabel = root.Q<Label>("Address");
         addressButton = root.Q<Button>("CopyAddressButton");
         addressCopyIcon = root.Q<Image>("AddressCopyIcon");
@@ -320,6 +333,7 @@ public class LobbyUI : MonoBehaviour
         matchTransitionDetailLabel = root.Q<Label>("MatchTransitionDetail");
         matchTransitionElapsedLabel = root.Q<Label>("MatchTransitionElapsed");
         difficultyField = root.Q<DropdownField>("Difficulty");
+        addressPickField = root.Q<DropdownField>("AddressPick");
         visibilityToggle = root.Q<Toggle>("Visibility");
         readyButton = root.Q<Button>("ReadyButton");
         startButton = root.Q<Button>("StartButton");
@@ -346,6 +360,7 @@ public class LobbyUI : MonoBehaviour
         roomSettingsPanel?.RegisterCallback<ClickEvent>(HandleRoomSettingsBackdropClicked);
 
         PopulateDifficultyChoices();
+        PopulateAddressChoices();
         Subscribe();
         CancelPendingAction();
         SetRoomSettingsOpen(false, restoreFocus: false);
@@ -386,6 +401,9 @@ public class LobbyUI : MonoBehaviour
         if (difficultyField != null)
             difficultyField.RegisterValueChangedCallback(HandleDifficultyChanged);
 
+        if (addressPickField != null)
+            addressPickField.RegisterValueChangedCallback(HandleAddressPicked);
+
         if (roomSettingsButton != null)
             roomSettingsButton.clicked += OpenRoomSettings;
 
@@ -421,6 +439,9 @@ public class LobbyUI : MonoBehaviour
 
         if (difficultyField != null)
             difficultyField.UnregisterValueChangedCallback(HandleDifficultyChanged);
+
+        if (addressPickField != null)
+            addressPickField.UnregisterValueChangedCallback(HandleAddressPicked);
 
         if (roomSettingsButton != null)
             roomSettingsButton.clicked -= OpenRoomSettings;
@@ -471,12 +492,66 @@ public class LobbyUI : MonoBehaviour
             focusTarget);
     }
 
+    // Every address the machine has, best first, with the network each one is
+    // on written beside it - "LAN - Ethernet", "VPN - Radmin VPN". A machine
+    // with a VPN client installed has two addresses that both look like an
+    // address and reach different people, and which one is wanted is a
+    // question only the host can answer.
+    //
+    // The picker only appears when there is a choice to make: on a machine
+    // with one address it would be a control whose every state is the same. It
+    // carries no label of its own - every dropdown in this game is named by a
+    // Label beside it, and the entries here say what they are.
+    private void PopulateAddressChoices()
+    {
+        addressOptions = LanAddressProvider.GetAll();
+
+        if (addressPickField == null)
+            return;
+
+        List<string> labels = new List<string>(addressOptions.Count);
+
+        foreach (LanAddressProvider.Option option in addressOptions)
+            labels.Add(option.Label);
+
+        addressPickField.choices = labels;
+        addressPickField.SetValueWithoutNotify(labels.Count > 0 ? labels[0] : string.Empty);
+
+        addressPickField.style.display = labels.Count > 1
+            ? DisplayStyle.Flex
+            : DisplayStyle.None;
+    }
+
+    // What the copy button copies and what the hint reads out: whichever
+    // network the host chose, or the best guess if they never had to choose.
+    private string SelectedAddress()
+    {
+        int index = addressPickField == null ? 0 : addressPickField.index;
+
+        return index >= 0 && index < addressOptions.Count
+            ? addressOptions[index].Address
+            : LanAddressProvider.Get();
+    }
+
+    private void HandleAddressPicked(ChangeEvent<string> evt)
+    {
+        // A copy confirmation belongs to the address that was copied. Picking
+        // another one makes it a lie.
+        isAddressCopyFeedbackVisible = false;
+        addressCopyFeedbackVersion++;
+
+        // The address on its own, then the sentence around it. The first works
+        // before a lobby exists, which is the state this screen briefly has.
+        RefreshAddressText();
+        Refresh();
+    }
+
     // The address is meant to be handed to somebody, and reading four numbers
     // and three dots down a voice call is the worst way to do that. One click
     // puts it where a message can be pasted from.
     private void CopyAddress()
     {
-        string address = LanAddressProvider.Get();
+        string address = SelectedAddress();
 
         if (string.IsNullOrEmpty(address))
             return;
@@ -500,7 +575,7 @@ public class LobbyUI : MonoBehaviour
 
     private void RefreshAddressText()
     {
-        string address = LanAddressProvider.Get();
+        string address = SelectedAddress();
         bool hasAddress = !string.IsNullOrEmpty(address);
 
         if (!hasAddress)
@@ -895,14 +970,18 @@ public class LobbyUI : MonoBehaviour
         CancelPendingAction();
     }
 
-    // The room's three settings, a click away instead of down the column.
+    // What is left of the room's settings, a click away instead of down the
+    // column: difficulty, and nothing else.
     //
     // The lobby has 675 logical pixels of height on a sixteen-by-nine screen -
     // the panel scales to the width of the window, so the height is whatever
-    // the aspect ratio leaves and no monitor buys more of it - and the title,
-    // the roster and the four actions spend nearly all of it. Difficulty, the
-    // invite address and the door are the part a player reads once and then
-    // stops looking at, so they are the part that moved.
+    // the aspect ratio leaves and no monitor buys more of it - so the column
+    // holds what a host looks at and this holds what they set once.
+    //
+    // The door and the invite address came back out. They read like settings
+    // and they are not: they are the state of the room, they are the first
+    // thing that goes wrong for two people trying to play, and a host cannot
+    // be expected to open a page to find out why nobody can reach them.
     private void OpenRoomSettings()
     {
         SetRoomSettingsOpen(true, restoreFocus: false);
@@ -924,7 +1003,7 @@ public class LobbyUI : MonoBehaviour
         {
             // Done takes the focus rather than the first setting. Nothing in
             // here has to be answered, and the way out is what somebody who
-            // opened it to look at the address wants next.
+            // opened it for a look wants next.
             roomSettingsCloseButton?.schedule
                 .Execute(() => roomSettingsCloseButton.Focus());
 
@@ -999,17 +1078,24 @@ public class LobbyUI : MonoBehaviour
     // both invisible and the second one only showed up after the first was
     // guessed past.
     //
-    // They are one thing on screen now: the address is only worth reading out
-    // while the door is open, and the line under the switch says which of those
-    // is true in words rather than leaving it to a tick box.
+    // They are one block on the wall of the room now rather than a page behind
+    // a button: the state in words, the switch that changes it, the address to
+    // send, and - on a machine that has more than one - which network that
+    // address is on.
     private void RefreshDoor(bool isLobbyPhaseOpen)
     {
         bool isOwner = readService.IsLocalPlayerRoomOwner;
         bool isPublic = readService.Settings.IsPublic;
 
-        // Everybody sees the state - a player whose friend cannot get in needs
-        // to know why - and only the host can move it, and only while the lobby
-        // is still a lobby.
+        // Said out loud, and read by everybody. A player whose friend cannot
+        // get in needs to know why as much as the host does.
+        if (doorStatusLabel != null)
+        {
+            doorStatusLabel.text = isPublic ? doorOpenStatusText : doorShutStatusText;
+            doorStatusLabel.EnableInClassList(DoorOpenClass, isPublic);
+        }
+
+        // Only the host can move it, and only while the lobby is still a lobby.
         if (visibilityToggle != null)
         {
             visibilityToggle.SetValueWithoutNotify(isPublic);
@@ -1021,7 +1107,7 @@ public class LobbyUI : MonoBehaviour
         if (addressField != null)
             addressField.style.display = isOwner ? DisplayStyle.Flex : DisplayStyle.None;
 
-        string address = LanAddressProvider.Get();
+        string address = SelectedAddress();
 
         RefreshAddressText();
 
@@ -1044,11 +1130,18 @@ public class LobbyUI : MonoBehaviour
             return;
         }
 
-        doorHintLabel.text = isOwner
-            ? string.Format(doorOpenFormat, string.IsNullOrEmpty(address)
-                ? addressUnknownText
-                : address)
-            : string.Empty;
+        if (!isOwner)
+        {
+            doorHintLabel.text = string.Empty;
+            return;
+        }
+
+        // An open lobby on a machine with no address is the one case where the
+        // door being open buys nothing, and the old line handed out the words
+        // "no network" as though they were something to type.
+        doorHintLabel.text = string.IsNullOrEmpty(address)
+            ? doorOpenNoAddressText
+            : string.Format(doorOpenFormat, address);
     }
 
     // The same reasons the server checks, in the same order, so the line never
