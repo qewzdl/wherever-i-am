@@ -29,17 +29,30 @@
    ========================================================================== */
 
 .button {
-    color: var(--text-dim);
+    /* Bone, the same as the frame around it. Dim was the resting step back when
+       focus and hover had to be told apart on the word alone; the frame carries
+       focus now, which leaves nothing paying for a label a shade under the
+       thing it is written on. A button that can be pressed says so at rest. */
+    color: var(--text);
     font-size: var(--font-size-m);
 
     letter-spacing: var(--tracking-wide);
 
     background-color: var(--transparent);
 
-    /* The brighter of the two rules. A hairline at --line is meant to divide
-       two things without being looked at, and the edge of a button is there to
-       be found. */
-    border-color: var(--line-strong);
+    /* Bone, and the same bone everywhere a button has a frame. It used to be
+       --line-strong, on the reasoning that the edge of a button is a line and
+       lines have a role of their own. What that missed is that ink-500 and
+       bone-400 sit within twenty of each other, so the frame and the word
+       inside it were the same brightness by accident rather than by decision,
+       and the frame read as grey against every bone thing beside it.
+
+       So the frame is drawn from the ladder the word is drawn from, one step
+       above the resting label: the button is bone at rest, dim inside a bright
+       edge, and it is that in the pause menu, in a dialog footer and in the
+       lobby alike. Lines still divide things - that is --line, and a button's
+       edge was never doing that job. */
+    border-color: var(--text);
 
     border-width: var(--border);
 
@@ -74,17 +87,21 @@
 }
 
 
-/* Under the keyboard: up out of the dim, but one step short of the pointer's
-   brightness. The two land on different buttons the moment anybody touches a
-   key, and with a single channel doing all the work they have to stay tellable
-   apart on that channel alone. */
+/* Under the keyboard: the frame brightens a step and nothing else moves. The
+   word has nowhere to go - it is bone at rest now - which is fine, because it
+   leaves focus and hover different in kind rather than in degree, the way they
+   were meant to be: the keyboard rims the box, the pointer floods it.
+
+   The rim is the accent, which is the edge the text field, the toggle and the
+   dropdown all take when they hold focus - and stating it is what keeps
+   Unity's own blue off the button, the same blue the dropdown had to be talked
+   out of. Left unsaid, the default theme paints the one colour this game does
+   not own. */
 
 .unity-button.button:focus:enabled {
-    color: var(--text);
-
     background-color: var(--transparent);
 
-    border-color: var(--text);
+    border-color: var(--accent);
 }
 
 

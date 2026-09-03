@@ -182,6 +182,13 @@
    -------------------------------------------------------------------------- */
 
 .menu .stack .button {
+    /* Dim, said here because the framed button stopped being. These are words
+       rather than boxes and the word is the only channel they have: dim at
+       rest, accent under the pointer, with confirm resting between the two. A
+       column of four entries all already bone would leave confirm nowhere to
+       stand and the pointer nothing to answer with. */
+    color: var(--text-dim);
+
     border-width: 0;
 
     padding-top: var(--space-m);
