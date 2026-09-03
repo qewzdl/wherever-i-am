@@ -9,7 +9,7 @@
                  want. Four things you do to a running match are four separate
                  decisions, so they keep the gap a button brings with it. -->
             <ui:VisualElement name="Buttons">
-                <ui:Button text="Resume" name="ResumeButton" class="button" />
+                <ui:Button text="Back to game" name="ResumeButton" class="button" />
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Main menu" name="MainMenuButton" class="button" />
                 <ui:Button text="Quit" name="QuitButton" class="button button--danger" />
