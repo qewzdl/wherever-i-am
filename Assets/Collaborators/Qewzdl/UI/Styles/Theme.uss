@@ -13,6 +13,11 @@
 
 @import url("Tokens.uss");
 
+/* Straight after the tokens, and before anything that reads one. These are the
+   player's own overrides of the type ladder and the motion durations, and a
+   rule that redefines a token has to be seen before the rules that spend it. */
+@import url("Accessibility.uss");
+
 @import url("Screen.uss");
 @import url("Panel.uss");
 @import url("Typography.uss");

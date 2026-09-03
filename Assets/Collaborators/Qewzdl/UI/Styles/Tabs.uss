@@ -9,6 +9,12 @@
 .tabs {
     flex-direction: row;
 
+    /* Onto a second line rather than off the edge. Five tabs fit across a wide
+       panel at the type size this interface is drawn at, and the player can now
+       change that type size - which is exactly the setting somebody reaches
+       this row to find. A tab they cannot see is a tab they cannot press. */
+    flex-wrap: wrap;
+
     margin-bottom: var(--space-m);
 }
 

@@ -8,6 +8,7 @@
                 <ui:Button text="Audio" name="AudioTab" class="button tab" />
                 <ui:Button text="Controls" name="ControlsTab" class="button tab" />
                 <ui:Button text="Interface" name="InterfaceTab" class="button tab" />
+                <ui:Button text="Accessibility" name="AccessibilityTab" class="button tab" />
             </ui:VisualElement>
             <ui:VisualElement name="GraphicsPage" class="page">
                 <ui:VisualElement class="field">
@@ -89,6 +90,24 @@
                     <ui:Slider name="CrosshairSize" low-value="0.5" high-value="2" class="field__control" />
                     <ui:Label name="CrosshairSizeValue" class="field__value" />
                 </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="AccessibilityPage" class="page">
+                <ui:VisualElement class="field">
+                    <ui:Label text="Interface scale" class="field__label" />
+                    <ui:Slider name="UiScale" low-value="0.75" high-value="1.5" class="field__control" />
+                    <ui:Label name="UiScaleValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:Label text="Everything on screen, together - controls as well as words." class="hint hint--field" />
+                <ui:VisualElement class="field">
+                    <ui:Label text="Text size" class="field__label" />
+                    <ui:DropdownField name="TextSize" class="field__control" />
+                </ui:VisualElement>
+                <ui:Label text="The words alone, for when the buttons are already the right size." class="hint hint--field" />
+                <ui:VisualElement class="field">
+                    <ui:Label text="Reduced motion" class="field__label" />
+                    <ui:Toggle name="ReducedMotion" class="toggle field__control" />
+                </ui:VisualElement>
+                <ui:Label text="Screens open and close without sliding, fading or growing into place." class="hint hint--field" />
             </ui:VisualElement>
             <ui:VisualElement name="Footer" class="footer">
                 <ui:Button text="Defaults" name="DefaultsButton" class="button" />

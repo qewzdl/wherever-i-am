@@ -120,6 +120,8 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
             return false;
         }
 
+        UiPreferences.Attach(root);
+
         screen = root.Q<VisualElement>("Screen");
         resumeButton = root.Q<Button>("ResumeButton");
         settingsButton = root.Q<Button>("SettingsButton");

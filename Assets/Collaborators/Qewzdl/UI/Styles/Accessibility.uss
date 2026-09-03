@@ -1,0 +1,113 @@
+/* ==========================================================================
+   ACCESSIBILITY
+
+   Three preferences that change how the whole interface behaves rather than
+   how one control looks, so they are written as classes on the root of a
+   document instead of on any element in it.
+
+   Two of them are here and not in code because they have to be: font sizes
+   and transition durations are tokens, a token is a custom property, and the
+   only way to give a custom property a different value for part of the tree
+   is a rule. There is no C# for it.
+
+   The third - the scale of the interface as a whole - is not here, because it
+   is not a style. It is the panel's reference resolution, and it lives in
+   UiPreferences.cs beside the other two so that all three are applied in one
+   place and nobody has to find out the hard way that two of them are.
+   ========================================================================== */
+
+/* ==========================================================================
+   TEXT SIZE
+
+   The type ladder, four times over. Independent of the interface scale on
+   purpose: those are two different complaints. "The buttons are too small to
+   hit" is answered by scaling everything; "I cannot read that" is answered
+   here, and answering it by scaling everything spends screen the game needs.
+
+   The steps are the ladder multiplied and rounded, not a free scale factor.
+   A font size that lands on a fraction of a pixel is a font size that renders
+   soft, and the whole ladder has to stay in proportion to itself - which is
+   what a table of values guarantees and a multiplier does not.
+
+   Normal has no class. It is the ladder as Tokens.uss declares it, and a rule
+   that restates every value it inherits is a second copy to keep in step.
+   ========================================================================== */
+
+.text--small {
+    --font-size-xs: 12px;
+    --font-size-s: 14px;
+    --font-size-m: 17px;
+    --font-size-l: 29px;
+    --font-size-xl: 48px;
+}
+
+
+.text--large {
+    --font-size-xs: 15px;
+    --font-size-s: 19px;
+    --font-size-m: 23px;
+    --font-size-l: 39px;
+    --font-size-xl: 64px;
+}
+
+
+.text--largest {
+    --font-size-xs: 17px;
+    --font-size-s: 22px;
+    --font-size-m: 27px;
+    --font-size-l: 44px;
+    --font-size-xl: 72px;
+}
+
+
+/* ==========================================================================
+   REDUCED MOTION
+
+   Everything in this interface arrives rather than appears: a screen fades, a
+   column slides in from its edge, a panel rises while it grows. That reads as
+   a place being opened, and for a player who gets motion sick or who simply
+   cannot follow a moving target it reads as the interface being unusable.
+
+   Nothing is removed - every screen still opens, closes and answers the
+   pointer, and every end state is the state it already had. What goes is the
+   time in between, which is the part that moves.
+
+   Said as durations rather than by turning transitions off. A transition
+   with no properties still has to be written per rule; a duration of zero is
+   one line that catches every rule in the theme, including the ones written
+   after this file.
+   ========================================================================== */
+
+.motion--reduced {
+    --motion-fast: 0s;
+    --motion-normal: 0s;
+    --motion-screen: 0s;
+}
+
+
+/* The entrance offsets, which are not durations and so survive a zeroed
+   transition: a panel that starts at 0.97 and never animates would simply sit
+   there slightly small and slightly low. Everything begins where it ends. */
+
+.motion--reduced .panel,
+.motion--reduced .overlay .panel {
+    scale: 1 1;
+    translate: 0 0;
+}
+
+
+.motion--reduced .enter {
+    translate: 0 0;
+
+    opacity: 1;
+}
+
+
+/* Staggered arrival is nothing but delay, and delay is the thing being asked
+   for less of. */
+
+.motion--reduced .enter--2,
+.motion--reduced .enter--3,
+.motion--reduced .enter--4 {
+    transition-delay: 0s;
+}

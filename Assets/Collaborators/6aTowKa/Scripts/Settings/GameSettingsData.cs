@@ -4,7 +4,7 @@ using UnityEngine;
 [Serializable]
 public sealed class GameSettingsData
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>Единственный источник правды для слайдера и камеры.</summary>
     public const float MinMouseSensitivity = 10f;
@@ -12,6 +12,17 @@ public sealed class GameSettingsData
 
     /// <summary>Допустимые значения лимита кадров в порядке отображения; -1 — без лимита.</summary>
     public static readonly int[] FrameRateLimits = { 30, 60, 90, 120, 144, 165, 240, -1 };
+
+    /// <summary>Границы масштаба интерфейса; 1 — размер, под который он нарисован.</summary>
+    public const float MinUiScale = 0.75f;
+    public const float MaxUiScale = 1.5f;
+
+    /// <summary>
+    /// Шаги размера текста, в порядке отображения. Ступени, а не ползунок: размер
+    /// шрифта задан токенами в USS, и класс на корне документа может переопределить
+    /// их только заранее известным набором значений.
+    /// </summary>
+    public static readonly string[] TextSizeNames = { "Small", "Normal", "Large", "Largest" };
 
     public int version = CurrentVersion;
 
@@ -28,6 +39,15 @@ public sealed class GameSettingsData
     public float interfaceVolume = 1f;
     public float interfaceOpacity = 1f;
     public float crosshairSize = 1f;
+
+    // Доступность. Масштаб интерфейса и размер текста разведены: первый растит
+    // весь экран разом, второй - только буквы, для тех, кому мешает размер
+    // шрифта, а не размер кнопок.
+    public float uiScale = 1f;
+    public int textSize = 1;
+
+    // Меньше движения: интерфейс перестаёт ездить и растворяться.
+    public bool reducedMotion;
 
     public float mouseSensitivity = 100f;
     public bool invertVerticalLook;
@@ -136,6 +156,9 @@ public sealed class GameSettingsData
         interfaceVolume = Mathf.Clamp01(interfaceVolume);
         interfaceOpacity = Mathf.Clamp01(interfaceOpacity);
         crosshairSize = Mathf.Clamp(crosshairSize, 0.5f, 2f);
+
+        uiScale = Mathf.Clamp(uiScale, MinUiScale, MaxUiScale);
+        textSize = Mathf.Clamp(textSize, 0, TextSizeNames.Length - 1);
 
         mouseSensitivity = Mathf.Clamp(mouseSensitivity, MinMouseSensitivity, MaxMouseSensitivity);
         fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);

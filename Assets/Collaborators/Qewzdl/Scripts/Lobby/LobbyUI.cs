@@ -310,6 +310,11 @@ public class LobbyUI : MonoBehaviour
             return screen != null;
 
         boundRoot = root;
+
+        // Whatever the player set for the interface as a whole - its scale, its
+        // text size, whether it moves - applies to this tree too, and applies
+        // now rather than the next time they open the settings screen.
+        UiPreferences.Attach(root);
         screen = root.Q<VisualElement>("Screen");
         panel = root.Q<VisualElement>("Panel");
         roster = root.Q<VisualElement>("Roster");

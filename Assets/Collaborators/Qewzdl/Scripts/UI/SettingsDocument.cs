@@ -109,13 +109,35 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
         ReleaseSettingsService();
         settingsService = settings;
+        settingsService.SettingsChanged += ApplyInterfacePreferences;
         HideUntilOpened();
+        ApplyInterfacePreferences();
     }
 
     public void ReleaseSettingsService()
     {
         CancelSession();
+
+        if (settingsService != null)
+            settingsService.SettingsChanged -= ApplyInterfacePreferences;
+
         settingsService = null;
+    }
+
+    // Scale, text size and reduced motion, pushed out to every open document.
+    //
+    // Done from here rather than from each screen because this is the screen
+    // that changes them and the only one that is always alive - it is
+    // DontDestroyOnLoad, so it survives the scene changes the others do not.
+    // The panel is the one asset all of them share, so its scale is set once.
+    private void ApplyInterfacePreferences()
+    {
+        if (settingsService == null)
+            return;
+
+        UiPreferences.Apply(
+            document != null ? document.panelSettings : null,
+            settingsService.Current);
     }
 
     private void OnDestroy()
@@ -123,6 +145,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
         ReleaseSettingsService();
+        UiPreferences.Restore();
     }
 
     // Answered the way the right button answers it: leave things alone. On the
@@ -270,6 +293,11 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
             return screen != null;
 
         boundRoot = root;
+
+        // Whatever the player set for the interface as a whole - its scale, its
+        // text size, whether it moves - applies to this tree too, and applies
+        // now rather than the next time they open the settings screen.
+        UiPreferences.Attach(root);
         screen = root.Q<VisualElement>("Screen");
         confirmPanel = root.Q<VisualElement>("ConfirmPanel");
         confirmText = root.Q<Label>("ConfirmText");
@@ -285,6 +313,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         BindAudio(root);
         BindControls(root);
         BindInterface(root);
+        BindAccessibility(root);
         BindFooter(root);
         return true;
     }
@@ -298,6 +327,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         AddTab(root, "Audio");
         AddTab(root, "Controls");
         AddTab(root, "Interface");
+        AddTab(root, "Accessibility");
     }
 
     private void AddTab(VisualElement root, string id)
@@ -434,6 +464,33 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         BindSlider(root, "CrosshairSize", value => session.Draft.crosshairSize = value, FormatPercent);
     }
 
+    // Two ways to make things bigger, and they are two questions rather than
+    // one setting with a slider. Scaling the interface answers "I cannot hit
+    // that"; text size answers "I cannot read that", and answering the second
+    // with the first spends screen the game is using for the game.
+    private void BindAccessibility(VisualElement root)
+    {
+        BindSlider(root, "UiScale", value => session.Draft.uiScale = value, FormatPercent);
+
+        DropdownField textSize = root.Q<DropdownField>("TextSize");
+
+        if (textSize != null)
+        {
+            textSize.choices = new List<string>(GameSettingsData.TextSizeNames);
+            textSize.RegisterValueChangedCallback(evt =>
+            {
+                int index = textSize.choices.IndexOf(evt.newValue);
+
+                if (session != null && index >= 0)
+                    session.Draft.textSize = index;
+
+                RefreshApplyButton();
+            });
+        }
+
+        BindToggle(root, "ReducedMotion", value => session.Draft.reducedMotion = value);
+    }
+
     private void BindFooter(VisualElement root)
     {
         Button apply = root.Q<Button>("ApplyButton");
@@ -533,6 +590,11 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         SetSlider(root, "MouseSensitivity", draft.mouseSensitivity, FormatWhole);
         SetSlider(root, "InterfaceOpacity", draft.interfaceOpacity, FormatPercent);
         SetSlider(root, "CrosshairSize", draft.crosshairSize, FormatPercent);
+
+        SetSlider(root, "UiScale", draft.uiScale, FormatPercent);
+        SetDropdown(root, "TextSize", IndexLabel(GameSettingsData.TextSizeNames, draft.textSize));
+        SetToggle(root, "ReducedMotion", draft.reducedMotion);
+
         RefreshApplyButton();
     }
 
