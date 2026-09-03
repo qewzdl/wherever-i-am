@@ -3,7 +3,11 @@
     <ui:VisualElement name="Screen" class="screen">
         <ui:VisualElement name="Panel" class="panel panel--narrow">
             <ui:Label text="Paused" name="Title" class="title" />
-            <ui:VisualElement name="Buttons" class="stack">
+            <!-- Not a .stack. That class exists to make four entries touch and
+                 read as one list, which is what the main menu and the lobby rail
+                 want. Four things you do to a paused game are four separate
+                 decisions, so they keep the gap a button brings with it. -->
+            <ui:VisualElement name="Buttons">
                 <ui:Button text="Resume" name="ResumeButton" class="button" />
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Main menu" name="MainMenuButton" class="button" />
