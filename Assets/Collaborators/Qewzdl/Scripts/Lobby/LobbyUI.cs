@@ -21,6 +21,7 @@ public class LobbyUI : MonoBehaviour
     private const string OpenClass = "screen--open";
     private const string OverlayOpenClass = "overlay--open";
     private const string ReadyCompleteClass = "roster__ready-count--complete";
+    private const string ConfirmToneClass = "button--confirm";
     private const string DoorOpenClass = "door__status--open";
 
     [Header("References")]
@@ -41,7 +42,14 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string kickConfirmFormat =
         "Remove {0}? They will not be able to join again this session.";
     [SerializeField] private string needMorePlayersFormat = "Need {0} more to start";
-    [SerializeField] private string waitingForReadyFormat = "Waiting for {0} to get ready";
+
+    // Who the room is waiting for, said to the person reading it. "Waiting for
+    // 1 to get ready" was true for everybody and about nobody: the player
+    // holding the room up read it as somebody else's problem, and the four
+    // people who were ready had no idea which of them was being counted.
+    [SerializeField] private string readyUpPromptText = "Ready up when you're prepared";
+    [SerializeField] private string waitingForPlayerFormat = "Waiting for {0}";
+    [SerializeField] private string waitingForPlayersFormat = "Waiting for {0} players";
     [SerializeField] private string startingText = "Starting the match...";
     [SerializeField] private string ownerOnlySettingText = "Only the host can change this";
 
@@ -84,7 +92,7 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string addressCopiedText = "Address copied";
     [SerializeField] private string doorFullFormat =
         "Open, but the room is full at {0}. Nobody else can get in.";
-    [SerializeField] private string readyToStartText = "Everybody is ready";
+    [SerializeField] private string readyToStartText = "Everyone is ready - start the match";
     [SerializeField] private string waitingForHostText = "Waiting for the host to start";
 
     [Header("Match transition")]
@@ -1236,15 +1244,29 @@ public class LobbyUI : MonoBehaviour
             startButton.SetEnabled(isLobbyPhaseOpen && readService.CanStartGame);
         }
 
+        bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
+        bool isLocalPlayerReady = hasLocalPlayer && localPlayer.IsReady;
+
         if (readyButton != null)
         {
-            bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
-
             readyButton.SetEnabled(isLobbyPhaseOpen && hasLocalPlayer);
-            readyButton.text = hasLocalPlayer && localPlayer.IsReady
+            readyButton.text = isLocalPlayerReady
                 ? standDownActionText
                 : readyActionText;
         }
+
+        // The lit entry is the thing to do next, and for a host that is two
+        // different things in turn. Start was lit from the moment the lobby
+        // opened, which put the brightest word in the column on a button the
+        // host could not press yet and left the one they could - their own
+        // Ready - reading as an afterthought.
+        //
+        // So it moves: Ready while they have not answered for themselves,
+        // Start once they have. Everybody else has no Start button at all, and
+        // for them the column simply goes quiet once they are ready, which is
+        // true - what happens next is not theirs to do.
+        readyButton?.EnableInClassList(ConfirmToneClass, !isLocalPlayerReady);
+        startButton?.EnableInClassList(ConfirmToneClass, isLocalPlayerReady);
 
         if (leaveButton != null)
         {
@@ -1338,36 +1360,109 @@ public class LobbyUI : MonoBehaviour
         if (startHintLabel == null)
             return;
 
-        if (!isLobbyPhaseOpen)
-        {
-            startHintLabel.text = startingText;
-            return;
-        }
-
         LobbySettingsData settings = readService.Settings;
-        int missingPlayers = settings.MinPlayersToStart - readService.PlayerCount;
+        bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
 
+        StartHint hint = ChooseStartHint(
+            isLobbyPhaseOpen: isLobbyPhaseOpen,
+            missingPlayers: settings.MinPlayersToStart - readService.PlayerCount,
+            notReadyCount: settings.RequireAllPlayersReady ? CountNotReady() : 0,
+            isLocalPlayerReady: !hasLocalPlayer || localPlayer.IsReady,
+            isLocalPlayerRoomOwner: readService.IsLocalPlayerRoomOwner);
+
+        startHintLabel.text = Say(hint, settings);
+    }
+
+    // Which of the things this line can say is the true one. Pulled out of the
+    // formatting because the order is the whole of it and the order is the part
+    // that is easy to get wrong: every branch here is true at the same time as
+    // two others, and which one a player is shown decides whether they read the
+    // line as their problem or somebody else's.
+    public enum StartHint
+    {
+        Starting,
+        NeedMorePlayers,
+        ReadyUpYourself,
+        WaitingForOne,
+        WaitingForSeveral,
+        EveryoneReady,
+        WaitingForHost
+    }
+
+    public static StartHint ChooseStartHint(
+        bool isLobbyPhaseOpen,
+        int missingPlayers,
+        int notReadyCount,
+        bool isLocalPlayerReady,
+        bool isLocalPlayerRoomOwner)
+    {
+        // The match is already going. Nothing below this is worth saying to
+        // somebody watching a scene load.
+        if (!isLobbyPhaseOpen)
+            return StartHint.Starting;
+
+        // An empty chair beats an unready player: readying up in a room that
+        // cannot start either way is work with nothing at the end of it.
         if (missingPlayers > 0)
-        {
-            startHintLabel.text = string.Format(needMorePlayersFormat, missingPlayers);
-            return;
-        }
-
-        int notReadyCount = settings.RequireAllPlayersReady ? CountNotReady() : 0;
+            return StartHint.NeedMorePlayers;
 
         if (notReadyCount > 0)
         {
-            startHintLabel.text = string.Format(waitingForReadyFormat, notReadyCount);
-            return;
+            // Yourself first. Whatever else the room is waiting for, if one of
+            // the people it is waiting for is you, that is the only part of it
+            // you can do anything about.
+            if (!isLocalPlayerReady)
+                return StartHint.ReadyUpYourself;
+
+            // One person gets named. A room of five with one name missing is a
+            // room where four people know who to talk to; "Waiting for 1" is a
+            // room where five people wait for somebody to own up.
+            return notReadyCount == 1
+                ? StartHint.WaitingForOne
+                : StartHint.WaitingForSeveral;
         }
 
         // It used to go blank here, which left a hole above the buttons at the
         // exact moment the screen had the most to say. Everyone waiting on the
         // host should be told they are waiting on the host, and the host should
         // be told there is nothing left to wait for.
-        startHintLabel.text = readService.IsLocalPlayerRoomOwner
-            ? readyToStartText
-            : waitingForHostText;
+        return isLocalPlayerRoomOwner
+            ? StartHint.EveryoneReady
+            : StartHint.WaitingForHost;
+    }
+
+    private string Say(StartHint hint, LobbySettingsData settings)
+    {
+        switch (hint)
+        {
+            case StartHint.Starting:
+                return startingText;
+
+            case StartHint.NeedMorePlayers:
+                return string.Format(
+                    needMorePlayersFormat,
+                    settings.MinPlayersToStart - readService.PlayerCount);
+
+            case StartHint.ReadyUpYourself:
+                return readyUpPromptText;
+
+            // The name is looked up here rather than chosen above, because a
+            // row can be in the roster before its name has arrived - and a
+            // nameless player is counted rather than named.
+            case StartHint.WaitingForOne:
+                return TryGetOnlyNotReadyName(out string name)
+                    ? string.Format(waitingForPlayerFormat, name)
+                    : string.Format(waitingForPlayersFormat, 1);
+
+            case StartHint.WaitingForSeveral:
+                return string.Format(waitingForPlayersFormat, CountNotReady());
+
+            case StartHint.EveryoneReady:
+                return readyToStartText;
+
+            default:
+                return waitingForHostText;
+        }
     }
 
     private void SubscribeToSessionState()
@@ -1510,5 +1605,27 @@ public class LobbyUI : MonoBehaviour
         return readService != null
             ? readService.PlayerCount - CountReady()
             : 0;
+    }
+
+    // Only worth asking when exactly one player is holding the room up, and it
+    // still answers no if that player has no name yet - a row that has arrived
+    // in the roster before its name has is a normal moment on this screen, and
+    // "Waiting for " with nothing after it is worse than a number.
+    private bool TryGetOnlyNotReadyName(out string name)
+    {
+        name = string.Empty;
+
+        for (int i = 0; i < readService.PlayerCount; i++)
+        {
+            LobbyPlayerData player = readService.GetPlayer(i);
+
+            if (player.IsReady)
+                continue;
+
+            name = player.PlayerName.ToString();
+            break;
+        }
+
+        return !string.IsNullOrWhiteSpace(name);
     }
 }

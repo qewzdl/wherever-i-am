@@ -34,7 +34,7 @@
             </ui:VisualElement>
             <ui:VisualElement class="stack enter enter--5">
                 <ui:Label name="StartHint" class="hint" />
-                <ui:Button text="Start" name="StartButton" class="button button--confirm" />
+                <ui:Button text="Start" name="StartButton" class="button" />
                 <ui:Button text="Ready" name="ReadyButton" class="button" />
                 <ui:Button text="Room settings" name="RoomSettingsButton" class="button" />
                 <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
