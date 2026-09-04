@@ -30,6 +30,12 @@
     right: 0;
     top: 0;
     bottom: 0;
+
+    /* Hidden until somebody opens it, and hidden in the stylesheet rather than
+       by the first frame of code: an element that starts visible and is put
+       away a moment later is a flash of empty box every time the lobby loads.
+       From here on it is UiFade that owns this, inline. */
+    display: none;
 }
 
 
@@ -72,6 +78,29 @@
     padding-right: var(--space-l);
     padding-top: var(--space-m);
     padding-bottom: var(--space-m);
+
+    /* It arrives, like everything else here. The rail slides in from the edge
+       it is anchored to; so does this, from the bottom, which is the movement a
+       thing hinged to that edge would make.
+
+       Reduced motion needs no rule of its own: the durations it zeroes are
+       these, and the open state is the resting state, so the window simply
+       lands there in no time at all. */
+    opacity: 0;
+    translate: 0 14px;
+
+    transition-property:
+        opacity,
+        translate;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.chat--open .chat__window {
+    opacity: 1;
+    translate: 0 0;
 }
 
 
@@ -83,6 +112,9 @@
 }
 
 
+
+
+
 /* ==========================================================================
    MESSAGES
    ========================================================================== */
@@ -91,12 +123,20 @@
    full height is a slab of wall over the game for as long as nobody has said
    anything. */
 
+/* The rule over it is the one the roster puts under its own header, for the
+   same reason: a label and the list it names are two things, and on this
+   screen that is said with a hairline rather than with space. */
+
 .chat__messages {
     flex-grow: 1;
 
     min-height: 40px;
     max-height: 232px;
 
+    border-top-width: var(--border);
+    border-top-color: var(--line);
+
+    margin-top: var(--space-xs);
     margin-bottom: var(--space-s);
 }
 
@@ -136,6 +176,7 @@
 }
 
 
+
 .chat__message__text {
     flex-shrink: 1;
 
@@ -165,6 +206,18 @@
 }
 
 
+/* Nothing has been said. The roster says "Waiting for the room..." rather than
+   showing four empty rows, and an empty box with a rule over it and a caret
+   under it is the same silence with nothing admitting to it. */
+
+.chat__empty {
+    margin-top: var(--space-s);
+    margin-bottom: var(--space-s);
+
+    -unity-text-align: middle-left;
+}
+
+
 /* ==========================================================================
    INPUT
    ========================================================================== */
@@ -186,14 +239,3 @@
     margin-bottom: 0;
 }
 
-
-/* ==========================================================================
-   CLOSED
-
-   Display rather than opacity. A chat that is merely transparent still takes
-   the pointer, and the corner it sits in is over the game.
-   ========================================================================== */
-
-.chat--closed {
-    display: none;
-}

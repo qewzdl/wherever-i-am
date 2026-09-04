@@ -17,7 +17,7 @@ using UnityEngine.UIElements;
 [RequireComponent(typeof(UIDocument))]
 public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 {
-    private const string ClosedClass = "chat--closed";
+    private const string OpenClass = "chat--open";
     private const string MessageClass = "chat__message";
     private const string OwnMessageClass = "chat__message--own";
     private const string SystemMessageClass = "chat__message--system";
@@ -31,6 +31,12 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     [Header("Events")]
     [SerializeField] private ChatEventChannel chatEvents;
 
+    // The roster says "Waiting for the room..." rather than showing four empty
+    // rows. A box with a rule over it and a caret under it is the same silence
+    // with nothing admitting to it.
+    [Header("Text")]
+    [SerializeField] private string emptyChatText = "Nothing said yet";
+
     [Header("Behaviour")]
     [SerializeField] private bool closeAfterSubmit;
     [SerializeField] private bool releaseFocusAfterSubmit = true;
@@ -43,6 +49,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     private VisualElement boundRoot;
     private VisualElement chatLayer;
     private ScrollView messages;
+    private Label emptyLabel;
     private TextField input;
 
     private bool isOpen;
@@ -284,7 +291,11 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
         chatLayer = root.Q<VisualElement>("Chat");
         messages = root.Q<ScrollView>("Messages");
+        emptyLabel = root.Q<Label>("Empty");
         input = root.Q<TextField>("Input");
+
+        if (emptyLabel != null)
+            emptyLabel.text = emptyChatText;
 
         if (chatLayer == null)
         {
@@ -483,7 +494,11 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
     private void RefreshVisibility()
     {
-        chatLayer?.EnableInClassList(ClosedClass, !(isOpen && CanOpen));
+        // The same two steps every other layer in this interface is shown with:
+        // display has to stay in the picture because a transparent chat still
+        // takes the pointer, and a class added in the frame the element appears
+        // never transitions.
+        UiFade.Set(chatLayer, isOpen && CanOpen, OpenClass);
     }
 
     // Rebuilt rather than reconciled. A lobby chat holds tens of lines, not
@@ -496,24 +511,39 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
         messages.Clear();
 
-        if (readService == null)
-            return;
+        int shown = 0;
 
-        ChatChannel currentChannel = readService.CurrentChannel;
-
-        for (int i = 0; i < readService.MessageCount; i++)
+        if (readService != null)
         {
-            ChatMessageData message = readService.GetMessage(i);
+            ChatChannel currentChannel = readService.CurrentChannel;
 
-            if (message.Channel != ChatChannel.System && message.Channel != currentChannel)
-                continue;
+            for (int i = 0; i < readService.MessageCount; i++)
+            {
+                ChatMessageData message = readService.GetMessage(i);
 
-            messages.Add(BuildMessage(message));
+                if (message.Channel != ChatChannel.System && message.Channel != currentChannel)
+                    continue;
+
+                messages.Add(BuildMessage(message));
+                shown++;
+            }
+
+            // After the layout, not before it: scrolling to the bottom of a
+            // list that has not been measured yet scrolls to the bottom of
+            // nothing.
+            messages.schedule.Execute(ScrollToBottom);
         }
 
-        // After the layout, not before it: scrolling to the bottom of a list
-        // that has not been measured yet scrolls to the bottom of nothing.
-        messages.schedule.Execute(ScrollToBottom);
+        // Counted on the way in rather than read back off the list. A
+        // ScrollView's own children are its viewport and its scrollers - what
+        // was put into it lives one level down, in the content container, and
+        // asking the wrong one gives an answer that is never nought.
+        if (emptyLabel != null)
+        {
+            emptyLabel.style.display = shown == 0
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
+        }
     }
 
     private VisualElement BuildMessage(ChatMessageData message)
