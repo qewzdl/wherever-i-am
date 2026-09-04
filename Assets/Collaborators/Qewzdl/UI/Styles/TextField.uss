@@ -83,6 +83,20 @@
 .input > .unity-base-text-field__input {
     min-height: var(--control-height);
 
+    /* The caret, and the block that follows it when text is dragged over.
+       These are not painted from the --unity-colors- set the rest of this file
+       overrides: the text engine reads two properties of its own, and left
+       unsaid it draws them in the editor's own colours - a caret the shade of
+       the box it is standing in, which is a field that looks like it is not
+       taking input.
+
+       It is the accent rather than the text step, because a caret only exists
+       while the field holds focus, and the rim it is standing inside is the
+       accent for exactly the same reason. The two marks that say this field is
+       being addressed should not disagree about how brightly. */
+    --unity-cursor-color: var(--accent);
+    --unity-selection-color: var(--surface-hover);
+
     background-color: var(--surface);
     background-image: none;
 
