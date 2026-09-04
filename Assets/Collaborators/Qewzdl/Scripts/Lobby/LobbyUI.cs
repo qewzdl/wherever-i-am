@@ -44,6 +44,29 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string waitingForReadyFormat = "Waiting for {0} to get ready";
     [SerializeField] private string startingText = "Starting the match...";
     [SerializeField] private string ownerOnlySettingText = "Only the host can change this";
+
+    // The terms of the match, said on the wall of the room. Difficulty only:
+    // map and mode get a line each the day either of them has more than one
+    // value, and a line naming the only map there is would be furniture.
+    [SerializeField] private string matchDifficultyFormat = "Difficulty: {0}";
+    [SerializeField] private string settingsOwnerFormat = "{0} sets the terms";
+    [SerializeField] private string settingsYoursText = "You set the terms";
+    [SerializeField] private string settingsOwnerUnknownText = "The host sets the terms";
+
+    // Readiness is cleared by the server whenever the terms move, and until now
+    // the screen said nothing - everybody simply stopped being ready and the
+    // only explanation was a dropdown somebody else had touched.
+    [SerializeField] private string difficultyChangedByHostFormat =
+        "Host changed difficulty to {0} - readiness was reset";
+    [SerializeField] private string difficultyChangedByYouFormat =
+        "You changed difficulty to {0} - readiness was reset";
+    [SerializeField] private float setupNoticeSeconds = 8f;
+
+    // Asked before the change rather than explained after it, because the host
+    // is the one person who can still not do it.
+    [SerializeField] private string difficultyChangeConfirmFormat =
+        "Change difficulty to {0}? Everybody who is ready goes back to not ready.";
+    [SerializeField] private string difficultyChangeActionText = "Change";
     // The status line is the state; the hint is what to do about it. They are
     // two lines because the first is read at a glance from across the room and
     // the second is read once, by the host, while they work out what to send.
@@ -117,6 +140,9 @@ public class LobbyUI : MonoBehaviour
     private Label difficultyOwnerNoteLabel;
     private Label doorHintLabel;
     private Label doorStatusLabel;
+    private Label setupDifficultyLabel;
+    private Label setupOwnerLabel;
+    private Label setupNoticeLabel;
     private Label addressLabel;
     private Image addressCopyIcon;
 
@@ -158,12 +184,21 @@ public class LobbyUI : MonoBehaviour
     {
         None,
         Kick,
-        CloseLobby
+        CloseLobby,
+        ChangeDifficulty
     }
 
     private PendingAction pendingAction;
     private ulong pendingKickClientId;
+    private int pendingDifficultyId;
     private Button pendingFocusTarget;
+
+    // What the room said last time this screen looked. It is the only way a
+    // change is noticed at all: the server does not announce one, the new value
+    // simply arrives.
+    private int lastSeenDifficultyId;
+    private bool hasSeenSettings;
+    private int setupNoticeVersion;
 
     public event Action ReadyClicked;
     public event Action StartGameClicked;
@@ -189,6 +224,9 @@ public class LobbyUI : MonoBehaviour
 
         SubscribeToSessionState();
 
+        hasSeenSettings = false;
+        HideSetupNotice(++setupNoticeVersion);
+
         Show(complainIfMissing: false);
         Refresh();
     }
@@ -201,6 +239,7 @@ public class LobbyUI : MonoBehaviour
         UnsubscribeFromSessionState();
         readService = null;
         sessionReadService = null;
+        hasSeenSettings = false;
         isAddressCopyFeedbackVisible = false;
         addressCopyFeedbackVersion++;
         SetMatchTransitionVisible(false);
@@ -327,6 +366,9 @@ public class LobbyUI : MonoBehaviour
         difficultyOwnerNoteLabel = root.Q<Label>("DifficultyOwnerNote");
         doorHintLabel = root.Q<Label>("DoorHint");
         doorStatusLabel = root.Q<Label>("DoorStatus");
+        setupDifficultyLabel = root.Q<Label>("SetupDifficulty");
+        setupOwnerLabel = root.Q<Label>("SetupOwner");
+        setupNoticeLabel = root.Q<Label>("SetupNotice");
         addressLabel = root.Q<Label>("Address");
         addressButton = root.Q<Button>("CopyAddressButton");
         addressCopyIcon = root.Q<Image>("AddressCopyIcon");
@@ -629,7 +671,24 @@ public class LobbyUI : MonoBehaviour
         if (optionIndex < 0 || optionIndex >= difficultyIds.Length)
             return;
 
-        DifficultySelected?.Invoke(difficultyIds[optionIndex]);
+        int difficultyId = difficultyIds[optionIndex];
+
+        // Nobody is ready, so nothing is being taken away and there is nothing
+        // to ask about. A dialog that appears whether or not it matters is one
+        // the host learns to dismiss without reading.
+        if (CountReady() == 0)
+        {
+            DifficultySelected?.Invoke(difficultyId);
+            return;
+        }
+
+        pendingDifficultyId = difficultyId;
+
+        AskToConfirm(
+            PendingAction.ChangeDifficulty,
+            string.Format(difficultyChangeConfirmFormat, DifficultyName(difficultyId)),
+            difficultyChangeActionText,
+            roomSettingsCloseButton);
     }
 
     private void Refresh()
@@ -640,7 +699,112 @@ public class LobbyUI : MonoBehaviour
         RefreshPlayers();
         RefreshButtons();
         RefreshDifficulty();
+        RefreshMatchSetup();
         RefreshMatchTransition();
+    }
+
+    // The terms of the match, on the wall of the room rather than behind a
+    // button. A player pressing Ready was agreeing to conditions they had not
+    // been shown, which is the whole of why this exists.
+    //
+    // It also notices when the terms move. The server clears everybody's
+    // readiness when they do - see LobbyController - and said nothing about it,
+    // so from a player's side their own Ready simply came undone. Nothing
+    // announces the change over the wire, so it is spotted the only way it can
+    // be: by remembering what the room said last time.
+    private void RefreshMatchSetup()
+    {
+        // ponytail: difficulty only. Map and mode belong on this block the day
+        // either of them has more than one value - LobbySettingsData already
+        // carries both ids, and GameMapCatalog can name a map - but a line
+        // reading "Map: The House" on a game with one house is furniture.
+        int difficultyId = readService.Settings.DifficultyId;
+
+        if (setupDifficultyLabel != null)
+        {
+            setupDifficultyLabel.text = string.Format(
+                matchDifficultyFormat,
+                DifficultyName(difficultyId));
+        }
+
+        RefreshSetupOwner();
+
+        // The first look is not a change. A screen that opened onto a room
+        // already set to Hard has not been told anything.
+        if (hasSeenSettings && difficultyId != lastSeenDifficultyId)
+            AnnounceDifficultyChange(difficultyId);
+
+        lastSeenDifficultyId = difficultyId;
+        hasSeenSettings = true;
+    }
+
+    // Who is allowed to move any of it, answered before the player goes looking
+    // for a control that is not theirs.
+    private void RefreshSetupOwner()
+    {
+        if (setupOwnerLabel == null)
+            return;
+
+        if (readService.IsLocalPlayerRoomOwner)
+        {
+            setupOwnerLabel.text = settingsYoursText;
+            return;
+        }
+
+        string ownerName = ResolvePlayerName(readService.RoomOwnerClientId);
+
+        setupOwnerLabel.text = string.IsNullOrWhiteSpace(ownerName)
+            ? settingsOwnerUnknownText
+            : string.Format(settingsOwnerFormat, ownerName);
+    }
+
+    // Said in the words of whoever did it. The reset is stated flatly rather
+    // than worked out: the server clears readiness every time the terms move,
+    // whether or not anybody had pressed Ready, so the sentence is true in an
+    // empty room as well - and asking the screen to decide would mean racing
+    // two replicated values to find out which arrived first.
+    private void AnnounceDifficultyChange(int difficultyId)
+    {
+        if (setupNoticeLabel == null)
+            return;
+
+        string format = readService.IsLocalPlayerRoomOwner
+            ? difficultyChangedByYouFormat
+            : difficultyChangedByHostFormat;
+
+        setupNoticeLabel.text = string.Format(format, DifficultyName(difficultyId));
+        setupNoticeLabel.style.display = DisplayStyle.Flex;
+
+        int version = ++setupNoticeVersion;
+
+        setupNoticeLabel.schedule
+            .Execute(() => HideSetupNotice(version))
+            .StartingIn((long)(Mathf.Max(1f, setupNoticeSeconds) * 1000f));
+    }
+
+    private void HideSetupNotice(int version)
+    {
+        if (version != setupNoticeVersion || setupNoticeLabel == null)
+            return;
+
+        setupNoticeLabel.text = string.Empty;
+        setupNoticeLabel.style.display = DisplayStyle.None;
+    }
+
+    private string DifficultyName(int difficultyId)
+    {
+        for (int i = 0; i < difficultyIds.Length; i++)
+        {
+            if (difficultyIds[i] != difficultyId)
+                continue;
+
+            if (difficultyField?.choices != null && i < difficultyField.choices.Count)
+                return difficultyField.choices[i];
+
+            break;
+        }
+
+        return difficultyId.ToString();
     }
 
     private void PopulateDifficultyChoices()
@@ -932,11 +1096,28 @@ public class LobbyUI : MonoBehaviour
         }
         else if (action == PendingAction.CloseLobby)
             LeaveLobbyClicked?.Invoke();
+        else if (action == PendingAction.ChangeDifficulty)
+        {
+            DifficultySelected?.Invoke(pendingDifficultyId);
+
+            // The host is still standing in the room settings dialog, and the
+            // dialog they answered took the focus with it when it closed.
+            roomSettingsCloseButton?.schedule
+                .Execute(() => roomSettingsCloseButton.Focus());
+        }
     }
 
     private void CancelPendingAction()
     {
+        // The dropdown has already moved to the answer the host is about to
+        // take back, and nothing else will move it: the room's difficulty never
+        // changed, so no update is coming to put it right.
+        bool wasChangingDifficulty = pendingAction == PendingAction.ChangeDifficulty;
+
         ClosePendingAction(restoreFocus: true);
+
+        if (wasChangingDifficulty)
+            RefreshDifficulty();
     }
 
     private void ClosePendingAction(bool restoreFocus)

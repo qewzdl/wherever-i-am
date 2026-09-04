@@ -3,7 +3,12 @@
     <ui:VisualElement name="Screen" class="screen screen--left">
         <ui:VisualElement name="Panel" class="panel panel--rail">
             <ui:Label text="Lobby" name="Title" class="title enter" />
-            <ui:ScrollView name="LobbyContent" class="scroll lobby__content enter enter--2">
+            <ui:VisualElement name="MatchSetup" class="setup enter enter--2">
+                <ui:Label name="SetupDifficulty" class="setup__line" />
+                <ui:Label name="SetupOwner" class="setup__note" />
+                <ui:Label name="SetupNotice" class="setup__notice" />
+            </ui:VisualElement>
+            <ui:ScrollView name="LobbyContent" class="scroll lobby__content enter enter--3">
                 <ui:VisualElement class="roster__header">
                     <ui:Label text="Players" class="section section--flush" />
                     <ui:VisualElement class="roster__summary">
@@ -13,7 +18,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement name="Roster" class="roster" />
             </ui:ScrollView>
-            <ui:VisualElement name="Door" class="door rail__gap enter enter--3">
+            <ui:VisualElement name="Door" class="door rail__gap enter enter--4">
                 <ui:VisualElement class="door__state">
                     <ui:Label name="DoorStatus" class="door__status" />
                     <ui:Toggle name="Visibility" class="toggle door__switch" />
@@ -27,7 +32,7 @@
                 </ui:VisualElement>
                 <ui:Label name="DoorHint" class="hint" />
             </ui:VisualElement>
-            <ui:VisualElement class="stack enter enter--4">
+            <ui:VisualElement class="stack enter enter--5">
                 <ui:Label name="StartHint" class="hint" />
                 <ui:Button text="Start" name="StartButton" class="button button--confirm" />
                 <ui:Button text="Ready" name="ReadyButton" class="button" />

@@ -574,3 +574,77 @@
 
     margin-bottom: var(--space-xs);
 }
+
+
+/* ==========================================================================
+   MATCH SETUP
+
+   What this match is, under the title, where somebody presses Ready can see it
+   without asking.
+
+   It used to be behind Room settings, which meant a player confirmed they were
+   ready to play without being shown what they were agreeing to. Difficulty is
+   not a preference the host keeps to themselves - it is the terms of the thing
+   everybody is about to spend half an hour on.
+
+   Only difficulty for now, because only difficulty has more than one value.
+   Map and mode belong here the day either of them does, and not before: a line
+   reading "Map: The House" on a game with one house is furniture.
+   ========================================================================== */
+
+/* No rule above it and none below. The title's own gap is above, the roster
+   brings its own line, and a third border in the top third of a column that
+   already has a title, a summary and a list is one edge too many. */
+
+.setup {
+    flex-shrink: 0;
+
+    margin-bottom: var(--space-m);
+}
+
+
+/* The terms themselves, at the size of a control label rather than a hint.
+   This is a fact about the match, not a note about the interface. */
+
+.setup__line {
+    color: var(--text);
+    font-size: var(--font-size-s);
+
+    letter-spacing: var(--tracking-wide);
+}
+
+
+/* Who is allowed to move it. Quieter than the setting, because it answers a
+   question the player only asks once - and it answers it before they go
+   looking for a control that is not theirs. */
+
+.setup__note {
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-top: var(--space-xs);
+}
+
+
+/* Why everybody just stopped being ready.
+   
+   Coloured, because it is the one line here that is news rather than state,
+   and it is news the player did not ask for: their own readiness was taken
+   away by somebody else. Told in words, once, and then gone. */
+
+.setup__notice {
+    /* Nothing to say most of the time, and a line holding space for a sentence
+       that is not there pushes the roster down for no reason. */
+    display: none;
+
+    color: var(--accent);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-top: var(--space-s);
+
+    white-space: normal;
+}
