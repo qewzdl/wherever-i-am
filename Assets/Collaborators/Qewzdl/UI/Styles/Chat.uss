@@ -1,0 +1,199 @@
+/* ==========================================================================
+   CHAT
+
+   The lobby's chat, docked in the far corner from the rail.
+
+   It used to be a 300 by 251 box pinned to the bottom left, which is where the
+   rail keeps Start, Ready, Room settings and Leave. Opening the chat put a
+   window over the four things the screen exists to do, and the player who
+   typed a message then had to close it again to press anything. The two of
+   them were fighting for one corner because neither had been told the other
+   was there.
+
+   So it moves to the other end of the bottom edge. Nothing else lives there -
+   the rail is a column down the left, the masthead is top right on the menu
+   and absent here - and a chat in the corner opposite the actions is where a
+   chat has been in every game that has one.
+   ========================================================================== */
+
+.chat {
+    /* Its own panel, so it carries the game's face itself. A screen sets this
+       on .screen and every label under it inherits; this layer is not one of
+       those and would otherwise be the one place in the interface set in
+       Unity's default font. */
+    -unity-font-definition:
+        url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
+
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+}
+
+
+/* ==========================================================================
+   THE WALL
+
+   Built the way the rail is built, in the corner the rail is not.
+
+   This started as a floating box - a translucent card with a rim and rounded
+   corners, parked a little way in from the edge - and it was the only thing on
+   the screen made that way. Nothing here floats. The lobby is a wall down the
+   left running the full height of the frame, flush to three edges, opaque, and
+   with no border at all, because a wall that reaches the edge of the screen
+   does not need a line to say where it stops.
+
+   So this is the same construction standing in the opposite corner: same
+   measure as the rail, same material, flush to the bottom and the right. Two
+   walls and the game between them, rather than a wall and a window.
+   ========================================================================== */
+
+.chat__window {
+    position: absolute;
+
+    right: 0;
+    bottom: 0;
+
+    width: 460px;
+    max-height: 340px;
+
+    /* A wall, not a veil - the same reasoning as the rail's, and the same
+       value. What stands behind this corner is a lit room with people moving
+       in it, and a tenth of that coming through is not depth, it is a bright
+       shape crossing behind the text. */
+    background-color: var(--veil-solid);
+
+    border-width: 0;
+    border-radius: 0;
+
+    padding-left: var(--space-l);
+    padding-right: var(--space-l);
+    padding-top: var(--space-m);
+    padding-bottom: var(--space-m);
+}
+
+
+/* Named, like every other block in this interface. A box of text with no label
+   is the one thing on the screen that has to be recognised by its shape. */
+
+.chat__title {
+    margin-top: 0;
+}
+
+
+/* ==========================================================================
+   MESSAGES
+   ========================================================================== */
+
+/* Grows with what is in it and scrolls after that. A chat that is always its
+   full height is a slab of wall over the game for as long as nobody has said
+   anything. */
+
+.chat__messages {
+    flex-grow: 1;
+
+    min-height: 40px;
+    max-height: 232px;
+
+    margin-bottom: var(--space-s);
+}
+
+
+/* A row of two labels, which is how a roster row is built on the other side of
+   this screen: the quiet part sized to itself, the part being read taking the
+   rest. The alternative was one string with a name in it, and there is no way
+   to give half a label its own colour without turning on rich text - which
+   would hand every player a way to write markup into somebody else's screen. */
+
+.chat__message {
+    flex-direction: row;
+    align-items: flex-start;
+
+    margin-bottom: var(--space-xs);
+}
+
+
+/* Dim, spaced, small - the voice this interface uses for the part of a row that
+   is not the point of it. Same as .roster__status and .roster__role.
+
+   Not bold. Nothing in this game is bold: what separates two pieces of text
+   here is which step of the bone ladder they stand on, and a weight would be a
+   second answer to a question colour has already answered. */
+
+.chat__message__sender {
+    flex-shrink: 0;
+
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    /* A space, not a gap. The name and what was said are one sentence now that
+       the name carries its own colon. */
+    margin-right: var(--space-xs);
+}
+
+
+.chat__message__text {
+    flex-shrink: 1;
+
+    color: var(--text);
+    font-size: var(--font-size-xs);
+
+    white-space: normal;
+}
+
+
+/* Yours, marked the way your row in the roster is marked - the accent on the
+   name, and nothing else moved. */
+
+.chat__message--own .chat__message__sender {
+    color: var(--accent);
+}
+
+
+/* Nobody said this; the room did. It gets no name at all and speaks in the
+   voice notes are written in, because a line with no author is not a message
+   with the author left off. */
+
+.chat__message--system .chat__message__text {
+    color: var(--text-dim);
+
+    letter-spacing: var(--tracking-wide);
+}
+
+
+/* ==========================================================================
+   INPUT
+   ========================================================================== */
+
+/* Carries .input as well, so it is the same text field as the one in the main
+   menu - same rim under the caret, same colour, same everything.
+
+   The hairline above it is what a dialog puts over its footer: what you read
+   is one thing and what you do is another, and the gap alone was not saying
+   so. */
+
+.chat__input {
+    border-top-width: var(--border);
+    border-top-color: var(--line);
+
+    padding-top: var(--space-s);
+
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+
+/* ==========================================================================
+   CLOSED
+
+   Display rather than opacity. A chat that is merely transparent still takes
+   the pointer, and the corner it sits in is over the game.
+   ========================================================================== */
+
+.chat--closed {
+    display: none;
+}

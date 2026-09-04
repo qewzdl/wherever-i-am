@@ -202,7 +202,7 @@ MonoBehaviour:
   mode: 0
   profile: {fileID: 11400000, guid: 741a50ced37236b428fe2a0f56b61645, type: 2}
   uiRoot: {fileID: 896598420}
-  lobbyChatPrefab: {fileID: 504515819477687593, guid: 8c9d8cc83540b054bb09474a44e9f7ed, type: 3}
+  lobbyChatPrefab: {fileID: 7100000000000000001, guid: 125248210c7240a8a9a2d5820a53d696, type: 3}
   phoneChatPrefab: {fileID: 580301795716557312, guid: 531fc2ecdc954bbdbdc1cea9d3dcc24f, type: 3}
 --- !u!1 &707815382
 GameObject:

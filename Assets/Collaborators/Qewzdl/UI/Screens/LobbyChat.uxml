@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- The layer is the whole screen and takes none of the pointer; only the
+         window in the corner does. A chat that swallowed clicks across the
+         picture would take them from the rail it was moved away from. -->
+    <ui:VisualElement name="Chat" picking-mode="Ignore" class="chat chat--closed">
+        <ui:VisualElement name="Window" class="chat__window">
+            <ui:Label text="Chat" class="section section--flush chat__title" />
+            <ui:ScrollView name="Messages" class="scroll chat__messages" />
+            <ui:TextField name="Input" max-length="200" class="input chat__input" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

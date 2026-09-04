@@ -30,6 +30,7 @@
 @import url("Slider.uss");
 @import url("Toggle.uss");
 @import url("Dropdown.uss");
+@import url("Chat.uss");
 
 /* Last, and on purpose. The lobby trims a button, recolours a field and takes
    the form rows apart to fit a column, and a rule that modifies a control has
