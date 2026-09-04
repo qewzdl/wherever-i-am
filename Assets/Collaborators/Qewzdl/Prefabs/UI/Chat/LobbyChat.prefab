@@ -15,6 +15,9 @@ GameObject:
   - component: {fileID: 7100000000000000006}
   - component: {fileID: 7100000000000000007}
   - component: {fileID: 7100000000000000008}
+  - component: {fileID: 7100000000000000009}
+  - component: {fileID: 7100000000000000010}
+  - component: {fileID: 7100000000000000011}
   m_Layer: 5
   m_Name: LobbyChat
   m_TagString: Untagged
@@ -84,6 +87,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   document: {fileID: 7100000000000000003}
   visibilityController: {fileID: 7100000000000000004}
+  sounds: {fileID: 7100000000000000009}
   chatEvents: {fileID: 0}
   closeAfterSubmit: 0
   releaseFocusAfterSubmit: 1
@@ -139,3 +143,45 @@ MonoBehaviour:
   enableActionOnEnable: 1
   ignoreOpenWhileInputFocused: 1
   closeOnlyWhenInputFocused: 1
+--- !u!114 &7100000000000000009
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7100000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8319e1201706a444b54b64e01685e60, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  document: {fileID: 7100000000000000003}
+--- !u!114 &7100000000000000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7100000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f321e6efe8464408b029114085ae8fbf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
+  sendRejectedSound: {fileID: 11400000, guid: 0179a9dd12a484f45afb4f0973e33841, type: 2}
+--- !u!114 &7100000000000000011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7100000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96a01789f7374b87b46904cb94444d57, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  chatEvents: {fileID: 11400000, guid: b4891c4290fed254fbd46ca67db0605b, type: 2}
+  countOwnMessagesAsUnread: 0
+  countSystemMessagesAsUnread: 1

@@ -27,6 +27,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     [Header("References")]
     [SerializeField] private UIDocument document;
     [SerializeField] private ChatVisibilityController visibilityController;
+    [SerializeField] private UiDocumentSounds sounds;
 
     [Header("Events")]
     [SerializeField] private ChatEventChannel chatEvents;
@@ -73,6 +74,9 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
         if (visibilityController == null)
             visibilityController = GetComponent<ChatVisibilityController>();
+
+        if (sounds == null)
+            sounds = GetComponent<UiDocumentSounds>();
 
         DetachFromParentDocument();
     }
@@ -155,9 +159,12 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     }
 
     // Nothing to override. The old window hung a sound component off its input
-    // field; a text field in this interface takes its keystroke sound from the
-    // theme along with everything else, and a second source for it would be a
-    // second answer to a question the theme has already answered.
+    // field, because a uGUI field is a GameObject and can carry one. An element
+    // here is not, so the whole document is listened to at once by
+    // UiDocumentSounds - which already knows that a thing wearing .input makes
+    // the typing sound when its text changes, and the click when it takes the
+    // caret. A second source for that would be a second answer to a question
+    // the screen has already answered for every other field in the game.
     public void SetInputSoundOverride(SoundEffect sound)
     {
     }
@@ -472,12 +479,19 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
             RefreshVisibility();
             RefreshMessages();
             FocusInput();
+
+            // The screen-level moments, said the way every other screen here
+            // says them. Everything inside the window - the caret arriving, a
+            // key being typed - belongs to UiDocumentSounds; opening and
+            // closing belong to whoever does the opening, which is this.
+            sounds?.Play(UiSoundType.Open);
             Opened?.Invoke();
         }
         else
         {
             ReleaseInputFocus();
             RefreshVisibility();
+            sounds?.Play(UiSoundType.Close);
             Closed?.Invoke();
         }
 
