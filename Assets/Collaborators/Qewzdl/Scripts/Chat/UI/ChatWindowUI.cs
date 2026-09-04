@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
-public class ChatWindowUI : MonoBehaviour
+public class ChatWindowUI : MonoBehaviour, IChatWindowView
 {
     [Header("Root")]
     [SerializeField] private GameObject root;

@@ -220,7 +220,7 @@ public class ChatUiManager : SceneRuntimeFeature
             return;
         }
 
-        ChatWindowUI chatWindow = root.GetComponentInChildren<ChatWindowUI>(true);
+        IChatWindowView chatWindow = root.GetComponentInChildren<IChatWindowView>(true);
 
         if (chatWindow == null)
         {

@@ -1,11 +1,15 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.Events;
 
 public class ChatNotificationController : MonoBehaviour
 {
     [Header("References")]
-    [SerializeField] private ChatWindowUI chatWindow;
+    [FormerlySerializedAs("chatWindow")]
+    [SerializeField] private MonoBehaviour chatWindowBehaviour;
+
+    private IChatWindowView chatWindow;
 
     [Header("Settings")]
     [SerializeField] private bool ignoreLocalPlayerMessages = true;
@@ -21,14 +25,20 @@ public class ChatNotificationController : MonoBehaviour
 
     public int UnreadCount => unreadCount;
 
-    public void Construct(IChatReadService readService, ChatWindowUI chatWindow)
+    public void Construct(IChatReadService readService, IChatWindowView chatWindow)
     {
         Unsubscribe();
 
         this.readService = readService;
 
         if (chatWindow != null)
+        {
             this.chatWindow = chatWindow;
+            chatWindowBehaviour = chatWindow as MonoBehaviour;
+        }
+
+        if (this.chatWindow == null)
+            this.chatWindow = chatWindowBehaviour as IChatWindowView;
 
         if (isActiveAndEnabled)
             Subscribe();

@@ -5,7 +5,10 @@ using UnityEngine.Serialization;
 public sealed class ChatWindowInput : MonoBehaviour
 {
     [Header("References")]
-    [SerializeField] private ChatWindowUI chatWindowUI;
+    [FormerlySerializedAs("chatWindowUI")]
+    [SerializeField] private MonoBehaviour chatWindowBehaviour;
+
+    private IChatWindowView chatWindowUI;
 
     [Header("Input")]
     [FormerlySerializedAs("toggleChatAction")]
@@ -168,9 +171,15 @@ public sealed class ChatWindowInput : MonoBehaviour
     private void ResolveReferences()
     {
         if (chatWindowUI == null)
-            chatWindowUI = GetComponent<ChatWindowUI>();
+            chatWindowUI = chatWindowBehaviour as IChatWindowView;
 
         if (chatWindowUI == null)
-            chatWindowUI = GetComponentInChildren<ChatWindowUI>(true);
+            chatWindowUI = GetComponent<IChatWindowView>();
+
+        if (chatWindowUI == null)
+            chatWindowUI = GetComponentInChildren<IChatWindowView>(true);
+
+        if (chatWindowUI != null && chatWindowBehaviour == null)
+            chatWindowBehaviour = chatWindowUI as MonoBehaviour;
     }
 }

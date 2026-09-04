@@ -9,7 +9,9 @@ public static class ChatUiEventChannelBinder
             return;
         }
 
-        ChatWindowUI[] chatWindows = root.GetComponentsInChildren<ChatWindowUI>(true);
+        // Asked for by what it is rather than by what it is made of: the lobby
+        // has a UI Toolkit window and the phone has the old uGUI one.
+        IChatWindowView[] chatWindows = root.GetComponentsInChildren<IChatWindowView>(true);
 
         for (int i = 0; i < chatWindows.Length; i++)
         {

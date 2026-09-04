@@ -1,11 +1,19 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class ChatSessionBinder : MonoBehaviour, IDisposable
 {
+    // Serialised as a MonoBehaviour and used as an IChatWindowView: Unity
+    // cannot hold an interface in a field, and there are two windows now. The
+    // reference already in a prefab survives the widening - it is the same
+    // object, named by the same file id.
     [Header("References")]
-    [SerializeField] private ChatWindowUI chatWindow;
+    [FormerlySerializedAs("chatWindow")]
+    [SerializeField] private MonoBehaviour chatWindowBehaviour;
     [SerializeField] private ChatNotificationController notificationController;
+
+    private IChatWindowView chatWindow;
     private ISessionServiceRegistry serviceRegistry;
     private IPlayerScopeRegistry playerScopes;
     private IGameStateService stateMachine;
@@ -56,6 +64,8 @@ public class ChatSessionBinder : MonoBehaviour, IDisposable
 
     private void RefreshBinding()
     {
+        ResolveReferences();
+
         IChatReadService readService = null;
         IChatCommandService commandService = null;
         ILocalPlayerInputService inputService = ResolveLocalInputService();
@@ -87,7 +97,13 @@ public class ChatSessionBinder : MonoBehaviour, IDisposable
     private void ResolveReferences()
     {
         if (chatWindow == null)
-            chatWindow = GetComponentInChildren<ChatWindowUI>(true);
+            chatWindow = chatWindowBehaviour as IChatWindowView;
+
+        if (chatWindow == null)
+        {
+            chatWindow = GetComponentInChildren<IChatWindowView>(true);
+            chatWindowBehaviour = chatWindow as MonoBehaviour;
+        }
 
         if (notificationController == null)
             notificationController = GetComponentInChildren<ChatNotificationController>(true);
