@@ -130,6 +130,15 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string closeLobbyActionConfirmText = "Close";
     [SerializeField] private string emptyRosterText = "Waiting for the room...";
 
+    // Ready, the door and the difficulty are all asked of the server and none
+    // of them is true until it says so. Until now the controls sat there
+    // looking answered - worse, the next refresh put them back where they
+    // started, so a host who opened the door watched the switch flick itself
+    // shut and then open again when the reply landed.
+    [SerializeField] private string pendingChangeText = "Updating...";
+    [SerializeField] private string pendingFailedText = "No answer - try again";
+    [SerializeField, Min(1f)] private float pendingChangeTimeoutSeconds = 6f;
+
     private ILobbyReadService readService;
     private INetworkSessionReadService sessionReadService;
     private int[] difficultyIds = Array.Empty<int>();
@@ -196,6 +205,58 @@ public class LobbyUI : MonoBehaviour
         ChangeDifficulty
     }
 
+    // A command sent to the server and not yet answered.
+    //
+    // There is nothing to listen to: the room's state is replicated, and a
+    // refused command is refused in silence - the server checks who is asking
+    // and returns. So the wait ends one of two ways. Either the state arrives
+    // saying what was asked for, which is the only proof there is, or the
+    // clock runs out and the player is told nothing came back.
+    private sealed class PendingChange
+    {
+        public bool IsWaiting;
+        public bool HasFailed;
+
+        private float expiresAt;
+        private Func<bool> isSettled;
+
+        public void Begin(Func<bool> settled, float timeoutSeconds)
+        {
+            isSettled = settled;
+            IsWaiting = true;
+            HasFailed = false;
+            expiresAt = Time.unscaledTime + timeoutSeconds;
+        }
+
+        // Asked twice: whenever the room says something, in case this is the
+        // answer, and once a frame, in case nothing is ever going to say it.
+        public void Tick()
+        {
+            if (!IsWaiting)
+                return;
+
+            if (isSettled == null || isSettled())
+            {
+                IsWaiting = false;
+                HasFailed = false;
+                return;
+            }
+
+            if (Time.unscaledTime < expiresAt)
+                return;
+
+            IsWaiting = false;
+            HasFailed = true;
+        }
+
+        public void Forget()
+        {
+            IsWaiting = false;
+            HasFailed = false;
+            isSettled = null;
+        }
+    }
+
     private PendingAction pendingAction;
     private ulong pendingKickClientId;
     private int pendingDifficultyId;
@@ -206,6 +267,12 @@ public class LobbyUI : MonoBehaviour
     // simply arrives.
     private int lastSeenDifficultyId;
     private bool hasSeenSettings;
+
+    // One per control, because they are three separate questions and a player
+    // may be waiting on their own Ready while the host is waiting on the door.
+    private readonly PendingChange readyChange = new PendingChange();
+    private readonly PendingChange doorChange = new PendingChange();
+    private readonly PendingChange difficultyChange = new PendingChange();
     private int setupNoticeVersion;
 
     public event Action ReadyClicked;
@@ -233,6 +300,9 @@ public class LobbyUI : MonoBehaviour
         SubscribeToSessionState();
 
         hasSeenSettings = false;
+        readyChange.Forget();
+        doorChange.Forget();
+        difficultyChange.Forget();
         HideSetupNotice(++setupNoticeVersion);
 
         Show(complainIfMissing: false);
@@ -281,6 +351,8 @@ public class LobbyUI : MonoBehaviour
 
     private void Update()
     {
+        TickPendingChanges();
+
         if (!isMatchTransitionVisible || matchTransitionElapsedLabel == null)
             return;
 
@@ -294,6 +366,33 @@ public class LobbyUI : MonoBehaviour
         matchTransitionElapsedLabel.text = string.Format(
             transitionElapsedFormat,
             seconds);
+    }
+
+    // A wait that ends by running out has nothing to announce it: the room
+    // will not change, so Refresh will not be called, so the clock has to be
+    // read here. Only the frames where something actually expires cost
+    // anything - the rest is three boolean checks.
+    private void TickPendingChanges()
+    {
+        if (readService == null || boundRoot == null)
+            return;
+
+        bool wasWaiting = readyChange.IsWaiting ||
+                          doorChange.IsWaiting ||
+                          difficultyChange.IsWaiting;
+
+        if (!wasWaiting)
+            return;
+
+        readyChange.Tick();
+        doorChange.Tick();
+        difficultyChange.Tick();
+
+        if (readyChange.IsWaiting || doorChange.IsWaiting || difficultyChange.IsWaiting)
+            return;
+
+        RefreshButtons();
+        RefreshDifficulty();
     }
 
     private void OnDestroy()
@@ -507,7 +606,19 @@ public class LobbyUI : MonoBehaviour
 
     private void HandleReadyClicked()
     {
+        // What the room will look like if the server agrees. Read before the
+        // command goes out, because the answer is the only thing that will
+        // change it.
+        bool wanted = !(readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer) &&
+                        localPlayer.IsReady);
+
+        readyChange.Begin(
+            () => readService.TryGetLocalPlayer(out LobbyPlayerData player) &&
+                  player.IsReady == wanted,
+            pendingChangeTimeoutSeconds);
+
         ReadyClicked?.Invoke();
+        RefreshButtons();
     }
 
     private void HandleStartGameClicked()
@@ -666,7 +777,14 @@ public class LobbyUI : MonoBehaviour
 
     private void HandleVisibilityChanged(ChangeEvent<bool> evt)
     {
+        bool wanted = evt.newValue;
+
+        doorChange.Begin(
+            () => readService.Settings.IsPublic == wanted,
+            pendingChangeTimeoutSeconds);
+
         LobbyVisibilityToggleClicked?.Invoke();
+        RefreshDoor(readService.Phase == LobbyPhase.Open);
     }
 
     // The index is read off the field rather than out of the event, which
@@ -686,7 +804,7 @@ public class LobbyUI : MonoBehaviour
         // the host learns to dismiss without reading.
         if (CountReady() == 0)
         {
-            DifficultySelected?.Invoke(difficultyId);
+            SendDifficulty(difficultyId);
             return;
         }
 
@@ -699,10 +817,24 @@ public class LobbyUI : MonoBehaviour
             roomSettingsCloseButton);
     }
 
+    private void SendDifficulty(int difficultyId)
+    {
+        difficultyChange.Begin(
+            () => readService.Settings.DifficultyId == difficultyId,
+            pendingChangeTimeoutSeconds);
+
+        DifficultySelected?.Invoke(difficultyId);
+        RefreshDifficulty();
+    }
+
     private void Refresh()
     {
         if (readService == null || boundRoot == null)
             return;
+
+        readyChange.Tick();
+        doorChange.Tick();
+        difficultyChange.Tick();
 
         RefreshPlayers();
         RefreshButtons();
@@ -858,7 +990,7 @@ public class LobbyUI : MonoBehaviour
         bool canChangeDifficulty =
             readService.Phase == LobbyPhase.Open && readService.IsLocalPlayerRoomOwner;
 
-        difficultyField.SetEnabled(canChangeDifficulty);
+        difficultyField.SetEnabled(canChangeDifficulty && !difficultyChange.IsWaiting);
 
         int selectedDifficultyId = readService.Settings.DifficultyId;
 
@@ -867,8 +999,15 @@ public class LobbyUI : MonoBehaviour
             if (difficultyIds[i] != selectedDifficultyId)
                 continue;
 
-            if (difficultyField.choices != null && i < difficultyField.choices.Count)
+            // Left where the host put it while the answer is out, for the same
+            // reason the door's switch is: a list that snaps back to the old
+            // value and then forward again reads as a choice being refused.
+            if (!difficultyChange.IsWaiting &&
+                difficultyField.choices != null &&
+                i < difficultyField.choices.Count)
+            {
                 difficultyField.SetValueWithoutNotify(difficultyField.choices[i]);
+            }
 
             SetDifficultyDescription(difficultyDescriptions[i], canChangeDifficulty);
             return;
@@ -890,6 +1029,20 @@ public class LobbyUI : MonoBehaviour
 
         if (difficultyOwnerNoteLabel == null)
             return;
+
+        // The line under the list says three different things, and only one of
+        // them at a time: that the answer is still out, that none came back, or
+        // that this is not yours to move. The first two are about the press
+        // that was just made and outrank the standing fact.
+        if (difficultyChange.IsWaiting || difficultyChange.HasFailed)
+        {
+            difficultyOwnerNoteLabel.text = difficultyChange.IsWaiting
+                ? pendingChangeText
+                : pendingFailedText;
+
+            difficultyOwnerNoteLabel.style.display = DisplayStyle.Flex;
+            return;
+        }
 
         difficultyOwnerNoteLabel.text = ownerOnlySettingText;
         difficultyOwnerNoteLabel.style.display =
@@ -1106,7 +1259,7 @@ public class LobbyUI : MonoBehaviour
             LeaveLobbyClicked?.Invoke();
         else if (action == PendingAction.ChangeDifficulty)
         {
-            DifficultySelected?.Invoke(pendingDifficultyId);
+            SendDifficulty(pendingDifficultyId);
 
             // The host is still standing in the room settings dialog, and the
             // dialog they answered took the focus with it when it closed.
@@ -1249,10 +1402,17 @@ public class LobbyUI : MonoBehaviour
 
         if (readyButton != null)
         {
-            readyButton.SetEnabled(isLobbyPhaseOpen && hasLocalPlayer);
-            readyButton.text = isLocalPlayerReady
-                ? standDownActionText
-                : readyActionText;
+            // Nothing to press while the last press is still unanswered, and
+            // the word says which of the two states is being waited on rather
+            // than claiming either of them.
+            readyButton.SetEnabled(
+                isLobbyPhaseOpen && hasLocalPlayer && !readyChange.IsWaiting);
+
+            readyButton.text = readyChange.IsWaiting
+                ? pendingChangeText
+                : isLocalPlayerReady
+                    ? standDownActionText
+                    : readyActionText;
         }
 
         // The lit entry is the thing to do next, and for a host that is two
@@ -1299,15 +1459,31 @@ public class LobbyUI : MonoBehaviour
         // get in needs to know why as much as the host does.
         if (doorStatusLabel != null)
         {
-            doorStatusLabel.text = isPublic ? doorOpenStatusText : doorShutStatusText;
-            doorStatusLabel.EnableInClassList(DoorOpenClass, isPublic);
+            doorStatusLabel.text = doorChange.IsWaiting
+                ? pendingChangeText
+                : doorChange.HasFailed
+                    ? pendingFailedText
+                    : isPublic ? doorOpenStatusText : doorShutStatusText;
+
+            // Neither open nor shut while the answer is out, and a failure is
+            // not a state of the door either.
+            doorStatusLabel.EnableInClassList(
+                DoorOpenClass,
+                isPublic && !doorChange.IsWaiting && !doorChange.HasFailed);
         }
 
         // Only the host can move it, and only while the lobby is still a lobby.
         if (visibilityToggle != null)
         {
-            visibilityToggle.SetValueWithoutNotify(isPublic);
-            visibilityToggle.SetEnabled(isOwner && isLobbyPhaseOpen);
+            // Left where the host put it while the answer is out. Setting it
+            // from the room would flick it back to where it was and then
+            // forward again when the reply lands, which reads as the switch
+            // refusing the press.
+            if (!doorChange.IsWaiting)
+                visibilityToggle.SetValueWithoutNotify(isPublic);
+
+            visibilityToggle.SetEnabled(
+                isOwner && isLobbyPhaseOpen && !doorChange.IsWaiting);
         }
 
         // Shown to the host alone. Everybody else reached this screen by
@@ -1364,6 +1540,7 @@ public class LobbyUI : MonoBehaviour
         bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
 
         StartHint hint = ChooseStartHint(
+            readyChangeFailed: readyChange.HasFailed,
             isLobbyPhaseOpen: isLobbyPhaseOpen,
             missingPlayers: settings.MinPlayersToStart - readService.PlayerCount,
             notReadyCount: settings.RequireAllPlayersReady ? CountNotReady() : 0,
@@ -1381,6 +1558,7 @@ public class LobbyUI : MonoBehaviour
     public enum StartHint
     {
         Starting,
+        ReadyRefused,
         NeedMorePlayers,
         ReadyUpYourself,
         WaitingForOne,
@@ -1390,6 +1568,7 @@ public class LobbyUI : MonoBehaviour
     }
 
     public static StartHint ChooseStartHint(
+        bool readyChangeFailed,
         bool isLobbyPhaseOpen,
         int missingPlayers,
         int notReadyCount,
@@ -1400,6 +1579,12 @@ public class LobbyUI : MonoBehaviour
         // somebody watching a scene load.
         if (!isLobbyPhaseOpen)
             return StartHint.Starting;
+
+        // A press that went nowhere. It outranks everything the room has to
+        // say, because everything the room has to say assumes the player's own
+        // answer got through - and this one did not.
+        if (readyChangeFailed)
+            return StartHint.ReadyRefused;
 
         // An empty chair beats an unready player: readying up in a room that
         // cannot start either way is work with nothing at the end of it.
@@ -1437,6 +1622,9 @@ public class LobbyUI : MonoBehaviour
         {
             case StartHint.Starting:
                 return startingText;
+
+            case StartHint.ReadyRefused:
+                return pendingFailedText;
 
             case StartHint.NeedMorePlayers:
                 return string.Format(
