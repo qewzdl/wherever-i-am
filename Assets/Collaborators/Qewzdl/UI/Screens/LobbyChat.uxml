@@ -4,6 +4,14 @@
          window in the corner does. A chat that swallowed clicks across the
          picture would take them from the rail it was moved away from. -->
     <ui:VisualElement name="Chat" picking-mode="Ignore" class="chat">
+        <!-- What a closed chat looks like. Without it the chat is a feature
+             the player has to be told about out of band: there is no window,
+             no button and no hint that a key does anything. -->
+        <ui:Button name="Tab" class="chat__tab">
+            <ui:Label name="TabKey" class="chat__tab__key" />
+            <ui:Label text="Chat" class="chat__tab__name" />
+            <ui:Label name="TabUnread" class="chat__tab__unread" />
+        </ui:Button>
         <ui:VisualElement name="Window" class="chat__window">
             <ui:Label text="Chat" class="section section--flush chat__title" />
             <ui:ScrollView name="Messages" class="scroll chat__messages" />

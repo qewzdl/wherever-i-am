@@ -1008,11 +1008,33 @@
                 },
                 {
                     "name": "",
+                    "id": "54c53af2-1e59-4594-9d4a-ac372080af3c",
+                    "path": "<Gamepad>/dpad/up",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "OpenChat",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "ad07b845-4ebc-40fa-907d-4a1e8d3ab386",
                     "path": "<Keyboard>/escape",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
+                    "action": "CloseChat",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "2c7ee46f-a5a4-467c-8d69-522b8dee4468",
+                    "path": "<Gamepad>/buttonEast",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
                     "action": "CloseChat",
                     "isComposite": false,
                     "isPartOfComposite": false

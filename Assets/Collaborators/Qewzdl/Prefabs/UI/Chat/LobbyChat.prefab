@@ -88,6 +88,7 @@ MonoBehaviour:
   document: {fileID: 7100000000000000003}
   visibilityController: {fileID: 7100000000000000004}
   sounds: {fileID: 7100000000000000009}
+  chatInput: {fileID: 7100000000000000008}
   chatEvents: {fileID: 0}
   closeAfterSubmit: 0
   releaseFocusAfterSubmit: 1

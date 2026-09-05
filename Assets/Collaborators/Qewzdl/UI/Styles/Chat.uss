@@ -31,11 +31,6 @@
     top: 0;
     bottom: 0;
 
-    /* Hidden until somebody opens it, and hidden in the stylesheet rather than
-       by the first frame of code: an element that starts visible and is put
-       away a moment later is a flash of empty box every time the lobby loads.
-       From here on it is UiFade that owns this, inline. */
-    display: none;
 }
 
 
@@ -56,8 +51,108 @@
    walls and the game between them, rather than a wall and a window.
    ========================================================================== */
 
+/* ==========================================================================
+   THE STRIP
+
+   A closed chat that says nothing is a feature the player has to be told
+   about somewhere else. This is the whole of it while it is shut: which key,
+   what it opens, and how much has been said since anybody last looked.
+
+   It stands where the window's own top edge will be, so opening the chat
+   reads as the strip growing into it rather than as two separate things
+   swapping places.
+   ========================================================================== */
+
+.chat__tab {
+    position: absolute;
+
+    right: 0;
+    bottom: 0;
+
+    flex-direction: row;
+    align-items: center;
+
+    background-color: var(--veil-solid);
+
+    border-width: 0;
+    border-radius: 0;
+
+    padding-left: var(--space-l);
+    padding-right: var(--space-l);
+    padding-top: var(--space-s);
+    padding-bottom: var(--space-s);
+
+    margin: 0;
+}
+
+
+/* Quiet at rest and lit under the pointer, the way a menu entry is - it is a
+   place to go rather than a thing to press. The frame comes off for the same
+   reason: it is standing on the edge of the screen. */
+
+.unity-button.chat__tab:hover:enabled,
+.unity-button.chat__tab:focus:enabled {
+    background-color: var(--veil-solid);
+}
+
+
+/* The key, in a box, the way a key is drawn everywhere. */
+
+.chat__tab__key {
+    color: var(--text);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    border-width: var(--border);
+    border-color: var(--line-strong);
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+
+    margin-right: var(--space-s);
+}
+
+
+.chat__tab__name {
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+}
+
+
+.unity-button.chat__tab:hover:enabled .chat__tab__name,
+.unity-button.chat__tab:focus:enabled .chat__tab__name {
+    color: var(--accent);
+}
+
+
+/* How much was said while nobody was looking. Hidden at nought rather than
+   showing a zero: a counter that is always there stops being read. */
+
+.chat__tab__unread {
+    color: var(--accent);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-left: var(--space-s);
+}
+
+
+/* ==========================================================================
+   THE WALL
+   ========================================================================== */
+
 .chat__window {
     position: absolute;
+
+    /* Away until it is opened, said here rather than in the first frame of
+       code: an element that starts visible and is put away a moment later is a
+       flash of empty box every time the lobby loads. From here on it is UiFade
+       that owns this, inline. */
+    display: none;
 
     right: 0;
     bottom: 0;
@@ -98,7 +193,7 @@
 }
 
 
-.chat--open .chat__window {
+.chat__window--open {
     opacity: 1;
     translate: 0 0;
 }

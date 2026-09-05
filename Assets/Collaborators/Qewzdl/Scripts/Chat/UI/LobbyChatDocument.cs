@@ -17,7 +17,7 @@ using UnityEngine.UIElements;
 [RequireComponent(typeof(UIDocument))]
 public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 {
-    private const string OpenClass = "chat--open";
+    private const string OpenClass = "chat__window--open";
     private const string MessageClass = "chat__message";
     private const string OwnMessageClass = "chat__message--own";
     private const string SystemMessageClass = "chat__message--system";
@@ -29,6 +29,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     [SerializeField] private UIDocument document;
     [SerializeField] private ChatVisibilityController visibilityController;
     [SerializeField] private UiDocumentSounds sounds;
+    [SerializeField] private ChatWindowInput chatInput;
 
     [Header("Events")]
     [SerializeField] private ChatEventChannel chatEvents;
@@ -38,6 +39,10 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     // with nothing admitting to it.
     [Header("Text")]
     [SerializeField] private string emptyChatText = "Nothing said yet";
+
+    // Only used if the binding cannot say what it is bound to. A strip naming
+    // a key nobody has bound is worse than one naming none.
+    [SerializeField] private string fallbackOpenChatKey = "T";
 
     [Header("Behaviour")]
     [SerializeField] private bool closeAfterSubmit;
@@ -50,6 +55,10 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
     private VisualElement boundRoot;
     private VisualElement chatLayer;
+    private VisualElement chatWindow;
+    private Button tab;
+    private Label tabKey;
+    private Label tabUnread;
     private ScrollView messages;
     private TextField input;
 
@@ -77,6 +86,9 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
         if (sounds == null)
             sounds = GetComponent<UiDocumentSounds>();
+
+        if (chatInput == null)
+            chatInput = GetComponent<ChatWindowInput>();
 
         DetachFromParentDocument();
     }
@@ -153,6 +165,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         UnsubscribeFromEventChannel();
         this.chatEvents = chatEvents;
         SubscribeToEventChannel();
+        SetUnreadCount(chatEvents != null ? chatEvents.CurrentUnreadCount : 0);
 
         if (visibilityController != null)
             visibilityController.SetEventChannel(chatEvents);
@@ -297,8 +310,18 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         UiPreferences.Attach(root);
 
         chatLayer = root.Q<VisualElement>("Chat");
+        chatWindow = root.Q<VisualElement>("Window");
+        tab = root.Q<Button>("Tab");
+        tabKey = root.Q<Label>("TabKey");
+        tabUnread = root.Q<Label>("TabUnread");
         messages = root.Q<ScrollView>("Messages");
         input = root.Q<TextField>("Input");
+
+        if (tab != null)
+            tab.clicked += Open;
+
+        RefreshTabKey();
+        SetUnreadCount(chatEvents != null ? chatEvents.CurrentUnreadCount : 0);
 
         if (chatLayer == null)
         {
@@ -505,11 +528,48 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
     private void RefreshVisibility()
     {
+        bool shouldShow = isOpen && CanOpen;
+
         // The same two steps every other layer in this interface is shown with:
-        // display has to stay in the picture because a transparent chat still
+        // display has to stay in the picture because a transparent window still
         // takes the pointer, and a class added in the frame the element appears
         // never transitions.
-        UiFade.Set(chatLayer, isOpen && CanOpen, OpenClass);
+        UiFade.Set(chatWindow, shouldShow, OpenClass);
+
+        // The strip is the closed chat, so it is there whenever the window is
+        // not - including when there is no session to chat in, where it is the
+        // only thing that says the feature exists at all.
+        if (tab != null)
+            tab.style.display = shouldShow ? DisplayStyle.None : DisplayStyle.Flex;
+    }
+
+    // Asked of the binding rather than written into the markup: the key lives
+    // in the actions asset, and a strip that disagrees with it teaches the
+    // player something false about their own keyboard.
+    private void RefreshTabKey()
+    {
+        if (tabKey == null)
+            return;
+
+        string key = chatInput != null ? chatInput.OpenChatDisplayName : string.Empty;
+
+        tabKey.text = string.IsNullOrWhiteSpace(key) ? fallbackOpenChatKey : key;
+    }
+
+    // What was said while nobody was looking. Hidden at nought rather than
+    // showing a zero: a counter that is always there stops being read.
+    private void SetUnreadCount(int unreadCount)
+    {
+        if (tabUnread == null)
+            return;
+
+        tabUnread.text = unreadCount > 0 ? unreadCount.ToString() : string.Empty;
+        tabUnread.style.display = unreadCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    private void HandleUnreadCountChanged(ChatUnreadCountChangedEvent unreadEvent)
+    {
+        SetUnreadCount(unreadEvent.UnreadCount);
     }
 
     // Rebuilt rather than reconciled. A lobby chat holds tens of lines, not
@@ -624,6 +684,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
             return;
 
         chatEvents.VisibilityChanged += HandleVisibilityChanged;
+        chatEvents.UnreadCountChanged += HandleUnreadCountChanged;
         isSubscribedToEventChannel = true;
     }
 
@@ -633,6 +694,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
             return;
 
         chatEvents.VisibilityChanged -= HandleVisibilityChanged;
+        chatEvents.UnreadCountChanged -= HandleUnreadCountChanged;
         isSubscribedToEventChannel = false;
     }
 

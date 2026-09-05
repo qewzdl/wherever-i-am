@@ -19,6 +19,44 @@ public sealed class ChatWindowInput : MonoBehaviour
     [SerializeField] private bool ignoreOpenWhileInputFocused = true;
     [SerializeField] private bool closeOnlyWhenInputFocused = true;
 
+    // What to press, read off the binding rather than written into a label: a
+    // screen that says T while the asset says something else is a screen
+    // nobody can correct.
+    //
+    // Taken from the path and not from the resolved control on purpose. A
+    // control reports the character its key produces under the layout the
+    // player is currently typing in, so <Keyboard>/t comes back as E on a
+    // Cyrillic layout - true, and useless. The binding names a position on the
+    // keyboard, and the letter printed on that key is what a prompt is for.
+    public string OpenChatDisplayName => KeyboardKeyName(
+        openChatAction != null ? openChatAction.action : null);
+
+    private static string KeyboardKeyName(InputAction action)
+    {
+        if (action == null)
+            return string.Empty;
+
+        foreach (InputBinding binding in action.bindings)
+        {
+            if (binding.isComposite || binding.isPartOfComposite)
+                continue;
+
+            string path = binding.effectivePath;
+
+            if (string.IsNullOrEmpty(path) || !path.StartsWith("<Keyboard>/"))
+                continue;
+
+            // The last segment of the path, which for a key is the key.
+            string key = path.Substring(path.LastIndexOf('/') + 1);
+
+            return key.Length == 0
+                ? string.Empty
+                : char.ToUpperInvariant(key[0]) + key.Substring(1);
+        }
+
+        return string.Empty;
+    }
+
     private InputAction subscribedOpenAction;
     private InputAction subscribedCloseAction;
     private bool openActionEnabledByThisComponent;
