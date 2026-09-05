@@ -365,17 +365,16 @@ MonoBehaviour:
   readyCountFormat: '{0} READY'
   kickConfirmFormat: Remove {0}? They will not be able to join again this session.
   needMorePlayersFormat: Need {0} more to start
-  waitingForReadyFormat: Waiting for {0} to get ready
   startingText: Starting the match...
   ownerOnlySettingText: Only the host can change this
-  doorShutText: Shut. Nobody can reach this lobby until you open it.
-  doorOpenFormat: Open. Share {0}. Use the copy button above.
+  doorShutText: Nobody can reach this lobby until you open it.
+  doorOpenFormat: Anybody who has {0} can join.
   doorNotYoursText: Only the host can open the door.
   addressUnknownText: no network
   addressCopyTooltip: Copy invite address
   addressCopiedText: Address copied
   doorFullFormat: Open, but the room is full at {0}. Nobody else can get in.
-  readyToStartText: Everybody is ready
+  readyToStartText: Everyone is ready - start the match
   waitingForHostText: Waiting for the host to start
   preparingMatchStageText: PREPARING
   loadingMatchStageText: LOADING SCENE
