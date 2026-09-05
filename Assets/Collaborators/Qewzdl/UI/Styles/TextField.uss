@@ -66,8 +66,13 @@
     /* The blue itself. Unity keeps one highlight colour for everything it
        wants to draw attention to, and a focused text field is one of them. */
     --unity-colors-highlight: var(--accent);
-    --unity-colors-highlight-background: var(--surface-hover);
-    --unity-colors-highlight-background-inactive: var(--surface-hover);
+
+    /* These two are the block behind selected text, and they used to be the
+       hover surface - one step off the field's own background, which is a
+       selection nobody can see. Killing Unity's blue is not the same as
+       painting nothing. */
+    --unity-colors-highlight-background: var(--selection);
+    --unity-colors-highlight-background-inactive: var(--selection);
     --unity-colors-default-border: var(--line);
 }
 
@@ -95,7 +100,7 @@
        accent for exactly the same reason. The two marks that say this field is
        being addressed should not disagree about how brightly. */
     --unity-cursor-color: var(--accent);
-    --unity-selection-color: var(--surface-hover);
+    --unity-selection-color: var(--selection);
 
     background-color: var(--surface);
     background-image: none;

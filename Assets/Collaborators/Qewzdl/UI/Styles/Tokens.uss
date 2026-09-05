@@ -141,6 +141,20 @@
     --surface: var(--palette-ink-950);
     --surface-hover: var(--palette-ink-900);
 
+    /* The block behind selected text, and the one role in this file that has to
+       be translucent rather than a step off the ladder.
+
+       A selection cannot invert the way a button does - the text engine paints
+       the ground and leaves the letters alone - so the colour has to do two
+       jobs at once: stand clear of the surface it is drawn on, and still be
+       dark enough to read bone text against. No opaque step does both. A wash
+       of the accent does: over a field it lands near ink-500 by arithmetic, so
+       the selection is plainly there and the text on it holds about six to one.
+
+       Translucent is also the honest description. A selection is not a
+       material, it is the surface underneath being pointed at. */
+    --selection: rgba(233, 233, 233, 0.25);
+
 
     /* ======================================================================
        2  ROLES / LINE
