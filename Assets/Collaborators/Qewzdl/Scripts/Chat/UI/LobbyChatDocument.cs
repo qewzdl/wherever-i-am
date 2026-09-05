@@ -318,6 +318,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
             // a listener on the field it has already been dealt with once. That
             // is what made this take two presses to send one message: the first
             // Return went into committing the edit and never reached here.
+            UiTextInput.Guard(input);
             input.RegisterCallback<KeyDownEvent>(HandleInputKeyDown, TrickleDown.TrickleDown);
             input.RegisterCallback<FocusInEvent>(_ => SetInputFocusState(true));
             input.RegisterCallback<FocusOutEvent>(_ => SetInputFocusState(false));

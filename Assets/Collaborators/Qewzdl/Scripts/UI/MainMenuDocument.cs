@@ -242,6 +242,11 @@ public sealed class MainMenuDocument : MonoBehaviour
         addressHint = root.Q<Label>("AddressHint");
         playerName = root.Q<TextField>("PlayerName");
         address = root.Q<TextField>("Address");
+
+        // Both of these are typed into, so both need the same shortcut fixed:
+        // without it Ctrl+A empties the box it was meant to light up.
+        UiTextInput.Guard(playerName);
+        UiTextInput.Guard(address);
         hostButton = root.Q<Button>("HostButton");
         joinButton = root.Q<Button>("JoinButton");
         settingsButton = root.Q<Button>("SettingsButton");
