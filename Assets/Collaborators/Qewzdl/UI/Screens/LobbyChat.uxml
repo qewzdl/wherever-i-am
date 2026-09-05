@@ -7,7 +7,6 @@
         <ui:VisualElement name="Window" class="chat__window">
             <ui:Label text="Chat" class="section section--flush chat__title" />
             <ui:ScrollView name="Messages" class="scroll chat__messages" />
-            <ui:Label name="Empty" class="hint chat__empty" />
             <ui:TextField name="Input" max-length="200" class="input chat__input" />
         </ui:VisualElement>
     </ui:VisualElement>

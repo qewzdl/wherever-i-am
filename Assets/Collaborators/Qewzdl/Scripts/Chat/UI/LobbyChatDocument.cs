@@ -23,6 +23,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     private const string SystemMessageClass = "chat__message--system";
     private const string SenderClass = "chat__message__sender";
     private const string TextClass = "chat__message__text";
+    private const string EmptyClass = "chat__empty";
 
     [Header("References")]
     [SerializeField] private UIDocument document;
@@ -50,7 +51,6 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     private VisualElement boundRoot;
     private VisualElement chatLayer;
     private ScrollView messages;
-    private Label emptyLabel;
     private TextField input;
 
     private bool isOpen;
@@ -298,11 +298,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
         chatLayer = root.Q<VisualElement>("Chat");
         messages = root.Q<ScrollView>("Messages");
-        emptyLabel = root.Q<Label>("Empty");
         input = root.Q<TextField>("Input");
-
-        if (emptyLabel != null)
-            emptyLabel.text = emptyChatText;
 
         if (chatLayer == null)
         {
@@ -542,23 +538,22 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
                 messages.Add(BuildMessage(message));
                 shown++;
             }
-
-            // After the layout, not before it: scrolling to the bottom of a
-            // list that has not been measured yet scrolls to the bottom of
-            // nothing.
-            messages.schedule.Execute(ScrollToBottom);
         }
 
-        // Counted on the way in rather than read back off the list. A
-        // ScrollView's own children are its viewport and its scrollers - what
-        // was put into it lives one level down, in the content container, and
-        // asking the wrong one gives an answer that is never nought.
-        if (emptyLabel != null)
+        // Said inside the list rather than under it, the way the roster says
+        // it. Under it, the list was still there - forty pixels of nothing
+        // between the rule and the sentence explaining that there is nothing.
+        if (shown == 0)
         {
-            emptyLabel.style.display = shown == 0
-                ? DisplayStyle.Flex
-                : DisplayStyle.None;
+            Label empty = new Label(emptyChatText);
+            empty.AddToClassList(EmptyClass);
+            messages.Add(empty);
+            return;
         }
+
+        // After the layout, not before it: scrolling to the bottom of a list
+        // that has not been measured yet scrolls to the bottom of nothing.
+        messages.schedule.Execute(ScrollToBottom);
     }
 
     private VisualElement BuildMessage(ChatMessageData message)

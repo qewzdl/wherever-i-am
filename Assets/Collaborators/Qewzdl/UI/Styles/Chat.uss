@@ -208,13 +208,21 @@
 
 /* Nothing has been said. The roster says "Waiting for the room..." rather than
    showing four empty rows, and an empty box with a rule over it and a caret
-   under it is the same silence with nothing admitting to it. */
+   under it is the same silence with nothing admitting to it.
+
+   It stands in the list rather than under it, which is also where the roster
+   puts its own: under it, the list is still there, and the sentence explaining
+   that nothing has been said arrives beneath forty pixels of nothing.
+
+   Left, not centred. It is standing where the first message will stand. */
 
 .chat__empty {
-    margin-top: var(--space-s);
-    margin-bottom: var(--space-s);
+    flex-grow: 1;
 
-    -unity-text-align: middle-left;
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
 }
 
 
