@@ -66,9 +66,16 @@ public class LobbyUI : MonoBehaviour
     // the screen said nothing - everybody simply stopped being ready and the
     // only explanation was a dropdown somebody else had touched.
     [SerializeField] private string difficultyChangedByHostFormat =
-        "Host changed difficulty to {0} - readiness was reset";
+        "Host changed difficulty to {0}";
     [SerializeField] private string difficultyChangedByYouFormat =
-        "You changed difficulty to {0} - readiness was reset";
+        "You changed difficulty to {0}";
+
+    // Only when somebody actually lost something. The server clears readiness
+    // every time the terms move, but saying so in a room where nobody had
+    // pressed Ready is a sentence that teaches a player to stop reading the
+    // line - and the one time it matters, they will not.
+    [SerializeField] private string readinessResetSuffix =
+        " - check your ready status";
     [SerializeField] private float setupNoticeSeconds = 8f;
 
     // Asked before the change rather than explained after it, because the host
@@ -270,6 +277,16 @@ public class LobbyUI : MonoBehaviour
     private int lastSeenDifficultyId;
     private bool hasSeenSettings;
 
+    // How many were ready, two refreshes deep.
+    //
+    // One would do if the two facts arrived together, and they do not have to:
+    // the cleared readiness and the new difficulty are separate replicated
+    // values, and either can land first. If readiness lands first, the count
+    // is already nought by the time the difficulty change is noticed, and the
+    // one refresh before it is the only place the truth is still written down.
+    private int lastSeenReadyCount;
+    private int readyCountBeforeThat;
+
     // One per control, because they are three separate questions and a player
     // may be waiting on their own Ready while the host is waiting on the door.
     private readonly PendingChange readyChange = new PendingChange();
@@ -306,6 +323,8 @@ public class LobbyUI : MonoBehaviour
         SubscribeToSessionState();
 
         hasSeenSettings = false;
+        lastSeenReadyCount = 0;
+        readyCountBeforeThat = 0;
         readyChange.Forget();
         doorChange.Forget();
         difficultyChange.Forget();
@@ -889,12 +908,20 @@ public class LobbyUI : MonoBehaviour
 
         RefreshSetupOwner();
 
+        int readyCount = CountReady();
+
         // The first look is not a change. A screen that opened onto a room
         // already set to Hard has not been told anything.
         if (hasSeenSettings && difficultyId != lastSeenDifficultyId)
-            AnnounceDifficultyChange(difficultyId);
+        {
+            AnnounceDifficultyChange(
+                difficultyId,
+                lastSeenReadyCount > 0 || readyCountBeforeThat > 0);
+        }
 
         lastSeenDifficultyId = difficultyId;
+        readyCountBeforeThat = lastSeenReadyCount;
+        lastSeenReadyCount = readyCount;
         hasSeenSettings = true;
     }
 
@@ -918,12 +945,13 @@ public class LobbyUI : MonoBehaviour
             : string.Format(settingsOwnerFormat, ownerName);
     }
 
-    // Said in the words of whoever did it. The reset is stated flatly rather
-    // than worked out: the server clears readiness every time the terms move,
-    // whether or not anybody had pressed Ready, so the sentence is true in an
-    // empty room as well - and asking the screen to decide would mean racing
-    // two replicated values to find out which arrived first.
-    private void AnnounceDifficultyChange(int difficultyId)
+    // Said in the words of whoever did it, and only mentioning readiness when
+    // there was readiness to lose.
+    //
+    // The half about the reset is not a fact this screen can read off the room
+    // - by the time the change is noticed the readiness is already gone - so it
+    // is remembered instead, two refreshes deep, because the two values race.
+    private void AnnounceDifficultyChange(int difficultyId, bool readinessWasReset)
     {
         if (setupNoticeLabel == null)
             return;
@@ -932,7 +960,12 @@ public class LobbyUI : MonoBehaviour
             ? difficultyChangedByYouFormat
             : difficultyChangedByHostFormat;
 
-        setupNoticeLabel.text = string.Format(format, DifficultyName(difficultyId));
+        string notice = string.Format(format, DifficultyName(difficultyId));
+
+        if (readinessWasReset)
+            notice += readinessResetSuffix;
+
+        setupNoticeLabel.text = notice;
         setupNoticeLabel.style.display = DisplayStyle.Flex;
 
         int version = ++setupNoticeVersion;
