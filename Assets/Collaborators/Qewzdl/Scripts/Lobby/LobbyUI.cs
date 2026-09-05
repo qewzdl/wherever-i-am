@@ -35,6 +35,7 @@ public class LobbyUI : MonoBehaviour
     // Both are verbs. The old pair said "Ready" and "Not ready", and the second
     // of those reads as a state rather than as the thing pressing it does -
     // which is the one question a button label exists to answer.
+    [SerializeField] private string startActionText = "Start";
     [SerializeField] private string readyActionText = "Ready up";
     [SerializeField] private string standDownActionText = "Stand down";
     [SerializeField] private string playerCountFormat = "{0}/{1}";
@@ -136,6 +137,7 @@ public class LobbyUI : MonoBehaviour
     // started, so a host who opened the door watched the switch flick itself
     // shut and then open again when the reply landed.
     [SerializeField] private string pendingChangeText = "Updating...";
+    [SerializeField] private string startPendingActionText = "Starting...";
     [SerializeField] private string pendingFailedText = "No answer - try again";
     [SerializeField, Min(1f)] private float pendingChangeTimeoutSeconds = 6f;
 
@@ -273,6 +275,10 @@ public class LobbyUI : MonoBehaviour
     private readonly PendingChange readyChange = new PendingChange();
     private readonly PendingChange doorChange = new PendingChange();
     private readonly PendingChange difficultyChange = new PendingChange();
+
+    // Start is the one command whose answer is a phase rather than a value:
+    // the room stops being a lobby. It waits the same way regardless.
+    private readonly PendingChange startChange = new PendingChange();
     private int setupNoticeVersion;
 
     public event Action ReadyClicked;
@@ -303,6 +309,7 @@ public class LobbyUI : MonoBehaviour
         readyChange.Forget();
         doorChange.Forget();
         difficultyChange.Forget();
+        startChange.Forget();
         HideSetupNotice(++setupNoticeVersion);
 
         Show(complainIfMissing: false);
@@ -379,7 +386,8 @@ public class LobbyUI : MonoBehaviour
 
         bool wasWaiting = readyChange.IsWaiting ||
                           doorChange.IsWaiting ||
-                          difficultyChange.IsWaiting;
+                          difficultyChange.IsWaiting ||
+                          startChange.IsWaiting;
 
         if (!wasWaiting)
             return;
@@ -387,9 +395,15 @@ public class LobbyUI : MonoBehaviour
         readyChange.Tick();
         doorChange.Tick();
         difficultyChange.Tick();
+        startChange.Tick();
 
-        if (readyChange.IsWaiting || doorChange.IsWaiting || difficultyChange.IsWaiting)
+        if (readyChange.IsWaiting ||
+            doorChange.IsWaiting ||
+            difficultyChange.IsWaiting ||
+            startChange.IsWaiting)
+        {
             return;
+        }
 
         RefreshButtons();
         RefreshDifficulty();
@@ -623,7 +637,12 @@ public class LobbyUI : MonoBehaviour
 
     private void HandleStartGameClicked()
     {
+        startChange.Begin(
+            () => readService.Phase != LobbyPhase.Open,
+            pendingChangeTimeoutSeconds);
+
         StartGameClicked?.Invoke();
+        RefreshButtons();
     }
 
     // For anybody else this is walking out of a room that carries on without
@@ -835,6 +854,7 @@ public class LobbyUI : MonoBehaviour
         readyChange.Tick();
         doorChange.Tick();
         difficultyChange.Tick();
+        startChange.Tick();
 
         RefreshPlayers();
         RefreshButtons();
@@ -1394,7 +1414,15 @@ public class LobbyUI : MonoBehaviour
                 ? DisplayStyle.Flex
                 : DisplayStyle.None;
 
-            startButton.SetEnabled(isLobbyPhaseOpen && readService.CanStartGame);
+            // Pressable once. The phase does not change on the host's own word,
+            // and until it does the button was still live - so a host who
+            // pressed it twice asked the server to start the match twice.
+            startButton.SetEnabled(
+                isLobbyPhaseOpen && readService.CanStartGame && !startChange.IsWaiting);
+
+            startButton.text = startChange.IsWaiting
+                ? startPendingActionText
+                : startActionText;
         }
 
         bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
@@ -1540,7 +1568,7 @@ public class LobbyUI : MonoBehaviour
         bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
 
         StartHint hint = ChooseStartHint(
-            readyChangeFailed: readyChange.HasFailed,
+            commandFailed: readyChange.HasFailed || startChange.HasFailed,
             isLobbyPhaseOpen: isLobbyPhaseOpen,
             missingPlayers: settings.MinPlayersToStart - readService.PlayerCount,
             notReadyCount: settings.RequireAllPlayersReady ? CountNotReady() : 0,
@@ -1558,7 +1586,7 @@ public class LobbyUI : MonoBehaviour
     public enum StartHint
     {
         Starting,
-        ReadyRefused,
+        CommandRefused,
         NeedMorePlayers,
         ReadyUpYourself,
         WaitingForOne,
@@ -1568,7 +1596,7 @@ public class LobbyUI : MonoBehaviour
     }
 
     public static StartHint ChooseStartHint(
-        bool readyChangeFailed,
+        bool commandFailed,
         bool isLobbyPhaseOpen,
         int missingPlayers,
         int notReadyCount,
@@ -1580,11 +1608,12 @@ public class LobbyUI : MonoBehaviour
         if (!isLobbyPhaseOpen)
             return StartHint.Starting;
 
-        // A press that went nowhere. It outranks everything the room has to
-        // say, because everything the room has to say assumes the player's own
-        // answer got through - and this one did not.
-        if (readyChangeFailed)
-            return StartHint.ReadyRefused;
+        // A press that went nowhere - a Ready, or a Start. It outranks
+        // everything the room has to say, because everything the room has to
+        // say assumes the player's own answer got through, and this one did
+        // not.
+        if (commandFailed)
+            return StartHint.CommandRefused;
 
         // An empty chair beats an unready player: readying up in a room that
         // cannot start either way is work with nothing at the end of it.
@@ -1623,7 +1652,7 @@ public class LobbyUI : MonoBehaviour
             case StartHint.Starting:
                 return startingText;
 
-            case StartHint.ReadyRefused:
+            case StartHint.CommandRefused:
                 return pendingFailedText;
 
             case StartHint.NeedMorePlayers:

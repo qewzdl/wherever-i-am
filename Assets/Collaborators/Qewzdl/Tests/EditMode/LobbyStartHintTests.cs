@@ -12,7 +12,7 @@ public sealed class LobbyStartHintTests
     {
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: false,
                 missingPlayers: 3,
                 notReadyCount: 4,
@@ -28,7 +28,7 @@ public sealed class LobbyStartHintTests
     {
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 1,
                 notReadyCount: 2,
@@ -44,7 +44,7 @@ public sealed class LobbyStartHintTests
         // one of the three you can do anything about is you.
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 0,
                 notReadyCount: 3,
@@ -56,7 +56,7 @@ public sealed class LobbyStartHintTests
         // until they have answered for themselves.
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 0,
                 notReadyCount: 1,
@@ -70,7 +70,7 @@ public sealed class LobbyStartHintTests
     {
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 0,
                 notReadyCount: 1,
@@ -80,7 +80,7 @@ public sealed class LobbyStartHintTests
 
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 0,
                 notReadyCount: 2,
@@ -96,7 +96,7 @@ public sealed class LobbyStartHintTests
     {
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 0,
                 notReadyCount: 0,
@@ -106,7 +106,7 @@ public sealed class LobbyStartHintTests
 
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 0,
                 notReadyCount: 0,
@@ -115,26 +115,27 @@ public sealed class LobbyStartHintTests
             Is.EqualTo(LobbyUI.StartHint.WaitingForHost));
     }
 
-    // A press the server never answered outranks everything the room has to
-    // say, because all of that assumes the player's own answer got through.
+    // A press the server never answered - a Ready or a Start - outranks
+    // everything the room has to say, because all of that assumes the player's
+    // own answer got through.
     [Test]
-    public void AReadyThatWentNowhereIsSaidBeforeAnythingTheRoomWants()
+    public void APressThatWentNowhereIsSaidBeforeAnythingTheRoomWants()
     {
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: true,
+                commandFailed: true,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 2,
                 notReadyCount: 3,
                 isLocalPlayerReady: false,
                 isLocalPlayerRoomOwner: true),
-            Is.EqualTo(LobbyUI.StartHint.ReadyRefused));
+            Is.EqualTo(LobbyUI.StartHint.CommandRefused));
 
         // Except a match that is already starting: nothing on this line is
         // worth saying to somebody watching a scene load.
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: true,
+                commandFailed: true,
                 isLobbyPhaseOpen: false,
                 missingPlayers: 0,
                 notReadyCount: 0,
@@ -151,7 +152,7 @@ public sealed class LobbyStartHintTests
     {
         Assert.That(
             LobbyUI.ChooseStartHint(
-                readyChangeFailed: false,
+                commandFailed: false,
                 isLobbyPhaseOpen: true,
                 missingPlayers: 0,
                 notReadyCount: 0,
