@@ -266,6 +266,24 @@ public class LobbyUI : MonoBehaviour
         }
     }
 
+    // A row that stays. The list used to be thrown away and rebuilt on every
+    // change, which is cheap for elements and expensive for the player: the
+    // Remove button under the pointer stopped existing whenever anybody
+    // readied up, taking the keyboard focus with it, and a host tabbing to a
+    // kick was tabbing to something that would not survive the next packet.
+    private sealed class RosterRow
+    {
+        public VisualElement Root;
+        public Label Name;
+        public Label Role;
+        public Label Status;
+        public Button Kick;
+    }
+
+    private readonly Dictionary<ulong, RosterRow> rosterRows = new();
+    private readonly List<ulong> departedClients = new();
+    private Label emptyRosterLabel;
+
     private PendingAction pendingAction;
     private ulong pendingKickClientId;
     private int pendingDifficultyId;
@@ -1149,61 +1167,140 @@ public class LobbyUI : MonoBehaviour
             CancelPendingAction();
         }
 
-        // Rebuilt rather than rebound. The uGUI version kept its rows and hid
-        // the spares because each one was a GameObject; these are small visual
-        // element trees, and the list only changes when lobby state changes.
-        roster.Clear();
-
         if (playerCount == 0)
         {
-            Label empty = new Label(emptyRosterText);
-
-            empty.AddToClassList("roster__empty");
-            roster.Add(empty);
+            ClearRosterRows();
+            ShowEmptyRoster();
             return;
         }
+
+        HideEmptyRoster();
+
+        // Kept and updated rather than thrown away. A row is not a picture of a
+        // player, it is the thing their Remove button lives in, and rebuilding
+        // the list every time anybody readies up took that button out from
+        // under the pointer along with whatever focus was on it.
+        bool builtAnything = false;
+        VisualElement previous = null;
 
         for (int i = 0; i < playerCount; i++)
         {
             LobbyPlayerData player = readService.GetPlayer(i);
 
-            roster.Add(BuildPlayerRow(
+            if (!rosterRows.TryGetValue(player.ClientId, out RosterRow row))
+            {
+                row = BuildPlayerRow(player.ClientId);
+                rosterRows[player.ClientId] = row;
+                roster.Add(row.Root);
+                builtAnything = true;
+            }
+
+            UpdatePlayerRow(
+                row,
                 player,
                 player.ClientId == readService.RoomOwnerClientId,
                 hasLocalPlayer && player.ClientId == localPlayer.ClientId,
-                canKick && player.ClientId != localPlayer.ClientId));
+                canKick && player.ClientId != localPlayer.ClientId);
+
+            // Moved rather than re-added: taking an element out of the tree to
+            // put it back one place along is the same loss of focus this whole
+            // change exists to avoid. Only touched when the order is wrong,
+            // which is rare - people join and leave far less often than they
+            // ready up.
+            PlaceRowAfter(row.Root, previous, i);
+            previous = row.Root;
         }
 
+        RemoveDepartedRows();
+
         // The sound binder listens for the whole document and cannot hear
-        // elements that did not exist when it looked. Every other screen is
-        // built once from markup and never needs to say anything; this one
-        // makes a kick button per player, and a control that is silent under
-        // the pointer reads as one that cannot be used.
-        sounds?.Bind();
+        // elements that did not exist when it looked. Only when a row was
+        // actually made: it unbinds and re-queries the whole screen, and doing
+        // that on every packet is work for nothing.
+        if (builtAnything)
+            sounds?.Bind();
     }
 
-    private VisualElement BuildPlayerRow(
-        LobbyPlayerData player,
-        bool isRoomOwner,
-        bool isLocalPlayer,
-        bool canKick)
+    private void PlaceRowAfter(VisualElement row, VisualElement previous, int index)
     {
-        VisualElement row = new VisualElement();
-        row.AddToClassList("roster__row");
+        if (previous == null)
+        {
+            if (roster.IndexOf(row) != 0)
+                row.SendToBack();
 
-        // Four names and no way to tell which one answers to you. Everything
-        // else on this screen is about your own state - are you ready, may you
-        // start - and the list was the one place that never said which row
-        // that was.
-        if (isLocalPlayer)
-            row.AddToClassList("roster__row--you");
+            return;
+        }
 
-        Label name = new Label(isLocalPlayer
-            ? player.PlayerName + localPlayerSuffix
-            : player.PlayerName.ToString());
+        if (roster.IndexOf(row) != index)
+            row.PlaceInFront(previous);
+    }
 
+    private void RemoveDepartedRows()
+    {
+        departedClients.Clear();
+
+        foreach (KeyValuePair<ulong, RosterRow> pair in rosterRows)
+        {
+            if (!IsStillHere(pair.Key))
+                departedClients.Add(pair.Key);
+        }
+
+        for (int i = 0; i < departedClients.Count; i++)
+        {
+            if (rosterRows.TryGetValue(departedClients[i], out RosterRow row))
+                row.Root.RemoveFromHierarchy();
+
+            rosterRows.Remove(departedClients[i]);
+        }
+    }
+
+    private bool IsStillHere(ulong clientId)
+    {
+        for (int i = 0; i < readService.PlayerCount; i++)
+        {
+            if (readService.GetPlayer(i).ClientId == clientId)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void ClearRosterRows()
+    {
+        foreach (KeyValuePair<ulong, RosterRow> pair in rosterRows)
+            pair.Value.Root.RemoveFromHierarchy();
+
+        rosterRows.Clear();
+    }
+
+    private void ShowEmptyRoster()
+    {
+        if (emptyRosterLabel == null)
+        {
+            emptyRosterLabel = new Label(emptyRosterText);
+            emptyRosterLabel.AddToClassList("roster__empty");
+        }
+
+        if (emptyRosterLabel.parent == null)
+            roster.Add(emptyRosterLabel);
+    }
+
+    private void HideEmptyRoster()
+    {
+        emptyRosterLabel?.RemoveFromHierarchy();
+    }
+
+    // Built once per player, empty. Everything that can change about a row -
+    // the name, the badges, whether it is yours, whether it can be kicked - is
+    // set by UpdatePlayerRow, so the elements themselves outlive every packet.
+    private RosterRow BuildPlayerRow(ulong clientId)
+    {
+        VisualElement root = new VisualElement();
+        root.AddToClassList("roster__row");
+
+        Label name = new Label();
         name.AddToClassList("roster__name");
-        row.Add(name);
+        root.Add(name);
 
         VisualElement badges = new VisualElement();
         badges.AddToClassList("roster__badges");
@@ -1212,43 +1309,66 @@ public class LobbyUI : MonoBehaviour
         // the host's ready state with "Owner", while the start rule still
         // counted that state; clients were told to wait for somebody the list
         // could never identify.
-        if (isRoomOwner)
-        {
-            Label role = new Label(ownerStatusText);
-            role.AddToClassList("roster__role");
-            badges.Add(role);
-        }
+        //
+        // Both labels are made now and hidden when they have nothing to say,
+        // rather than added and removed - a row that grows and shrinks its
+        // children is a row that cannot keep anything.
+        Label role = new Label(ownerStatusText);
+        role.AddToClassList("roster__role");
+        badges.Add(role);
 
-        Label status = new Label(player.IsReady
-            ? readyStatusText
-            : notReadyStatusText);
-
+        Label status = new Label();
         status.AddToClassList("roster__status");
-
-        if (player.IsReady)
-            status.AddToClassList("roster__status--ready");
-
         badges.Add(status);
-        row.Add(badges);
 
-        if (canKick)
+        root.Add(badges);
+
+        // Captured once rather than read back off the list. The row belongs to
+        // this client for as long as it exists, so the handler can too - and
+        // an index would be pointing at whoever took that place.
+        Button kick = null;
+        kick = new Button(() => HandlePlayerKickRequested(clientId, kick))
         {
-            // Captured once per row rather than read back off the list. Rows
-            // are rebuilt whenever anything changes, so a handler that looked
-            // up an index would be pointing at whoever took that place.
-            ulong clientId = player.ClientId;
-            Button kick = null;
-            kick = new Button(() => HandlePlayerKickRequested(clientId, kick))
-            {
-                text = kickActionText
-            };
+            text = kickActionText
+        };
 
-            kick.AddToClassList("button");
-            kick.AddToClassList("roster__kick");
-            row.Add(kick);
-        }
+        kick.AddToClassList("button");
+        kick.AddToClassList("roster__kick");
+        root.Add(kick);
 
-        return row;
+        return new RosterRow
+        {
+            Root = root,
+            Name = name,
+            Role = role,
+            Status = status,
+            Kick = kick
+        };
+    }
+
+    private void UpdatePlayerRow(
+        RosterRow row,
+        LobbyPlayerData player,
+        bool isRoomOwner,
+        bool isLocalPlayer,
+        bool canKick)
+    {
+        // Four names and no way to tell which one answers to you. Everything
+        // else on this screen is about your own state - are you ready, may you
+        // start - and the list was the one place that never said which row
+        // that was.
+        row.Root.EnableInClassList("roster__row--you", isLocalPlayer);
+
+        row.Name.text = isLocalPlayer
+            ? player.PlayerName + localPlayerSuffix
+            : player.PlayerName.ToString();
+
+        row.Role.style.display = isRoomOwner ? DisplayStyle.Flex : DisplayStyle.None;
+
+        row.Status.text = player.IsReady ? readyStatusText : notReadyStatusText;
+        row.Status.EnableInClassList("roster__status--ready", player.IsReady);
+
+        row.Kick.style.display = canKick ? DisplayStyle.Flex : DisplayStyle.None;
     }
 
     private void HandlePlayerKickRequested(ulong clientId, Button focusTarget)
