@@ -6,6 +6,7 @@ using System.Text;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 // Every serialised string in a scene or a prefab is a copy of what its class
 // said the day the asset was last saved, and a copy wins over the class. So a
@@ -16,11 +17,19 @@ using UnityEngine;
 // underneath, "Shut. Nobody can reach this lobby until you open it." - the word
 // Shut had moved into the status line months earlier and the hint kept it too.
 //
-// The rule this checks is narrower than "the asset must agree with the class",
-// because that is not true: an asset is allowed to be configured. It is this -
-// an asset may blank a field, and may not hold a different sentence. Blank is
-// how this project turns a piece of text off, and the enemy prefab does exactly
-// that with an animator parameter it does not drive. A different sentence is
+// The rule is narrower than "the asset must agree with the class", because
+// that is not true: an asset exists to be configured. It rests on which of the
+// two declared the text in the first place.
+//
+// A field the class gives a sentence to is the class's own words - a screen's
+// copy, written once and read everywhere. A field the class leaves undeclared
+// is per-instance data: the text of a label, the id of a room, the name of an
+// action map. The class has no opinion about those and cannot be drifted from.
+// This looks only at the first kind.
+//
+// An asset may still blank one, because blank is how this project turns a piece
+// of text off - the enemy prefab does exactly that with an animator parameter it
+// does not drive. What it may not do is hold a different sentence, which is
 // never a configuration; it is a copy nobody updated.
 public sealed class SerializedTextDriftTests
 {
@@ -64,6 +73,11 @@ public sealed class SerializedTextDriftTests
                 if (!fields.TryGetValue(key, out string expected))
                     continue;
 
+                // The class said nothing, so there is nothing to drift from:
+                // this field is whatever each instance makes of it.
+                if (string.IsNullOrEmpty(expected))
+                    continue;
+
                 // Blank is how a field is switched off, and switching one off is
                 // a decision the asset is entitled to make.
                 if (string.IsNullOrEmpty(stored) || stored == expected)
@@ -104,6 +118,16 @@ public sealed class SerializedTextDriftTests
 
     // Read off real instances rather than out of the source, so the answer is
     // whatever the field initialiser actually produces.
+    //
+    // On a switched-off object, because a component added to a live one wakes
+    // up: half the behaviours in this game check their configuration on the way
+    // in and say so when it is missing, which it always is on a bare probe. An
+    // inactive host runs the field initialisers and nothing else.
+    //
+    // What still gets through is OnValidate, which the editor calls whatever
+    // the object is doing. Those complaints are not this test's business - it
+    // is poking components in a way nobody designed them for - so they are
+    // ignored while it pokes, and only while.
     private static Dictionary<string, string> DefaultsFor(
         Type type,
         Dictionary<Type, Dictionary<string, string>> cache)
@@ -116,6 +140,11 @@ public sealed class SerializedTextDriftTests
         {
             hideFlags = HideFlags.HideAndDontSave
         };
+
+        host.SetActive(false);
+
+        bool ignoring = LogAssert.ignoreFailingMessages;
+        LogAssert.ignoreFailingMessages = true;
 
         try
         {
@@ -134,6 +163,7 @@ public sealed class SerializedTextDriftTests
         }
         finally
         {
+            LogAssert.ignoreFailingMessages = ignoring;
             UnityEngine.Object.DestroyImmediate(host);
         }
 
