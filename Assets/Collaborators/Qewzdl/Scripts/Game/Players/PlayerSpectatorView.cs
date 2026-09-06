@@ -14,6 +14,15 @@ public sealed class PlayerSpectatorView : MonoBehaviour
 {
     private const float ViewCatchUp = 30f;
 
+    // The names of the buttons this class reads, kept beside the reading. A
+    // prompt written anywhere else is a prompt that can disagree with what the
+    // button actually does, and a label arguing with the pad in the player's
+    // hands is worse than no label.
+    private const string MouseNextName = "LMB";
+    private const string MousePreviousName = "RMB";
+    private const string PadNextName = "RB";
+    private const string PadPreviousName = "LB";
+
     private Transform view;
     private PlayerEnemyAttackReceiver self;
     private PlayerEnemyAttackReceiver watched;
@@ -23,6 +32,35 @@ public sealed class PlayerSpectatorView : MonoBehaviour
     private bool hasSmoothedPose;
 
     public PlayerEnemyAttackReceiver Watched => watched;
+
+    // The body this spectator left behind, which is the one player the
+    // rotation must never land on. Anybody drawing that rotation needs to know
+    // it as much as the walk itself does.
+    public PlayerEnemyAttackReceiver Self => self;
+
+    // Which of the two the player is actually holding, decided by which device
+    // spoke last rather than by which one they pressed here - so the prompt is
+    // right before the first press as well as after it.
+    public static bool IsUsingGamepad
+    {
+        get
+        {
+            Gamepad pad = Gamepad.current;
+
+            if (pad == null)
+                return false;
+
+            double pointer = Mouse.current != null ? Mouse.current.lastUpdateTime : 0d;
+            double keys = Keyboard.current != null ? Keyboard.current.lastUpdateTime : 0d;
+
+            return pad.lastUpdateTime >= (pointer > keys ? pointer : keys);
+        }
+    }
+
+    public static string NextButtonName => IsUsingGamepad ? PadNextName : MouseNextName;
+
+    public static string PreviousButtonName =>
+        IsUsingGamepad ? PadPreviousName : MousePreviousName;
 
     // Only the owner is given one of these, so there is at most one per client
     // and it is always this player's. Scene UI has nothing else to ask: this
@@ -73,6 +111,10 @@ public sealed class PlayerSpectatorView : MonoBehaviour
         {
             Watch(NextTarget(PlayerEnemyAttackReceiver.All, self, watched));
         }
+        else if (WasPreviousRequested())
+        {
+            Watch(PreviousTarget(PlayerEnemyAttackReceiver.All, self, watched));
+        }
 
         // Whatever their camera is doing - crouched, folded into a hiding
         // place, or anything added to it later - arrives as one pose. Nothing
@@ -119,6 +161,26 @@ public sealed class PlayerSpectatorView : MonoBehaviour
         PlayerEnemyAttackReceiver self,
         PlayerEnemyAttackReceiver current)
     {
+        return Step(players, self, current, 1);
+    }
+
+    // The same walk in the other direction. A spectator who clicks past the
+    // person they wanted had, until now, to go all the way round the room to
+    // get back to them.
+    internal static PlayerEnemyAttackReceiver PreviousTarget(
+        IReadOnlyList<PlayerEnemyAttackReceiver> players,
+        PlayerEnemyAttackReceiver self,
+        PlayerEnemyAttackReceiver current)
+    {
+        return Step(players, self, current, -1);
+    }
+
+    private static PlayerEnemyAttackReceiver Step(
+        IReadOnlyList<PlayerEnemyAttackReceiver> players,
+        PlayerEnemyAttackReceiver self,
+        PlayerEnemyAttackReceiver current,
+        int direction)
+    {
         if (players == null || players.Count == 0)
         {
             return null;
@@ -135,10 +197,14 @@ public sealed class PlayerSpectatorView : MonoBehaviour
             }
         }
 
-        for (int step = 1; step <= players.Count; step++)
+        int count = players.Count;
+
+        for (int step = 1; step <= count; step++)
         {
-            PlayerEnemyAttackReceiver candidate =
-                players[(currentIndex + step) % players.Count];
+            // Kept positive before the modulo: a negative index is what walking
+            // backwards produces and what C# does not wrap the way this needs.
+            int index = ((currentIndex + direction * step) % count + count) % count;
+            PlayerEnemyAttackReceiver candidate = players[index];
 
             if (candidate != null && candidate != self && !candidate.IsEliminated)
             {
@@ -149,10 +215,36 @@ public sealed class PlayerSpectatorView : MonoBehaviour
         return null;
     }
 
+    // Read off the devices rather than through an action, because by the time
+    // anybody is watching, this player's input component has been switched off
+    // along with everything else that let them act on the world.
+    //
+    // A pad answers as well as a mouse. Watching is the longest a caught player
+    // will sit still in this game, and until now it was the one part of it a
+    // controller could not touch at all.
     private static bool WasNextRequested()
     {
         Mouse mouse = Mouse.current;
-        return mouse != null && mouse.leftButton.wasPressedThisFrame;
+
+        if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+            return true;
+
+        Gamepad pad = Gamepad.current;
+
+        return pad != null &&
+               (pad.rightShoulder.wasPressedThisFrame || pad.buttonSouth.wasPressedThisFrame);
+    }
+
+    private static bool WasPreviousRequested()
+    {
+        Mouse mouse = Mouse.current;
+
+        if (mouse != null && mouse.rightButton.wasPressedThisFrame)
+            return true;
+
+        Gamepad pad = Gamepad.current;
+
+        return pad != null && pad.leftShoulder.wasPressedThisFrame;
     }
 
     private bool IsWatchable(PlayerEnemyAttackReceiver player)

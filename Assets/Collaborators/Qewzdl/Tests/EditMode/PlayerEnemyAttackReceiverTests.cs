@@ -124,6 +124,49 @@ public sealed class PlayerEnemyAttackReceiverTests
             "Nobody is left to watch once every survivor is caught.");
     }
 
+    // The way back. A spectator who clicked past the person they wanted used to
+    // have to go all the way round the room to reach them again.
+    [Test]
+    public void SpectatorWalksBackTheWayItCame()
+    {
+        PlayerEnemyAttackReceiver caught = CreatePlayer();
+        PlayerEnemyAttackReceiver first = CreatePlayer();
+        PlayerEnemyAttackReceiver second = CreatePlayer();
+        PlayerEnemyAttackReceiver third = CreatePlayer();
+
+        List<PlayerEnemyAttackReceiver> players = new()
+        {
+            caught,
+            first,
+            second,
+            third
+        };
+
+        Eliminate(caught);
+
+        PlayerEnemyAttackReceiver watched =
+            PlayerSpectatorView.NextTarget(players, caught, null);
+        Assert.That(watched, Is.SameAs(first));
+
+        watched = PlayerSpectatorView.NextTarget(players, caught, watched);
+        Assert.That(watched, Is.SameAs(second));
+
+        watched = PlayerSpectatorView.PreviousTarget(players, caught, watched);
+        Assert.That(watched, Is.SameAs(first), "Back is the step just taken, undone.");
+
+        // Backwards past the front of the list wraps to the end rather than
+        // walking off it, which is where a negative index would have gone.
+        watched = PlayerSpectatorView.PreviousTarget(players, caught, watched);
+        Assert.That(watched, Is.SameAs(third), "The list wraps going back as well.");
+
+        // And it skips the caught the same way forwards does - there is no
+        // route back through your own body.
+        Eliminate(third);
+
+        watched = PlayerSpectatorView.PreviousTarget(players, caught, first);
+        Assert.That(watched, Is.SameAs(second));
+    }
+
     [Test]
     public void SpectatorNeverWatchesItsOwnCaughtBody()
     {

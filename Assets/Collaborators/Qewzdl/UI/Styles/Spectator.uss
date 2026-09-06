@@ -1,0 +1,187 @@
+/* ==========================================================================
+   SPECTATOR
+
+   What a caught player is told while they watch somebody else play.
+
+   It is the only screen in this game that is read over a live picture rather
+   than over a wall, and it is read by somebody with nothing to do: no crosshair
+   to aim, no keys that matter except the two that change who they are looking
+   through. So it stays out of the middle of the frame entirely and lives along
+   the bottom edge, where a caption belongs.
+
+   It used to be two lines of text: whose eyes these are, and how many people
+   are still alive. Neither said how to look at somebody else, which is the
+   only thing a spectator can actually do, and a count is the least useful way
+   to describe the four people it is counting.
+   ========================================================================== */
+
+.spectate {
+    /* Its own panel, so it carries the game's face itself - the same reason
+       the chat layer does. */
+    -unity-font-definition:
+        url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
+
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    align-items: center;
+    justify-content: flex-end;
+
+    /* Nothing here is pressed. A layer that took the pointer over a live match
+       would be taking it from a game still being played. */
+    display: none;
+}
+
+
+.spectate--watching {
+    display: flex;
+}
+
+
+/* ==========================================================================
+   THE CAPTION
+
+   Its own ground rather than the wall the rest of the interface is built from.
+   A wall here would be a slab across the bottom of somebody else's game; what
+   this needs is exactly as much dark as it takes to read a name against a lit
+   corridor, and no more.
+   ========================================================================== */
+
+.spectate__caption {
+    align-items: center;
+
+    background-color: rgba(6, 6, 6, 0.82);
+
+    border-width: 0;
+    border-radius: 0;
+
+    padding-left: var(--space-l);
+    padding-right: var(--space-l);
+    padding-top: var(--space-m);
+    padding-bottom: var(--space-m);
+
+    margin-bottom: var(--space-xl);
+}
+
+
+/* Whose eyes these are. The one thing on this screen worth reading from across
+   the room, so it is the only thing here set at a heading's size. */
+
+.spectate__watching {
+    color: var(--text);
+    font-size: var(--font-size-m);
+
+    letter-spacing: var(--tracking-wide);
+}
+
+
+/* Nobody left. Said in the voice of a note rather than of a name, because it
+   is the absence of one. */
+
+.spectate__watching--nobody {
+    color: var(--text-dim);
+}
+
+
+/* ==========================================================================
+   WHO IS LEFT
+
+   Names, not a number. "3 still alive" tells a spectator how many people are
+   in a room they cannot see; the names tell them who, and which of them they
+   are currently looking through - which is also the whole of the rotation they
+   are about to click their way around.
+   ========================================================================== */
+
+.spectate__survivors {
+    flex-direction: row;
+    flex-wrap: wrap;
+
+    justify-content: center;
+
+    margin-top: var(--space-s);
+}
+
+
+.spectate__survivor {
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-left: var(--space-s);
+    margin-right: var(--space-s);
+}
+
+
+/* The one being watched, marked the way the lobby marks the row that is you -
+   the accent on the name and nothing else moved. */
+
+.spectate__survivor--watched {
+    color: var(--accent);
+}
+
+
+/* Where the Next button goes. Three steps of one ladder rather than three
+   ideas: the one you are looking through, the one you are one press away from,
+   and everybody else.
+
+   The list keeps its own order rather than rotating to put the watched player
+   first - a list that reorders itself while you cycle is one nobody can keep
+   their place in. It says where the press leads instead of moving to prove it. */
+
+.spectate__survivor--next {
+    color: var(--text);
+}
+
+
+/* ==========================================================================
+   WHAT TO PRESS
+
+   The half that was missing. A spectator can do exactly two things, and the
+   screen said nothing about either of them.
+   ========================================================================== */
+
+.spectate__keys {
+    flex-direction: row;
+
+    margin-top: var(--space-m);
+}
+
+
+.spectate__key {
+    flex-direction: row;
+    align-items: center;
+
+    margin-left: var(--space-s);
+    margin-right: var(--space-s);
+}
+
+
+/* The button, in a box, the way the chat strip draws the key that opens it. */
+
+.spectate__key__button {
+    color: var(--text);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    border-width: var(--border);
+    border-color: var(--line-strong);
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+
+    margin-right: var(--space-s);
+}
+
+
+.spectate__key__name {
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+}
