@@ -19,7 +19,7 @@ using UnityEngine.UIElements;
 [RequireComponent(typeof(UIDocument))]
 public sealed class SpectatorDocument : MonoBehaviour
 {
-    private const string WatchingClass = "spectate--watching";
+    private const string OpenClass = "spectate--open";
     private const string NobodyClass = "spectate__watching--nobody";
     private const string SurvivorClass = "spectate__survivor";
     private const string WatchedClass = "spectate__survivor--watched";
@@ -150,7 +150,12 @@ public sealed class SpectatorDocument : MonoBehaviour
             return;
 
         isWatching = watching;
-        layer?.EnableInClassList(WatchingClass, watching);
+
+        // The two steps every other layer in this interface is shown with:
+        // display stays in the picture, and the class that fades it in waits a
+        // frame, because one added in the frame an element appears has nothing
+        // to transition from.
+        UiFade.Set(layer, watching, OpenClass);
 
         if (watching)
             return;

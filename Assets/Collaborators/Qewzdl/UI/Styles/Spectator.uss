@@ -3,16 +3,20 @@
 
    What a caught player is told while they watch somebody else play.
 
-   It is the only screen in this game that is read over a live picture rather
-   than over a wall, and it is read by somebody with nothing to do: no crosshair
-   to aim, no keys that matter except the two that change who they are looking
-   through. So it stays out of the middle of the frame entirely and lives along
-   the bottom edge, where a caption belongs.
+   It is the only part of this interface read over a live picture rather than
+   over a wall, and read by the one person on the screen with nothing to do: no
+   crosshair to aim, no keys that matter except the two that change whose eyes
+   these are. So it takes the bottom edge and nothing else.
 
-   It used to be two lines of text: whose eyes these are, and how many people
-   are still alive. Neither said how to look at somebody else, which is the
-   only thing a spectator can actually do, and a count is the least useful way
-   to describe the four people it is counting.
+   A band rather than a card. The first version of this was a box floating a
+   little way up from the bottom, centred, with three rows stacked inside it -
+   and nothing in this game floats. The lobby is a wall down one edge, the chat
+   is a wall in a corner, and both are flush to the frame because a thing that
+   reaches the edge of the screen does not need a line to say where it stops.
+   Stacked, it also stood three lines tall over a match somebody else was still
+   playing. Laid out as one row it is a third of that, and each of the three
+   things it says has somewhere obvious to sit: whose eyes on the left, the
+   rotation in the middle, what to press on the right.
    ========================================================================== */
 
 .spectate {
@@ -28,50 +32,74 @@
     top: 0;
     bottom: 0;
 
-    align-items: center;
     justify-content: flex-end;
 
-    /* Nothing here is pressed. A layer that took the pointer over a live match
-       would be taking it from a game still being played. */
+    /* Away until this player is caught, said here rather than in the first
+       frame of code: an element that starts visible and is put away a moment
+       later is a flash of empty box at the top of every match. From here on it
+       is UiFade that owns this, inline. */
     display: none;
 }
 
 
-.spectate--watching {
-    display: flex;
-}
-
-
 /* ==========================================================================
-   THE CAPTION
-
-   Its own ground rather than the wall the rest of the interface is built from.
-   A wall here would be a slab across the bottom of somebody else's game; what
-   this needs is exactly as much dark as it takes to read a name against a lit
-   corridor, and no more.
+   THE BAND
    ========================================================================== */
 
-.spectate__caption {
+.spectate__band {
+    flex-direction: row;
     align-items: center;
 
-    background-color: rgba(6, 6, 6, 0.82);
+    /* The veil, which is the role for a layer laid over the picture. This used
+       to be a colour written out in full here - the one literal in the whole
+       theme - and Tokens.uss says what that means: if a rule needs a colour
+       there is no role for, the missing role is the bug. There was a role. */
+    background-color: var(--veil);
 
-    border-width: 0;
-    border-radius: 0;
+    /* A rule along the top, which is what this interface puts between what you
+       read and what is above it. The band reaches three edges, so those need
+       nothing. */
+    border-top-width: var(--border);
+    border-top-color: var(--line);
 
     padding-left: var(--space-l);
     padding-right: var(--space-l);
     padding-top: var(--space-m);
     padding-bottom: var(--space-m);
 
-    margin-bottom: var(--space-xl);
+    /* It arrives, like everything else here, and from the edge it is hinged to.
+       Reduced motion needs no rule of its own: the duration it zeroes is this
+       one, and the open state is the resting state. */
+    opacity: 0;
+    translate: 0 14px;
+
+    transition-property:
+        opacity,
+        translate;
+
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
 }
 
 
-/* Whose eyes these are. The one thing on this screen worth reading from across
-   the room, so it is the only thing here set at a heading's size. */
+.spectate--open .spectate__band {
+    opacity: 1;
+    translate: 0 0;
+}
+
+
+/* ==========================================================================
+   WHOSE EYES
+
+   The one thing here worth reading from across the room, so it is the only
+   thing set at a heading's size. It keeps its own width rather than sharing:
+   a name that grows and shrinks the middle of the band every time the camera
+   moves on is a band that never sits still.
+   ========================================================================== */
 
 .spectate__watching {
+    flex-shrink: 0;
+
     color: var(--text);
     font-size: var(--font-size-m);
 
@@ -79,8 +107,8 @@
 }
 
 
-/* Nobody left. Said in the voice of a note rather than of a name, because it
-   is the absence of one. */
+/* Nobody left. Said in the voice a note is written in, because it is the
+   absence of a name rather than one. */
 
 .spectate__watching--nobody {
     color: var(--text-dim);
@@ -91,18 +119,20 @@
    WHO IS LEFT
 
    Names, not a number. "3 still alive" tells a spectator how many people are
-   in a room they cannot see; the names tell them who, and which of them they
-   are currently looking through - which is also the whole of the rotation they
-   are about to click their way around.
+   in a room they cannot see; the names tell them who, which of them they are
+   looking through, and where the next press goes - the same list doing all
+   three jobs.
    ========================================================================== */
 
 .spectate__survivors {
+    flex-grow: 1;
     flex-direction: row;
     flex-wrap: wrap;
 
     justify-content: center;
 
-    margin-top: var(--space-s);
+    padding-left: var(--space-l);
+    padding-right: var(--space-l);
 }
 
 
@@ -126,7 +156,7 @@
 
 
 /* Where the Next button goes. Three steps of one ladder rather than three
-   ideas: the one you are looking through, the one you are one press away from,
+   ideas: the one you are looking through, the one you are a press away from,
    and everybody else.
 
    The list keeps its own order rather than rotating to put the watched player
@@ -141,14 +171,13 @@
 /* ==========================================================================
    WHAT TO PRESS
 
-   The half that was missing. A spectator can do exactly two things, and the
-   screen said nothing about either of them.
+   The half that was missing altogether. A spectator can do exactly two things
+   and the screen said nothing about either.
    ========================================================================== */
 
 .spectate__keys {
+    flex-shrink: 0;
     flex-direction: row;
-
-    margin-top: var(--space-m);
 }
 
 
@@ -156,8 +185,7 @@
     flex-direction: row;
     align-items: center;
 
-    margin-left: var(--space-s);
-    margin-right: var(--space-s);
+    margin-left: var(--space-m);
 }
 
 

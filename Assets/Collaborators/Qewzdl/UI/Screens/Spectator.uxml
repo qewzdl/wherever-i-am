@@ -1,10 +1,10 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
     <!-- Nothing here is pressed, and it is read over a match somebody else is
-         still playing, so the layer takes none of the pointer and keeps out of
-         the middle of the frame. -->
+         still playing, so the layer takes none of the pointer and gives up
+         everything but the bottom edge. -->
     <ui:VisualElement name="Spectate" picking-mode="Ignore" class="spectate">
-        <ui:VisualElement name="Caption" picking-mode="Ignore" class="spectate__caption">
+        <ui:VisualElement name="Band" picking-mode="Ignore" class="spectate__band">
             <ui:Label name="Watching" class="spectate__watching" />
             <ui:VisualElement name="Survivors" picking-mode="Ignore" class="spectate__survivors" />
             <ui:VisualElement name="Keys" picking-mode="Ignore" class="spectate__keys">
