@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -44,6 +45,15 @@ public sealed class MainMenuDocument : MonoBehaviour
     // deciding whether to press Cancel has nothing else to go on.
     [SerializeField] private string busyElapsedFormat = "{0} s elapsed";
 
+    // What the browser says about itself. An empty list has two meanings that
+    // look identical - nobody is hosting, or nothing is listening - and only
+    // one of them is a fault the player can do something about.
+    [Header("Server browser")]
+    [SerializeField] private string browserListeningText = "Listening";
+    [SerializeField] private string browserUnavailableText = "Discovery unavailable";
+    [SerializeField] private string browserEmptyText = "No lobbies have answered yet";
+    [SerializeField] private string browserCountFormat = "{0}/{1}";
+
     [Header("Join address")]
     [SerializeField] private string addressHintText =
         "IPv4 address, for example 192.168.1.10";
@@ -67,6 +77,19 @@ public sealed class MainMenuDocument : MonoBehaviour
     private Label addressHint;
     private TextField playerName;
     private TextField address;
+    private ScrollView browser;
+    private Label browserStatus;
+    private Button refreshButton;
+
+    private LanLobbyDiscovery discovery;
+    private readonly List<string> shownLobbies = new();
+
+    // The room picked out of the list, held here rather than written into the
+    // address field. Nobody needs to read an address to join a room they can
+    // see by name, and a list of everybody's addresses is a list that leaves
+    // with every screenshot.
+    private string chosenAddress = string.Empty;
+    private string chosenName = string.Empty;
     private Button hostButton;
     private Button joinButton;
     private Button settingsButton;
@@ -144,7 +167,23 @@ public sealed class MainMenuDocument : MonoBehaviour
         sessionReadService = null;
         errorService = null;
         settingsScreen = null;
+        StopListening();
         EndRequest();
+    }
+
+    // Forget everything and ask again. The forgetting is the half that
+    // matters: a lobby that has closed would otherwise sit in the list looking
+    // joinable until its own timeout ran out, and Refresh is exactly the press
+    // of somebody who does not believe what they are looking at.
+    private void RefreshLobbies()
+    {
+        // The room that was picked may not answer this time, and a mark left
+        // on a row that is about to be replaced points at whoever takes its
+        // place.
+        ForgetChosenLobby();
+
+        discovery?.Refresh();
+        RefreshBrowser();
     }
 
     private void OnDestroy()
@@ -182,6 +221,8 @@ public sealed class MainMenuDocument : MonoBehaviour
     // player is waiting on is still the same wait.
     private void Update()
     {
+        TickDiscovery();
+
         if (!isRequestInFlight || busyElapsed == null)
             return;
 
@@ -242,6 +283,9 @@ public sealed class MainMenuDocument : MonoBehaviour
         addressHint = root.Q<Label>("AddressHint");
         playerName = root.Q<TextField>("PlayerName");
         address = root.Q<TextField>("Address");
+        browser = root.Q<ScrollView>("Browser");
+        browserStatus = root.Q<Label>("BrowserStatus");
+        refreshButton = root.Q<Button>("RefreshButton");
 
         // Both of these are typed into, so both need the same shortcut fixed:
         // without it Ctrl+A empties the box it was meant to light up.
@@ -317,6 +361,9 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (cancelJoinButton != null)
             cancelJoinButton.clicked += HideJoinPrompt;
 
+        if (refreshButton != null)
+            refreshButton.clicked += RefreshLobbies;
+
         if (cancelRequestButton != null)
             cancelRequestButton.clicked += CancelRequest;
 
@@ -350,6 +397,9 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (cancelJoinButton != null)
             cancelJoinButton.clicked -= HideJoinPrompt;
 
+        if (refreshButton != null)
+            refreshButton.clicked -= RefreshLobbies;
+
         if (cancelRequestButton != null)
             cancelRequestButton.clicked -= CancelRequest;
 
@@ -371,6 +421,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void HandleAddressChanged(ChangeEvent<string> evt)
     {
+        ForgetChosenLobby();
         RefreshAddressValidation();
     }
 
@@ -411,10 +462,189 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (isRequestInFlight)
             return;
 
+        StartListening();
         RefreshAddressValidation();
         SetDisplayed(joinPanel, true);
         sounds?.Play(UiSoundType.Open);
         address?.Focus();
+    }
+
+    // Opened with the panel and closed with it. A socket held for the whole
+    // life of the main menu would be listening to a network nobody is looking
+    // at, and this one is only ever read while the list is on screen.
+    private void StartListening()
+    {
+        if (discovery != null)
+            return;
+
+        discovery = new LanLobbyDiscovery(LanLobbyNetwork.ProtocolVersion);
+        discovery.Changed += RefreshBrowser;
+
+        // Asked out loud straight away, so the list is filled by whoever is
+        // already up rather than by whoever beacons next.
+        discovery.Refresh();
+        RefreshBrowser();
+    }
+
+    private void StopListening()
+    {
+        if (discovery == null)
+            return;
+
+        discovery.Changed -= RefreshBrowser;
+        discovery.Dispose();
+        discovery = null;
+    }
+
+    // Only what has already arrived, once a frame, and only while the list is
+    // being looked at.
+    private void TickDiscovery()
+    {
+        discovery?.Tick();
+    }
+
+    private void RefreshBrowser()
+    {
+        if (browser == null)
+            return;
+
+        if (browserStatus != null)
+        {
+            browserStatus.text = discovery != null && discovery.IsListening
+                ? browserListeningText
+                : browserUnavailableText;
+        }
+
+        IReadOnlyList<LanLobbyDiscovery.Entry> lobbies =
+            discovery != null ? discovery.Lobbies : null;
+
+        // Rebuilt only when the rows would actually read differently. The list
+        // is redrawn on every beacon otherwise, which is once a second per
+        // lobby, and a row rebuilt under the pointer is a row that cannot be
+        // clicked.
+        if (!HasBrowserChanged(lobbies))
+        {
+            MarkChosen();
+            return;
+        }
+
+        shownLobbies.Clear();
+        browser.Clear();
+
+        if (lobbies == null || lobbies.Count == 0)
+        {
+            Label empty = new Label(browserEmptyText);
+            empty.AddToClassList("browser__empty");
+            browser.Add(empty);
+            return;
+        }
+
+        for (int i = 0; i < lobbies.Count; i++)
+            browser.Add(BuildLobbyRow(lobbies[i]));
+
+        MarkChosen();
+        sounds?.Bind();
+    }
+
+    private bool HasBrowserChanged(IReadOnlyList<LanLobbyDiscovery.Entry> lobbies)
+    {
+        int count = lobbies != null ? lobbies.Count : 0;
+
+        if (count != shownLobbies.Count)
+            return true;
+
+        for (int i = 0; i < count; i++)
+        {
+            if (shownLobbies[i] != DescribeLobby(lobbies[i]))
+                return true;
+        }
+
+        return false;
+    }
+
+    // Everything a row shows, in one string. Comparing what is drawn is the
+    // only comparison that decides whether it has to be drawn again.
+    private string DescribeLobby(LanLobbyDiscovery.Entry entry)
+    {
+        return string.Concat(
+            entry.Address,
+            "|",
+            entry.Advert.name,
+            "|",
+            entry.Advert.players.ToString(),
+            "|",
+            entry.Advert.maxPlayers.ToString());
+    }
+
+    private VisualElement BuildLobbyRow(LanLobbyDiscovery.Entry entry)
+    {
+        shownLobbies.Add(DescribeLobby(entry));
+
+        string lobbyAddress = entry.Address;
+        string lobbyName = entry.Advert.name;
+
+        Button row = new Button(() => ChooseLobby(lobbyAddress, lobbyName));
+        row.AddToClassList("button");
+        row.AddToClassList("browser__row");
+        row.EnableInClassList("browser__row--full", entry.Advert.IsFull);
+
+        Label name = new Label(entry.Advert.name) { enableRichText = false };
+        name.AddToClassList("browser__name");
+        row.Add(name);
+
+        Label count = new Label(string.Format(
+            browserCountFormat,
+            entry.Advert.players,
+            entry.Advert.maxPlayers));
+
+        count.AddToClassList("browser__count");
+        row.Add(count);
+
+        return row;
+    }
+
+    // Picking a row marks it and nothing else. It does not connect - a list
+    // where one click leaves the menu is a list nobody dares click - and it
+    // does not write the address anywhere it can be read.
+    private void ChooseLobby(string lobbyAddress, string lobbyName)
+    {
+        chosenAddress = lobbyAddress;
+        chosenName = lobbyName;
+
+        RefreshAddressValidation();
+        MarkChosen();
+    }
+
+    // Typing is the other way in, and the two cannot both be the answer. The
+    // last thing the player did wins, which is the only rule that needs no
+    // explaining.
+    private void ForgetChosenLobby()
+    {
+        if (chosenAddress.Length == 0)
+            return;
+
+        chosenAddress = string.Empty;
+        chosenName = string.Empty;
+        MarkChosen();
+    }
+
+    private void MarkChosen()
+    {
+        if (browser?.contentContainer == null)
+            return;
+
+        for (int i = 0; i < browser.contentContainer.childCount; i++)
+        {
+            VisualElement row = browser.contentContainer[i];
+
+            row.EnableInClassList(
+                "browser__row--chosen",
+                chosenAddress.Length > 0 &&
+                i < shownLobbies.Count &&
+                shownLobbies[i].StartsWith(
+                    chosenAddress + "|",
+                    System.StringComparison.Ordinal));
+        }
     }
 
     private void HideJoinPrompt()
@@ -422,6 +652,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         bool wasOpen = joinPanel != null &&
                        joinPanel.style.display == DisplayStyle.Flex;
 
+        StopListening();
         SetDisplayed(joinPanel, false);
 
         if (wasOpen && !isRequestInFlight && joinButton != null)
@@ -438,7 +669,10 @@ public sealed class MainMenuDocument : MonoBehaviour
         bool isValid = LanAddressValidator.TryNormalize(value, out _);
         bool showError = !isEmpty && !isValid;
 
-        connectButton?.SetEnabled(isValid && !isRequestInFlight);
+        // A room picked from the list is as good an answer as a typed address,
+        // and a better one: nobody can mistype it.
+        connectButton?.SetEnabled(
+            (isValid || chosenAddress.Length > 0) && !isRequestInFlight);
         address.EnableInClassList(InvalidInputClass, showError);
 
         if (addressHint == null)
@@ -482,13 +716,31 @@ public sealed class MainMenuDocument : MonoBehaviour
         }
     }
 
+    // Two ways in, and the room picked from the list wins while it is picked.
+    // Only the typed one is saved: the address box remembers what a player
+    // typed, and a room they clicked once is not something they asked to keep.
     public void Join()
     {
+        if (chosenAddress.Length > 0)
+        {
+            Join(chosenAddress, chosenName);
+            return;
+        }
+
         SaveJoinAddress();
         Join(address != null ? address.value : string.Empty);
     }
 
-    public async void Join(string host)
+    public void Join(string host)
+    {
+        Join(host, string.Empty);
+    }
+
+    // The name is what the progress line says when there is one. A player who
+    // picked a room called Alex is waiting for Alex, not for a number they
+    // never read - and a number they never read is a number this screen has no
+    // business putting up in front of them.
+    public async void Join(string host, string lobbyName)
     {
         SavePlayerName();
 
@@ -496,7 +748,9 @@ public sealed class MainMenuDocument : MonoBehaviour
         // whatever reaches the session service should be what was stored.
         host = JoinAddressProvider.Normalize(host);
 
-        if (!TryBeginRequest(string.Format(joiningDetailFormat, host)))
+        string describedAs = string.IsNullOrWhiteSpace(lobbyName) ? host : lobbyName;
+
+        if (!TryBeginRequest(string.Format(joiningDetailFormat, describedAs)))
             return;
 
         HideJoinPrompt();

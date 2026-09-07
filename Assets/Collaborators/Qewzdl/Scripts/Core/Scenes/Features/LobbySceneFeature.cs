@@ -14,6 +14,11 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
     // capsules would be the tail wagging the dog.
     [SerializeField] private LobbyStage lobbyStage;
 
+    // Made here rather than placed in the scene: it says this lobby is open
+    // for exactly as long as this lobby exists, and it has nothing to
+    // configure.
+    private LanLobbyBeacon beacon;
+
     protected override bool ValidateFeature(SceneFeatureContext context)
     {
         bool valid = true;
@@ -55,11 +60,16 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         if (lobbyStage != null)
             lobbyStage.Construct(readService);
 
+        beacon = LanLobbyBeacon.Announce(readService);
+
         return true;
     }
 
     protected override void UninstallFeature(SceneFeatureContext context)
     {
+        RunCleanup(() => beacon?.Stop(), beacon);
+        beacon = null;
+
         RunCleanup(() => lobbyStage?.Dispose(), lobbyStage);
         RunCleanup(() => lobbyCommandPresenter?.Dispose(), lobbyCommandPresenter);
         RunCleanup(() => lobbyUi?.Dispose(), lobbyUi);

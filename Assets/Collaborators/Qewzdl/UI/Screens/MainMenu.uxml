@@ -18,12 +18,21 @@
             <ui:Label text="Wherever I Am" name="Title" class="title title--display" />
         </ui:VisualElement>
         <ui:VisualElement name="JoinPanel" class="overlay">
-            <ui:VisualElement class="panel panel--dialog">
+            <ui:VisualElement class="panel panel--wide">
                 <ui:Label text="Join a lobby" class="question" />
-                <ui:Label text="Host address" class="hint" />
+                <!-- The rooms that have said they are open. Nobody asks them:
+                     a host broadcasts while its door is open and the row
+                     appears, stops and the row ages out. -->
+                <ui:VisualElement class="browser__header">
+                    <ui:Label text="On this network" class="section section--flush" />
+                    <ui:Label name="BrowserStatus" class="browser__status" />
+                </ui:VisualElement>
+                <ui:ScrollView name="Browser" class="scroll browser" />
+                <ui:Label text="Or type an address, for a lobby this network cannot see." class="hint hint--field" />
                 <ui:TextField name="Address" class="input" />
                 <ui:Label name="AddressHint" class="hint input__hint" />
                 <ui:VisualElement class="footer">
+                    <ui:Button text="Refresh" name="RefreshButton" class="button" />
                     <ui:Button text="Connect" name="ConnectButton" class="button button--confirm" />
                     <ui:Button text="Cancel" name="CancelJoinButton" class="button button--cancel" />
                 </ui:VisualElement>

@@ -648,3 +648,172 @@
 
     white-space: normal;
 }
+
+
+/* ==========================================================================
+   THE BROWSER
+
+   The rooms on this network that have said they are open.
+
+   Built like the roster on the other side of this game, because it is the same
+   thing seen from outside: a list of rows, each a place with people in it, and
+   one of them picked. What differs is that a roster is told who is in the room
+   and this is told nothing - a host broadcasts while its door is open, and a
+   row appears because somebody said so rather than because anybody asked.
+   ========================================================================== */
+
+.browser__header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+
+/* What the list is doing, in the voice the roster's counts are written in.
+   Listening, looking, or unable to open a socket at all - and the last of
+   those is why this line exists, because a browser that is simply empty and a
+   browser that never started look identical. */
+
+.browser__status {
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    -unity-text-align: lower-right;
+}
+
+
+.browser {
+    min-height: 120px;
+    max-height: 240px;
+
+    border-top-width: var(--border);
+    border-top-color: var(--line);
+
+    margin-top: var(--space-xs);
+    margin-bottom: var(--space-m);
+}
+
+
+/* A row is a button, because unlike a roster row this one is pressed.
+   
+   It carries all four edges at all times and only ever changes their colour.
+   At rest three of them are transparent and the fourth is the hairline that
+   divides one row from the next; under the pointer all four light. Widths that
+   appeared on hover would grow the row by a pixel and shove its text sideways
+   at the exact moment somebody is aiming at it. */
+
+.browser__row {
+    flex-direction: row;
+    align-items: center;
+
+    height: 46px;
+
+    flex-shrink: 0;
+
+    background-color: var(--transparent);
+
+    border-width: var(--border);
+
+    border-top-color: var(--transparent);
+    border-right-color: var(--transparent);
+    border-left-color: var(--transparent);
+
+    /* The rule between rows, which is the one edge a list needs standing
+       still. */
+    border-bottom-color: var(--line);
+
+    border-radius: 0;
+
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+
+    margin: 0;
+}
+
+
+/* Outlined rather than underlined. The bottom edge is there whatever happens,
+   so lighting only the fill left the divider looking like a border the row had
+   grown along one side - which is a strange thing for a thing you are pointing
+   at to do. All four, and it reads as one object.
+
+   --line-strong is what a hairline becomes when the pointer arrives; the
+   tokens say as much about it. */
+
+.unity-button.browser__row:hover:enabled,
+.unity-button.browser__row:focus:enabled {
+    background-color: var(--surface-hover);
+
+    border-top-color: var(--line-strong);
+    border-right-color: var(--line-strong);
+    border-bottom-color: var(--line-strong);
+    border-left-color: var(--line-strong);
+}
+
+
+/* The one that will be joined. Marked the way the lobby marks the row that is
+   you: the accent on the name, and the edge to say which row it belongs to.
+
+   Said again for the pointer, and after it, so that hovering the chosen row
+   does not take its mark away. Same weight as the rule above, later wins. */
+
+.browser__row--chosen,
+.unity-button.browser__row--chosen:hover:enabled,
+.unity-button.browser__row--chosen:focus:enabled {
+    border-left-color: var(--accent);
+}
+
+
+.browser__row--chosen .browser__name {
+    color: var(--accent);
+}
+
+
+/* A room that cannot take anybody is still worth showing - knowing it is full
+   is knowing why you are not in it - so it is dimmed rather than hidden. */
+
+.browser__row--full .browser__name,
+.browser__row--full .browser__count {
+    color: var(--text-disabled);
+}
+
+
+.browser__name {
+    flex-grow: 1;
+
+    color: var(--text);
+    font-size: var(--font-size-s);
+
+    overflow: hidden;
+
+    -unity-text-align: middle-left;
+}
+
+
+.browser__count {
+    flex-shrink: 0;
+
+    color: var(--text-dim);
+    font-size: var(--font-size-xs);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-left: var(--space-m);
+
+    -unity-text-align: middle-right;
+}
+
+
+/* Nothing has answered. The roster says "Waiting for the room..." rather than
+   showing empty rows; this says what it is waiting for, because an empty list
+   here has two very different meanings and only one of them is a fault. */
+
+.browser__empty {
+    flex-grow: 1;
+
+    color: var(--text-dim);
+    font-size: var(--font-size-s);
+
+    -unity-text-align: middle-center;
+}
