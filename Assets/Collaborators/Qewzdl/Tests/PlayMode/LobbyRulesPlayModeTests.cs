@@ -100,7 +100,7 @@ internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionServi
             reservations.Add(playerId);
     }
 
-    internal bool IsAcceptingNewPlayers { get; private set; } = true;
+    public bool IsAcceptingNewPlayers { get; private set; } = true;
 
     public void SetAcceptingNewPlayers(bool accepting)
     {
@@ -339,7 +339,7 @@ public sealed class LobbyRulesPlayModeTests
             yield return null;
 
             LobbySettingsService settings = new(state, config);
-            settings.InitializeFromConfig();
+            settings.Initialize();
             Assert.That(state.Phase.Value, Is.EqualTo(LobbyPhase.Open));
             Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(2));
             Assert.That(state.Settings.Value.MapId, Is.EqualTo(7));

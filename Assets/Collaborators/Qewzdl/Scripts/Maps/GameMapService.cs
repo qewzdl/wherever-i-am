@@ -7,6 +7,8 @@ using UnityEngine.SceneManagement;
 [DisallowMultipleComponent]
 public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IProjectSceneLoadCompletionGate
 {
+    internal const int NoDifficultySelected = -1;
+
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameMapCatalog catalog;
@@ -14,6 +16,7 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
 
     private IProjectSceneRegistry sceneRegistry;
     private EnemyConfig selectedEnemyConfig;
+    private int selectedDifficultyId = NoDifficultySelected;
     private GameMapDefinition selectedMap;
     private GameMapDefinition activeMap;
     private GameMapRoot activeMapRoot;
@@ -32,6 +35,7 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     public GameMapDefinition ActiveMap => activeMap;
     public GameMapRoot ActiveMapRoot => activeMapRoot;
     public EnemyConfig SelectedEnemyConfig => selectedEnemyConfig;
+    public int SelectedDifficultyId => selectedDifficultyId;
     public bool IsReadyForMatch => readyForMatch;
     internal bool HasPendingOperation => pendingCompletion != null ||
                                          localLoadRequested ||
@@ -113,6 +117,7 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         }
 
         selectedEnemyConfig = config;
+        selectedDifficultyId = difficultyId;
         return true;
     }
 

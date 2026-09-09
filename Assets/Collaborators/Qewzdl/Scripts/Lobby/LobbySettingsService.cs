@@ -4,19 +4,63 @@ public class LobbySettingsService
 {
     private readonly LobbyState lobbyState;
     private readonly LobbyConfig lobbyConfig;
+    private readonly IGameMapSessionService mapService;
+    private readonly INetworkSessionAdmissionService admissionService;
 
-    public LobbySettingsService(LobbyState lobbyState, LobbyConfig lobbyConfig)
+    public LobbySettingsService(
+        LobbyState lobbyState,
+        LobbyConfig lobbyConfig,
+        IGameMapSessionService mapService = null,
+        INetworkSessionAdmissionService admissionService = null)
     {
         this.lobbyState = lobbyState;
         this.lobbyConfig = lobbyConfig;
+        this.mapService = mapService;
+        this.admissionService = admissionService;
     }
 
-    public void InitializeFromConfig()
+    // The room as the host last left it, falling back to the config for a room
+    // nobody has set up yet.
+    //
+    // LobbyState is an in-scene object, so it dies when a match loads and comes
+    // back with its NetworkVariables at their declared defaults. Seeding it
+    // from the config alone was therefore not a starting point but an erasure:
+    // every match ended by putting the difficulty back to default and shutting
+    // a door the host had opened - and a shut door stops the beacon, so the
+    // room also dropped out of everybody's browser.
+    //
+    // Nothing new remembers this. Both choices already outlive the Lobby scene
+    // inside the services that act on them: the map service is handed the
+    // difficulty when the match starts, and the admission service has been
+    // holding the door the whole time because it is the thing that turns
+    // people away. They are read back now instead of being overwritten.
+    //
+    // The rest of the struct is the config's to state - the player counts, the
+    // readiness rule - and re-reading those is correct rather than lossy. They
+    // are the same numbers every time.
+    public void Initialize()
     {
         if (!HasLobbyState())
             return;
 
-        lobbyState.Settings.Value = LobbySettingsData.FromConfig(lobbyConfig);
+        LobbySettingsData settings = LobbySettingsData.FromConfig(lobbyConfig);
+
+        if (mapService != null)
+        {
+            if (mapService.SelectedMap != null &&
+                IsValidMapId(mapService.SelectedMap.MapId))
+            {
+                settings.MapId = mapService.SelectedMap.MapId;
+            }
+
+            if (IsValidDifficultyId(mapService.SelectedDifficultyId))
+                settings.DifficultyId = mapService.SelectedDifficultyId;
+        }
+
+        if (admissionService != null)
+            settings.IsPublic = admissionService.IsAcceptingNewPlayers;
+
+        lobbyState.Settings.Value = settings;
         lobbyState.Phase.Value = LobbyPhase.Open;
     }
 
@@ -97,7 +141,12 @@ public class LobbySettingsService
         if (lobbyConfig != null && lobbyConfig.IsValidDifficultyId(difficultyId))
             return true;
 
-        Debug.LogWarning($"Rejected invalid lobby difficulty id: {difficultyId}.");
+        // Quiet about the one value that means nothing has been chosen yet. A
+        // session that has never started a match has no difficulty to carry
+        // over, and saying so every time a lobby opens is noise.
+        if (difficultyId != GameMapService.NoDifficultySelected)
+            Debug.LogWarning($"Rejected invalid lobby difficulty id: {difficultyId}.");
+
         return false;
     }
 

@@ -8,6 +8,7 @@ public class LobbyController : NetworkBehaviour
 
     private INetworkSessionService sessionService;
     private INetworkSessionAdmissionService admissionService;
+    private IGameMapSessionService mapService;
 
     private LobbyOwnershipService ownershipService;
     private LobbyPlayerRegistry playerRegistry;
@@ -45,7 +46,8 @@ public class LobbyController : NetworkBehaviour
 
     public bool Construct(
         INetworkSessionService sessionService,
-        INetworkSessionAdmissionService admissionService)
+        INetworkSessionAdmissionService admissionService,
+        IGameMapSessionService mapService = null)
     {
         if (!ValidateConfiguration())
             return false;
@@ -64,6 +66,7 @@ public class LobbyController : NetworkBehaviour
 
         if (this.sessionService == sessionService &&
             this.admissionService == admissionService &&
+            this.mapService == mapService &&
             IsConstructed(false))
         {
             return true;
@@ -71,6 +74,7 @@ public class LobbyController : NetworkBehaviour
 
         this.sessionService = sessionService;
         this.admissionService = admissionService;
+        this.mapService = mapService;
         CreateServices();
 
         if (IsSpawned && IsServer)
@@ -85,6 +89,7 @@ public class LobbyController : NetworkBehaviour
 
         sessionService = null;
         admissionService = null;
+        mapService = null;
         ownershipService = null;
         playerRegistry = null;
         playerCustomizationService = null;
@@ -122,7 +127,11 @@ public class LobbyController : NetworkBehaviour
             ownershipService,
             admissionService);
         playerCustomizationService = new LobbyPlayerCustomizationService(lobbyState);
-        settingsService = new LobbySettingsService(lobbyState, lobbyConfig);
+        settingsService = new LobbySettingsService(
+            lobbyState,
+            lobbyConfig,
+            mapService,
+            admissionService);
         startService = new LobbyStartService(lobbyState, startRules, sessionService);
     }
 
@@ -131,7 +140,7 @@ public class LobbyController : NetworkBehaviour
         if (!IsConstructed() || NetworkManager == null)
             return;
 
-        settingsService.InitializeFromConfig();
+        settingsService.Initialize();
         PublishLobbyVisibility();
         SubscribeToNetworkCallbacks();
 

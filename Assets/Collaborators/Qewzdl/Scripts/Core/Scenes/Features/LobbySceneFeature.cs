@@ -31,6 +31,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         valid &= RequireService<INetworkSessionReadService>(context, out _);
         valid &= RequireService<INetworkSessionAdmissionService>(context, out _);
         valid &= RequireService<ISettingsScreen>(context, out _);
+        valid &= RequireService<IGameMapSessionService>(context, out _);
 
         if (lobbyController != null)
             valid &= lobbyController.ValidateConfiguration();
@@ -46,8 +47,13 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         INetworkSessionAdmissionService admissionService =
             context.Services.Resolve<INetworkSessionAdmissionService>();
 
-        if (!lobbyController.Construct(sessionService, admissionService))
+        if (!lobbyController.Construct(
+                sessionService,
+                admissionService,
+                context.Services.Resolve<IGameMapSessionService>()))
+        {
             return false;
+        }
 
         lobbyService.Construct(lobbyState, lobbyController, sessionService);
         context.Register<ILobbyReadService>(lobbyService);

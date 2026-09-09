@@ -110,6 +110,7 @@ public sealed class SessionScopeControllerTests
         public GameMapRoot ActiveMapRoot => null;
         public bool IsReadyForMatch => false;
         public EnemyConfig SelectedEnemyConfig => null;
+        public int SelectedDifficultyId => GameMapService.NoDifficultySelected;
 
         public event Action MapReady
         {

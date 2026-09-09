@@ -6,6 +6,12 @@ public interface INetworkSessionAdmissionService
     bool HasReconnectReservation(string playerId);
     void RecordDisconnect(ulong clientId);
     void SetAcceptingNewPlayers(bool accepting);
+
+    // Whether the door is open, as the thing that turns people away sees it.
+    // This survives a match - it is Bootstrap's, not the Lobby scene's - which
+    // makes it the only copy of the host's choice still standing when the
+    // lobby comes back.
+    bool IsAcceptingNewPlayers { get; }
     bool KickPlayer(ulong clientId);
     bool WasKicked(ulong clientId);
 

@@ -95,6 +95,8 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
         acceptingNewPlayers = accepting;
     }
 
+    public bool IsAcceptingNewPlayers => acceptingNewPlayers;
+
     public bool WasKicked(ulong clientId)
     {
         return admissionRegistry != null && admissionRegistry.WasKicked(clientId);
