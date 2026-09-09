@@ -28,7 +28,12 @@ internal readonly struct NetworkAdmissionResult
 
 internal sealed class NetworkSessionAdmissionRegistry
 {
-    private readonly int maxPlayers;
+    // Not readonly any more. The room's capacity is a setting the host moves,
+    // and this is the only place that ever refuses anybody for it - so a copy
+    // held anywhere else would be a number that says one thing while the door
+    // does another.
+    private int maxPlayers;
+    private readonly int configuredMaxPlayers;
     private readonly ushort protocolVersion;
     private readonly string buildVersion;
     private readonly double reconnectGracePeriodSeconds;
@@ -94,6 +99,7 @@ internal sealed class NetworkSessionAdmissionRegistry
         }
 
         this.maxPlayers = maxPlayers;
+        configuredMaxPlayers = maxPlayers;
         this.protocolVersion = protocolVersion;
         this.buildVersion = buildVersion.Trim();
         this.reconnectGracePeriodSeconds = reconnectGracePeriodSeconds;
@@ -301,8 +307,25 @@ internal sealed class NetworkSessionAdmissionRegistry
         return kickedClientIds.Remove(clientId);
     }
 
+    internal int MaxPlayers => maxPlayers;
+
+    // Refused rather than clamped. A capacity the caller did not mean is a
+    // question for the caller, and the lobby already checks the same bounds
+    // before it gets here - this is the backstop, not the rule.
+    internal bool SetMaxPlayers(int value)
+    {
+        if (value < 1 || value > configuredMaxPlayers)
+            return false;
+
+        maxPlayers = value;
+        return true;
+    }
+
     internal void Reset()
     {
+        // Back to what the build allows. Reset ends a session, and the next
+        // one starts as a full room until its host says otherwise.
+        maxPlayers = configuredMaxPlayers;
         playerNames.Clear();
         kickedPlayerIds.Clear();
         kickedClientIds.Clear();

@@ -141,7 +141,7 @@ public class LobbyController : NetworkBehaviour
             return;
 
         settingsService.Initialize();
-        PublishLobbyVisibility();
+        PublishLobbyAdmissionRules();
         SubscribeToNetworkCallbacks();
 
         // Everyone who is already here, not just the host. Coming back from a
@@ -157,10 +157,15 @@ public class LobbyController : NetworkBehaviour
     }
 
     // The settings hold the truth clients can see; approval needs the same
-    // answer before a connection exists, so the server hands it over directly.
-    private void PublishLobbyVisibility()
+    // answers before a connection exists, so the server hands them over
+    // directly. Both of them travel together because both are the same
+    // question asked from the two sides of the door: who is allowed in.
+    private void PublishLobbyAdmissionRules()
     {
-        admissionService.SetAcceptingNewPlayers(lobbyState.Settings.Value.IsPublic);
+        LobbySettingsData settings = lobbyState.Settings.Value;
+
+        admissionService.SetAcceptingNewPlayers(settings.IsPublic);
+        admissionService.SetMaxPlayers(settings.MaxPlayers);
     }
 
     private void SubscribeToNetworkCallbacks()
@@ -309,6 +314,24 @@ public class LobbyController : NetworkBehaviour
         startService.RefreshCanStartGame();
     }
 
+    // Nobody's readiness is cleared. Moving a wall does not change what the
+    // people already inside agreed to, which is what every other setting here
+    // is asking them again about.
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void RequestSetMaxPlayersRpc(int maxPlayers, RpcParams rpcParams = default)
+    {
+        if (!IsConstructed()) return;
+
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        if (!ownershipService.CanChangeSettings(senderClientId)) return;
+
+        if (settingsService.SetMaxPlayers(maxPlayers))
+            PublishLobbyAdmissionRules();
+
+        startService.RefreshCanStartGame();
+    }
+
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void RequestSetLobbyPublicRpc(bool isPublic, RpcParams rpcParams = default)
     {
@@ -319,7 +342,7 @@ public class LobbyController : NetworkBehaviour
         if (!ownershipService.CanChangeSettings(senderClientId)) return;
 
         settingsService.SetLobbyPublic(isPublic);
-        PublishLobbyVisibility();
+        PublishLobbyAdmissionRules();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]

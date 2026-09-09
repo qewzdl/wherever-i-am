@@ -357,6 +357,7 @@ MonoBehaviour:
   document: {fileID: 896598421}
   sounds: {fileID: 896598422}
   difficultyCatalog: {fileID: 11400000, guid: ad8721df252ddf04e99e6d550037f2fc, type: 2}
+  lobbyConfig: {fileID: 11400000, guid: 5e52acb9d45e4574d8da45cc4d35d9d6, type: 2}
   copyAddressIcon: {fileID: 2800000, guid: 57631a37957f40818c537c090d65741f, type: 3}
   copiedAddressIcon: {fileID: 2800000, guid: d700dd2f69e64507b36bfae3ffbe789f, type: 3}
   readyActionText: Ready up

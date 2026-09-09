@@ -107,6 +107,17 @@ internal sealed class LobbyAdmissionServiceProbe : INetworkSessionAdmissionServi
         IsAcceptingNewPlayers = accepting;
     }
 
+    public int MaxPlayers { get; private set; } = int.MaxValue;
+
+    public bool SetMaxPlayers(int maxPlayers)
+    {
+        if (maxPlayers < 1)
+            return false;
+
+        MaxPlayers = maxPlayers;
+        return true;
+    }
+
     internal readonly List<ulong> KickedClientIds = new();
 
     public bool KickPlayer(ulong clientId)
@@ -365,6 +376,27 @@ public sealed class LobbyRulesPlayModeTests
 
             settings.SetGameMode(3);
             Assert.That(state.Settings.Value.GameModeId, Is.EqualTo(3));
+
+            // Capacity is the one setting with a floor that moves, so all
+            // three of its bounds are worth pinning: the build's ceiling, the
+            // number needed to start, and re-picking what is already set.
+            Assert.That(settings.SetMaxPlayers(3), Is.True);
+            Assert.That(state.Settings.Value.MaxPlayers, Is.EqualTo(3));
+
+            LogAssert.Expect(
+                LogType.Warning,
+                "Rejected lobby capacity 5; it has to be between 1 and 4.");
+            Assert.That(settings.SetMaxPlayers(5), Is.False);
+            Assert.That(state.Settings.Value.MaxPlayers, Is.EqualTo(3));
+
+            LogAssert.Expect(
+                LogType.Warning,
+                "Rejected lobby capacity 0; it has to be between 1 and 4.");
+            Assert.That(settings.SetMaxPlayers(0), Is.False);
+            Assert.That(state.Settings.Value.MaxPlayers, Is.EqualTo(3));
+
+            Assert.That(settings.SetMaxPlayers(3), Is.False);
+            Assert.That(state.Settings.Value.MaxPlayers, Is.EqualTo(3));
 
             LobbyOwnershipService ownership = new(state);
             LobbyPlayerRegistry registry = new(

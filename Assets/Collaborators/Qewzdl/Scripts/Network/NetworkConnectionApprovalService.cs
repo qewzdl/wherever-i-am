@@ -97,6 +97,31 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
 
     public bool IsAcceptingNewPlayers => acceptingNewPlayers;
 
+    // Both go through the registry, which is the only thing that ever refuses
+    // anybody for being one too many. Guarded because the registry is built
+    // out of three configs, and a component missing one of them should say so
+    // once through HasRequiredReferences rather than throw from a property.
+    public int MaxPlayers
+    {
+        get
+        {
+            if (!HasRequiredReferences())
+                return 0;
+
+            EnsureAdmissionRegistry();
+            return admissionRegistry.MaxPlayers;
+        }
+    }
+
+    public bool SetMaxPlayers(int maxPlayers)
+    {
+        if (!HasRequiredReferences())
+            return false;
+
+        EnsureAdmissionRegistry();
+        return admissionRegistry.SetMaxPlayers(maxPlayers);
+    }
+
     public bool WasKicked(ulong clientId)
     {
         return admissionRegistry != null && admissionRegistry.WasKicked(clientId);

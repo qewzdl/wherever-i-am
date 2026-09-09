@@ -28,6 +28,7 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private UIDocument document;
     [SerializeField] private UiDocumentSounds sounds;
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
+    [SerializeField] private LobbyConfig lobbyConfig;
     [SerializeField] private Texture2D copyAddressIcon;
     [SerializeField] private Texture2D copiedAddressIcon;
 
@@ -146,11 +147,14 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string pendingChangeText = "Updating...";
     [SerializeField] private string startPendingActionText = "Starting...";
     [SerializeField] private string pendingFailedText = "No answer - try again";
+    [SerializeField] private string maxPlayersFloorFormat =
+        "At least {0} while they are standing here.";
     [SerializeField, Min(1f)] private float pendingChangeTimeoutSeconds = 6f;
 
     private ILobbyReadService readService;
     private INetworkSessionReadService sessionReadService;
     private int[] difficultyIds = Array.Empty<int>();
+    private int[] maxPlayersOptions = Array.Empty<int>();
     private string[] difficultyDescriptions = Array.Empty<string>();
 
     private VisualElement boundRoot;
@@ -164,6 +168,7 @@ public class LobbyUI : MonoBehaviour
     private Label readyCountLabel;
     private Label difficultyDescriptionLabel;
     private Label difficultyOwnerNoteLabel;
+    private Label maxPlayersNoteLabel;
     private Label doorHintLabel;
     private Label doorStatusLabel;
     private Label setupDifficultyLabel;
@@ -180,6 +185,7 @@ public class LobbyUI : MonoBehaviour
     private Label matchTransitionDetailLabel;
     private Label matchTransitionElapsedLabel;
     private DropdownField difficultyField;
+    private DropdownField maxPlayersField;
     private DropdownField addressPickField;
     private Toggle visibilityToggle;
     private Button readyButton;
@@ -311,6 +317,7 @@ public class LobbyUI : MonoBehaviour
     private readonly PendingChange readyChange = new PendingChange();
     private readonly PendingChange doorChange = new PendingChange();
     private readonly PendingChange difficultyChange = new PendingChange();
+    private readonly PendingChange maxPlayersChange = new PendingChange();
 
     // Start is the one command whose answer is a phase rather than a value:
     // the room stops being a lobby. It waits the same way regardless.
@@ -321,6 +328,7 @@ public class LobbyUI : MonoBehaviour
     public event Action StartGameClicked;
     public event Action LeaveLobbyClicked;
     public event Action<int> DifficultySelected;
+    public event Action<int> MaxPlayersSelected;
     public event Action LobbyVisibilityToggleClicked;
     public event Action<ulong> PlayerKickRequested;
 
@@ -354,6 +362,7 @@ public class LobbyUI : MonoBehaviour
         readyChange.Forget();
         doorChange.Forget();
         difficultyChange.Forget();
+        maxPlayersChange.Forget();
         startChange.Forget();
         HideSetupNotice(++setupNoticeVersion);
 
@@ -433,6 +442,7 @@ public class LobbyUI : MonoBehaviour
         bool wasWaiting = readyChange.IsWaiting ||
                           doorChange.IsWaiting ||
                           difficultyChange.IsWaiting ||
+                          maxPlayersChange.IsWaiting ||
                           startChange.IsWaiting;
 
         if (!wasWaiting)
@@ -441,11 +451,13 @@ public class LobbyUI : MonoBehaviour
         readyChange.Tick();
         doorChange.Tick();
         difficultyChange.Tick();
+        maxPlayersChange.Tick();
         startChange.Tick();
 
         if (readyChange.IsWaiting ||
             doorChange.IsWaiting ||
             difficultyChange.IsWaiting ||
+            maxPlayersChange.IsWaiting ||
             startChange.IsWaiting)
         {
             return;
@@ -453,6 +465,7 @@ public class LobbyUI : MonoBehaviour
 
         RefreshButtons();
         RefreshDifficulty();
+        RefreshMaxPlayers();
     }
 
     private void OnDestroy()
@@ -547,6 +560,8 @@ public class LobbyUI : MonoBehaviour
         matchTransitionDetailLabel = root.Q<Label>("MatchTransitionDetail");
         matchTransitionElapsedLabel = root.Q<Label>("MatchTransitionElapsed");
         difficultyField = root.Q<DropdownField>("Difficulty");
+        maxPlayersField = root.Q<DropdownField>("MaxPlayers");
+        maxPlayersNoteLabel = root.Q<Label>("MaxPlayersNote");
         addressPickField = root.Q<DropdownField>("AddressPick");
         visibilityToggle = root.Q<Toggle>("Visibility");
         readyButton = root.Q<Button>("ReadyButton");
@@ -575,6 +590,7 @@ public class LobbyUI : MonoBehaviour
         roomSettingsPanel?.RegisterCallback<ClickEvent>(HandleRoomSettingsBackdropClicked);
 
         PopulateDifficultyChoices();
+        PopulateMaxPlayersChoices();
         PopulateAddressChoices();
         Subscribe();
         CancelPendingAction();
@@ -615,6 +631,9 @@ public class LobbyUI : MonoBehaviour
 
         if (difficultyField != null)
             difficultyField.RegisterValueChangedCallback(HandleDifficultyChanged);
+
+        if (maxPlayersField != null)
+            maxPlayersField.RegisterValueChangedCallback(HandleMaxPlayersChanged);
 
         if (addressPickField != null)
             addressPickField.RegisterValueChangedCallback(HandleAddressPicked);
@@ -657,6 +676,9 @@ public class LobbyUI : MonoBehaviour
 
         if (difficultyField != null)
             difficultyField.UnregisterValueChangedCallback(HandleDifficultyChanged);
+
+        if (maxPlayersField != null)
+            maxPlayersField.UnregisterValueChangedCallback(HandleMaxPlayersChanged);
 
         if (addressPickField != null)
             addressPickField.UnregisterValueChangedCallback(HandleAddressPicked);
@@ -859,6 +881,122 @@ public class LobbyUI : MonoBehaviour
         RefreshDoor(readService.Phase == LobbyPhase.Open);
     }
 
+    // A wall being moved, so no confirmation and nobody's readiness is
+    // cleared - unlike the difficulty, which changes what everybody agreed to
+    // play. This follows the door's pattern instead: ask, and leave the control
+    // where the host put it until the room answers.
+    private void HandleMaxPlayersChanged(ChangeEvent<string> evt)
+    {
+        int optionIndex = maxPlayersField != null ? maxPlayersField.index : -1;
+
+        if (optionIndex < 0 || optionIndex >= maxPlayersOptions.Length)
+            return;
+
+        int wanted = maxPlayersOptions[optionIndex];
+
+        maxPlayersChange.Begin(
+            () => readService.Settings.MaxPlayers == wanted,
+            pendingChangeTimeoutSeconds);
+
+        MaxPlayersSelected?.Invoke(wanted);
+        RefreshMaxPlayers();
+    }
+
+    // Every seat the build allows, from one upwards.
+    //
+    // The floor is not baked into the list because it moves: a room cannot be
+    // narrowed past the people already standing in it, and they arrive and
+    // leave while this is on screen. A list that loses entries as somebody
+    // joins is a list that answers a different question each time it is
+    // opened, so all of them stay and the line underneath says where the floor
+    // currently is. The server refuses the rest, which it would have to anyway.
+    private void PopulateMaxPlayersChoices()
+    {
+        if (maxPlayersField == null)
+            return;
+
+        int ceiling = lobbyConfig != null ? lobbyConfig.MaxPlayers : 0;
+
+        if (ceiling < 1)
+        {
+            maxPlayersField.style.display = DisplayStyle.None;
+            return;
+        }
+
+        maxPlayersOptions = new int[ceiling];
+        List<string> optionLabels = new List<string>(ceiling);
+
+        for (int i = 0; i < ceiling; i++)
+        {
+            maxPlayersOptions[i] = i + 1;
+            optionLabels.Add((i + 1).ToString());
+        }
+
+        maxPlayersField.choices = optionLabels;
+    }
+
+    // Everyone sees the number, only the owner can move it - the same rule the
+    // difficulty follows, and SetValueWithoutNotify for the same reason.
+    private void RefreshMaxPlayers()
+    {
+        if (maxPlayersField == null || maxPlayersOptions.Length == 0)
+            return;
+
+        bool canChange =
+            readService.Phase == LobbyPhase.Open && readService.IsLocalPlayerRoomOwner;
+
+        maxPlayersField.SetEnabled(canChange && !maxPlayersChange.IsWaiting);
+
+        int seats = readService.Settings.MaxPlayers;
+
+        for (int i = 0; i < maxPlayersOptions.Length; i++)
+        {
+            if (maxPlayersOptions[i] != seats)
+                continue;
+
+            if (!maxPlayersChange.IsWaiting &&
+                maxPlayersField.choices != null &&
+                i < maxPlayersField.choices.Count)
+            {
+                maxPlayersField.SetValueWithoutNotify(maxPlayersField.choices[i]);
+            }
+
+            break;
+        }
+
+        SetMaxPlayersNote(canChange);
+    }
+
+    // Three things, one at a time, in the order the difficulty's line uses:
+    // that the answer is still out, that none came back, that this is not
+    // yours to move - and otherwise where the floor is, so a host learns what
+    // would be refused before picking it rather than by picking it.
+    private void SetMaxPlayersNote(bool canChange)
+    {
+        if (maxPlayersNoteLabel == null)
+            return;
+
+        if (maxPlayersChange.IsWaiting || maxPlayersChange.HasFailed)
+        {
+            maxPlayersNoteLabel.text = maxPlayersChange.IsWaiting
+                ? pendingChangeText
+                : pendingFailedText;
+            return;
+        }
+
+        if (!canChange)
+        {
+            maxPlayersNoteLabel.text = ownerOnlySettingText;
+            return;
+        }
+
+        int floor = Mathf.Max(
+            readService.Settings.MinPlayersToStart,
+            readService.PlayerCount);
+
+        maxPlayersNoteLabel.text = string.Format(maxPlayersFloorFormat, floor);
+    }
+
     // The index is read off the field rather than out of the event, which
     // carries the label. Two difficulties are allowed to be called the same
     // thing, and a lobby is a bad place to find out that they were.
@@ -907,11 +1045,13 @@ public class LobbyUI : MonoBehaviour
         readyChange.Tick();
         doorChange.Tick();
         difficultyChange.Tick();
+        maxPlayersChange.Tick();
         startChange.Tick();
 
         RefreshPlayers();
         RefreshButtons();
         RefreshDifficulty();
+        RefreshMaxPlayers();
         RefreshMatchSetup();
         RefreshMatchTransition();
     }

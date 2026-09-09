@@ -12,6 +12,16 @@ public interface INetworkSessionAdmissionService
     // makes it the only copy of the host's choice still standing when the
     // lobby comes back.
     bool IsAcceptingNewPlayers { get; }
+
+    // How many the room seats, in the same place and for the same reason. The
+    // lobby replicates this number so everybody can read it; here is where it
+    // is enforced, and the two are the same number because the lobby reads it
+    // back from here rather than keeping its own.
+    int MaxPlayers { get; }
+
+    // False when the build does not allow that many. The lobby checks first,
+    // so a refusal here means the two disagree about the ceiling.
+    bool SetMaxPlayers(int maxPlayers);
     bool KickPlayer(ulong clientId);
     bool WasKicked(ulong clientId);
 

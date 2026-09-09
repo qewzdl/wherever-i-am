@@ -58,7 +58,14 @@ public class LobbySettingsService
         }
 
         if (admissionService != null)
+        {
             settings.IsPublic = admissionService.IsAcceptingNewPlayers;
+
+            // Nought is how the door says it cannot answer, and a room seating
+            // nobody is a worse answer than the config's.
+            if (admissionService.MaxPlayers > 0)
+                settings.MaxPlayers = admissionService.MaxPlayers;
+        }
 
         lobbyState.Settings.Value = settings;
         lobbyState.Phase.Value = LobbyPhase.Open;
@@ -102,6 +109,48 @@ public class LobbySettingsService
         settings.MapId = mapId;
         lobbyState.Settings.Value = settings;
         return true;
+    }
+
+    // The room's capacity, which is the host's to narrow and nobody's to widen
+    // past what the build allows.
+    //
+    // Three bounds, and each of them is somebody being shut out of a room they
+    // are entitled to: below the number needed to start, and the room can
+    // never begin; above the configured ceiling, and the map has fewer spawn
+    // points than the seats promise; below the number of people already
+    // standing here, and the room is over capacity the moment it is set - with
+    // nobody to choose who should not have been let in.
+    public bool SetMaxPlayers(int maxPlayers)
+    {
+        if (!CanChangeSettings())
+            return false;
+
+        LobbySettingsData settings = lobbyState.Settings.Value;
+
+        if (maxPlayers == settings.MaxPlayers)
+            return false;
+
+        int floor = Mathf.Max(settings.MinPlayersToStart, PlayerCount());
+        int ceiling = lobbyConfig != null ? lobbyConfig.MaxPlayers : maxPlayers;
+
+        if (maxPlayers < floor || maxPlayers > ceiling)
+        {
+            Debug.LogWarning(
+                $"Rejected lobby capacity {maxPlayers}; " +
+                $"it has to be between {floor} and {ceiling}.");
+            return false;
+        }
+
+        settings.MaxPlayers = maxPlayers;
+        lobbyState.Settings.Value = settings;
+        return true;
+    }
+
+    private int PlayerCount()
+    {
+        return lobbyState != null && lobbyState.Players != null
+            ? lobbyState.Players.Count
+            : 0;
     }
 
     public void SetLobbyPublic(bool isPublic)

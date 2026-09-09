@@ -49,6 +49,11 @@
             <ui:VisualElement class="panel panel--wide">
                 <ui:Label text="Room settings" class="title" />
                 <ui:VisualElement class="field">
+                    <ui:Label text="Players" class="field__label" />
+                    <ui:DropdownField name="MaxPlayers" class="field__control" />
+                </ui:VisualElement>
+                <ui:Label name="MaxPlayersNote" class="hint hint--field" />
+                <ui:VisualElement class="field">
                     <ui:Label text="Difficulty" class="field__label" />
                     <ui:DropdownField name="Difficulty" class="field__control" />
                 </ui:VisualElement>

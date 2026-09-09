@@ -73,6 +73,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.StartGameClicked += HandleStartGameClicked;
         lobbyUI.LeaveLobbyClicked += HandleLeaveLobbyClicked;
         lobbyUI.DifficultySelected += HandleDifficultySelected;
+        lobbyUI.MaxPlayersSelected += HandleMaxPlayersSelected;
         lobbyUI.LobbyVisibilityToggleClicked += HandleLobbyVisibilityToggleClicked;
         lobbyUI.PlayerKickRequested += HandlePlayerKickRequested;
 
@@ -88,6 +89,7 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
         lobbyUI.StartGameClicked -= HandleStartGameClicked;
         lobbyUI.LeaveLobbyClicked -= HandleLeaveLobbyClicked;
         lobbyUI.DifficultySelected -= HandleDifficultySelected;
+        lobbyUI.MaxPlayersSelected -= HandleMaxPlayersSelected;
         lobbyUI.LobbyVisibilityToggleClicked -= HandleLobbyVisibilityToggleClicked;
         lobbyUI.PlayerKickRequested -= HandlePlayerKickRequested;
 
@@ -120,6 +122,17 @@ public sealed class LobbyUICommandPresenter : MonoBehaviour
             return;
 
         commandService.StartGame();
+    }
+
+    private void HandleMaxPlayersSelected(int maxPlayers)
+    {
+        if (!HasRequiredReferences())
+            return;
+
+        if (readService.Phase != LobbyPhase.Open)
+            return;
+
+        commandService.SetMaxPlayers(maxPlayers);
     }
 
     private void HandleDifficultySelected(int difficultyId)
