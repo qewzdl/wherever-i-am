@@ -195,13 +195,32 @@
     color: var(--text);
     font-size: var(--font-size-xs);
 
-    letter-spacing: var(--tracking-wide);
+    /* No tracking. Everywhere else in this interface letters are set apart to
+       make a string read as lettering rather than as text - and the tokens say
+       it is worth it on short strings set large, or on things to be scanned.
+       A key cap is a short string set small, and it is neither.
+
+       It was also throwing the box off centre. Tracking is applied after the
+       last letter as well as between them, so with equal padding on both sides
+       the glyphs sat two pixels left of the middle of their own box - which is
+       exactly the amount that reads as a mistake without saying what it is. */
 
     border-width: var(--border);
     border-color: var(--line-strong);
 
+    /* All four sides. It had none top or bottom, so a one-pixel border sat
+       directly on the tops and tails of the letters. */
     padding-left: var(--space-s);
     padding-right: var(--space-s);
+    padding-top: var(--space-xs);
+    padding-bottom: var(--space-xs);
+
+    /* Three characters' worth, so LMB and RB are the same box. Without it the
+       two prompts are different sizes, and the row changes width the moment a
+       player picks up a pad. */
+    min-width: 34px;
+
+    -unity-text-align: middle-center;
 
     margin-right: var(--space-s);
 }
