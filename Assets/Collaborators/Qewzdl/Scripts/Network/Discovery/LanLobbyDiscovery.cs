@@ -56,6 +56,14 @@ public sealed class LanLobbyDiscovery : IDisposable
 
     public bool IsListening => socket != null && socket.IsOpen;
 
+    // Whether a room is still saying it is there. Asked by whoever is holding
+    // on to an address the player picked: a choice outlives the row it was
+    // made on otherwise, and points at a lobby that has gone quiet.
+    public bool Knows(string address)
+    {
+        return !string.IsNullOrEmpty(address) && byAddress.ContainsKey(address);
+    }
+
     public LanLobbyDiscovery(int protocolVersion)
     {
         this.protocolVersion = protocolVersion;

@@ -515,6 +515,15 @@ public sealed class MainMenuDocument : MonoBehaviour
                 : browserUnavailableText;
         }
 
+        // A lobby ages off this list when it stops speaking, and until now the
+        // choice made on it stayed behind: the row went, the mark went with
+        // it, and Join stayed lit over a room that had closed.
+        if (chosenAddress.Length > 0 &&
+            (discovery == null || !discovery.Knows(chosenAddress)))
+        {
+            ForgetChosenLobby();
+        }
+
         IReadOnlyList<LanLobbyDiscovery.Entry> lobbies =
             discovery != null ? discovery.Lobbies : null;
 
@@ -626,6 +635,12 @@ public sealed class MainMenuDocument : MonoBehaviour
         chosenAddress = string.Empty;
         chosenName = string.Empty;
         MarkChosen();
+
+        // The chosen room is half of what enables Join - the address box is
+        // the other half - so dropping it has to ask that question again.
+        // Every caller used to have to remember this, and Refresh did not:
+        // it forgot the room and left the button lit over an empty box.
+        RefreshAddressValidation();
     }
 
     private void MarkChosen()
