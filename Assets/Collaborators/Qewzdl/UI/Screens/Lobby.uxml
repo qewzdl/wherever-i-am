@@ -37,6 +37,11 @@
                 <ui:Button text="Start" name="StartButton" class="button" />
                 <ui:Button text="Ready" name="ReadyButton" class="button" />
                 <ui:Button text="Room settings" name="RoomSettingsButton" class="button" />
+                <!-- The game's own settings, not the room's. Above Leave for
+                     the same reason the main menu and the pause menu put it
+                     there: it is the last thing you do here that is not
+                     going somewhere else. -->
+                <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
             </ui:VisualElement>
         </ui:VisualElement>

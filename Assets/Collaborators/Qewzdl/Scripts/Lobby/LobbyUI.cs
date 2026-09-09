@@ -191,6 +191,7 @@ public class LobbyUI : MonoBehaviour
     private Button transitionLeaveButton;
     private Button roomSettingsButton;
     private Button roomSettingsCloseButton;
+    private Button settingsButton;
 
     private bool isRoomSettingsOpen;
     private bool isMatchTransitionVisible;
@@ -323,9 +324,15 @@ public class LobbyUI : MonoBehaviour
     public event Action LobbyVisibilityToggleClicked;
     public event Action<ulong> PlayerKickRequested;
 
+    // The one settings screen there is, which belongs to the game rather than
+    // to any scene - the lobby only borrows it, the way the main menu and the
+    // pause menu do.
+    private ISettingsScreen settingsScreen;
+
     public void Construct(
         ILobbyReadService readService,
-        INetworkSessionReadService sessionReadService = null)
+        INetworkSessionReadService sessionReadService = null,
+        ISettingsScreen settingsScreen = null)
     {
         if (this.readService != null)
             this.readService.LobbyChanged -= Refresh;
@@ -334,6 +341,7 @@ public class LobbyUI : MonoBehaviour
 
         this.readService = readService;
         this.sessionReadService = sessionReadService;
+        this.settingsScreen = settingsScreen;
 
         if (this.readService != null)
             this.readService.LobbyChanged += Refresh;
@@ -361,6 +369,7 @@ public class LobbyUI : MonoBehaviour
         UnsubscribeFromSessionState();
         readService = null;
         sessionReadService = null;
+        settingsScreen = null;
         hasSeenSettings = false;
         isAddressCopyFeedbackVisible = false;
         addressCopyFeedbackVersion++;
@@ -548,6 +557,7 @@ public class LobbyUI : MonoBehaviour
         transitionLeaveButton = root.Q<Button>("TransitionLeaveButton");
         roomSettingsButton = root.Q<Button>("RoomSettingsButton");
         roomSettingsCloseButton = root.Q<Button>("RoomSettingsCloseButton");
+        settingsButton = root.Q<Button>("SettingsButton");
 
         if (screen == null)
         {
@@ -614,6 +624,9 @@ public class LobbyUI : MonoBehaviour
 
         if (roomSettingsCloseButton != null)
             roomSettingsCloseButton.clicked += CloseRoomSettings;
+
+        if (settingsButton != null)
+            settingsButton.clicked += OpenSettings;
     }
 
     private void Unsubscribe()
@@ -653,6 +666,9 @@ public class LobbyUI : MonoBehaviour
 
         if (roomSettingsCloseButton != null)
             roomSettingsCloseButton.clicked -= CloseRoomSettings;
+
+        if (settingsButton != null)
+            settingsButton.clicked -= OpenSettings;
     }
 
     private void HandleReadyClicked()
@@ -1488,6 +1504,15 @@ public class LobbyUI : MonoBehaviour
         }
 
         CancelPendingAction();
+    }
+
+    // The game's settings, not the room's. Nothing here has to know what is in
+    // them or coordinate with them: the screen belongs to the whole game, sits
+    // above this document, and closes itself when the scene it was opened over
+    // goes away - which is what happens the moment the host presses Start.
+    private void OpenSettings()
+    {
+        settingsScreen?.Open();
     }
 
     // What is left of the room's settings, a click away instead of down the
