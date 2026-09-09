@@ -17,6 +17,7 @@ MonoBehaviour:
   remoteClientDeniedReason: The network session is not accepting new players right
     now.
   reconnectGracePeriodSeconds: 20
+  reconnectingReason: Connection lost. Reconnecting...
   invalidPayloadReason: The connection request is invalid.
   incompatibleBuildReason: The client build is incompatible with the host.
   sessionFullReason: The network session is full.

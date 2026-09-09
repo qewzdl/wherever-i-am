@@ -10,6 +10,8 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
 
     [Header("Reconnect")]
     [SerializeField, Min(0f)] private float reconnectGracePeriodSeconds = 20f;
+    [SerializeField] private string reconnectingReason =
+        "Connection lost. Reconnecting...";
 
     [Header("Denial Reasons")]
     [SerializeField] private string invalidPayloadReason =
@@ -30,6 +32,7 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
     public string RemoteClientDeniedReason => remoteClientDeniedReason;
     public float ReconnectGracePeriodSeconds =>
         Mathf.Max(0f, reconnectGracePeriodSeconds);
+    public string ReconnectingReason => reconnectingReason;
     public string InvalidPayloadReason => invalidPayloadReason;
     public string IncompatibleBuildReason => incompatibleBuildReason;
     public string SessionFullReason => sessionFullReason;
@@ -74,6 +77,10 @@ public sealed class NetworkConnectionApprovalConfig : ScriptableObject
         valid &= ValidateReason(
             kickedReason,
             nameof(kickedReason),
+            context);
+        valid &= ValidateReason(
+            reconnectingReason,
+            nameof(reconnectingReason),
             context);
 
         return valid;

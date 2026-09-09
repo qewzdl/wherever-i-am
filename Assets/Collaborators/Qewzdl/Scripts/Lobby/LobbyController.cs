@@ -217,7 +217,14 @@ public class LobbyController : NetworkBehaviour
 
         if (!playerRegistry.TryAddPlayer(clientId))
         {
-            NetworkManager.DisconnectClient(clientId);
+            // Approval already caps the seats, so this is the defensive half of
+            // that check - but it still has to say something. A drop with no
+            // reason reads as a lost connection on the other end, and the
+            // client would spend the reconnect window coming back to be
+            // refused by the same full registry.
+            NetworkManager.DisconnectClient(
+                clientId,
+                "Could not join the lobby.");
             return;
         }
 

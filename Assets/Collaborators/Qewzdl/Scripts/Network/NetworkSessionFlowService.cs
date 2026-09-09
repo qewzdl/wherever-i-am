@@ -17,8 +17,17 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
     [SerializeField] private UiErrorManager errorManager;
     [SerializeField] private GameMapService gameMapService;
 
+    [Header("Configuration")]
+    [SerializeField] private NetworkConnectionApprovalConfig approvalConfig;
+
     private ProjectSceneFlowService subscribedSceneFlowService;
     private bool sceneFlowSubscribed;
+
+    // The address this client is in a session with, which is not the same
+    // thing as the one saved in the menu: a room picked out of the LAN list is
+    // never typed and never stored, and it is the one worth returning to.
+    private string lastJoinAddress = string.Empty;
+    private bool reconnecting;
 
     internal IServiceResolver SessionServices => shutdownCoordinator != null
         ? shutdownCoordinator.SessionServices
@@ -107,6 +116,8 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         if (!TryBeginSession(NetworkSessionState.StartingClient, "Join LAN requested."))
             return;
 
+        lastJoinAddress = ip;
+
         stateMachine.ChangeState(GameState.Connecting);
         disconnectHandler.StartListening();
 
@@ -136,6 +147,81 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         }
 
         RuntimeLog.Info(result.DebugMessage);
+    }
+
+    // Called by the disconnect handler instead of going straight to the main
+    // menu. The host holds this player's seat for the grace period - their
+    // lobby row, their name, their colour - and until now nothing ever came
+    // back to claim it inside that window.
+    //
+    // The way back is the way in: tear the session down as a failure would,
+    // then run the ordinary join again. Nothing about a reconnect is special
+    // enough to deserve a second path through scene loading and readiness, and
+    // a second path is what would rot.
+    internal bool TryReconnectAfterConnectionLoss(string serverReason)
+    {
+        if (!HasRequiredReferences() || reconnecting)
+            return false;
+
+        if (!NetworkReconnectPolicy.ShouldAttempt(
+                sessionStateMachine.CurrentState,
+                networkManager.IsServer,
+                serverReason,
+                lastJoinAddress,
+                approvalConfig != null
+                    ? approvalConfig.ReconnectGracePeriodSeconds
+                    : 0f))
+        {
+            return false;
+        }
+
+        _ = ReconnectAsync(lastJoinAddress);
+        return true;
+    }
+
+    private async Task ReconnectAsync(string address)
+    {
+        reconnecting = true;
+
+        try
+        {
+            // The seat is held from the moment the host saw the drop, so the
+            // window starts here rather than after the teardown.
+            float deadline = Time.realtimeSinceStartup +
+                             approvalConfig.ReconnectGracePeriodSeconds;
+
+            await FailAsync(ConnectionResult.Fail(
+                ConnectionErrorCode.ConnectionFailed,
+                approvalConfig.ReconnectingReason,
+                $"Connection to {address} was lost; reconnecting within the " +
+                $"host's grace period.",
+                true));
+
+            while (Time.realtimeSinceStartup < deadline)
+            {
+                await JoinLanAsync(address);
+
+                if (sessionStateMachine.IsActiveSession)
+                {
+                    RuntimeLog.Info($"Reconnected to {address}.", this);
+                    return;
+                }
+
+                // A failed join has already put the player back in the main
+                // menu with its own error on screen. Spacing the attempts
+                // keeps a host that refuses instantly from spinning this loop.
+                await Task.Delay(TimeSpan.FromSeconds(1d));
+            }
+
+            RuntimeLog.Info(
+                $"Gave up reconnecting to {address} after " +
+                $"{approvalConfig.ReconnectGracePeriodSeconds} seconds.",
+                this);
+        }
+        finally
+        {
+            reconnecting = false;
+        }
     }
 
     internal bool TryBeginClientSceneReadiness(

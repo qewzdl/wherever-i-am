@@ -8,12 +8,14 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private NetworkSessionStateMachine sessionStateMachine;
     [SerializeField] private NetworkSessionFailureHandler failureHandler;
+    [SerializeField] private NetworkSessionFlowService flowService;
 
     private NetworkManager subscribedNetworkManager;
     private bool networkCallbacksSubscribed;
 
     private void Awake()
     {
+        ResolveReferences();
         HasRequiredReferences();
     }
 
@@ -93,6 +95,17 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
             state == NetworkSessionState.InGame)
         {
             StopListening();
+
+            // A session that was already running and went quiet is the one
+            // case the host is still holding a seat for. Everything else -
+            // a kick, a closed lobby, a failure while connecting - is an
+            // answer, and the answer is the main menu.
+            if (flowService != null &&
+                flowService.TryReconnectAfterConnectionLoss(serverReason))
+            {
+                return;
+            }
+
             failureHandler.FailAndReturnToMainMenu(
                 string.IsNullOrEmpty(serverReason)
                     ? "Disconnected from network session."
@@ -137,4 +150,17 @@ public sealed class NetworkSessionDisconnectHandler : MonoBehaviour
         Debug.LogError($"{nameof(NetworkSessionDisconnectHandler)} is missing '{fieldName}'.", this);
         return false;
     }
+
+    private void ResolveReferences()
+    {
+        if (flowService == null)
+            flowService = GetComponent<NetworkSessionFlowService>();
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        ResolveReferences();
+    }
+#endif
 }

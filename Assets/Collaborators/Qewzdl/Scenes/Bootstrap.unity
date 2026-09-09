@@ -294,8 +294,8 @@ MonoBehaviour:
   m_MaxPayloadSize: 6144
   m_HeartbeatTimeoutMS: 500
   m_ConnectTimeoutMS: 1000
-  m_MaxConnectAttempts: 60
-  m_DisconnectTimeoutMS: 30000
+  m_MaxConnectAttempts: 5
+  m_DisconnectTimeoutMS: 10000
   ConnectionData:
     Address: 127.0.0.1
     Port: 7777
@@ -578,6 +578,7 @@ MonoBehaviour:
   networkManager: {fileID: 481142982}
   sessionStateMachine: {fileID: 481143004}
   failureHandler: {fileID: 481143000}
+  flowService: {fileID: 481143002}
 --- !u!114 &481143002
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -599,6 +600,7 @@ MonoBehaviour:
   shutdownCoordinator: {fileID: 481143006}
   errorManager: {fileID: 1020719287}
   gameMapService: {fileID: 481143005}
+  approvalConfig: {fileID: 11400000, guid: b7a541658d8b9b444afb810aaa0c459d, type: 2}
 --- !u!114 &481143003
 MonoBehaviour:
   m_ObjectHideFlags: 0

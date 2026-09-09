@@ -453,7 +453,11 @@ internal sealed class NetworkSoakProcessHarness : MonoBehaviour
         await WaitForMarkerAsync(cycle, "client-b", "disconnect-request");
 
         ulong clientId = GetFaultClientId();
-        networkManager.DisconnectClient(clientId);
+
+        // Named on purpose. A silent drop is what the client treats as a lost
+        // connection and comes back from on its own, and this cycle rejoins
+        // deliberately a few lines further down.
+        networkManager.DisconnectClient(clientId, "Soak fault injection.");
 
         await WaitUntilAsync(
             () => !networkManager.ConnectedClients.ContainsKey(clientId),
