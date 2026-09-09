@@ -45,7 +45,12 @@ public class PlayerNetwork :
         listensToNetworkCrouch = false;
     }
 
-    [Rpc(SendTo.Server)]
+    // An RPC is invoked on a NetworkObject, and this one is somebody's body.
+    // Left at the default permission any client could send it to any other
+    // player's object and stand a hiding player up - which is the whole game,
+    // undone from the other side of the map. Every other player-owned request
+    // in the project already says Owner; this one was the exception.
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void SetNetworkPlayerIsCrouchingRpc(bool value)
     {
         if (!value && !CanStandUp())
@@ -57,7 +62,9 @@ public class PlayerNetwork :
         PlayerIsCrouching.Value = value;
     }
 
-    [Rpc(SendTo.Owner)]
+    // The other half of the same hole: this is the server correcting an owner
+    // who could not stand, so only the server has any business sending it.
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
     private void CorrectOwnerCrouchStateRpc(bool value)
     {
         signals.CrouchSyncSignal.Trigger(value);
