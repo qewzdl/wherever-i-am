@@ -24,6 +24,22 @@ public sealed class LanLobbyDiscovery : IDisposable
     // has closed is gone before anybody tries to join it.
     private const float ForgetAfterSeconds = 4f;
 
+    // And asked again, twice inside that window, for as long as the list is on
+    // screen.
+    //
+    // Listening was not enough. A beacon is a broadcast addressed to nobody,
+    // and the machine looking at this list is entitled to drop it: a firewall
+    // opens a stateful hole for a datagram that answers one we sent and none
+    // for one that arrives out of the blue, and a host with a VPN or a virtual
+    // adapter puts 255.255.255.255 on whichever interface the routing table
+    // liked best, which is often not the one the game is on.
+    //
+    // Either way the symptom is the same and it is the one that was reported:
+    // the probe on opening gets a reply, so a room appears, and then nothing
+    // arrives again and it ages out four seconds later. Asking is what the
+    // reply is an answer to, so asking again is what keeps it coming.
+    private const float ProbeSeconds = 2f;
+
     public readonly struct Entry
     {
         public readonly IPEndPoint EndPoint;
@@ -46,6 +62,7 @@ public sealed class LanLobbyDiscovery : IDisposable
     private readonly int protocolVersion;
 
     private LanLobbySocket socket;
+    private float nextProbeAt;
 
     public event Action Changed;
 
@@ -80,7 +97,7 @@ public sealed class LanLobbyDiscovery : IDisposable
         byAddress.Clear();
         ordered.Clear();
 
-        socket?.Broadcast(LanLobbyAdvert.ProbeMessage);
+        Probe();
 
         if (had)
             Changed?.Invoke();
@@ -92,6 +109,9 @@ public sealed class LanLobbyDiscovery : IDisposable
     {
         if (socket == null || !socket.IsOpen)
             return;
+
+        if (Time.unscaledTime >= nextProbeAt)
+            Probe();
 
         bool changed = false;
 
@@ -107,6 +127,12 @@ public sealed class LanLobbyDiscovery : IDisposable
 
         if (changed)
             Changed?.Invoke();
+    }
+
+    private void Probe()
+    {
+        nextProbeAt = Time.unscaledTime + ProbeSeconds;
+        socket?.Broadcast(LanLobbyAdvert.ProbeMessage);
     }
 
     public void Dispose()
