@@ -684,15 +684,43 @@
 }
 
 
+/* One height, whatever is in it.
+
+   It used to be sized between a floor and a ceiling, which meant the panel
+   grew and shrank as rooms came and went - and rooms come and go on their own
+   here, every few seconds, with nobody having touched anything. The list
+   breathing is bad enough; it took the three buttons below it along for the
+   ride, so the thing somebody was reaching for moved while they reached.
+   
+   Five rows and the top of a sixth. The sliver is not a rounding error: it is
+   how a list says there is more of it below without being asked.
+   
+   The floor stays as a floor. Nothing in the content can reach it any more,
+   but a window too short for the panel still can, and a list that refuses to
+   yield in that case pushes its own buttons off the bottom of the screen. */
+
 .browser {
+    height: 240px;
     min-height: 120px;
-    max-height: 240px;
 
     border-top-width: var(--border);
     border-top-color: var(--line);
 
+    /* Closed at the bottom as well now. The rules between rows used to end the
+       list by accident - the last row drew one - which worked only as long as
+       the rows reached the bottom, and with a fixed height they no longer do.
+       Empty, it had no bottom edge at all: an opening rule and then nothing,
+       which reads as a list that failed to draw rather than one nobody has
+       answered yet. */
+    border-bottom-width: var(--border);
+    border-bottom-color: var(--line);
+
     margin-top: var(--space-xs);
-    margin-bottom: var(--space-m);
+
+    /* Nothing underneath. A section label carries the gap it needs above it -
+       that is what its top margin is for, and what --flush exists to take
+       away - so a bottom margin here would be the same break paid for twice. */
+    margin-bottom: 0;
 }
 
 

@@ -55,8 +55,11 @@ public sealed class MainMenuDocument : MonoBehaviour
     [SerializeField] private string browserCountFormat = "{0}/{1}";
 
     [Header("Join address")]
+    // Carries the reason as well as the shape now. The reason used to be a
+    // line of its own above the field, where it read as a heading and was
+    // indented like a note; under the field it is what the field is for.
     [SerializeField] private string addressHintText =
-        "IPv4 address, for example 192.168.1.10";
+        "For a lobby this network cannot see. IPv4, for example 192.168.1.10";
     [SerializeField] private string invalidAddressText =
         "Enter a valid IPv4 address.";
 

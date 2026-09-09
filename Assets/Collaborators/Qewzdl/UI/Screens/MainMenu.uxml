@@ -20,15 +20,24 @@
         <ui:VisualElement name="JoinPanel" class="overlay">
             <ui:VisualElement class="panel panel--wide">
                 <ui:Label text="Join a lobby" class="question" />
-                <!-- The rooms that have said they are open. Nobody asks them:
-                     a host broadcasts while its door is open and the row
-                     appears, stops and the row ages out. -->
+                <!-- The rooms that have said they are open. A host broadcasts
+                     while its door is open, and this asks out loud every couple
+                     of seconds as well - because a machine is entitled to drop
+                     a broadcast addressed to nobody, and several do. -->
                 <ui:VisualElement class="browser__header">
                     <ui:Label text="On this network" class="section section--flush" />
                     <ui:Label name="BrowserStatus" class="browser__status" />
                 </ui:VisualElement>
                 <ui:ScrollView name="Browser" class="scroll browser" />
-                <ui:Label text="Or type an address, for a lobby this network cannot see." class="hint hint--field" />
+                <!-- The other half of the panel, and it gets a heading like the
+                     first half rather than a note dressed as one. It used to
+                     wear the field hint modifier, which indents by a whole
+                     label column so that a note lands under the control it
+                     explains - and there is no label column here, so it landed
+                     under nothing. Why somebody would type an address moved
+                     down to the line under the field, which is where a field
+                     explains itself. -->
+                <ui:Label text="Or by address" class="section" />
                 <ui:TextField name="Address" class="input" />
                 <ui:Label name="AddressHint" class="hint input__hint" />
                 <ui:VisualElement class="footer">
