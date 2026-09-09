@@ -741,8 +741,8 @@
    --line-strong is what a hairline becomes when the pointer arrives; the
    tokens say as much about it. */
 
-.unity-button.browser__row:hover:enabled,
-.unity-button.browser__row:focus:enabled {
+.unity-button.button.browser__row:hover:enabled,
+.unity-button.button.browser__row:focus:enabled {
     background-color: var(--surface-hover);
 
     border-top-color: var(--line-strong);
@@ -759,9 +759,25 @@
    does not take its mark away. Same weight as the rule above, later wins. */
 
 .browser__row--chosen,
-.unity-button.browser__row--chosen:hover:enabled,
-.unity-button.browser__row--chosen:focus:enabled {
+.unity-button.button.browser__row--chosen:hover:enabled,
+.unity-button.button.browser__row--chosen:focus:enabled {
     border-left-color: var(--accent);
+}
+
+
+/* Held. A row wears .button as well as its own class, so without this it was
+   the generic press underneath that answered - the accent flooding the whole
+   row and the writing going to ink, which is the one thing this list never
+   does. It says what the copy button beside it says instead: the fill stays
+   where the pointer put it and the frame takes the accent.
+
+   After the chosen rules on purpose. Pressing the row that is already marked
+   takes the accent all the way round it rather than leaving one edge of it. */
+
+.unity-button.button.browser__row:active:enabled {
+    background-color: var(--surface-hover);
+
+    border-color: var(--accent);
 }
 
 
@@ -802,6 +818,21 @@
     margin-left: var(--space-m);
 
     -unity-text-align: middle-right;
+}
+
+
+/* A ScrollView sizes its content to the content, so the empty line below had
+   nothing for its flex-grow to grow into: it centred itself inside its own
+   height and sat at the top of a hundred and twenty pixels of nothing. The
+   container fills the viewport, and then the middle of the box is the middle
+   of the box.
+
+   Rows do not care either way - they are a fixed height and refuse to shrink -
+   and once there are more of them than fit, the content is taller than the
+   viewport and there is nothing left to grow. */
+
+.browser .unity-scroll-view__content-container {
+    flex-grow: 1;
 }
 
 
