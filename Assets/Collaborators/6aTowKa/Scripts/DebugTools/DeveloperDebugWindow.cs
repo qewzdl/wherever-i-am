@@ -1,5 +1,6 @@
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Collections.Generic;
+using System.Globalization;
 using TMPro;
 using Unity.Netcode;
 using UnityEngine;
@@ -22,6 +23,10 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
     private TextMeshProUGUI noClipText;
     private TextMeshProUGUI speedText;
     private TextMeshProUGUI removeEnemiesText;
+    private TMP_InputField shakeAmountField;
+    private TMP_InputField shakeDurationField;
+    private TextMeshProUGUI shakeText;
+    private bool cursorReleased;
     private bool enemyRemovalArmed;
     private float enemyRemovalArmedUntil;
     private float nextMetricsAt;
@@ -38,6 +43,7 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
             SetVisible(!panel.activeSelf);
 
         noClip.Update(Time.unscaledDeltaTime);
+        UpdateCursorRelease();
         if (!panel.activeSelf)
             return;
 
@@ -64,6 +70,7 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
     public void ReleaseSettingsService()
     {
         noClip.Restore();
+        SetCursorReleased(false);
         settings = null;
     }
 
@@ -76,12 +83,38 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         if (!visible)
         {
             noClip.Restore();
+            SetCursorReleased(false);
             CancelEnemyRemoval();
             return;
         }
 
         RefreshSections();
         RefreshMetrics();
+    }
+
+    // Зажатый Alt при открытом окне отдаёт курсор мыши, чтобы можно было ткнуть в кнопку,
+    // не выходя из игры. Отпустил — курсор снова уходит в игру.
+    private void UpdateCursorRelease()
+    {
+        Keyboard keyboard = Keyboard.current;
+        bool altHeld = keyboard != null && (keyboard.leftAltKey.isPressed || keyboard.rightAltKey.isPressed);
+        SetCursorReleased(panel.activeSelf && altHeld);
+    }
+
+    private void SetCursorReleased(bool released)
+    {
+        if (cursorReleased == released)
+            return;
+
+        CameraLook look = TryGetLocalPlayerComponent<CameraLook>();
+        if (look == null)
+            return;
+
+        cursorReleased = released;
+        // Через блокировку обзора, а не записью в Cursor напрямую: CameraLook сам снимает
+        // лок, когда обзор заблокирован, и заодно перестаёт крутить камеру мышью - иначе
+        // прицеливание уезжало бы вслед за тем, как целишься в кнопку.
+        look.SetLookActive(this, !released);
     }
 
     private void ToggleNoClip()
@@ -102,6 +135,33 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         settings?.SetDebugNoClipSpeed(next);
         noClip.Speed = next;
         speedText.text = $"Скорость NoClip: {next:0.0}";
+    }
+
+    private void TriggerShake()
+    {
+        PlayerCameraEffects effects = TryGetLocalPlayerComponent<PlayerCameraEffects>();
+        if (effects == null)
+        {
+            shakeText.text = "Тряска: игрок не найден";
+            return;
+        }
+
+        if (!TryReadField(shakeAmountField, out float strength) || !TryReadField(shakeDurationField, out float duration))
+        {
+            shakeText.text = "Тряска: не число";
+            return;
+        }
+
+        effects.AddShake(strength, duration);
+        shakeText.text = $"Трахнуть камеру ({strength:0.00} / {duration:0.00}с)";
+    }
+
+    // Запятая вместо точки — обычный ввод на русской раскладке, а парсим инвариантно,
+    // чтобы поле вело себя одинаково независимо от локали машины.
+    private static bool TryReadField(TMP_InputField field, out float value)
+    {
+        string typed = field.text.Replace(',', '.');
+        return float.TryParse(typed, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
 
     private void HandleRemoveEnemies()
@@ -198,6 +258,21 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         }
     }
 
+    // Сначала netcode, потом поиск по сцене — второй нужен, когда сцену запускают из
+    // редактора без хоста: SpawnManager тогда пуст, а игрок лежит в сцене обычным объектом.
+    private static T TryGetLocalPlayerComponent<T>() where T : Component
+    {
+        PlayerController localPlayer = TryGetLocalPlayer();
+        if (localPlayer != null)
+        {
+            T owned = localPlayer.GetComponentInChildren<T>(true);
+            if (owned != null)
+                return owned;
+        }
+
+        return FindFirstObjectByType<T>();
+    }
+
     private static PlayerController TryGetLocalPlayer()
     {
         NetworkManager network = NetworkManager.Singleton;
@@ -238,6 +313,11 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         speedText = CreateText("Скорость NoClip: 10.0", speed.transform, 16, FontStyles.Normal);
         speedText.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
         CreateButton("+", speed.transform, () => ChangeSpeed(1f));
+        CreateText("Тряска: сила 0..1 и длительность в секундах", panel.transform, 13, FontStyles.Italic);
+        HorizontalLayoutGroup shake = CreateRow(panel.transform, 34f);
+        shakeAmountField = CreateInputField("1.0", shake.transform);
+        shakeDurationField = CreateInputField("0.4", shake.transform);
+        shakeText = CreateButton("Трахнуть камеру", shake.transform, TriggerShake);
         removeEnemiesText = CreateButton("Убрать врага навсегда*", panel.transform, HandleRemoveEnemies);
         CreateText("*Костыль: до перезагрузки сцены или нового спавна.", panel.transform, 13, FontStyles.Italic);
 
@@ -288,6 +368,34 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         Stretch(text.rectTransform);
         text.alignment = TextAlignmentOptions.Center;
         return text;
+    }
+
+    private static TMP_InputField CreateInputField(string value, Transform parent)
+    {
+        GameObject fieldRoot = new GameObject("Input", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+        fieldRoot.transform.SetParent(parent, false);
+        fieldRoot.GetComponent<LayoutElement>().preferredWidth = 90f;
+        fieldRoot.GetComponent<LayoutElement>().preferredHeight = 34f;
+        fieldRoot.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.12f);
+
+        // TMP_InputField требует отдельный viewport с маской: без него текст и каретка
+        // рисуются за границами рамки.
+        RectTransform viewport = CreateRect("Text Area", fieldRoot.transform);
+        Stretch(viewport);
+        viewport.offsetMin = new Vector2(8f, 4f);
+        viewport.offsetMax = new Vector2(-8f, -4f);
+        viewport.gameObject.AddComponent<RectMask2D>();
+
+        TextMeshProUGUI text = CreateText(value, viewport, 16, FontStyles.Normal);
+        Stretch(text.rectTransform);
+
+        TMP_InputField field = fieldRoot.AddComponent<TMP_InputField>();
+        field.textViewport = viewport;
+        field.textComponent = text;
+        field.contentType = TMP_InputField.ContentType.DecimalNumber;
+        // Только после textComponent — иначе присвоенное значение некуда рисовать.
+        field.text = value;
+        return field;
     }
 
     private static TextMeshProUGUI CreateText(string value, Transform parent, float size, FontStyles style)
