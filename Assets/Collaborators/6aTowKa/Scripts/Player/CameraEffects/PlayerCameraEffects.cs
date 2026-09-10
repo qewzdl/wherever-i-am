@@ -30,15 +30,22 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
     [SerializeField] private HeadBobSettings headBob = new();
     [SerializeField] private StrafeLeanSettings strafeLean = new();
     [SerializeField] private BreathingSettings breathing = new();
+    [SerializeField] private ShakeSettings shake = new();
 
     private readonly CameraEffectStack effectStack = new();
     private RollEffect rollEffect;
     private HeadBobFigureEightEffect headBobFigureEightEffect;
     private StrafeLeanEffect strafeLeanEffect;
     private BreathingEffect breathingEffect;
+    private ShakeEffect shakeEffect;
 
     private ISettingsService settingsService;
     private float baseFieldOfView = DefaultFieldOfView;
+
+    // Raised whenever something below changes: the inspector via OnValidate, or the player's
+    // settings via SettingsChanged. The push itself waits for LateUpdate, because OnValidate
+    // also fires on deserialisation and prefab load, long before the effects exist.
+    private bool settingsDirty = true;
 
     private bool isCrouching;
     private bool listensToCrouchSync;
@@ -77,6 +84,9 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
 
         breathingEffect = breathing.CreateEffect();
         effectStack.Add(breathingEffect);
+
+        shakeEffect = shake.CreateEffect();
+        effectStack.Add(shakeEffect);
     }
 
     public void Cleanup()
@@ -120,8 +130,26 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
         settingsService = null;
     }
 
+    // The entry point for shake, using the authored default length. Strength is a 0..1
+    // fraction of the amplitudes below: roughly 0.2 for a thud nearby, 0.5 for a door
+    // slammed next to the player, 1 for being grabbed.
+    public void AddShake(float strength)
+    {
+        AddShake(strength, shake.defaultDuration);
+    }
+
+    // Same, with an explicit length in seconds. Overlapping impulses each keep their own,
+    // so a long faint rumble can run underneath a short hard hit.
+    public void AddShake(float strength, float duration)
+    {
+        if (shakeEffect == null)
+            return;
+
+        shakeEffect.AddImpulse(strength, duration);
+    }
+
     // Registration is exposed for effects this component doesn't own itself — a future effect
-    // owner (e.g. a shake source) can register/unregister without this component knowing
+    // owner (e.g. a scripted set piece) can register/unregister without this component knowing
     // about it.
     public void RegisterEffect(ICameraEffect effect)
     {
@@ -145,12 +173,8 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
 
     private void LateUpdate()
     {
-        // Only the shared EffectSettings fields are re-read every frame, so they can be tweaked
-        // live in play mode; the rest of each block is baked into the effect when it is created.
-        roll.ApplyLiveValues(rollEffect);
-        headBob.ApplyLiveValues(headBobFigureEightEffect);
-        strafeLean.ApplyLiveValues(strafeLeanEffect);
-        breathing.ApplyLiveValues(breathingEffect);
+        if (settingsDirty)
+            PushSettings();
 
         float deltaTime = Time.deltaTime;
 
@@ -217,12 +241,66 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
         baseFieldOfView = Mathf.Clamp(fieldOfView, MinFieldOfView, MaxFieldOfView);
     }
 
+#if UNITY_EDITOR
+    // Unity raises this for any inspector edit on this component, play mode included. It is
+    // the whole reason every block below can be tuned while the game runs: nothing is polled,
+    // the editor says when something moved and the next frame hands it to the effects.
+    //
+    // The flip side is that it hears only the inspector. A field written from code would not
+    // reach the effects until something else marked this dirty - nothing does that today, and
+    // anything that starts to will have to say so.
+    private void OnValidate()
+    {
+        settingsDirty = true;
+    }
+#endif
+
+    // One place where the authored blocks meet the live effects. Called on a change rather
+    // than every frame, so a build - where the inspector cannot be touched and the settings
+    // service speaks in events - does this once at startup and then never again.
+    private void PushSettings()
+    {
+        settingsDirty = false;
+
+        roll.Apply(rollEffect);
+        headBob.Apply(headBobFigureEightEffect);
+        strafeLean.Apply(strafeLeanEffect);
+        breathing.Apply(breathingEffect);
+        shake.Apply(shakeEffect);
+    }
+
     private void ApplySettings()
     {
         if (settingsService == null)
             return;
 
-        baseFieldOfView = Mathf.Clamp(settingsService.Current.fieldOfView, MinFieldOfView, MaxFieldOfView);
+        GameSettingsData settings = settingsService.Current;
+
+        baseFieldOfView = Mathf.Clamp(settings.fieldOfView, MinFieldOfView, MaxFieldOfView);
+
+        // Reduced motion silences the whole stack at once. Head bob and the leans are exactly
+        // what makes people motion-sick, so someone who ticked that box should not then have to
+        // walk down five sliders by hand. The sliders keep their values while it is on and come
+        // back untouched when it is off.
+        if (settings.reducedMotion)
+        {
+            roll.userMultiplier = 0f;
+            headBob.userMultiplier = 0f;
+            strafeLean.userMultiplier = 0f;
+            breathing.userMultiplier = 0f;
+            shake.userMultiplier = 0f;
+
+            settingsDirty = true;
+            return;
+        }
+
+        roll.userMultiplier = Mathf.Clamp01(settings.cameraRollIntensity);
+        headBob.userMultiplier = Mathf.Clamp01(settings.headBobIntensity);
+        strafeLean.userMultiplier = Mathf.Clamp01(settings.strafeLeanIntensity);
+        breathing.userMultiplier = Mathf.Clamp01(settings.breathingIntensity);
+        shake.userMultiplier = Mathf.Clamp01(settings.cameraShakeIntensity);
+
+        settingsDirty = true;
     }
 
     private bool ValidateReferences()
@@ -275,14 +353,30 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
         [Tooltip("Effect strength while hidden in a wardrobe/under a bed (1 = unchanged, 0 = off, >1 = amplified). Stacks with the crouch multiplier when hiding while crouched.")]
         [Range(0f, 5f)] public float hidingMultiplier = 0.35f;
 
-        public void ApplyLiveValues(ICameraEffect effect)
+        // The player's slider for this effect, 0..1. Not serialized and not shown: the
+        // inspector fields around it are the authored tuning, this is the player's choice on
+        // top of it, and it arrives from the settings service every time the settings change.
+        // Kept here rather than passed straight to the effect so it survives the effects being
+        // rebuilt and rides along with the other live values below.
+        [System.NonSerialized] public float userMultiplier = 1f;
+
+        // The three fields above, which every effect has. Each block pairs this with its own
+        // Apply, which adds the tuning particular to that effect.
+        protected void ApplyLiveValues(ICameraEffect effect)
         {
             if (effect == null)
                 return;
 
+            // Снятая галка гасит эффект насовсем, а не ставит на паузу: стек перестаёт его
+            // звать, поэтому всё, что он копил - фаза, огибающая, остаток тряски - замерло бы
+            // и доиграло при включении обратно.
+            if (effect.Enabled && !enabled)
+                effect.Reset();
+
             effect.Enabled = enabled;
             effect.CrouchMultiplier = crouchMultiplier;
             effect.HidingMultiplier = hidingMultiplier;
+            effect.UserMultiplier = userMultiplier;
         }
     }
 
@@ -299,8 +393,18 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
         public RollEffect CreateEffect()
         {
             RollEffect effect = new(maxAngleDegrees, yawRateForMaxRoll, smoothTime);
-            ApplyLiveValues(effect);
+            Apply(effect);
             return effect;
+        }
+
+        public void Apply(RollEffect effect)
+        {
+            ApplyLiveValues(effect);
+
+            if (effect == null)
+                return;
+
+            effect.ApplyTuning(maxAngleDegrees, yawRateForMaxRoll, smoothTime);
         }
     }
 
@@ -352,8 +456,30 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
                 stepJitterRange,
                 impactFraction,
                 swayFollowsImpact);
-            ApplyLiveValues(effect);
+            Apply(effect);
             return effect;
+        }
+
+        public void Apply(HeadBobFigureEightEffect effect)
+        {
+            ApplyLiveValues(effect);
+
+            if (effect == null)
+                return;
+
+            effect.ApplyTuning(
+                verticalAmplitude,
+                horizontalAmplitude,
+                rollDegrees,
+                pitchDegrees,
+                yawDegrees,
+                frequency,
+                crouchFrequency,
+                fullSpeed,
+                envelopeSmoothTime,
+                stepJitterRange,
+                impactFraction,
+                swayFollowsImpact);
         }
     }
 
@@ -370,8 +496,18 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
         public StrafeLeanEffect CreateEffect()
         {
             StrafeLeanEffect effect = new(maxAngleDegrees, positionOffset, smoothTime);
-            ApplyLiveValues(effect);
+            Apply(effect);
             return effect;
+        }
+
+        public void Apply(StrafeLeanEffect effect)
+        {
+            ApplyLiveValues(effect);
+
+            if (effect == null)
+                return;
+
+            effect.ApplyTuning(maxAngleDegrees, positionOffset, smoothTime);
         }
     }
 
@@ -400,8 +536,88 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
                 swayRollDegrees,
                 moveSuppressSpeed,
                 suppressSmoothTime);
-            ApplyLiveValues(effect);
+            Apply(effect);
             return effect;
+        }
+
+        public void Apply(BreathingEffect effect)
+        {
+            ApplyLiveValues(effect);
+
+            if (effect == null)
+                return;
+
+            effect.ApplyTuning(
+                rate,
+                verticalAmplitude,
+                pitchDegrees,
+                swayRollDegrees,
+                moveSuppressSpeed,
+                suppressSmoothTime);
+        }
+    }
+
+    [System.Serializable]
+    public sealed class ShakeSettings : EffectSettings
+    {
+        [Header("Rotation")]
+        [Tooltip("Pitch amplitude at full trauma.")]
+        [Min(0f)] public float pitchDegrees = 2.5f;
+        [Tooltip("Yaw amplitude at full trauma.")]
+        [Min(0f)] public float yawDegrees = 2.5f;
+        [Tooltip("Roll amplitude at full trauma.")]
+        [Min(0f)] public float rollDegrees = 1.5f;
+
+        [Header("Position")]
+        [Tooltip("Sideways and vertical head travel at full trauma (metres).")]
+        [Min(0f)] public float positionAmplitude = 0.03f;
+        [Tooltip("Field-of-view wobble at full trauma (degrees). 0 leaves FOV alone.")]
+        [Min(0f)] public float fovAmplitude = 0f;
+
+        [Header("Response")]
+        [Tooltip("Rattle rate in hertz — how fast the view vibrates, regardless of how hard.")]
+        [Min(0.01f)] public float frequency = 18f;
+        [Tooltip("Length in seconds used by callers that don't ask for one themselves.")]
+        [Min(0.01f)] public float defaultDuration = 0.4f;
+        [Tooltip("Shape of the fade within one impulse. 1 = even, higher = the hit spends itself up front and the tail is short.")]
+        [Min(1f)] public float falloffExponent = 2f;
+
+        // Hiding is exactly when a scare has to land, so shake keeps full strength in a
+        // wardrobe instead of the muted default the ambient effects use.
+        public ShakeSettings()
+        {
+            hidingMultiplier = 1f;
+        }
+
+        public ShakeEffect CreateEffect()
+        {
+            ShakeEffect effect = new(
+                pitchDegrees,
+                yawDegrees,
+                rollDegrees,
+                positionAmplitude,
+                fovAmplitude,
+                frequency,
+                falloffExponent);
+            Apply(effect);
+            return effect;
+        }
+
+        public void Apply(ShakeEffect effect)
+        {
+            ApplyLiveValues(effect);
+
+            if (effect == null)
+                return;
+
+            effect.ApplyTuning(
+                pitchDegrees,
+                yawDegrees,
+                rollDegrees,
+                positionAmplitude,
+                fovAmplitude,
+                frequency,
+                falloffExponent);
         }
     }
 }

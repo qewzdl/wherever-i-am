@@ -12,18 +12,21 @@ using UnityEngine;
 // force.
 public sealed class HeadBobFigureEightEffect : ICameraEffect
 {
-    private readonly float verticalAmplitude;
-    private readonly float horizontalAmplitude;
-    private readonly float rollAmplitudeDegrees;
-    private readonly float pitchAmplitudeDegrees;
-    private readonly float yawAmplitudeDegrees;
-    private readonly float frequency;
-    private readonly float crouchFrequency;
-    private readonly float fullAmplitudeSpeed;
-    private readonly float envelopeSmoothTime;
-    private readonly float stepJitterRange;
-    private readonly float impactFraction;
-    private readonly bool swayFollowsImpact;
+    private float verticalAmplitude;
+    private float horizontalAmplitude;
+    private float rollAmplitudeDegrees;
+    private float pitchAmplitudeDegrees;
+    private float yawAmplitudeDegrees;
+    private float frequency;
+    private float crouchFrequency;
+    private float fullAmplitudeSpeed;
+    private float envelopeSmoothTime;
+    private float stepJitterRange;
+    private float impactFraction;
+    private bool swayFollowsImpact;
+
+    // Stays out of ApplyTuning: it is the source of the per-step jitter, so handing it a new
+    // one mid-walk would restart the sequence instead of tuning it.
     private readonly System.Random random;
 
     private float phase;
@@ -49,6 +52,41 @@ public sealed class HeadBobFigureEightEffect : ICameraEffect
         bool swayFollowsImpact,
         int? randomSeed = null)
     {
+        random = randomSeed.HasValue ? new System.Random(randomSeed.Value) : new System.Random();
+
+        ApplyTuning(
+            verticalAmplitude,
+            horizontalAmplitude,
+            rollAmplitudeDegrees,
+            pitchAmplitudeDegrees,
+            yawAmplitudeDegrees,
+            frequency,
+            crouchFrequency,
+            fullAmplitudeSpeed,
+            envelopeSmoothTime,
+            stepJitterRange,
+            impactFraction,
+            swayFollowsImpact);
+    }
+
+    // See RollEffect.ApplyTuning. impactFraction reshapes the curve within a footfall rather
+    // than scaling it, so changing that one mid-step shifts the head slightly where the old
+    // shape and the new one disagree. Harmless while somebody is dragging the value in the
+    // inspector, which is the only way it ever changes.
+    public void ApplyTuning(
+        float verticalAmplitude,
+        float horizontalAmplitude,
+        float rollAmplitudeDegrees,
+        float pitchAmplitudeDegrees,
+        float yawAmplitudeDegrees,
+        float frequency,
+        float crouchFrequency,
+        float fullAmplitudeSpeed,
+        float envelopeSmoothTime,
+        float stepJitterRange,
+        float impactFraction,
+        bool swayFollowsImpact)
+    {
         this.swayFollowsImpact = swayFollowsImpact;
         this.verticalAmplitude = verticalAmplitude;
         this.horizontalAmplitude = horizontalAmplitude;
@@ -65,7 +103,6 @@ public sealed class HeadBobFigureEightEffect : ICameraEffect
         // back up. Small values are also the physically right end — a real step lands fast and
         // recovers slowly.
         this.impactFraction = Mathf.Clamp(impactFraction, 0.05f, 0.6f);
-        random = randomSeed.HasValue ? new System.Random(randomSeed.Value) : new System.Random();
     }
 
     public string DebugName => "HeadBobFigureEight";
@@ -75,6 +112,8 @@ public sealed class HeadBobFigureEightEffect : ICameraEffect
     public float CrouchMultiplier { get; set; } = 1f;
 
     public float HidingMultiplier { get; set; } = 1f;
+
+    public float UserMultiplier { get; set; } = 1f;
 
     public void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output)
     {

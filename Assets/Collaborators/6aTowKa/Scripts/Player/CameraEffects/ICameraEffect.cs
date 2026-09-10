@@ -21,6 +21,13 @@ public interface ICameraEffect
     // whenever IsHiding is set. Crouching while hidden applies both multipliers.
     float HidingMultiplier { get; set; }
 
+    // The player's own strength for this effect, from the game settings (1 = as authored,
+    // 0 = silent). The stack folds it into Weight alongside the two above, so an effect is
+    // never aware a settings screen exists. At 0 the effect still runs and still advances its
+    // phase - it just contributes nothing - so turning it back up resumes mid-stride instead
+    // of popping, and a shake impulse fired while it was off still expires on schedule.
+    float UserMultiplier { get; set; }
+
     void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output);
 
     // Called on teleport, respawn, or entering/leaving a state (e.g. hiding) where an

@@ -5,14 +5,22 @@ using UnityEngine;
 // on its own — same smoothing approach CameraLook already uses for pitch/yaw.
 public sealed class RollEffect : ICameraEffect
 {
-    private readonly float maxRollDegrees;
-    private readonly float yawRateForMaxRoll;
-    private readonly float smoothTime;
+    private float maxRollDegrees;
+    private float yawRateForMaxRoll;
+    private float smoothTime;
 
     private float currentRoll;
     private float rollVelocity;
 
     public RollEffect(float maxRollDegrees, float yawRateForMaxRoll, float smoothTime)
+    {
+        ApplyTuning(maxRollDegrees, yawRateForMaxRoll, smoothTime);
+    }
+
+    // The authored tuning, separated from construction so the inspector can hand it over
+    // again while the game runs. Only numbers the effect multiplies by - nothing here seeds
+    // state, so a value can change mid-motion without the effect losing its place.
+    public void ApplyTuning(float maxRollDegrees, float yawRateForMaxRoll, float smoothTime)
     {
         this.maxRollDegrees = maxRollDegrees;
         this.yawRateForMaxRoll = Mathf.Max(1f, yawRateForMaxRoll);
@@ -26,6 +34,8 @@ public sealed class RollEffect : ICameraEffect
     public float CrouchMultiplier { get; set; } = 1f;
 
     public float HidingMultiplier { get; set; } = 1f;
+
+    public float UserMultiplier { get; set; } = 1f;
 
     public void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output)
     {

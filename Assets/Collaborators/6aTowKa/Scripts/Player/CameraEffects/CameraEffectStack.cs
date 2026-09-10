@@ -47,26 +47,28 @@ public sealed class CameraEffectStack
             if (!effects[i].Enabled)
                 continue;
 
-            // Crouching and hiding each scale an effect by its own multiplier. Folding them
-            // into Weight keeps the whole thing in one place: effects already respect Weight,
-            // so none of them need to know either state exists. Crouching inside a hiding spot
-            // applies both.
-            if (context.IsCrouching || context.IsHiding)
+            // The player's settings, crouching and hiding each scale an effect by its own
+            // multiplier. Folding them into Weight keeps the whole thing in one place: effects
+            // already respect Weight, so none of them need to know any of these exist.
+            // Crouching inside a hiding spot applies both of those.
+            float multiplier = effects[i].UserMultiplier;
+
+            if (context.IsCrouching)
+                multiplier *= effects[i].CrouchMultiplier;
+
+            if (context.IsHiding)
+                multiplier *= effects[i].HidingMultiplier;
+
+            // An effect scaled to nothing is still evaluated rather than skipped, so its phase
+            // keeps running and it resumes mid-stride when the player turns it back up.
+            if (multiplier == 1f)
             {
-                float multiplier = 1f;
-
-                if (context.IsCrouching)
-                    multiplier *= effects[i].CrouchMultiplier;
-
-                if (context.IsHiding)
-                    multiplier *= effects[i].HidingMultiplier;
-
-                CameraEffectContext scaledContext = context.WithWeight(context.Weight * multiplier);
-                effects[i].Evaluate(in scaledContext, ref output);
+                effects[i].Evaluate(in context, ref output);
             }
             else
             {
-                effects[i].Evaluate(in context, ref output);
+                CameraEffectContext scaledContext = context.WithWeight(context.Weight * multiplier);
+                effects[i].Evaluate(in scaledContext, ref output);
             }
         }
 

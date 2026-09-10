@@ -9,14 +9,20 @@ using UnityEngine;
 // phantom lean during cutscenes or dialogue.
 public sealed class StrafeLeanEffect : ICameraEffect
 {
-    private readonly float maxAngleDegrees;
-    private readonly float positionOffset;
-    private readonly float smoothTime;
+    private float maxAngleDegrees;
+    private float positionOffset;
+    private float smoothTime;
 
     private float currentLean;
     private float leanVelocity;
 
     public StrafeLeanEffect(float maxAngleDegrees, float positionOffset, float smoothTime)
+    {
+        ApplyTuning(maxAngleDegrees, positionOffset, smoothTime);
+    }
+
+    // See RollEffect.ApplyTuning: authored numbers only, re-appliable while the game runs.
+    public void ApplyTuning(float maxAngleDegrees, float positionOffset, float smoothTime)
     {
         this.maxAngleDegrees = Mathf.Max(0f, maxAngleDegrees);
         this.positionOffset = positionOffset;
@@ -30,6 +36,8 @@ public sealed class StrafeLeanEffect : ICameraEffect
     public float CrouchMultiplier { get; set; } = 1f;
 
     public float HidingMultiplier { get; set; } = 1f;
+
+    public float UserMultiplier { get; set; } = 1f;
 
     public void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output)
     {

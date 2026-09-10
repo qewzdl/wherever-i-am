@@ -4,7 +4,7 @@ using UnityEngine;
 [Serializable]
 public sealed class GameSettingsData
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     /// <summary>Единственный источник правды для слайдера и камеры.</summary>
     public const float MinMouseSensitivity = 10f;
@@ -59,6 +59,20 @@ public sealed class GameSettingsData
     public float fieldOfView = 75f;
     public bool cameraSmoothing;
     public float cameraSmoothingIntensity = 0.35f;
+
+    // Сила косметических эффектов камеры, каждый 0..1: 1 - как настроено
+    // геймдизайном, 0 - эффект выключен. Ползунок, а не галка: тем, кого
+    // укачивает, обычно мешает не сам эффект, а его размах, и убавить его до
+    // трети - это не то же самое, что остаться с мёртвой камерой.
+    //
+    // Амплитуды, частоты и прочий тюнинг эффектов остаются в инспекторе
+    // PlayerCameraEffects: это выбор геймдизайна, а игроку тут решать ровно
+    // одно - сколько этого он готов терпеть.
+    public float cameraShakeIntensity = 1f;
+    public float headBobIntensity = 1f;
+    public float cameraRollIntensity = 1f;
+    public float strafeLeanIntensity = 1f;
+    public float breathingIntensity = 1f;
 
     public bool debugShowPerformance = true;
     public bool debugShowPlayer = true;
@@ -167,6 +181,12 @@ public sealed class GameSettingsData
         mouseSensitivity = Mathf.Clamp(mouseSensitivity, MinMouseSensitivity, MaxMouseSensitivity);
         fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
         cameraSmoothingIntensity = Mathf.Clamp01(cameraSmoothingIntensity);
+
+        cameraShakeIntensity = Mathf.Clamp01(cameraShakeIntensity);
+        headBobIntensity = Mathf.Clamp01(headBobIntensity);
+        cameraRollIntensity = Mathf.Clamp01(cameraRollIntensity);
+        strafeLeanIntensity = Mathf.Clamp01(strafeLeanIntensity);
+        breathingIntensity = Mathf.Clamp01(breathingIntensity);
         debugNoClipSpeed = Mathf.Clamp(debugNoClipSpeed, 2f, 30f);
     }
 }

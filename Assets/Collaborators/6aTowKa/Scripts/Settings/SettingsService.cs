@@ -192,6 +192,46 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         ScheduleSave();
     }
 
+    public void SetCameraShakeIntensity(float value)
+    {
+        SetCameraEffectIntensity(
+            value,
+            settings => settings.cameraShakeIntensity,
+            (settings, clamped) => settings.cameraShakeIntensity = clamped);
+    }
+
+    public void SetHeadBobIntensity(float value)
+    {
+        SetCameraEffectIntensity(
+            value,
+            settings => settings.headBobIntensity,
+            (settings, clamped) => settings.headBobIntensity = clamped);
+    }
+
+    public void SetCameraRollIntensity(float value)
+    {
+        SetCameraEffectIntensity(
+            value,
+            settings => settings.cameraRollIntensity,
+            (settings, clamped) => settings.cameraRollIntensity = clamped);
+    }
+
+    public void SetStrafeLeanIntensity(float value)
+    {
+        SetCameraEffectIntensity(
+            value,
+            settings => settings.strafeLeanIntensity,
+            (settings, clamped) => settings.strafeLeanIntensity = clamped);
+    }
+
+    public void SetBreathingIntensity(float value)
+    {
+        SetCameraEffectIntensity(
+            value,
+            settings => settings.breathingIntensity,
+            (settings, clamped) => settings.breathingIntensity = clamped);
+    }
+
     public void SetDebugSectionVisible(string sectionId, bool visible)
     {
         EnsureInitialized();
@@ -370,6 +410,30 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         setValue.Invoke(committed, clamped);
         activeSession?.ApplyImmediateAudio(current);
         RefreshMusicGain(previousGain, false);
+        MarkChanged();
+        ScheduleSave();
+    }
+
+    // The five camera-effect sliders differ only in which field they write, so they share
+    // one body. Nothing is pushed anywhere on the way out: PlayerCameraEffects re-reads
+    // Current on SettingsChanged and hands the new strengths to the effect stack itself.
+    private void SetCameraEffectIntensity(
+        float value,
+        Func<GameSettingsData, float> readValue,
+        Action<GameSettingsData, float> writeValue)
+    {
+        EnsureInitialized();
+        float clamped = Mathf.Clamp01(value);
+
+        if (Mathf.Approximately(readValue.Invoke(current), clamped))
+            return;
+
+        writeValue.Invoke(current, clamped);
+        writeValue.Invoke(committed, clamped);
+
+        if (activeSession != null)
+            writeValue.Invoke(activeSession.Draft, clamped);
+
         MarkChanged();
         ScheduleSave();
     }

@@ -18,6 +18,8 @@ public sealed class CameraEffectStackTests
 
         public float HidingMultiplier { get; set; } = 1f;
 
+        public float UserMultiplier { get; set; } = 1f;
+
         public void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output)
         {
             output.PositionOffset += PositionContribution * context.Weight;

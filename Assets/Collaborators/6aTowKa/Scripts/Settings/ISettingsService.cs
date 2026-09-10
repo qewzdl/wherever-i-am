@@ -24,6 +24,15 @@ public interface ISettingsService
     void SetCameraSmoothingIntensity(float value);
     void SetInvertVerticalLook(bool value);
 
+    // Per-effect strength for the cosmetic camera effects, 0..1. There is no matching
+    // on/off setter: 0 is off, and a separate toggle would only give the settings screen
+    // two controls that contradict each other.
+    void SetCameraShakeIntensity(float value);
+    void SetHeadBobIntensity(float value);
+    void SetCameraRollIntensity(float value);
+    void SetStrafeLeanIntensity(float value);
+    void SetBreathingIntensity(float value);
+
     void SetDebugSectionVisible(string sectionId, bool visible);
     void SetDebugNoClipSpeed(float value);
     void Flush();

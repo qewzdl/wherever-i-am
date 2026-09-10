@@ -14,12 +14,12 @@ public sealed class BreathingEffect : ICameraEffect
     // cleanly.
     private const float RollFrequencyRatio = 0.37f;
 
-    private readonly float radiansPerSecond;
-    private readonly float verticalAmplitude;
-    private readonly float pitchDegrees;
-    private readonly float swayRollDegrees;
-    private readonly float moveSuppressSpeed;
-    private readonly float suppressSmoothTime;
+    private float radiansPerSecond;
+    private float verticalAmplitude;
+    private float pitchDegrees;
+    private float swayRollDegrees;
+    private float moveSuppressSpeed;
+    private float suppressSmoothTime;
 
     // Roll keeps its own accumulator rather than scaling the main phase. Scaling a phase that
     // wraps at 2*PI would make the scaled angle jump on every wrap — a visible flick once per
@@ -30,6 +30,26 @@ public sealed class BreathingEffect : ICameraEffect
     private float restEnvelopeVelocity;
 
     public BreathingEffect(
+        float breathsPerMinute,
+        float verticalAmplitude,
+        float pitchDegrees,
+        float swayRollDegrees,
+        float moveSuppressSpeed,
+        float suppressSmoothTime)
+    {
+        ApplyTuning(
+            breathsPerMinute,
+            verticalAmplitude,
+            pitchDegrees,
+            swayRollDegrees,
+            moveSuppressSpeed,
+            suppressSmoothTime);
+    }
+
+    // See RollEffect.ApplyTuning. The breathing rate only changes how fast the phase advances
+    // from here on, never the phase itself, so re-tuning mid-breath speeds the rhythm up
+    // rather than restarting it.
+    public void ApplyTuning(
         float breathsPerMinute,
         float verticalAmplitude,
         float pitchDegrees,
@@ -52,6 +72,8 @@ public sealed class BreathingEffect : ICameraEffect
     public float CrouchMultiplier { get; set; } = 1f;
 
     public float HidingMultiplier { get; set; } = 1f;
+
+    public float UserMultiplier { get; set; } = 1f;
 
     public void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output)
     {
