@@ -95,7 +95,8 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
 
     private void FixedUpdate()
     {
-        bool isGrounded = IsGrounded();
+        bool isGrounded = CheckGrounded();
+        IsGrounded = isGrounded;
 
         UpdatePendingStand();
         CacheDraggedItemConstraints();
@@ -200,7 +201,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
         return targetSpeed;
     }
 
-    private bool IsGrounded()
+    private bool CheckGrounded()
     {
         Vector3 origin = transform.position + Vector3.up * 0.05f;
         Vector3 directionToGround = Vector3.down;
@@ -600,4 +601,9 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
     }
 
     public bool IsMovementActive => movementBlockers.Count == 0;
+
+    // Cached ground state and last move input, read by PlayerCameraEffects each frame
+    // instead of every effect reaching into this component or Rigidbody on its own.
+    public bool IsGrounded { get; private set; }
+    public Vector2 MoveInput => direction;
 }

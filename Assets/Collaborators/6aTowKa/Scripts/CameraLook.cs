@@ -29,7 +29,6 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
     private readonly HashSet<object> lookBlockers = new();
 
     private Rigidbody playerRigidbody;
-    private Camera ownedCamera;
     private IPauseService pauseService;
 
     private Vector2 pendingLookDelta;
@@ -62,8 +61,6 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
     private void Awake()
     {
-        ownedCamera = GetComponentInChildren<Camera>(true);
-
         if (!ValidateReferences())
         {
             enabled = false;
@@ -83,7 +80,6 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
         ReleaseSettingsService();
         settingsService = settings;
-        settingsService.FovChanged += OnFovChanged;
         settingsService.SettingsChanged += ApplySettings;
         ApplySettings();
     }
@@ -93,34 +89,23 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
         if (settingsService == null)
             return;
 
-        settingsService.FovChanged -= OnFovChanged;
         settingsService.SettingsChanged -= ApplySettings;
         settingsService = null;
     }
 
-    private void OnFovChanged(float fieldOfView)
-    {
-        if (ownedCamera != null)
-            ownedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
-    }
-
+    // FOV is owned by PlayerCameraEffects, which adds effect kicks on top of the settings
+    // value — writing it here as well would fight that and get overwritten every frame.
     public void ApplyUserSettings(
         float mouseSensitivity,
         bool invertVerticalLook,
         bool smoothingEnabled,
-        float smoothingIntensity,
-        float fieldOfView)
+        float smoothingIntensity)
     {
         sensitivity = Mathf.Clamp(mouseSensitivity, GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
         verticalSensitivitySign = invertVerticalLook ? -1f : 1f;
         smoothingTime = smoothingEnabled
             ? Mathf.Lerp(0.005f, 0.12f, Mathf.Clamp01(smoothingIntensity))
             : 0f;
-
-        if (ownedCamera != null)
-        {
-            ownedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
-        }
     }
 
     public void Construct(IPauseService pauseService)
@@ -130,32 +115,14 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
     public void SetLocalControl(bool value)
     {
-        bool hadLocalControl = hasLocalControl;
-
         hasLocalControl = value;
         lookBlockers.Clear();
         lookActive = true;
         pendingLookDelta = Vector2.zero;
 
-        // The scene keeps a camera alive for the time before this player
-        // exists; claiming the view here is what switches that one off.
-        if (hasLocalControl)
-            FallbackCamera.SetLocalPlayerCamera(ownedCamera);
-        else
-            FallbackCamera.ClearLocalPlayerCamera(ownedCamera);
-
         if (!hasLocalControl)
         {
-            // The cursor is one global thing shared by every camera in the
-            // scene, and someone else's player has no business releasing it.
-            // Another player joining runs this on their copy here, which
-            // unlocked the local player's cursor - and looking around needs it
-            // locked, so the camera died until the pause menu locked it again.
-            if (hadLocalControl)
-            {
-                SetCursorLocked(false);
-            }
-
+            SetCursorLocked(false);
             enabled = false;
             return;
         }
@@ -323,10 +290,6 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
     private void OnDestroy()
     {
         ReleaseSettingsService();
-
-        // Leaving the match takes the player's camera with it, so the scene
-        // has to get the view back instead of nothing rendering at all.
-        FallbackCamera.ClearLocalPlayerCamera(ownedCamera);
     }
 
     private void OnApplicationFocus(bool hasFocus)
@@ -493,7 +456,6 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
             values.mouseSensitivity,
             values.invertVerticalLook,
             values.cameraSmoothing,
-            values.cameraSmoothingIntensity,
-            values.fieldOfView);
+            values.cameraSmoothingIntensity);
     }
 }

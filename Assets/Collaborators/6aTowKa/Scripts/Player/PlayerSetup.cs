@@ -33,6 +33,7 @@ public class PlayerSetup : NetworkBehaviour
         PlayerController playerController = RequireComponentOnPlayer<PlayerController>();
         PlayerInteraction playerInteraction = RequireComponentOnPlayer<PlayerInteraction>();
         PlayerUI playerUI = RequireComponentOnPlayer<PlayerUI>();
+        PlayerCameraEffects playerCameraEffects = RequireComponentOnPlayer<PlayerCameraEffects>();
         PlayerOrchestrator playerOrchestrator = RequireComponentOnPlayer<PlayerOrchestrator>();
 
         CameraLook cameraLook = RequireComponentInPlayerChildren<CameraLook>();
@@ -69,6 +70,7 @@ public class PlayerSetup : NetworkBehaviour
                 playerInputHandler.enabled = true;
                 playerController.enabled = true;
                 playerUI.enabled = true;
+                playerCameraEffects.enabled = true;
 
                 SetCamerasEnabled(playerCameras, true);
                 audioListener.enabled = true;
@@ -82,6 +84,10 @@ public class PlayerSetup : NetworkBehaviour
                 AddDestroyingComponent(playerController);
                 AddDestroyingComponent(playerUI);
                 SetCamerasEnabled(playerCameras, false);
+
+                AddDestroyingComponent(playerCameraEffects);
+                playerCamera.enabled = false;
+
                 audioListener.enabled = false;
 
                 cameraLook.SetLocalControl(false);
@@ -99,6 +105,7 @@ public class PlayerSetup : NetworkBehaviour
             playerPosture.enabled = true;
             playerInteraction.enabled = true;
             playerUI.enabled = true;
+            playerCameraEffects.enabled = true;
 
             SetCamerasEnabled(playerCameras, true);
             audioListener.enabled = true;
