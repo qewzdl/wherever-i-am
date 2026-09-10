@@ -9,8 +9,24 @@
    PAGE
    ========================================================================== */
 
+/* A page is a scroll view now, so it has to be able to give way as well as grow. A flex
+   item will not shrink below the height of what is inside it unless it is told to, and
+   without that the scroll view would stand at the full height of its rows, push the footer
+   out through the bottom of the panel, and never scroll - the content would just be cut. */
+
 .page {
     flex-grow: 1;
+    flex-shrink: 1;
+
+    min-height: 0;
+}
+
+
+/* Room for the scrollbar to sit beside the rows rather than over the value at the end of
+   them. The same width the lobby's roster reserves. */
+
+.page .unity-scroll-view__content-container {
+    padding-right: var(--space-s);
 }
 
 

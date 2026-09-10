@@ -1,7 +1,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
     <ui:VisualElement name="Screen" class="screen">
-        <ui:VisualElement name="Panel" class="panel panel--wide">
+        <ui:VisualElement name="Panel" class="panel panel--wide panel--settings">
             <ui:Label text="Settings" name="Title" class="title" />
             <ui:VisualElement name="Tabs" class="tabs">
                 <ui:Button text="Graphics" name="GraphicsTab" class="button tab" />
@@ -10,7 +10,7 @@
                 <ui:Button text="Interface" name="InterfaceTab" class="button tab" />
                 <ui:Button text="Accessibility" name="AccessibilityTab" class="button tab" />
             </ui:VisualElement>
-            <ui:VisualElement name="GraphicsPage" class="page">
+            <ui:ScrollView name="GraphicsPage" class="scroll page">
                 <ui:VisualElement class="field">
                     <ui:Label text="Resolution" class="field__label" />
                     <ui:DropdownField name="Resolution" class="field__control" />
@@ -45,8 +45,35 @@
                     <ui:Slider name="SmoothingIntensity" low-value="0" high-value="1" class="field__control" />
                     <ui:Label name="SmoothingIntensityValue" class="field__value" />
                 </ui:VisualElement>
-            </ui:VisualElement>
-            <ui:VisualElement name="AudioPage" class="page">
+                <ui:Label text="Camera" class="section" />
+                <ui:VisualElement class="field">
+                    <ui:Label text="Camera shake" class="field__label" />
+                    <ui:Slider name="CameraShakeIntensity" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="CameraShakeIntensityValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Head bob" class="field__label" />
+                    <ui:Slider name="HeadBobIntensity" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="HeadBobIntensityValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Roll when turning" class="field__label" />
+                    <ui:Slider name="CameraRollIntensity" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="CameraRollIntensityValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Strafe lean" class="field__label" />
+                    <ui:Slider name="StrafeLeanIntensity" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="StrafeLeanIntensityValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="field">
+                    <ui:Label text="Breathing" class="field__label" />
+                    <ui:Slider name="BreathingIntensity" low-value="0" high-value="1" class="field__control" />
+                    <ui:Label name="BreathingIntensityValue" class="field__value" />
+                </ui:VisualElement>
+                <ui:Label text="How much the view moves on its own. Zero turns an effect off; Reduced motion silences all five at once." class="hint hint--field" />
+            </ui:ScrollView>
+            <ui:ScrollView name="AudioPage" class="scroll page">
                 <ui:VisualElement class="field">
                     <ui:Label text="Master" class="field__label" />
                     <ui:Slider name="MasterVolume" low-value="0" high-value="1" class="field__control" />
@@ -67,8 +94,8 @@
                     <ui:Slider name="InterfaceVolume" low-value="0" high-value="1" class="field__control" />
                     <ui:Label name="InterfaceVolumeValue" class="field__value" />
                 </ui:VisualElement>
-            </ui:VisualElement>
-            <ui:VisualElement name="ControlsPage" class="page">
+            </ui:ScrollView>
+            <ui:ScrollView name="ControlsPage" class="scroll page">
                 <ui:VisualElement class="field">
                     <ui:Label text="Mouse sensitivity" class="field__label" />
                     <ui:Slider name="MouseSensitivity" low-value="10" high-value="100" class="field__control" />
@@ -83,8 +110,8 @@
                     <ui:DropdownField name="CrouchMode" class="field__control" />
                 </ui:VisualElement>
                 <ui:Label name="CrouchModeHint" class="hint hint--field" />
-            </ui:VisualElement>
-            <ui:VisualElement name="InterfacePage" class="page">
+            </ui:ScrollView>
+            <ui:ScrollView name="InterfacePage" class="scroll page">
                 <ui:VisualElement class="field">
                     <ui:Label text="Interface opacity" class="field__label" />
                     <ui:Slider name="InterfaceOpacity" low-value="0.2" high-value="1" class="field__control" />
@@ -95,8 +122,8 @@
                     <ui:Slider name="CrosshairSize" low-value="0.5" high-value="2" class="field__control" />
                     <ui:Label name="CrosshairSizeValue" class="field__value" />
                 </ui:VisualElement>
-            </ui:VisualElement>
-            <ui:VisualElement name="AccessibilityPage" class="page">
+            </ui:ScrollView>
+            <ui:ScrollView name="AccessibilityPage" class="scroll page">
                 <ui:VisualElement class="field">
                     <ui:Label text="Interface scale" class="field__label" />
                     <ui:Slider name="UiScale" low-value="0.75" high-value="1.5" class="field__control" />
@@ -113,7 +140,7 @@
                     <ui:Toggle name="ReducedMotion" class="toggle field__control" />
                 </ui:VisualElement>
                 <ui:Label text="Screens open and close without sliding, fading or growing into place." class="hint hint--field" />
-            </ui:VisualElement>
+            </ui:ScrollView>
             <ui:VisualElement name="Footer" class="footer">
                 <ui:Button text="Defaults" name="DefaultsButton" class="button" />
                 <ui:Button text="Apply" name="ApplyButton" class="button button--confirm" />

@@ -445,6 +445,17 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
             "SmoothingIntensity",
             value => session.Draft.cameraSmoothingIntensity = value,
             FormatPercent);
+
+        // The five cosmetic camera effects, each as a share of what the game was tuned to do
+        // rather than a switch. Somebody who is made ill by a swaying view is usually asking
+        // for less of it, not for a dead camera, and zero is still the end of the slider for
+        // those who want it. Reduced motion, over on the accessibility page, silences all
+        // five without touching what is set here.
+        BindSlider(root, "CameraShakeIntensity", value => session.Draft.cameraShakeIntensity = value, FormatPercent);
+        BindSlider(root, "HeadBobIntensity", value => session.Draft.headBobIntensity = value, FormatPercent);
+        BindSlider(root, "CameraRollIntensity", value => session.Draft.cameraRollIntensity = value, FormatPercent);
+        BindSlider(root, "StrafeLeanIntensity", value => session.Draft.strafeLeanIntensity = value, FormatPercent);
+        BindSlider(root, "BreathingIntensity", value => session.Draft.breathingIntensity = value, FormatPercent);
     }
 
     private void BindAudio(VisualElement root)
@@ -577,7 +588,11 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
         slider.RegisterValueChangedCallback(evt =>
         {
-            write(evt.newValue);
+            // Guarded the way BindToggle is: every write lambda reaches into session.Draft,
+            // and a slider that moved with no session open - a value set from code, a screen
+            // caught mid-close - would throw rather than quietly do nothing.
+            if (session != null)
+                write(evt.newValue);
 
             if (value != null)
                 value.text = format(evt.newValue);
@@ -621,6 +636,11 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
         SetSlider(root, "FieldOfView", draft.fieldOfView, FormatWhole);
         SetSlider(root, "SmoothingIntensity", draft.cameraSmoothingIntensity, FormatPercent);
+        SetSlider(root, "CameraShakeIntensity", draft.cameraShakeIntensity, FormatPercent);
+        SetSlider(root, "HeadBobIntensity", draft.headBobIntensity, FormatPercent);
+        SetSlider(root, "CameraRollIntensity", draft.cameraRollIntensity, FormatPercent);
+        SetSlider(root, "StrafeLeanIntensity", draft.strafeLeanIntensity, FormatPercent);
+        SetSlider(root, "BreathingIntensity", draft.breathingIntensity, FormatPercent);
         SetSlider(root, "MasterVolume", draft.masterVolume, FormatPercent);
         SetSlider(root, "MusicVolume", draft.musicVolume, FormatPercent);
         SetSlider(root, "EffectsVolume", draft.effectsVolume, FormatPercent);

@@ -311,3 +311,28 @@
 }
 
 
+/* The settings panel is the one that outgrew the screen: its longest page now carries a
+   dozen rows, and a panel with no ceiling simply kept getting taller until the buttons at
+   the bottom were off the frame. The ceiling is here rather than on .panel--wide because
+   the lobby and the main menu wear that class too, and neither has a scroll view at panel
+   level to fall back on - a ceiling there would crop them instead of scrolling them.
+
+   Percentages resolve against .screen, which is stretched across the frame by its own
+   absolute positioning, so this is 90% of the window however large the window is.
+
+   Only the page inside is allowed to give way. Without the second rule the title, the row
+   of tabs and the footer would shrink alongside it - tabs closing up on each other and the
+   buttons drifting - because none of those three carry a flex-shrink of their own. */
+
+.panel--settings {
+    max-height: 90%;
+}
+
+
+.panel--settings > .title,
+.panel--settings > .tabs,
+.panel--settings > .footer {
+    flex-shrink: 0;
+}
+
+
