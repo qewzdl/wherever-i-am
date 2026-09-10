@@ -280,6 +280,10 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
         bool displayChanged = !committed.HasSameDisplaySettings(draft);
         GameSettingsData oldDisplay = committed.Clone();
 
+        // Read before the draft lands, because that is the only moment the old
+        // gain still exists to compare against.
+        float previousMusicGain = GetMusicGain(current);
+
         // The draft decides everything a player can reach in the settings
         // screen: until this method runs, it is the only place their changes
         // exist. The debug flags are the exception - the debug overlay writes
@@ -299,6 +303,17 @@ public sealed class SettingsService : MonoBehaviour, ISettingsService
             committed.CopyDisplaySettingsFrom(oldDisplay);
 
         ApplyNonDisplaySettings(current);
+
+        // Music is the one sound in this game that is told its volume rather
+        // than asked for it: the effects and the interface read Current every
+        // time they play something, so applying a draft reaches them on the
+        // next sound, while the music manager is holding a number handed to it
+        // once and waits for this event to be given another.
+        //
+        // Every immediate setter refreshed it and this did not, so a volume
+        // moved in the settings screen - which only ever writes the draft -
+        // changed everything except the music, for the rest of the run.
+        RefreshMusicGain(previousMusicGain, false);
         MarkChanged();
 
         if (displayChanged)
