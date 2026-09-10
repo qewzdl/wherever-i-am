@@ -177,7 +177,7 @@
     bottom: 0;
 
     width: 460px;
-    max-height: 340px;
+    max-height: 480px;
 
     /* A wall, not a veil - the same reasoning as the rail's, and the same
        value. What stands behind this corner is a lit room with people moving
@@ -235,22 +235,53 @@
 
 /* Grows with what is in it and scrolls after that. A chat that is always its
    full height is a slab of wall over the game for as long as nobody has said
-   anything. */
+   anything.
 
-/* The rule over it is the one the roster puts under its own header, for the
-   same reason: a label and the list it names are two things, and on this
-   screen that is said with a hairline rather than with space. */
+   Drawn as a box rather than announced by a hairline. A single rule over the
+   top said where the list began and nothing said where it ended or how far it
+   reached sideways, so what a player saw was loose text on the wall with a
+   line above it - and the question "which part of this is the messages" had no
+   answer on screen. It is inset a step out of the wall and framed, which is
+   the same thing the browser's list does on the other screen and for the same
+   reason.
+
+   Ink 950 against the wall's 1000: one step, which is all an inset needs when
+   there is also an edge. */
 
 .chat__messages {
     flex-grow: 1;
 
-    min-height: 40px;
-    max-height: 232px;
+    min-height: 72px;
 
-    border-top-width: var(--border);
-    border-top-color: var(--line);
+    background-color: var(--surface);
 
-    margin-top: var(--space-xs);
+    border-width: var(--border);
+    border-color: var(--line);
+
+    /* Room inside the frame, because text sitting on its own border is what
+       made the whole corner read as crowded.
+
+       Half as much above and below as at the sides. The gap between messages
+       already stands between the first line and the top edge, so an equal
+       inset on all four sides is paid twice going down and once going across. */
+    padding-left: var(--space-s);
+    padding-right: var(--space-s);
+    padding-top: var(--space-xs);
+    padding-bottom: var(--space-xs);
+
+    /* No ceiling of its own. It used to carry 232px, which was the window's
+       own ceiling with the title, the input and the padding subtracted - the
+       same measurement written down twice, in two places, where only one of
+       them moves when anything changes. Raising the window would have needed
+       both, and the second is the one nobody would remember.
+
+       And things change: --font-size-xs is 12 to 17 depending on what the
+       player set the text to, so the title and the input grow while a number
+       derived from them once does not. This is the only child that flexes, so
+       the window's own ceiling already says what is left for it.
+       ponytail: one number, derived where it is used. */
+
+    margin-top: var(--space-s);
     margin-bottom: var(--space-s);
 }
 
@@ -265,6 +296,12 @@
     flex-direction: row;
     align-items: flex-start;
 
+    /* Back to the smallest step in the scale, and it holds now for a reason it
+       did not before: what made a full window read as one block was never this
+       number. It was the text being set at the size this interface uses for
+       things nobody reads on purpose, and the list having no frame to be a
+       list inside. With both of those answered, eight pixels between lines of
+       one conversation is further apart than the conversation is. */
     margin-bottom: var(--space-xs);
 }
 
@@ -280,7 +317,16 @@
     flex-shrink: 0;
 
     color: var(--text-dim);
-    font-size: var(--font-size-xs);
+
+    /* The same size as what was said, not a step below it.
+
+       It reads as the quiet half because of its colour, which is what this
+       interface uses to rank two pieces of text and what the note below says
+       out loud about not reaching for weight. Size was a second answer to a
+       question colour had already answered - and it was the answer that broke
+       the row, because two labels of different sizes in a row aligned to their
+       tops have their writing on two different lines. */
+    font-size: var(--font-size-s);
 
     letter-spacing: var(--tracking-wide);
 
@@ -291,11 +337,16 @@
 
 
 
+/* Reading size. It was set at --font-size-xs, the step this interface keeps
+   for the parts of a row nobody reads on purpose - counts, statuses, the note
+   under a field. What somebody typed to the room is the one thing in this
+   window that is there to be read, and it was the smallest text on screen. */
+
 .chat__message__text {
     flex-shrink: 1;
 
     color: var(--text);
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-s);
 
     white-space: normal;
 }
@@ -334,7 +385,7 @@
     flex-grow: 1;
 
     color: var(--text-dim);
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-s);
 
     letter-spacing: var(--tracking-wide);
 }
