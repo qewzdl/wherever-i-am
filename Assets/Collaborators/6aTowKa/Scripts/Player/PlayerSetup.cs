@@ -83,11 +83,8 @@ public class PlayerSetup : NetworkBehaviour
                 AddDestroyingComponent(playerInputHandler);
                 AddDestroyingComponent(playerController);
                 AddDestroyingComponent(playerUI);
-                SetCamerasEnabled(playerCameras, false);
-
                 AddDestroyingComponent(playerCameraEffects);
-                playerCamera.enabled = false;
-
+                SetCamerasEnabled(playerCameras, false);
                 audioListener.enabled = false;
 
                 cameraLook.SetLocalControl(false);
