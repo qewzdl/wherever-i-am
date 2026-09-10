@@ -9,6 +9,7 @@ public sealed class CameraEffectStackTests
         public Vector3 RotationContribution;
         public float FovContribution;
         public int ResetCallCount;
+        public int EvaluateCallCount;
 
         public string DebugName => "Fake";
 
@@ -22,6 +23,7 @@ public sealed class CameraEffectStackTests
 
         public void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output)
         {
+            EvaluateCallCount++;
             output.PositionOffset += PositionContribution * context.Weight;
             output.RotationOffset += RotationContribution * context.Weight;
             output.FovOffset += FovContribution * context.Weight;
@@ -137,6 +139,71 @@ public sealed class CameraEffectStackTests
         CameraEffectOutput output = stack.Evaluate(EmptyContext(isCrouching: true));
 
         Assert.That(output.FovOffset, Is.EqualTo(25f).Within(0.0001f));
+    }
+
+    [Test]
+    public void Evaluate_UserMultiplier_ScalesEachEffectByItsOwn()
+    {
+        CameraEffectStack stack = new();
+        FakeCameraEffect quietened = new() { FovContribution = 10f, UserMultiplier = 0.5f };
+        FakeCameraEffect untouched = new() { FovContribution = 3f, UserMultiplier = 1f };
+
+        stack.Add(quietened);
+        stack.Add(untouched);
+
+        CameraEffectOutput output = stack.Evaluate(EmptyContext());
+
+        Assert.That(output.FovOffset, Is.EqualTo(8f).Within(0.0001f));
+    }
+
+    // The player's slider is not a state the way crouching is: it applies standing, crouched
+    // or hidden, and stacks with whichever of those is true.
+    [Test]
+    public void Evaluate_UserMultiplierWithCrouchAndHiding_AppliesAllThree()
+    {
+        CameraEffectStack stack = new();
+        FakeCameraEffect effect = new()
+        {
+            FovContribution = 10f,
+            UserMultiplier = 0.5f,
+            CrouchMultiplier = 0.5f,
+            HidingMultiplier = 0.4f
+        };
+        stack.Add(effect);
+
+        CameraEffectOutput output = stack.Evaluate(EmptyContext(isCrouching: true, isHiding: true));
+
+        Assert.That(output.FovOffset, Is.EqualTo(1f).Within(0.0001f));
+    }
+
+    // Turned down to nothing is not the same as turned off. The effect still runs, so its
+    // phase keeps advancing and a shake impulse still expires on time - the slider can go
+    // back up mid-stride without the view jumping.
+    [Test]
+    public void Evaluate_UserMultiplierOfZero_ContributesNothingButStillRuns()
+    {
+        CameraEffectStack stack = new();
+        FakeCameraEffect effect = new() { FovContribution = 10f, UserMultiplier = 0f };
+        stack.Add(effect);
+
+        CameraEffectOutput output = stack.Evaluate(EmptyContext());
+
+        Assert.That(output.FovOffset, Is.EqualTo(0f).Within(0.0001f));
+        Assert.That(effect.EvaluateCallCount, Is.EqualTo(1));
+    }
+
+    // The contrast with the test above: the checkbox does skip the effect entirely, which is
+    // why it also resets it rather than leaving stale state to resume from.
+    [Test]
+    public void Evaluate_DisabledEffect_IsNotEvaluatedAtAll()
+    {
+        CameraEffectStack stack = new();
+        FakeCameraEffect effect = new() { FovContribution = 10f, Enabled = false };
+        stack.Add(effect);
+
+        stack.Evaluate(EmptyContext());
+
+        Assert.That(effect.EvaluateCallCount, Is.EqualTo(0));
     }
 
     [Test]

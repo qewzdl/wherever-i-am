@@ -58,6 +58,48 @@ public sealed class RollEffectTests
         Assert.That(rightOutput.RotationOffset.z, Is.EqualTo(-leftOutput.RotationOffset.z).Within(0.001f));
     }
 
+    // The inspector re-hands its numbers while the game runs, so a changed amplitude has to
+    // land on the next frame rather than at the next construction.
+    [Test]
+    public void ApplyTuning_TakesEffectOnTheNextEvaluate()
+    {
+        RollEffect effect = new(maxRollDegrees: 4f, yawRateForMaxRoll: 180f, smoothTime: 0f);
+        CameraEffectOutput output = default;
+        output.Clear();
+
+        effect.ApplyTuning(maxRollDegrees: 8f, yawRateForMaxRoll: 180f, smoothTime: 0f);
+        effect.Evaluate(ContextWithYawRate(900f), ref output);
+
+        Assert.That(Mathf.Abs(output.RotationOffset.z), Is.EqualTo(8f).Within(0.001f));
+    }
+
+    // Re-tuning is not a reset: the roll it had already eased into stays where it was, so
+    // dragging a value in the inspector does not snap the horizon.
+    [Test]
+    public void ApplyTuning_KeepsTheRollAlreadyEasedInto()
+    {
+        RollEffect effect = new(maxRollDegrees: 4f, yawRateForMaxRoll: 180f, smoothTime: 0.2f);
+        CameraEffectOutput output = default;
+        output.Clear();
+
+        for (int i = 0; i < 5; i++)
+        {
+            output.Clear();
+            effect.Evaluate(ContextWithYawRate(180f), ref output);
+        }
+
+        float beforeTuning = output.RotationOffset.z;
+        Assert.That(Mathf.Abs(beforeTuning), Is.GreaterThan(0f));
+
+        effect.ApplyTuning(maxRollDegrees: 4f, yawRateForMaxRoll: 180f, smoothTime: 0.2f);
+
+        output.Clear();
+        effect.Evaluate(ContextWithYawRate(180f), ref output);
+
+        // Still climbing towards the same target from where it was, not restarted at zero.
+        Assert.That(Mathf.Abs(output.RotationOffset.z), Is.GreaterThan(Mathf.Abs(beforeTuning)));
+    }
+
     [Test]
     public void Reset_ClearsAccumulatedRoll()
     {

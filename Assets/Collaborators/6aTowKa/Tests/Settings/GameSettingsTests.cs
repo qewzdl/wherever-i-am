@@ -35,6 +35,61 @@ public sealed class GameSettingsTests
     }
 
     [Test]
+    public void Defaults_CameraEffectIntensitiesStartAtFullStrength()
+    {
+        GameSettingsData settings = GameSettingsData.CreateDefaults(1920, 1080, 0);
+
+        Assert.That(settings.cameraShakeIntensity, Is.EqualTo(1f));
+        Assert.That(settings.headBobIntensity, Is.EqualTo(1f));
+        Assert.That(settings.cameraRollIntensity, Is.EqualTo(1f));
+        Assert.That(settings.strafeLeanIntensity, Is.EqualTo(1f));
+        Assert.That(settings.breathingIntensity, Is.EqualTo(1f));
+    }
+
+    [Test]
+    public void Sanitize_ClampsCameraEffectIntensities()
+    {
+        GameSettingsData settings = GameSettingsData.CreateDefaults(1920, 1080, 0);
+        settings.cameraShakeIntensity = 4f;
+        settings.headBobIntensity = -1f;
+        settings.cameraRollIntensity = 0.5f;
+        settings.strafeLeanIntensity = 1f;
+        settings.breathingIntensity = 1.0001f;
+
+        settings.Sanitize(3);
+
+        Assert.That(settings.cameraShakeIntensity, Is.EqualTo(1f));
+        Assert.That(settings.headBobIntensity, Is.EqualTo(0f));
+        Assert.That(settings.cameraRollIntensity, Is.EqualTo(0.5f));
+        Assert.That(settings.strafeLeanIntensity, Is.EqualTo(1f));
+        Assert.That(settings.breathingIntensity, Is.EqualTo(1f));
+    }
+
+    // A settings file written before these existed must read back as a camera that behaves
+    // the way it always did. The float default of zero would silently switch every effect
+    // off for everyone who already played.
+    [Test]
+    public void OlderJson_LeavesCameraEffectIntensitiesAtFullStrength()
+    {
+        GameSettingsData defaults = GameSettingsData.CreateDefaults(1920, 1080, 0);
+
+        bool success = GameSettingsStorage.TryDeserialize(
+            "{\"version\":3,\"fieldOfView\":90}",
+            defaults,
+            3,
+            out GameSettingsData migrated);
+
+        Assert.That(success, Is.True);
+        Assert.That(migrated.version, Is.EqualTo(GameSettingsData.CurrentVersion));
+        Assert.That(migrated.fieldOfView, Is.EqualTo(90f).Within(0.001f));
+        Assert.That(migrated.cameraShakeIntensity, Is.EqualTo(1f));
+        Assert.That(migrated.headBobIntensity, Is.EqualTo(1f));
+        Assert.That(migrated.cameraRollIntensity, Is.EqualTo(1f));
+        Assert.That(migrated.strafeLeanIntensity, Is.EqualTo(1f));
+        Assert.That(migrated.breathingIntensity, Is.EqualTo(1f));
+    }
+
+    [Test]
     public void FrameRateLimit_SnapsToDropdownOptions()
     {
         // Старый слайдер мог сохранить любое число из 30..1000 — Dropdown обязан найти свой индекс.
@@ -248,6 +303,110 @@ public sealed class GameSettingsTests
 
             Assert.That(service.Current.masterVolume, Is.EqualTo(1f));
             Assert.That(service.Current.fieldOfView, Is.EqualTo(75f));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(gameObject);
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [Test]
+    public void Service_CameraEffectIntensitiesClampCommitAndPersist()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "settings.json");
+        GameObject gameObject = new GameObject("SettingsService Test");
+
+        try
+        {
+            SettingsService service = gameObject.AddComponent<SettingsService>();
+            service.InitializeForTests(path, GameSettingsData.CreateDefaults(1920, 1080, 0), 3);
+            int settingsEvents = 0;
+            service.SettingsChanged += () => settingsEvents++;
+
+            service.SetCameraShakeIntensity(0.25f);
+            service.SetHeadBobIntensity(0f);
+            service.SetCameraRollIntensity(5f);
+            service.SetStrafeLeanIntensity(-1f);
+            service.SetBreathingIntensity(0.5f);
+            service.Flush();
+
+            Assert.That(settingsEvents, Is.EqualTo(4), "A value already at its default announces nothing.");
+            Assert.That(service.Current.cameraShakeIntensity, Is.EqualTo(0.25f).Within(0.001f));
+            Assert.That(service.Current.headBobIntensity, Is.EqualTo(0f));
+            Assert.That(service.Current.cameraRollIntensity, Is.EqualTo(1f));
+            Assert.That(service.Current.strafeLeanIntensity, Is.EqualTo(0f));
+            Assert.That(service.Current.breathingIntensity, Is.EqualTo(0.5f).Within(0.001f));
+
+            GameSettingsData loaded = new GameSettingsStorage(path)
+                .Load(GameSettingsData.CreateDefaults(1920, 1080, 0), 3);
+            Assert.That(loaded.cameraShakeIntensity, Is.EqualTo(0.25f).Within(0.001f));
+            Assert.That(loaded.headBobIntensity, Is.EqualTo(0f));
+            Assert.That(loaded.breathingIntensity, Is.EqualTo(0.5f).Within(0.001f));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(gameObject);
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    // The settings screen writes a draft and waits for Apply, so nothing a player drags is
+    // allowed to reach the camera until they press it.
+    [Test]
+    public void Service_DraftCameraEffectIntensitiesWaitForApply()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "settings.json");
+        GameObject gameObject = new GameObject("SettingsService Test");
+
+        try
+        {
+            SettingsService service = gameObject.AddComponent<SettingsService>();
+            service.InitializeForTests(path, GameSettingsData.CreateDefaults(1920, 1080, 0), 3);
+
+            ISettingsEditSession cancelled = service.BeginEdit();
+            cancelled.Draft.cameraShakeIntensity = 0f;
+            cancelled.Cancel();
+
+            Assert.That(service.Current.cameraShakeIntensity, Is.EqualTo(1f));
+
+            ISettingsEditSession applied = service.BeginEdit();
+            applied.Draft.cameraShakeIntensity = 0f;
+            applied.Draft.headBobIntensity = 0.4f;
+            applied.Apply();
+
+            Assert.That(service.Current.cameraShakeIntensity, Is.EqualTo(0f));
+            Assert.That(service.Current.headBobIntensity, Is.EqualTo(0.4f).Within(0.001f));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(gameObject);
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [Test]
+    public void Service_DefaultsRestoreCameraEffectIntensities()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "settings.json");
+        GameObject gameObject = new GameObject("SettingsService Test");
+
+        try
+        {
+            SettingsService service = gameObject.AddComponent<SettingsService>();
+            service.InitializeForTests(path, GameSettingsData.CreateDefaults(1920, 1080, 0), 3);
+            service.SetCameraShakeIntensity(0f);
+            service.SetHeadBobIntensity(0.2f);
+
+            ISettingsEditSession edit = service.BeginEdit();
+            edit.ResetToDefaults();
+            edit.Apply();
+
+            Assert.That(service.Current.cameraShakeIntensity, Is.EqualTo(1f));
+            Assert.That(service.Current.headBobIntensity, Is.EqualTo(1f));
         }
         finally
         {
