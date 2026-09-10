@@ -17,6 +17,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
     [SerializeField] private CameraLook cameraService;
     [SerializeField] private PlayerController movementService;
     [SerializeField] private PlayerUI presentationService;
+    [SerializeField] private PlayerCameraEffects cameraEffectsService;
 
     private IDisposable scopeRegistration;
 
@@ -86,6 +87,11 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
         // was never anything but a way of not saying so.
         cameraService.Construct(settingsService);
         movementService.Construct(settingsService);
+        // Third for the same reason, and it was missing: the camera effects own the field of
+        // view and the strength of every cosmetic wobble, both of which the player sets in the
+        // settings screen. Without this its settings service stayed null, so the whole of
+        // ApplySettings never ran and those sliders moved nothing at all.
+        cameraEffectsService.Construct(settingsService);
     }
 
     public override void OnNetworkDespawn()
@@ -127,6 +133,7 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
             valid &= ValidateReference(cameraService, nameof(cameraService));
             valid &= ValidateReference(movementService, nameof(movementService));
             valid &= ValidateReference(presentationService, nameof(presentationService));
+            valid &= ValidateReference(cameraEffectsService, nameof(cameraEffectsService));
         }
 
         return valid;
@@ -157,6 +164,9 @@ public sealed class PlayerScopeLifetime : NetworkBehaviour, IPlayerNetworkServic
 
         if (presentationService == null)
             presentationService = GetComponent<PlayerUI>();
+
+        if (cameraEffectsService == null)
+            cameraEffectsService = GetComponent<PlayerCameraEffects>();
     }
 
     private bool ValidateReference(UnityEngine.Object reference, string fieldName)
