@@ -867,6 +867,7 @@ GameObject:
   - component: {fileID: 867530900123456789}
   - component: {fileID: 771234567890123457}
   - component: {fileID: 771234567890123458}
+  - component: {fileID: 3239259169376579041}
   m_Layer: 3
   m_Name: Player
   m_TagString: Untagged
@@ -904,7 +905,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 4291613607
+  GlobalObjectIdHash: 1689818685
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -1303,6 +1304,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8b9cb71566eb94b40bac63a47a4efea5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   interactionRange: 2.5
   rayOrigin: {fileID: 2551868167300945599}
   interactableLayer:
@@ -1468,6 +1470,63 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9ff3a18e2c34b49bf123b839a204e43, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &3239259169376579041
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b107a3a9c13f4824ae5b924199cd7da6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  effectsTarget: {fileID: 2551868167300945599}
+  targetCamera: {fileID: 983722139706449943}
+  cameraLook: {fileID: 439289573477164544}
+  playerRigidbody: {fileID: 7921583413856064293}
+  playerController: {fileID: 1852548442045173992}
+  intensity: 1
+  roll:
+    enabled: 1
+    crouchMultiplier: 0.5
+    hidingMultiplier: 0.35
+    maxAngleDegrees: 1
+    yawRateForMaxRoll: 180
+    smoothTime: 0.15
+  headBob:
+    enabled: 1
+    crouchMultiplier: 1
+    hidingMultiplier: 0.35
+    verticalAmplitude: 0.02
+    horizontalAmplitude: 0.05
+    rollDegrees: 0.15
+    pitchDegrees: 1.3
+    yawDegrees: 0.5
+    cyclesPerMeter: 0.45
+    fullSpeed: 5
+    envelopeSmoothTime: 0.15
+    stepJitterRange: 0.171
+    impactFraction: 0.338
+    swayFollowsImpact: 0
+  strafeLean:
+    enabled: 1
+    crouchMultiplier: 0.5
+    hidingMultiplier: 0.35
+    maxAngleDegrees: 0.75
+    positionOffset: 0.02
+    smoothTime: 0.2
+  breathing:
+    enabled: 1
+    crouchMultiplier: 0.5
+    hidingMultiplier: 1.5
+    rate: 18
+    verticalAmplitude: 0.008
+    pitchDegrees: 0.4
+    swayRollDegrees: 0.1
+    moveSuppressSpeed: 1.5
+    suppressSmoothTime: 0.4
 --- !u!1 &8004139109675559352
 GameObject:
   m_ObjectHideFlags: 0

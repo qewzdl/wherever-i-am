@@ -80,7 +80,6 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
 
         ReleaseSettingsService();
         settingsService = settings;
-        settingsService.FovChanged += OnFovChanged;
         settingsService.SettingsChanged += ApplySettings;
         ApplySettings();
     }
@@ -90,37 +89,23 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
         if (settingsService == null)
             return;
 
-        settingsService.FovChanged -= OnFovChanged;
         settingsService.SettingsChanged -= ApplySettings;
         settingsService = null;
     }
 
-    private void OnFovChanged(float fieldOfView)
-    {
-        Camera attachedCamera = GetComponentInChildren<Camera>(true);
-        if (attachedCamera != null)
-            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
-    }
-
+    // FOV is owned by PlayerCameraEffects, which adds effect kicks on top of the settings
+    // value — writing it here as well would fight that and get overwritten every frame.
     public void ApplyUserSettings(
         float mouseSensitivity,
         bool invertVerticalLook,
         bool smoothingEnabled,
-        float smoothingIntensity,
-        float fieldOfView)
+        float smoothingIntensity)
     {
         sensitivity = Mathf.Clamp(mouseSensitivity, GameSettingsData.MinMouseSensitivity, GameSettingsData.MaxMouseSensitivity);
         verticalSensitivitySign = invertVerticalLook ? -1f : 1f;
         smoothingTime = smoothingEnabled
             ? Mathf.Lerp(0.005f, 0.12f, Mathf.Clamp01(smoothingIntensity))
             : 0f;
-
-        Camera attachedCamera = GetComponentInChildren<Camera>(true);
-
-        if (attachedCamera != null)
-        {
-            attachedCamera.fieldOfView = Mathf.Clamp(fieldOfView, 50f, 110f);
-        }
     }
 
     public void Construct(IPauseService pauseService)
@@ -471,7 +456,6 @@ public class CameraLook : MonoBehaviour, ILocalPlayerCameraService, ISettingsSer
             values.mouseSensitivity,
             values.invertVerticalLook,
             values.cameraSmoothing,
-            values.cameraSmoothingIntensity,
-            values.fieldOfView);
+            values.cameraSmoothingIntensity);
     }
 }
