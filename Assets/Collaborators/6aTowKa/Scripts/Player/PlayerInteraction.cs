@@ -9,7 +9,6 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
     [SerializeField] private LayerMask interactableLayer;
 
     // Objects
-    [SerializeField] private Sprite defaultCrosshair;
     [SerializeField] private Transform playerCameraTransform;
     [SerializeField] private PlayerController playerController;
     [SerializeField] private MonoBehaviour playerHidingCommandSource;
@@ -127,7 +126,11 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
     private void ResetFocusedInteractable()
     {
         focusedInteractable = null;
-        signals.CrosshairSpriteSignal.Trigger(defaultCrosshair);
+
+        // Nothing, rather than a picture of nothing. What the crosshair looks
+        // like when there is no action in reach is the crosshair's business,
+        // and it used to be a sprite on this prefab that nothing here read.
+        signals.CrosshairSpriteSignal.Trigger(null);
         crosshairIsDefualt = true;
     }
 

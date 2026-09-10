@@ -5,19 +5,20 @@ using UnityEngine.UI;
 public class CrosshairUI : MonoBehaviour, ISettingsServiceConsumer
 {
     [SerializeField] private Image crosshairImage;
-    private Vector2 baseSize;
-    private bool baseSizeCaptured;
+
+    // Both pictures and both sizes, in one asset. Nothing about how the
+    // crosshair looks is decided here or on a prefab any more.
+    [SerializeField] private CrosshairStyle style;
+
+    // What the player is looking at, or null for nothing. Kept because the
+    // size has two reasons to be recomputed - the player moved their eyes, or
+    // the player moved the slider - and each of them only knows about itself.
+    private Sprite interactionSprite;
+
     private ISettingsService settingsService;
 
     public static CrosshairUI Active { get; private set; }
     public static event Action<CrosshairUI> ActiveChanged;
-
-    private void Awake()
-    {
-        // Unscaled prefab size: must be read before Update() ever scales sizeDelta,
-        // otherwise re-enabling the HUD would treat the scaled size as the new base.
-        CaptureBaseSize();
-    }
 
     private void OnEnable()
     {
@@ -28,12 +29,19 @@ public class CrosshairUI : MonoBehaviour, ISettingsServiceConsumer
             return;
         }
 
+        if (style == null)
+        {
+            Debug.LogError($"{nameof(CrosshairUI)} is missing {nameof(style)}.", this);
+            enabled = false;
+            return;
+        }
+
         if (Active != null && Active != this)
             Debug.LogWarning($"Replacing active {nameof(CrosshairUI)} '{Active.name}' with '{name}'.", this);
 
         Active = this;
         ActiveChanged?.Invoke(this);
-        ApplySettings();
+        Apply();
     }
 
     public void Construct(ISettingsService settings)
@@ -47,8 +55,7 @@ public class CrosshairUI : MonoBehaviour, ISettingsServiceConsumer
         ReleaseSettingsService();
         settingsService = settings;
         settingsService.SettingsChanged += ApplySettings;
-        CaptureBaseSize();
-        ApplySettings();
+        Apply();
     }
 
     public void ReleaseSettingsService()
@@ -74,26 +81,38 @@ public class CrosshairUI : MonoBehaviour, ISettingsServiceConsumer
         ReleaseSettingsService();
     }
 
-    private void CaptureBaseSize()
+    // Null means nothing in reach. The resting crosshair is not something a
+    // caller has to know the picture of - the style holds it - so the only
+    // thing anybody has to say here is what the player is looking at.
+    public void ShowInteraction(Sprite sprite)
     {
-        if (baseSizeCaptured || crosshairImage == null)
-            return;
-
-        baseSize = crosshairImage.rectTransform.sizeDelta;
-        baseSizeCaptured = true;
+        interactionSprite = sprite;
+        Apply();
     }
 
     private void ApplySettings()
     {
-        if (settingsService == null || crosshairImage == null)
-            return;
-
-        CaptureBaseSize();
-        crosshairImage.rectTransform.sizeDelta = baseSize * settingsService.Current.crosshairSize;
+        Apply();
     }
 
-    public void UpdateCrosshairSprite(Sprite sprite)
+    // Both halves at once, from the same resolve. The size used to be the
+    // prefab's own sizeDelta multiplied in place, which had to be captured
+    // before anything scaled it and re-captured whenever the component was
+    // reconstructed - a base that could drift because it lived in the thing it
+    // was being written to. It comes from the asset now, so scaling twice is
+    // not a mistake that can be made.
+    private void Apply()
     {
-        crosshairImage.sprite = sprite;
+        if (crosshairImage == null || style == null)
+            return;
+
+        CrosshairPose pose = style.Resolve(interactionSprite);
+        float playerScale = settingsService != null
+            ? Mathf.Max(0f, settingsService.Current.crosshairSize)
+            : 1f;
+
+        crosshairImage.sprite = pose.Sprite;
+        crosshairImage.enabled = pose.Sprite != null;
+        crosshairImage.rectTransform.sizeDelta = pose.Size * playerScale;
     }
 }

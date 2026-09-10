@@ -53,6 +53,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   crosshairImage: {fileID: 3992004738956816048}
+  style: {fileID: 11400000, guid: 9d2f5b71c48e4a06b31e7c05a2f8d914, type: 2}
 --- !u!225 &5468556232692759325
 CanvasGroup:
   m_ObjectHideFlags: 0

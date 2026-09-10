@@ -1297,7 +1297,6 @@ MonoBehaviour:
   interactableLayer:
     serializedVersion: 2
     m_Bits: 1024
-  defaultCrosshair: {fileID: 21300000, guid: 795e5fb3a2fc3e94e97aa0c3e21e005a, type: 3}
   playerCameraTransform: {fileID: 2551868167300945599}
   playerController: {fileID: 1852548442045173992}
   playerHidingCommandSource: {fileID: 771234567890123456}

@@ -36,6 +36,6 @@ public class PlayerUI :
         if (crosshairUI == null)
             return;
 
-        crosshairUI.UpdateCrosshairSprite(sprite);
+        crosshairUI.ShowInteraction(sprite);
     }
 }
