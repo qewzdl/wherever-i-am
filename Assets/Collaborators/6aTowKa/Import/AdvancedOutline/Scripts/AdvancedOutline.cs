@@ -54,6 +54,15 @@ namespace ITISKIRUHERE
         [SerializeField] [HideInInspector] List<Mesh> _bakeKeys = new List<Mesh>();
         [SerializeField] [HideInInspector] List<ListVector3> _bakeValues = new List<ListVector3>();
 
+        // Which mesh each renderer had before the outline swapped in its own copy. Serialised
+        // because a domain reload wipes the plain dictionaries below: without it the component
+        // comes back, finds its own copy sitting in sharedMesh, takes that for the original and
+        // clones it again. That is where the "(Clone)(Clone)(Clone)..." chains came from.
+        [SerializeField] [HideInInspector] List<MeshFilter> _replacedMeshFilters = new List<MeshFilter>();
+        [SerializeField] [HideInInspector] List<Mesh> _replacedMeshFilterMeshes = new List<Mesh>();
+        [SerializeField] [HideInInspector] List<SkinnedMeshRenderer> _replacedSkinnedRenderers = new List<SkinnedMeshRenderer>();
+        [SerializeField] [HideInInspector] List<Mesh> _replacedSkinnedMeshes = new List<Mesh>();
+
         Renderer[] _renderers;
         MeshFilter[] _meshFilters;
         SkinnedMeshRenderer[] _skinnedMeshRenderers;
@@ -121,8 +130,12 @@ namespace ITISKIRUHERE
             _propertyBlock = new MaterialPropertyBlock();
             CachePropertyIDs();
             InitializeBakeCache();
+            RestoreReplacedMeshLookup();
             InitializeMaterials();
             RefreshRenderers();
+            #if UNITY_EDITOR
+            SubscribeToSceneSaving();
+            #endif
         }
 
         void OnEnable()
@@ -133,15 +146,53 @@ namespace ITISKIRUHERE
             }
             CachePropertyIDs();
             InitializeBakeCache();
+            RestoreReplacedMeshLookup();
             InitializeMaterials();
             RefreshRenderers();
+            #if UNITY_EDITOR
+            SubscribeToSceneSaving();
+            #endif
         }
 
         void OnDisable()
         {
+            #if UNITY_EDITOR
+            UnsubscribeFromSceneSaving();
+            #endif
             CleanAllOutlineMaterialsFromRenderers();
             ClearClonedMeshes();
         }
+
+        #if UNITY_EDITOR
+        // The copies are HideAndDontSave, so whatever sits in sharedMesh when the scene is
+        // written decides what the file gets: leave a copy there and the mesh slot saves as
+        // empty. So the originals go back before the write and the copies return after it.
+        void SubscribeToSceneSaving()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving -= HandleSceneSaving;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving += HandleSceneSaving;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved -= HandleSceneSaved;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved += HandleSceneSaved;
+        }
+
+        void UnsubscribeFromSceneSaving()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving -= HandleSceneSaving;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved -= HandleSceneSaved;
+        }
+
+        void HandleSceneSaving( UnityEngine.SceneManagement.Scene savingScene, string path )
+        {
+            if ( this == null || savingScene != gameObject.scene ) return;
+            ClearClonedMeshes();
+        }
+
+        void HandleSceneSaved( UnityEngine.SceneManagement.Scene savedScene )
+        {
+            if ( this == null || savedScene != gameObject.scene ) return;
+            LoadSmoothNormals();
+        }
+        #endif
 
         void OnDestroy()
         {
@@ -333,12 +384,41 @@ namespace ITISKIRUHERE
                 }
                 if ( !originalMesh ) continue;
 
+                // Geometry that lives in the scene rather than in an asset - ProBuilder's, for
+                // one - must not be copied: the copy is not saved, so the slot would write out
+                // empty and the object would lose its mesh. Writing the extra UV channel
+                // straight into it is harmless, nothing else shares it.
+                if ( !IsPersistentAsset( originalMesh ) )
+                {
+                    List<Vector3> sceneNormals;
+                    if ( !_runtimeBakeCache.TryGetValue( originalMesh, out sceneNormals ) )
+                    {
+                        sceneNormals = SmoothNormals( originalMesh );
+                        _runtimeBakeCache[originalMesh] = sceneNormals;
+                    }
+
+                    originalMesh.SetUVs( 3, sceneNormals );
+
+                    Renderer sceneRenderer = meshFilter.GetComponent<Renderer>();
+                    if ( sceneRenderer )
+                    {
+                        CombineSubmeshes( originalMesh, sceneRenderer.sharedMaterials );
+                    }
+                    continue;
+                }
+
                 Mesh meshCopy;
                 if ( !_clonedMeshes.TryGetValue( meshFilter, out meshCopy ) )
                 {
                     meshCopy = Instantiate( originalMesh );
+                    // Instantiate appends "(Clone)" and hands back an object the scene would
+                    // happily serialise. Neither is wanted: the copy is derived data, rebuilt
+                    // on load, and saving it embeds a full mesh in the scene file.
+                    meshCopy.name = originalMesh.name;
+                    meshCopy.hideFlags = HideFlags.HideAndDontSave;
                     _clonedMeshes[meshFilter] = meshCopy;
                     _originalMeshes[meshFilter] = originalMesh;
+                    RecordReplacedMesh( meshFilter, originalMesh );
                     meshFilter.sharedMesh = meshCopy;
                 }
 
@@ -375,8 +455,11 @@ namespace ITISKIRUHERE
                     if ( !_clonedSkinnedMeshes.TryGetValue( skinnedMeshRenderer, out meshCopy ) )
                     {
                         meshCopy = Instantiate( originalMesh );
+                        meshCopy.name = originalMesh.name;
+                        meshCopy.hideFlags = HideFlags.HideAndDontSave;
                         _clonedSkinnedMeshes[skinnedMeshRenderer] = meshCopy;
                         _originalSkinnedMeshes[skinnedMeshRenderer] = originalMesh;
+                        RecordReplacedSkinnedMesh( skinnedMeshRenderer, originalMesh );
                         skinnedMeshRenderer.sharedMesh = meshCopy;
                     }
 
@@ -456,15 +539,52 @@ namespace ITISKIRUHERE
 
             foreach ( MeshFilter meshFilter in _meshFilters )
             {
-                if ( !meshFilter || !meshFilter.sharedMesh ) continue;
-                if ( !bakedMeshes.Add( meshFilter.sharedMesh ) ) continue;
+                if ( !meshFilter ) continue;
 
-                List<Vector3> smoothNormals = SmoothNormals( meshFilter.sharedMesh );
-                _bakeKeys.Add( meshFilter.sharedMesh );
+                // Off the original, never off sharedMesh: by the time this runs the outline has
+                // already swapped its own copy in there, and keying the cache by that copy both
+                // misses on the next load and drags a mesh nothing else references into the
+                // scene file - which is how one scene grew to 863 saved meshes.
+                Mesh sourceMesh = ResolveOriginalMesh( meshFilter );
+                if ( !sourceMesh ) continue;
+                if ( !bakedMeshes.Add( sourceMesh ) ) continue;
+
+                List<Vector3> smoothNormals = SmoothNormals( sourceMesh );
+                _bakeKeys.Add( sourceMesh );
                 _bakeValues.Add( new ListVector3() { data = smoothNormals } );
             }
         }
         #endif
+
+        static bool IsPersistentAsset( Mesh mesh )
+        {
+            if ( !mesh ) return false;
+            #if UNITY_EDITOR
+            return UnityEditor.AssetDatabase.Contains( mesh );
+            #else
+            // No scene file to damage at runtime, so the copy is always the safer choice.
+            return true;
+            #endif
+        }
+
+        Mesh ResolveOriginalMesh( MeshFilter meshFilter )
+        {
+            if ( !meshFilter ) return null;
+
+            Mesh originalMesh;
+            if ( _originalMeshes.TryGetValue( meshFilter, out originalMesh ) && originalMesh )
+            {
+                return originalMesh;
+            }
+
+            int index = _replacedMeshFilters.IndexOf( meshFilter );
+            if ( index >= 0 && index < _replacedMeshFilterMeshes.Count && _replacedMeshFilterMeshes[index] )
+            {
+                return _replacedMeshFilterMeshes[index];
+            }
+
+            return meshFilter.sharedMesh;
+        }
 
         void UpdateStaticMaterialProperties()
         {
@@ -568,8 +688,76 @@ namespace ITISKIRUHERE
             }
         }
 
+        // Rebuilds the original-mesh dictionaries from the serialised lists after a domain
+        // reload, and puts the originals back on any renderer whose copy did not survive it.
+        void RestoreReplacedMeshLookup()
+        {
+            for ( int i = 0; i < _replacedMeshFilters.Count && i < _replacedMeshFilterMeshes.Count; i++ )
+            {
+                MeshFilter meshFilter = _replacedMeshFilters[i];
+                Mesh originalMesh = _replacedMeshFilterMeshes[i];
+
+                if ( !meshFilter || !originalMesh ) continue;
+
+                _originalMeshes[meshFilter] = originalMesh;
+
+                // The copy is HideAndDontSave, so a reload leaves the slot empty rather than
+                // holding a stale mesh; either way the original is the right thing to start from.
+                if ( !meshFilter.sharedMesh || !_clonedMeshes.ContainsKey( meshFilter ) )
+                {
+                    meshFilter.sharedMesh = originalMesh;
+                }
+            }
+
+            for ( int i = 0; i < _replacedSkinnedRenderers.Count && i < _replacedSkinnedMeshes.Count; i++ )
+            {
+                SkinnedMeshRenderer skinnedMeshRenderer = _replacedSkinnedRenderers[i];
+                Mesh originalMesh = _replacedSkinnedMeshes[i];
+
+                if ( !skinnedMeshRenderer || !originalMesh ) continue;
+
+                _originalSkinnedMeshes[skinnedMeshRenderer] = originalMesh;
+
+                if ( !skinnedMeshRenderer.sharedMesh || !_clonedSkinnedMeshes.ContainsKey( skinnedMeshRenderer ) )
+                {
+                    skinnedMeshRenderer.sharedMesh = originalMesh;
+                }
+            }
+        }
+
+        void RecordReplacedMesh( MeshFilter meshFilter, Mesh originalMesh )
+        {
+            int index = _replacedMeshFilters.IndexOf( meshFilter );
+            if ( index >= 0 && index < _replacedMeshFilterMeshes.Count )
+            {
+                _replacedMeshFilterMeshes[index] = originalMesh;
+                return;
+            }
+
+            _replacedMeshFilters.Add( meshFilter );
+            _replacedMeshFilterMeshes.Add( originalMesh );
+        }
+
+        void RecordReplacedSkinnedMesh( SkinnedMeshRenderer skinnedMeshRenderer, Mesh originalMesh )
+        {
+            int index = _replacedSkinnedRenderers.IndexOf( skinnedMeshRenderer );
+            if ( index >= 0 && index < _replacedSkinnedMeshes.Count )
+            {
+                _replacedSkinnedMeshes[index] = originalMesh;
+                return;
+            }
+
+            _replacedSkinnedRenderers.Add( skinnedMeshRenderer );
+            _replacedSkinnedMeshes.Add( originalMesh );
+        }
+
         void ClearClonedMeshes()
         {
+            _replacedMeshFilters.Clear();
+            _replacedMeshFilterMeshes.Clear();
+            _replacedSkinnedRenderers.Clear();
+            _replacedSkinnedMeshes.Clear();
+
             foreach ( KeyValuePair<MeshFilter, Mesh> pair in _originalMeshes )
             {
                 if ( pair.Key && pair.Value )
