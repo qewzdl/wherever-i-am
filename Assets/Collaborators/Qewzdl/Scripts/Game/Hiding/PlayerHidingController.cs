@@ -35,7 +35,6 @@ public sealed class PlayerHidingController :
         System.Array.Empty<Collider>();
     [SerializeField] private Collider[] hitboxColliders =
         System.Array.Empty<Collider>();
-    [SerializeField] private Transform localViewmodelRoot;
 
     private readonly HidingExitPlacementResolver exitPlacementResolver = new();
     private IPlayerActionGate playerActionGate;
@@ -894,8 +893,7 @@ public sealed class PlayerHidingController :
                 playerBody,
                 visualRoot,
                 gameplayColliders,
-                hitboxColliders,
-                localViewmodelRoot
+                hitboxColliders
             );
         }
 

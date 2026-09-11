@@ -376,6 +376,22 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
     {
         if (!currentItem) return;
 
+        // Not from inside a cupboard. Dropping puts the item on the floor
+        // where the player is standing, and while they are hidden that floor
+        // is inside something with a door on it: the item is either sealed in
+        // with them until they climb out, or it spills through the geometry
+        // and stands in the room pointing at where they are.
+        //
+        // Refused here rather than further down because PickupItem.Drop runs
+        // its half locally before the request goes out - the world mesh comes
+        // back, the viewmodel is destroyed - so a refusal on the server would
+        // leave the two ends disagreeing about who holds what.
+        if (playerActionGate != null &&
+            playerActionGate.IsActive(PlayerActionKind.Hiding))
+        {
+            return;
+        }
+
         currentItem.OnDrop();
         SetCurrentItem(null);
     }

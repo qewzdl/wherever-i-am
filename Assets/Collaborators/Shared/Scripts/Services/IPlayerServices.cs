@@ -34,6 +34,11 @@ public enum PlayerActionKind
 /// player. The owner token prevents one mechanic from releasing another
 /// mechanic's action.
 /// </summary>
+/// <remarks>
+/// Carrying something is the exception, because it is a state rather than an
+/// action: hiding may begin while a pickup is held, and the carry comes back
+/// when the hiding ends. Everything else is refused while the gate is busy.
+/// </remarks>
 public interface IPlayerActionGate
 {
     bool IsBusy { get; }

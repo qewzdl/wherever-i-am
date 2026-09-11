@@ -1060,7 +1060,6 @@ MonoBehaviour:
   gameplayColliders:
   - {fileID: 7461241867225673140}
   hitboxColliders: []
-  localViewmodelRoot: {fileID: 3606999958674809175}
 --- !u!114 &1852548442045173992
 MonoBehaviour:
   m_ObjectHideFlags: 0

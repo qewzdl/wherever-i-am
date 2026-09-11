@@ -138,9 +138,19 @@ public sealed class PlayerMechanicsPlayModeTests
         Assert.That(
             gate.TryBegin(PlayerActionKind.Drag, drag),
             Is.False);
+
+        // Hiding is the one action a carry makes room for: a player holding a
+        // torch can still climb into a cupboard, and the carry waits there for
+        // them. Everything else in this test is the exclusivity that stands.
         Assert.That(
             gate.TryBegin(PlayerActionKind.Hiding, hiding),
-            Is.False);
+            Is.True);
+        Assert.That(gate.ActiveAction, Is.EqualTo(PlayerActionKind.Hiding));
+        Assert.That(
+            gate.End(PlayerActionKind.Hiding, hiding),
+            Is.True);
+        Assert.That(gate.ActiveAction, Is.EqualTo(PlayerActionKind.Pickup));
+
         Assert.That(
             gate.End(PlayerActionKind.Pickup, drag),
             Is.False,
@@ -149,10 +159,17 @@ public sealed class PlayerMechanicsPlayModeTests
         gate.Confirm(PlayerActionKind.Hiding, hiding);
 
         Assert.That(gate.ActiveAction, Is.EqualTo(PlayerActionKind.Hiding));
+
+        // The assertion this replaces read the return value; what it was
+        // guarding is the state. A late pickup response is now answered by
+        // forgetting the carry that was waiting behind the hiding, and the
+        // hiding itself is what must survive it.
+        gate.End(PlayerActionKind.Pickup, pickup);
         Assert.That(
-            gate.End(PlayerActionKind.Pickup, pickup),
-            Is.False,
+            gate.ActiveAction,
+            Is.EqualTo(PlayerActionKind.Hiding),
             "A late pickup response must not clear authoritative hiding.");
+
         Assert.That(
             gate.End(PlayerActionKind.Hiding, hiding),
             Is.True);
@@ -173,6 +190,10 @@ public sealed class PlayerMechanicsPlayModeTests
         Collider gameplayCollider =
             visualRoot.gameObject.AddComponent<CapsuleCollider>();
 
+        // The stage the first-person item hangs on. Nothing hands it to the
+        // effects any more, and this is here to prove it stays lit: it is the
+        // one renderer a player can see of their own while they are in a box,
+        // and switching it off is how a carried torch used to vanish.
         Transform viewmodelRoot =
             CreateChild(player.transform, "Local viewmodel root");
         Renderer viewmodelRenderer =
@@ -193,15 +214,14 @@ public sealed class PlayerMechanicsPlayModeTests
             body,
             visualRoot,
             new[] { gameplayCollider },
-            new[] { hitboxCollider },
-            viewmodelRoot);
+            new[] { hitboxCollider });
 
         effects.Apply(
             hidePlayerVisuals: true,
             disablePlayerColliders: true);
 
         Assert.That(bodyRenderer.enabled, Is.False);
-        Assert.That(viewmodelRenderer.enabled, Is.False);
+        Assert.That(viewmodelRenderer.enabled, Is.True);
         Assert.That(gameplayCollider.enabled, Is.False);
         Assert.That(hitboxCollider.enabled, Is.False);
         Assert.That(unrelatedRenderer.enabled, Is.True);

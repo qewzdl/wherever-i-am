@@ -266,12 +266,6 @@ public sealed class PlayerAndItemLogicTests
             Is.Zero
         );
         Assert.That(
-            hidingObject
-                .FindProperty("localViewmodelRoot")
-                .objectReferenceValue,
-            Is.Not.Null
-        );
-        Assert.That(
             interactionObject
                 .FindProperty("playerHidingCommandSource")
                 .objectReferenceValue,

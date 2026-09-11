@@ -158,10 +158,26 @@ public abstract class PickupItem : DraggableObject
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void DropServerRpc(RpcParams rpcParams = default)
     {
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        // The owner's own client refuses this before asking, so reaching here
+        // while hidden means a client that does not. The gate is the server's
+        // own answer to what that player is doing - a carry stands aside for
+        // the hiding and is not the action in progress - so it is the one
+        // worth trusting.
+        if (PlayerActionGateContext.TryGet(
+                NetworkManager,
+                senderClientId,
+                out IPlayerActionGate actionGate) &&
+            actionGate.IsActive(PlayerActionKind.Hiding))
+        {
+            return;
+        }
+
         netIsPickedUp.Value = false;
         PlayerActionGateContext.TryEnd(
             NetworkManager,
-            rpcParams.Receive.SenderClientId,
+            senderClientId,
             PlayerActionKind.Pickup,
             this);
         DropClientRpc();

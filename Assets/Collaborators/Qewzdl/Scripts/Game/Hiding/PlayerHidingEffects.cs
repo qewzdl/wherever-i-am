@@ -8,7 +8,6 @@ internal sealed class PlayerHidingEffects
     private readonly Transform visualRoot;
     private readonly Collider[] gameplayColliders;
     private readonly Collider[] hitboxColliders;
-    private readonly Transform localViewmodelRoot;
 
     private Collider[] playerColliders;
     private Renderer[] playerRenderers;
@@ -22,8 +21,7 @@ internal sealed class PlayerHidingEffects
         Rigidbody playerBody,
         Transform visualRoot,
         Collider[] gameplayColliders,
-        Collider[] hitboxColliders,
-        Transform localViewmodelRoot
+        Collider[] hitboxColliders
     )
     {
         this.playerBody = playerBody;
@@ -32,7 +30,6 @@ internal sealed class PlayerHidingEffects
                                  Array.Empty<Collider>();
         this.hitboxColliders = hitboxColliders ??
                                Array.Empty<Collider>();
-        this.localViewmodelRoot = localViewmodelRoot;
     }
 
     internal void Apply(
@@ -123,12 +120,26 @@ internal sealed class PlayerHidingEffects
         return result;
     }
 
+    // The body, and only the body.
+    //
+    // The first-person viewmodel used to be switched off with it, and that
+    // made sense for exactly as long as a player could not get into a cupboard
+    // holding anything: the stage it hangs on carries a camera and three
+    // lights and nothing else, so there was never a renderer there to switch
+    // off. The moment a carried item could come along, the one renderer on
+    // that stage was the item, and the whole of this rule's effect on it was
+    // to take it out of its owner's hands.
+    //
+    // Hiding the body conceals a player: from the room, and from themselves,
+    // since their own mesh would be inside the camera in a box that size. The
+    // viewmodel conceals nothing from anybody. It is drawn by its own camera
+    // onto its own layer for one pair of eyes, and those eyes belong to the
+    // person who already knows they are holding a torch.
     private Renderer[] CollectExplicitRenderers()
     {
         HashSet<Renderer> unique = new();
 
         AddRenderers(unique, visualRoot);
-        AddRenderers(unique, localViewmodelRoot);
 
         Renderer[] result = new Renderer[unique.Count];
         unique.CopyTo(result);
