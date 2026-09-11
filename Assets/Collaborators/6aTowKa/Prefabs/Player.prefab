@@ -869,6 +869,7 @@ GameObject:
   - component: {fileID: 771234567890123458}
   - component: {fileID: 3796379094830436580}
   - component: {fileID: 5846477740682510391}
+  - component: {fileID: 1774658826461861830}
   m_Layer: 3
   m_Name: Player
   m_TagString: Untagged
@@ -1403,6 +1404,7 @@ MonoBehaviour:
   cameraService: {fileID: 439289573477164544}
   movementService: {fileID: 1852548442045173992}
   presentationService: {fileID: 5747779835893970411}
+  cameraEffectsService: {fileID: 5846477740682510391}
 --- !u!114 &867530900123456790
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1539,6 +1541,40 @@ MonoBehaviour:
     swayRollDegrees: 0.1
     moveSuppressSpeed: 1.5
     suppressSmoothTime: 0.4
+  shake:
+    enabled: 1
+    crouchMultiplier: 1
+    hidingMultiplier: 1
+    pitchDegrees: 2.5
+    yawDegrees: 2.5
+    rollDegrees: 1.5
+    positionAmplitude: 0.03
+    fovAmplitude: 0
+    frequency: 18
+    defaultDuration: 0.4
+    falloffExponent: 2
+--- !u!114 &1774658826461861830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b2a38b4b8e904e4c9c1a00062971c2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cameraEffects: {fileID: 5846477740682510391}
+  viewmodelCamera: {fileID: 7858642412634945228}
+  strength: 0.9
+  positionStrengthX: 0.5
+  positionStrengthY: 1
+  rotationFollow: 0.5
+  followSmoothTime: 0.02
+  swayPerDegreePerSecond: 0.01
+  maxSwayDegrees: 4
+  swaySmoothTime: 0.12
 --- !u!1 &8004139109675559352
 GameObject:
   m_ObjectHideFlags: 0
