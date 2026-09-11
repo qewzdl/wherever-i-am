@@ -42,9 +42,35 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private GameObject pickupPrefab;
     private GameObject networkTestPlayerPrefab;
 
+    private Vector3 worldGravity;
+
+    // The items in this fixture spawn two metres up with nothing underneath
+    // them, so gravity does not hold anything against anything here - it only
+    // means every position this test reads has been falling since it was set.
+    //
+    // That is what made the restored-to-spawn assertion flap: the server puts
+    // the item back and makes it dynamic in one step, and the distance the
+    // test then measures is however many frames passed before the poll noticed
+    // - four under no load, a dozen with the whole suite running. Sampling on
+    // the first frame the release lands narrowed the window without closing
+    // it.
+    //
+    // The Rigidbody's own useGravity flag is asserted in several places and
+    // stays exactly as meaningful: it says what the product does with the
+    // component, which is the thing being tested. This says what the world
+    // does to it, which is not.
+    [SetUp]
+    public void HoldTheWorldStill()
+    {
+        worldGravity = Physics.gravity;
+        Physics.gravity = Vector3.zero;
+    }
+
     [UnityTearDown]
     public IEnumerator TearDown()
     {
+        Physics.gravity = worldGravity;
+
         for (int i = 0; i < endpoints.Count; i++)
         {
             NetworkManager manager = endpoints[i].Manager;

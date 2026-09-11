@@ -349,13 +349,18 @@ public sealed class TwoClientHidingPlacePlayModeTests
             playerBId
         ).GetComponent<Rigidbody>();
 
-        // A hard teleport onto the floor takes a few physics steps to
-        // settle (small penetration-correction bounce either way).
-        // Wait for the body to actually stop moving instead of guessing
-        // a fixed delay.
+        // Settled, and out. A hard teleport onto the floor takes a few physics
+        // steps to settle, so waiting for the body to stop moving was the
+        // right half of the idea - but on its own it is satisfied before the
+        // recovery has begun, because a player still standing on the hiding
+        // point is not moving either. This test then measured the inside of
+        // the cupboard it was checking they had left, and did it about once
+        // in three runs.
         yield return WaitForCondition(
-            () => recoveredBody.linearVelocity.sqrMagnitude < 0.0001f,
-            "Recovered player did not settle after runtime destruction."
+            () => recoveredBody.linearVelocity.sqrMagnitude < 0.0001f &&
+                  IsAtKnownSafeExit(recoveredBody.transform.position),
+            "Recovered player did not settle at a safe exit after runtime " +
+            "destruction."
         );
 
         Vector3 recoveredPosition =
