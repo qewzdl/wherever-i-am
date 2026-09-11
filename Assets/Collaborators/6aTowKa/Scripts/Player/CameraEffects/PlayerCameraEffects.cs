@@ -53,9 +53,20 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
     private float previousCameraYaw;
     private bool hasPreviousCameraYaw;
 
+    private float previousCameraPitch;
+    private bool hasPreviousCameraPitch;
+
     private CameraEffectOutput lastOutput;
+    private float lastYawRate;
+    private float lastPitchRate;
 
     public CameraEffectOutput LastOutput => lastOutput;
+
+    // Head turn speed this frame, degrees per second. Yaw feeds the roll effect; pitch is
+    // not used by any effect here and exists for readers like ViewmodelSway, so the turn
+    // rate comes from one place instead of being re-derived from the pivot elsewhere.
+    public float LastYawRate => lastYawRate;
+    public float LastPitchRate => lastPitchRate;
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
@@ -187,7 +198,9 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
 
         bool isGrounded = playerController != null && playerController.IsGrounded;
         Vector2 moveInput = playerController != null ? playerController.MoveInput : Vector2.zero;
-        float yawRate = ComputeYawRate(deltaTime);
+        lastYawRate = ComputeYawRate(deltaTime);
+        lastPitchRate = ComputePitchRate(deltaTime);
+        float yawRate = lastYawRate;
 
         // Crouch and hiding no longer touch this master weight — the stack folds each effect's
         // own multiplier in, so one effect can go quiet in a wardrobe while another does not.
@@ -229,6 +242,23 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
         hasPreviousCameraYaw = true;
 
         return yawRate;
+    }
+
+    private float ComputePitchRate(float deltaTime)
+    {
+        if (cameraLook == null)
+            return 0f;
+
+        float currentPitch = cameraLook.transform.eulerAngles.x;
+        float pitchRate = 0f;
+
+        if (hasPreviousCameraPitch && deltaTime > 0f)
+            pitchRate = Mathf.DeltaAngle(previousCameraPitch, currentPitch) / deltaTime;
+
+        previousCameraPitch = currentPitch;
+        hasPreviousCameraPitch = true;
+
+        return pitchRate;
     }
 
     private void SetCrouching(bool value)
