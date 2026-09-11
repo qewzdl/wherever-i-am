@@ -272,13 +272,24 @@ public sealed class ServerAuthorityPlayModeTests
 
         hostController.RequestSetMapRpc(SecondMapId);
         hostController.RequestSetGameModeRpc(SecondGameModeId);
-        hostController.RequestSetReadyRpc(true);
         yield return WaitForCondition(
             () => hostLobby.Settings.Value.MapId == SecondMapId &&
-                  IsPlayerReady(hostLobby, ownerClientId),
+                  hostLobby.Settings.Value.GameModeId == SecondGameModeId,
             "The room owner could not change the lobby it owns.");
 
-        Assert.That(hostLobby.Settings.Value.GameModeId, Is.EqualTo(SecondGameModeId));
+        // Changing the terms stands the room down. The guest said yes to the
+        // first map, and that yes is not transferable to the second - so the
+        // room has to answer again before it can start, and this is the step
+        // this test used to be written without.
+        Assert.That(IsPlayerReady(hostLobby, guestClientId), Is.False);
+        Assert.That(IsPlayerReady(hostLobby, ownerClientId), Is.False);
+
+        controllerOnClient.RequestSetReadyRpc(true);
+        hostController.RequestSetReadyRpc(true);
+        yield return WaitForCondition(
+            () => IsPlayerReady(hostLobby, guestClientId) &&
+                  IsPlayerReady(hostLobby, ownerClientId),
+            "The room could not ready up for the settings it was given.");
 
         hostController.RequestStartGameRpc();
         yield return WaitForCondition(
