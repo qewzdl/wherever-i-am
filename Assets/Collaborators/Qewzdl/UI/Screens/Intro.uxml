@@ -1,0 +1,9 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- Two elements and nothing else. The panel is the black the film is
+         letterboxed against and the black it fades out through; the surface is
+         where the frames are put, once there are any. -->
+    <ui:VisualElement name="Intro" class="intro">
+        <ui:VisualElement name="IntroVideo" picking-mode="Ignore" class="intro__video" />
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,52 @@
+/* ==========================================================================
+   INTRO
+
+   The film before the menu, and the black it sits in.
+
+   It covers the frame rather than filling it: a clip is whatever shape it was
+   exported at, and stretching somebody's title card to the player's monitor is
+   the one thing that will be noticed about it. What is left over at the edges
+   is the same ink the rest of this interface stands on.
+   ========================================================================== */
+
+.intro {
+    position: absolute;
+
+    /* Away until it is asked for, said here rather than in the first frame of
+       code. AppRuntime runs at -1000 and asks for the film before this panel's
+       own Start has had a chance to put it away, so a panel that began visible
+       would be a frame of black on every launch that has no intro to play. */
+    display: none;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    background-color: var(--veil-solid);
+
+    opacity: 1;
+
+    /* The startup scene is already loading behind this when the class lands,
+       so what this uncovers is a menu part-way through its own arrival. */
+    transition-property: opacity;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.intro--gone {
+    opacity: 0;
+}
+
+
+/* The frames themselves, scaled to fit and centred. No background colour of
+   its own: the letterbox bars are the panel underneath showing through. */
+
+.intro__video {
+    flex-grow: 1;
+
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}

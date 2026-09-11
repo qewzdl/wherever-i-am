@@ -21,6 +21,11 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
     [Header("Context")]
     [SerializeField] private ProjectContext context;
 
+    // Optional, and asked rather than told: a project with no intro leaves
+    // this empty and the startup scene is loaded the moment it always was.
+    [Header("Intro")]
+    [SerializeField] private MonoBehaviour startupIntro;
+
     [Header("Client Readiness")]
     [SerializeField] [Min(1f)] private float clientReadinessTimeoutSeconds = 15f;
 
@@ -175,6 +180,17 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
 
         if (context.IsScene(startupScene, activeScene.name))
             return;
+
+        // The film only stands in front of the way the game actually opens.
+        // An editor asked to start on the Lobby resolves a different scene
+        // here, and somebody working on it should not have to sit through a
+        // title card to get there.
+        if (startupScene == context.GetDefaultStartupScene() &&
+            startupIntro is IStartupIntro intro &&
+            intro.TryPlay(() => LoadScene(startupScene)))
+        {
+            return;
+        }
 
         LoadScene(startupScene);
     }
