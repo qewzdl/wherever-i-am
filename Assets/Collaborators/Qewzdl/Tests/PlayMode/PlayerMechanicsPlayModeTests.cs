@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 [Category("Gameplay")]
@@ -88,6 +89,24 @@ public sealed class PlayerMechanicsPlayModeTests
         PlayModeTestReflection.SetField(cameraLook, "lockCursorOnLocalControl", false);
         PlayModeTestReflection.SetField(cameraLook, "unlockCursorWhenLookBlocked", false);
         PlayModeTestReflection.SetField(cameraLook, "lockCursorWhenLookUnblocked", false);
+
+        // A player that cannot read crouch is a broken player, and the handler
+        // says so out loud - deliberately, because the version before it wired
+        // crouch through a serialised list and failed silently in a build that
+        // compiled. This fixture had no PlayerInput at all, so since crouch
+        // started being read here the handler had been logging that error on
+        // every run and the test had been red on it, while testing something
+        // else entirely: which blockers release the input.
+        //
+        // So the player gets the one action it is missing. Nothing here
+        // presses it; it is here so the thing under test is a player rather
+        // than a player with a hole in it.
+        InputActionAsset actions = Track(ScriptableObject.CreateInstance<InputActionAsset>());
+        actions.name = "Input handler test actions";
+        actions.AddActionMap("Player").AddAction("Crouch", InputActionType.Button);
+
+        PlayerInput playerInput = player.AddComponent<PlayerInput>();
+        playerInput.actions = actions;
 
         PlayerInputHandler input = player.AddComponent<PlayerInputHandler>();
         PlayModeTestReflection.SetField(input, "cameraLook", cameraLook);
