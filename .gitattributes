@@ -36,6 +36,7 @@
 *.fbx filter=lfs diff=lfs merge=lfs -text
 *.tif filter=lfs diff=lfs merge=lfs -text
 Assets/Collaborators/6aTowKa/Import/TirgamesAssets/**/*.png filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
 
 # One-time setup for the Unity merge tool, per machine:
 #   git config merge.unityyamlmerge.name "Unity SmartMerge"
