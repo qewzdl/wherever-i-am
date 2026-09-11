@@ -33,31 +33,10 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
 
     [Header("References")]
     [SerializeField] private UIDocument document;
-    [SerializeField] private VideoClip clip;
 
-    [Header("Playback")]
-    [Tooltip("Volume of the clip's own audio track. Its own number rather " +
-             "than the master volume: on a first launch nobody has been able " +
-             "to reach the settings screen yet.")]
-    [SerializeField, Range(0f, 1f)] private float volume = 1f;
-
-    [Tooltip("Off while working on a scene directly, so the film is not " +
-             "watched forty times an afternoon.")]
-    [SerializeField] private bool playInEditor = true;
-
-    [Header("Giving up")]
-    [Tooltip("How long to wait for the clip to open before carrying on " +
-             "without it. A missing codec must not become a black screen " +
-             "with no way out of it.")]
-    [SerializeField, Min(1f)] private float prepareTimeoutSeconds = 5f;
-
-    [Tooltip("Added to the clip's own length before giving up on it ending. " +
-             "Covers a slow first frame, not a broken file.")]
-    [SerializeField, Min(1f)] private float playbackSlackSeconds = 3f;
-
-    [Tooltip("Matches --motion-screen in the theme, which is what the class " +
-             "on the panel actually animates.")]
-    [SerializeField, Min(0f)] private float fadeSeconds = 0.26f;
+    // Everything the film is and everything about how it behaves lives in the
+    // asset, so that tuning it is not a reason to open this scene.
+    [SerializeField] private StartupIntroConfig config;
 
     private VideoPlayer player;
     private RenderTexture frames;
@@ -138,7 +117,7 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
             return true;
         }
 
-        player.clip = clip;
+        player.clip = config.Clip;
         player.renderMode = VideoRenderMode.RenderTexture;
         player.targetTexture = frames;
         player.audioOutputMode = VideoAudioOutputMode.Direct;
@@ -162,11 +141,14 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
         if (finished || completed != null)
             return false;
 
-        if (clip == null || document == null || player == null)
+        if (config == null || document == null || player == null)
+            return false;
+
+        if (!config.HasPicture)
             return false;
 
 #if UNITY_EDITOR
-        if (!playInEditor)
+        if (!config.PlayInEditor)
             return false;
 #endif
 
@@ -181,8 +163,8 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
     // correct shape, rather than guess at one.
     private bool TryMakeFrames()
     {
-        int width = clip != null ? (int)clip.width : 0;
-        int height = clip != null ? (int)clip.height : 0;
+        int width = (int)config.Clip.width;
+        int height = (int)config.Clip.height;
 
         if (surface == null || width <= 0 || height <= 0)
         {
@@ -210,7 +192,7 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
             return;
 
         StopTimeout();
-        source.SetDirectAudioVolume(0, Mathf.Clamp01(volume));
+        source.SetDirectAudioVolume(0, config.Volume);
         source.Play();
 
         timeout = StartCoroutine(GiveUpIfItNeverEnds());
@@ -232,7 +214,7 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
 
     private IEnumerator GiveUpIfItNeverOpens()
     {
-        float deadline = Time.realtimeSinceStartup + prepareTimeoutSeconds;
+        float deadline = Time.realtimeSinceStartup + config.PrepareTimeoutSeconds;
 
         while (!player.isPrepared && Time.realtimeSinceStartup < deadline)
             yield return null;
@@ -257,10 +239,10 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
     // this one.
     private IEnumerator GiveUpIfItNeverEnds()
     {
-        double length = clip != null ? clip.length : 0d;
+        double length = config.Clip != null ? config.Clip.length : 0d;
         float deadline = Time.realtimeSinceStartup +
                          (float)length +
-                         Mathf.Max(1f, playbackSlackSeconds);
+                         config.PlaybackSlackSeconds;
 
         while (!finished && Time.realtimeSinceStartup < deadline)
             yield return null;
@@ -303,7 +285,7 @@ public sealed class StartupIntro : MonoBehaviour, IStartupIntro
 
         // Unscaled: nothing has set a time scale yet, and a splash that waits
         // on game time is a splash that never ends if something ever does.
-        yield return new WaitForSecondsRealtime(Mathf.Max(0f, fadeSeconds));
+        yield return new WaitForSecondsRealtime(config.FadeSeconds);
 
         Destroy(gameObject);
     }

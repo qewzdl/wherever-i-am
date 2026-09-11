@@ -1070,12 +1070,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   document: {fileID: 770010004}
-  clip: {fileID: 32900000, guid: 77ca3951fe9ae3148b1b33aa46417f0f, type: 3}
-  volume: 1
-  playInEditor: 1
-  prepareTimeoutSeconds: 5
-  playbackSlackSeconds: 3
-  fadeSeconds: 0.26
+  config: {fileID: 11400000, guid: 3c8d52f0b7146e94a2b0917ce5d43f81, type: 2}
 --- !u!114 &770010004
 MonoBehaviour:
   m_ObjectHideFlags: 0
