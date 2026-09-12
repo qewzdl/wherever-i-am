@@ -76,9 +76,6 @@ public abstract class PickupItem : DraggableObject
         // returned to. Gravity hides this in a real room - the item is falling
         // anyway - and it is the difference between an item waiting where it
         // was left and one that has wandered off by the time anyone looks.
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-
         DropClientRpc();
     }
 

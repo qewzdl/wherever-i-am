@@ -181,9 +181,14 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         // returns, so this reads where the server put the item rather than
         // where it had got to by the time the wait noticed.
         //
-        // Gravity is off in this fixture, so nothing pulls it down; what used
-        // to move it was the velocity it had been carrying since before it was
-        // picked up, which the server now clears when it puts the item back.
+        // Gravity is off in this fixture, so nothing pulls it down, and what
+        // does move it is not understood. Clearing the body velocity when the
+        // server puts the item back was tried and measured: it made the drift
+        // five times worse, so it was taken out again. Sampling the body
+        // rather than the transform was tried too and was worse still.
+        //
+        // So this still fails about one run in three on its own, and passes in
+        // the suite. The tolerance is not the problem and has been left alone.
         bool hasRestoredPosition = false;
         Vector3 restoredPosition = Vector3.zero;
 
