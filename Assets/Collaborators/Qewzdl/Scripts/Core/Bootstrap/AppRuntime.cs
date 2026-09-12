@@ -187,10 +187,29 @@ public sealed class AppRuntime : MonoBehaviour, IProjectSceneLoadCompletionGate
         // title card to get there.
         if (startupScene == context.GetDefaultStartupScene() &&
             startupIntro is IStartupIntro intro &&
-            intro.TryPlay(() => LoadScene(startupScene)))
+            intro.TryPlay(() => LoadStartupSceneAfterIntro(startupScene)))
         {
             return;
         }
+
+        LoadScene(startupScene);
+    }
+
+    // The film outlives the frame that asked for it, and it can outlive the
+    // runtime: the intro hands its callback back when it is torn down as well
+    // as when it ends, on the grounds that the game is still owed its startup
+    // scene. That is right of the intro and not always true of the runtime -
+    // an application quitting during the title card, or a test that ends and
+    // tears the bootstrap down, leaves nobody who wants the scene any more.
+    //
+    // Whoever asked is checked for before it is handed over. Without this the
+    // load reaches a disposed context, and the error it logs lands on whatever
+    // happens to be running when the film finally ends - which in a test run
+    // is some other test entirely.
+    private void LoadStartupSceneAfterIntro(ProjectSceneKind startupScene)
+    {
+        if (!runtimeStarted || context == null)
+            return;
 
         LoadScene(startupScene);
     }

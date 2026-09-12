@@ -10,7 +10,7 @@ public sealed class BootstrapGPlayModeTests
 {
     private const string BootstrapScenePath =
         "Assets/Collaborators/Qewzdl/Scenes/Bootstrap.unity";
-    private const int StartupFrameLimit = 300;
+    private const float StartupTimeoutSeconds = 90f;
 
     private Scene persistentScene;
     private GameObject persistentSceneProbe;
@@ -171,21 +171,29 @@ public sealed class BootstrapGPlayModeTests
         runtimeContext = GetSinglePersistentComponent<ProjectContext>();
 
         yield return WaitForCondition(
-            IsStartupSceneOperationComplete,
-            "Bootstrap startup scene operation did not complete.");
+            IsStartupSceneLoaded,
+            "Bootstrap did not reach the main menu.");
     }
 
-    private bool IsStartupSceneOperationComplete()
+    // The menu itself, rather than the absence of a request for it. The game
+    // opens with a film now, so the startup scene is asked for some seconds
+    // after the runtime is ready - and until it is asked for there is nothing
+    // pending, which reads exactly like finished.
+    private bool IsStartupSceneLoaded()
     {
         return G.TryResolve(out IProjectSceneFlowService sceneFlowService) &&
-               !sceneFlowService.HasPendingOperation;
+               !sceneFlowService.HasPendingOperation &&
+               runtimeContext != null &&
+               runtimeContext.StateMachine.CurrentState == GameState.MainMenu;
     }
 
     private static IEnumerator WaitForCondition(
         Func<bool> condition,
         string failureMessage)
     {
-        for (int frame = 0; frame < StartupFrameLimit; frame++)
+        float deadline = Time.realtimeSinceStartup + StartupTimeoutSeconds;
+
+        while (Time.realtimeSinceStartup < deadline)
         {
             if (condition.Invoke())
                 yield break;
