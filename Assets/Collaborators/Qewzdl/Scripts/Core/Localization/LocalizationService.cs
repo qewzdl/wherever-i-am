@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.TextCore.Text;
 
 // The one place that knows which language is being spoken.
 //
@@ -21,6 +22,8 @@ public sealed class LocalizationService : MonoBehaviour, ILocalizationService
     public string Locale => active != null ? active.Locale : string.Empty;
 
     public IReadOnlyList<LocaleOption> AvailableLocales => options;
+
+    public FontAsset Font => active != null ? active.Font : null;
 
     public event Action LocaleChanged;
 

@@ -20,11 +20,6 @@
    ========================================================================== */
 
 .spectate {
-    /* Its own panel, so it carries the game's face itself - the same reason
-       the chat layer does. */
-    -unity-font-definition:
-        url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
-
     position: absolute;
 
     left: 0;

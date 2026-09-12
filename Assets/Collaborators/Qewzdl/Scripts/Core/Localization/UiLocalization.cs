@@ -2,6 +2,10 @@ using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 
+// Only the one type, because UIElements has a TextElement of its own and the
+// whole namespace would make the name ambiguous everywhere below.
+using FontAsset = UnityEngine.TextCore.Text.FontAsset;
+
 // The language, applied to a document's tree.
 //
 // Static, and holding a service and a list, for the same reason UiPreferences
@@ -116,8 +120,36 @@ public static class UiLocalization
         if (service == null)
             return;
 
+        Dress(root);
         root.Query<Label>().ForEach(Translate);
         root.Query<Button>().ForEach(Translate);
+    }
+
+    // Set on the root and inherited by everything under it, so one write
+    // dresses a whole document - including the chat and the spectator layers,
+    // which are panels of their own rather than anything under a .screen.
+    //
+    // A language with no face of its own clears the inline style, which since
+    // the stylesheets stopped naming fonts means Unity's default. That is a
+    // table somebody forgot to finish rather than a thing to fall back on, and
+    // LocalizationTests is what stops it reaching a build.
+    private static void Dress(VisualElement root)
+    {
+        FontAsset font = service != null ? service.Font : null;
+
+        if (font != null)
+            root.style.unityFontDefinition = FontDefinition.FromSDFFont(font);
+        else
+            root.style.unityFontDefinition = StyleKeyword.Null;
+    }
+
+    private static void DressKnownRoots()
+    {
+        for (int i = 0; i < roots.Count; i++)
+        {
+            if (roots[i] != null)
+                Dress(roots[i]);
+        }
     }
 
     private static void ApplyToKnownRoots()
@@ -134,6 +166,7 @@ public static class UiLocalization
                 continue;
             }
 
+            Dress(root);
             root.Query<Label>().ForEach(Translate);
             root.Query<Button>().ForEach(Translate);
         }
@@ -174,6 +207,7 @@ public static class UiLocalization
     // ordinary case: it is changed from one of them.
     private static void Reapply()
     {
+        DressKnownRoots();
         expired.Clear();
 
         foreach (KeyValuePair<TextElement, string> pair in sources)

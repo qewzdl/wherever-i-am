@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.TextCore.Text;
 
 // One language, as an asset.
 //
@@ -33,12 +34,27 @@ public sealed class LocaleTable : ScriptableObject
              "that has not been built yet.")]
     [SerializeField] private string displayName = "English";
 
+    // A translation nobody can read is not a translation. A face is drawn for
+    // an alphabet: ask one drawn for English to spell Cyrillic and it has
+    // nothing to give, because a dynamic atlas can only add a glyph the source
+    // file actually has.
+    //
+    // So the face belongs to the language, and this is the only place it is
+    // named - the stylesheets used to nail one to .screen, .chat and .spectate
+    // and no longer say anything about fonts at all. Every language must fill
+    // this in; a table that does not leaves its screens in Unity's default
+    // font, which is why a test refuses to let one ship that way.
+    [Tooltip("The face every screen is set in while this language is spoken. " +
+             "Required: nothing else in the project names a font.")]
+    [SerializeField] private FontAsset font;
+
     [SerializeField] private Entry[] entries = Array.Empty<Entry>();
 
     private Dictionary<string, string> lookup;
 
     public string Locale => locale;
     public string DisplayName => displayName;
+    public FontAsset Font => font;
     public int Count => entries != null ? entries.Length : 0;
 
     public IReadOnlyList<Entry> Entries => entries ?? Array.Empty<Entry>();

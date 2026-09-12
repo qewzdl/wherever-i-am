@@ -17,13 +17,6 @@
    ========================================================================== */
 
 .chat {
-    /* Its own panel, so it carries the game's face itself. A screen sets this
-       on .screen and every label under it inherits; this layer is not one of
-       those and would otherwise be the one place in the interface set in
-       Unity's default font. */
-    -unity-font-definition:
-        url("project://database/Assets/Collaborators/Qewzdl/Fonts/Vectipede%20Th%20SDF.asset?fileID=11400000&guid=f62a91bdc6ed1864f8d536b0db2daaff&type=2#Vectipede Th SDF");
-
     position: absolute;
 
     left: 0;

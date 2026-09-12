@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine.TextCore.Text;
 
 /// <summary>
 /// Turns the English a screen was written in into the language being played.
@@ -27,6 +28,12 @@ public interface ILocalizationService
     /// own language is looking for the word they call it by.
     /// </summary>
     IReadOnlyList<LocaleOption> AvailableLocales { get; }
+
+    /// <summary>
+    /// The face this language is written in, or null to leave every screen
+    /// with the one its stylesheet asked for.
+    /// </summary>
+    FontAsset Font { get; }
 
     /// <summary>
     /// Speak a different language. False when the build does not have it,

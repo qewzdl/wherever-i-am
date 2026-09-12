@@ -11,9 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b7d24e91f03a486cb95e12d7a64f0c28, type: 3}
   m_Name: Locale_English
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   locale: en
   displayName: English
+  font: {fileID: 11400000, guid: fa2ca9b6b0cd1c84393bd8d2e00eda75, type: 2}
   entries:
   - English: OK
     Translation: OK
@@ -107,8 +108,10 @@ MonoBehaviour:
     Translation: Strafe lean
   - English: Breathing
     Translation: Breathing
-  - English: How much the view moves on its own. Zero turns an effect off; Reduced motion silences all five at once.
-    Translation: How much the view moves on its own. Zero turns an effect off; Reduced motion silences all five at once.
+  - English: How much the view moves on its own. Zero turns an effect off; Reduced
+      motion silences all five at once.
+    Translation: How much the view moves on its own. Zero turns an effect off; Reduced
+      motion silences all five at once.
   - English: Master
     Translation: Master
   - English: Music
@@ -250,7 +253,8 @@ MonoBehaviour:
   - English: ' - check your ready status'
     Translation: ' - check your ready status'
   - English: Change difficulty to {0}? Everybody who is ready goes back to not ready.
-    Translation: Change difficulty to {0}? Everybody who is ready goes back to not ready.
+    Translation: Change difficulty to {0}? Everybody who is ready goes back to not
+      ready.
   - English: Lobby closed
     Translation: Lobby closed
   - English: Lobby open
@@ -361,14 +365,26 @@ MonoBehaviour:
     Translation: Hard
   - English: Extreme
     Translation: Extreme
-  - English: Hears half of what you do and forgets you within a couple of seconds. Narrow sight, a slow search, and she looks only near the spot she lost you.
-    Translation: Hears half of what you do and forgets you within a couple of seconds. Narrow sight, a slow search, and she looks only near the spot she lost you.
-  - English: The intended balance. Ordinary hearing, a wide look ahead, a few seconds of memory - she searches the room you left, then moves on.
-    Translation: The intended balance. Ordinary hearing, a wide look ahead, a few seconds of memory - she searches the room you left, then moves on.
-  - English: Twice the hearing and remembers you for several seconds after losing sight. Turns and accelerates hard, so corners stop shaking her off, and she sweeps a wide area, stopping to look around.
-    Translation: Twice the hearing and remembers you for several seconds after losing sight. Turns and accelerates hard, so corners stop shaking her off, and she sweeps a wide area, stopping to look around.
-  - English: Hears the quietest noise from across the house and sees almost all the way around her. Keeps hunting long after you are out of sight, moves faster than anything below, and searches whole rooms rather than corners.
-    Translation: Hears the quietest noise from across the house and sees almost all the way around her. Keeps hunting long after you are out of sight, moves faster than anything below, and searches whole rooms rather than corners.
+  - English: Hears half of what you do and forgets you within a couple of seconds.
+      Narrow sight, a slow search, and she looks only near the spot she lost you.
+    Translation: Hears half of what you do and forgets you within a couple of seconds.
+      Narrow sight, a slow search, and she looks only near the spot she lost you.
+  - English: The intended balance. Ordinary hearing, a wide look ahead, a few seconds
+      of memory - she searches the room you left, then moves on.
+    Translation: The intended balance. Ordinary hearing, a wide look ahead, a few
+      seconds of memory - she searches the room you left, then moves on.
+  - English: Twice the hearing and remembers you for several seconds after losing
+      sight. Turns and accelerates hard, so corners stop shaking her off, and she
+      sweeps a wide area, stopping to look around.
+    Translation: Twice the hearing and remembers you for several seconds after losing
+      sight. Turns and accelerates hard, so corners stop shaking her off, and she
+      sweeps a wide area, stopping to look around.
+  - English: Hears the quietest noise from across the house and sees almost all the
+      way around her. Keeps hunting long after you are out of sight, moves faster
+      than anything below, and searches whole rooms rather than corners.
+    Translation: Hears the quietest noise from across the house and sees almost all
+      the way around her. Keeps hunting long after you are out of sight, moves faster
+      than anything below, and searches whole rooms rather than corners.
   - English: Medium
     Translation: Medium
   - English: You got out

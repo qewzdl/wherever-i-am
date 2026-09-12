@@ -4,6 +4,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using FontAsset = UnityEngine.TextCore.Text.FontAsset;
 
 // The English is the key, which buys a great deal and costs one thing: nothing
 // in the compiler notices when a screen starts saying something the table has
@@ -141,6 +142,36 @@ public sealed class LocalizationTests
         }
     }
 
+    // A translation nobody can read is not a translation, and since the
+    // stylesheets stopped naming fonts this is the only place a face is named
+    // at all. A table that forgets one does not fall back on the interface
+    // font - there isn't one any more - it falls back on Unity's default,
+    // which is how a whole language ships looking like a bug report.
+    [Test]
+    public void EveryLanguageBringsTheFaceItIsReadIn()
+    {
+        string[] guids = AssetDatabase.FindAssets(
+            "t:LocaleTable",
+            new[] { "Assets/Collaborators/Qewzdl/Configs/Localization" });
+
+        Assert.That(guids, Is.Not.Empty, "No locale tables ship.");
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            LocaleTable table = AssetDatabase.LoadAssetAtPath<LocaleTable>(path);
+
+            if (table == null)
+                continue;
+
+            Assert.That(
+                table.Font,
+                Is.Not.Null,
+                $"'{table.name}' names no font, so every screen in " +
+                $"{table.DisplayName} would be set in Unity's default.");
+        }
+    }
+
     // Anything the table does not know comes back as it went in, which is what
     // makes a missing row a stale sentence rather than a blank screen.
     [Test]
@@ -195,6 +226,8 @@ public sealed class LocalizationTests
     private sealed class FakeLocalization : ILocalizationService
     {
         public string Locale => "test";
+
+        public FontAsset Font => null;
 
         public IReadOnlyList<LocaleOption> AvailableLocales { get; } =
             new[] { new LocaleOption("test", "Test") };

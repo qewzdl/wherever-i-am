@@ -11,381 +11,522 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b7d24e91f03a486cb95e12d7a64f0c28, type: 3}
   m_Name: Locale_Russian
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   locale: ru
-  displayName: Русский
+  displayName: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"
+  font: {fileID: 11400000, guid: fa2ca9b6b0cd1c84393bd8d2e00eda75, type: 2}
   entries:
   - English: OK
-    Translation: ОК
+    Translation: "\u041E\u041A"
   - English: Lobby
-    Translation: Лобби
+    Translation: "\u041B\u043E\u0431\u0431\u0438"
   - English: Players
-    Translation: Игроки
+    Translation: "\u0418\u0433\u0440\u043E\u043A\u0438"
   - English: Start
-    Translation: Начать
+    Translation: "\u041D\u0430\u0447\u0430\u0442\u044C"
   - English: Ready
-    Translation: Готов
+    Translation: "\u0413\u043E\u0442\u043E\u0432"
   - English: Room settings
-    Translation: Настройки комнаты
+    Translation: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043A\u043E\u043C\u043D\u0430\u0442\u044B"
   - English: Settings
-    Translation: Настройки
+    Translation: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438"
   - English: Leave
-    Translation: Покинуть
+    Translation: "\u041F\u043E\u043A\u0438\u043D\u0443\u0442\u044C"
   - English: Difficulty
-    Translation: Сложность
+    Translation: "\u0421\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u044C"
   - English: Done
-    Translation: Готово
+    Translation: "\u0413\u043E\u0442\u043E\u0432\u043E"
   - English: Leave session
-    Translation: Покинуть сессию
+    Translation: "\u041F\u043E\u043A\u0438\u043D\u0443\u0442\u044C \u0441\u0435\u0441\u0441\u0438\u044E"
   - English: Cancel
-    Translation: Отмена
+    Translation: "\u041E\u0442\u043C\u0435\u043D\u0430"
   - English: Chat
-    Translation: Чат
+    Translation: "\u0427\u0430\u0442"
   - English: Name
-    Translation: Имя
+    Translation: "\u0418\u043C\u044F"
   - English: Create lobby
-    Translation: Создать лобби
+    Translation: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043B\u043E\u0431\u0431\u0438"
   - English: Join lobby
-    Translation: Войти в лобби
+    Translation: "\u0412\u043E\u0439\u0442\u0438 \u0432 \u043B\u043E\u0431\u0431\u0438"
   - English: Quit
-    Translation: Выход
+    Translation: "\u0412\u044B\u0445\u043E\u0434"
   - English: Wherever I Am
     Translation: Wherever I Am
   - English: Join a lobby
-    Translation: Вход в лобби
+    Translation: "\u0412\u0445\u043E\u0434 \u0432 \u043B\u043E\u0431\u0431\u0438"
   - English: On this network
-    Translation: В этой сети
+    Translation: "\u0412 \u044D\u0442\u043E\u0439 \u0441\u0435\u0442\u0438"
   - English: Or by address
-    Translation: Или по адресу
+    Translation: "\u0418\u043B\u0438 \u043F\u043E \u0430\u0434\u0440\u0435\u0441\u0443"
   - English: Refresh
-    Translation: Обновить
+    Translation: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C"
   - English: Connect
-    Translation: Подключиться
+    Translation: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0438\u0442\u044C\u0441\u044F"
   - English: Game menu
-    Translation: Игровое меню
+    Translation: "\u0418\u0433\u0440\u043E\u0432\u043E\u0435 \u043C\u0435\u043D\u044E"
   - English: The match continues while this menu is open.
-    Translation: Матч продолжается, пока открыто это меню.
+    Translation: "\u041C\u0430\u0442\u0447 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0430\u0435\u0442\u0441\u044F,
+      \u043F\u043E\u043A\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u043E \u044D\u0442\u043E
+      \u043C\u0435\u043D\u044E."
   - English: Back to game
-    Translation: Вернуться в игру
+    Translation: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C\u0441\u044F \u0432 \u0438\u0433\u0440\u0443"
   - English: Main menu
-    Translation: Главное меню
+    Translation: "\u0413\u043B\u0430\u0432\u043D\u043E\u0435 \u043C\u0435\u043D\u044E"
   - English: Graphics
-    Translation: Графика
+    Translation: "\u0413\u0440\u0430\u0444\u0438\u043A\u0430"
   - English: Audio
-    Translation: Звук
+    Translation: "\u0417\u0432\u0443\u043A"
   - English: Controls
-    Translation: Управление
+    Translation: "\u0423\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435"
   - English: Interface
-    Translation: Интерфейс
+    Translation: "\u0418\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441"
   - English: Accessibility
-    Translation: Доступность
+    Translation: "\u0414\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0441\u0442\u044C"
   - English: Resolution
-    Translation: Разрешение
+    Translation: "\u0420\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u0435"
   - English: Display mode
-    Translation: Режим экрана
+    Translation: "\u0420\u0435\u0436\u0438\u043C \u044D\u043A\u0440\u0430\u043D\u0430"
   - English: Quality
-    Translation: Качество
+    Translation: "\u041A\u0430\u0447\u0435\u0441\u0442\u0432\u043E"
   - English: Frame rate
-    Translation: Частота кадров
+    Translation: "\u0427\u0430\u0441\u0442\u043E\u0442\u0430 \u043A\u0430\u0434\u0440\u043E\u0432"
   - English: Vertical sync
-    Translation: Вертикальная синхронизация
+    Translation: "\u0412\u0435\u0440\u0442\u0438\u043A\u0430\u043B\u044C\u043D\u0430\u044F
+      \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F"
   - English: Field of view
-    Translation: Поле зрения
+    Translation: "\u041F\u043E\u043B\u0435 \u0437\u0440\u0435\u043D\u0438\u044F"
   - English: Camera smoothing
-    Translation: Сглаживание камеры
+    Translation: "\u0421\u0433\u043B\u0430\u0436\u0438\u0432\u0430\u043D\u0438\u0435
+      \u043A\u0430\u043C\u0435\u0440\u044B"
   - English: Smoothing amount
-    Translation: Сила сглаживания
+    Translation: "\u0421\u0438\u043B\u0430 \u0441\u0433\u043B\u0430\u0436\u0438\u0432\u0430\u043D\u0438\u044F"
   - English: Camera
-    Translation: Камера
+    Translation: "\u041A\u0430\u043C\u0435\u0440\u0430"
   - English: Camera shake
-    Translation: Тряска камеры
+    Translation: "\u0422\u0440\u044F\u0441\u043A\u0430 \u043A\u0430\u043C\u0435\u0440\u044B"
   - English: Head bob
-    Translation: Покачивание при ходьбе
+    Translation: "\u041F\u043E\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435
+      \u043F\u0440\u0438 \u0445\u043E\u0434\u044C\u0431\u0435"
   - English: Roll when turning
-    Translation: Крен при повороте
+    Translation: "\u041A\u0440\u0435\u043D \u043F\u0440\u0438 \u043F\u043E\u0432\u043E\u0440\u043E\u0442\u0435"
   - English: Strafe lean
-    Translation: Наклон в стороны
+    Translation: "\u041D\u0430\u043A\u043B\u043E\u043D \u0432 \u0441\u0442\u043E\u0440\u043E\u043D\u044B"
   - English: Breathing
-    Translation: Дыхание
-  - English: How much the view moves on its own. Zero turns an effect off; Reduced motion silences all five at once.
-    Translation: Насколько камера двигается сама. Ноль выключает эффект; «Меньше движения» глушит все пять разом.
+    Translation: "\u0414\u044B\u0445\u0430\u043D\u0438\u0435"
+  - English: How much the view moves on its own. Zero turns an effect off; Reduced
+      motion silences all five at once.
+    Translation: "\u041D\u0430\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u043A\u0430\u043C\u0435\u0440\u0430
+      \u0434\u0432\u0438\u0433\u0430\u0435\u0442\u0441\u044F \u0441\u0430\u043C\u0430.
+      \u041D\u043E\u043B\u044C \u0432\u044B\u043A\u043B\u044E\u0447\u0430\u0435\u0442
+      \u044D\u0444\u0444\u0435\u043A\u0442; \xAB\u041C\u0435\u043D\u044C\u0448\u0435
+      \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u044F\xBB \u0433\u043B\u0443\u0448\u0438\u0442
+      \u0432\u0441\u0435 \u043F\u044F\u0442\u044C \u0440\u0430\u0437\u043E\u043C."
   - English: Master
-    Translation: Общая
+    Translation: "\u041E\u0431\u0449\u0430\u044F"
   - English: Music
-    Translation: Музыка
+    Translation: "\u041C\u0443\u0437\u044B\u043A\u0430"
   - English: Effects
-    Translation: Эффекты
+    Translation: "\u042D\u0444\u0444\u0435\u043A\u0442\u044B"
   - English: Mouse sensitivity
-    Translation: Чувствительность мыши
+    Translation: "\u0427\u0443\u0432\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C
+      \u043C\u044B\u0448\u0438"
   - English: Invert vertical look
-    Translation: Инвертировать вертикаль
+    Translation: "\u0418\u043D\u0432\u0435\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C
+      \u0432\u0435\u0440\u0442\u0438\u043A\u0430\u043B\u044C"
   - English: Crouch
-    Translation: Приседание
+    Translation: "\u041F\u0440\u0438\u0441\u0435\u0434\u0430\u043D\u0438\u0435"
   - English: Language
-    Translation: Язык
+    Translation: "\u042F\u0437\u044B\u043A"
   - English: Interface opacity
-    Translation: Видимость интерфейса
+    Translation: "\u0412\u0438\u0434\u0438\u043C\u043E\u0441\u0442\u044C \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
   - English: Crosshair size
-    Translation: Размер прицела
+    Translation: "\u0420\u0430\u0437\u043C\u0435\u0440 \u043F\u0440\u0438\u0446\u0435\u043B\u0430"
   - English: Interface scale
-    Translation: Масштаб интерфейса
+    Translation: "\u041C\u0430\u0441\u0448\u0442\u0430\u0431 \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430"
   - English: Everything on screen, together - controls as well as words.
-    Translation: Всё на экране разом — и элементы управления, и текст.
+    Translation: "\u0412\u0441\u0451 \u043D\u0430 \u044D\u043A\u0440\u0430\u043D\u0435
+      \u0440\u0430\u0437\u043E\u043C \u2014 \u0438 \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u044B
+      \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F, \u0438 \u0442\u0435\u043A\u0441\u0442."
   - English: Text size
-    Translation: Размер текста
+    Translation: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0442\u0435\u043A\u0441\u0442\u0430"
   - English: The words alone, for when the buttons are already the right size.
-    Translation: Только текст — когда кнопки уже нужного размера.
+    Translation: "\u0422\u043E\u043B\u044C\u043A\u043E \u0442\u0435\u043A\u0441\u0442
+      \u2014 \u043A\u043E\u0433\u0434\u0430 \u043A\u043D\u043E\u043F\u043A\u0438
+      \u0443\u0436\u0435 \u043D\u0443\u0436\u043D\u043E\u0433\u043E \u0440\u0430\u0437\u043C\u0435\u0440\u0430."
   - English: Reduced motion
-    Translation: Меньше движения
+    Translation: "\u041C\u0435\u043D\u044C\u0448\u0435 \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u044F"
   - English: Screens open and close without sliding, fading or growing into place.
-    Translation: Экраны открываются и закрываются без сдвигов, затуханий и роста.
+    Translation: "\u042D\u043A\u0440\u0430\u043D\u044B \u043E\u0442\u043A\u0440\u044B\u0432\u0430\u044E\u0442\u0441\u044F
+      \u0438 \u0437\u0430\u043A\u0440\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u0431\u0435\u0437
+      \u0441\u0434\u0432\u0438\u0433\u043E\u0432, \u0437\u0430\u0442\u0443\u0445\u0430\u043D\u0438\u0439
+      \u0438 \u0440\u043E\u0441\u0442\u0430."
   - English: Defaults
-    Translation: По умолчанию
+    Translation: "\u041F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E"
   - English: Apply
-    Translation: Применить
+    Translation: "\u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C"
   - English: Close
-    Translation: Закрыть
+    Translation: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C"
   - English: Revert
-    Translation: Вернуть
+    Translation: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C"
   - English: Previous
-    Translation: Предыдущий
+    Translation: "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439"
   - English: Next
-    Translation: Следующий
+    Translation: "\u0421\u043B\u0435\u0434\u0443\u044E\u0449\u0438\u0439"
   - English: Toggle
-    Translation: Переключение
+    Translation: "\u041F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435"
   - English: Hold
-    Translation: Удержание
+    Translation: "\u0423\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435"
   - English: Fullscreen
-    Translation: Полный экран
+    Translation: "\u041F\u043E\u043B\u043D\u044B\u0439 \u044D\u043A\u0440\u0430\u043D"
   - English: Borderless
-    Translation: Без рамки
+    Translation: "\u0411\u0435\u0437 \u0440\u0430\u043C\u043A\u0438"
   - English: Windowed
-    Translation: В окне
+    Translation: "\u0412 \u043E\u043A\u043D\u0435"
   - English: Unlimited
-    Translation: Без ограничения
+    Translation: "\u0411\u0435\u0437 \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D\u0438\u044F"
   - English: Small
-    Translation: Мелкий
+    Translation: "\u041C\u0435\u043B\u043A\u0438\u0439"
   - English: Normal
-    Translation: Обычная
+    Translation: "\u041E\u0431\u044B\u0447\u043D\u0430\u044F"
   - English: Large
-    Translation: Крупный
+    Translation: "\u041A\u0440\u0443\u043F\u043D\u044B\u0439"
   - English: Largest
-    Translation: Самый крупный
+    Translation: "\u0421\u0430\u043C\u044B\u0439 \u043A\u0440\u0443\u043F\u043D\u044B\u0439"
   - English: One press to crouch, another to stand.
-    Translation: Одно нажатие — присесть, ещё одно — встать.
+    Translation: "\u041E\u0434\u043D\u043E \u043D\u0430\u0436\u0430\u0442\u0438\u0435
+      \u2014 \u043F\u0440\u0438\u0441\u0435\u0441\u0442\u044C, \u0435\u0449\u0451
+      \u043E\u0434\u043D\u043E \u2014 \u0432\u0441\u0442\u0430\u0442\u044C."
   - English: Crouched while the key is down, standing the moment it is let go.
-    Translation: Приседает, пока клавиша зажата, и встаёт, как только её отпустили.
+    Translation: "\u041F\u0440\u0438\u0441\u0435\u0434\u0430\u0435\u0442, \u043F\u043E\u043A\u0430
+      \u043A\u043B\u0430\u0432\u0438\u0448\u0430 \u0437\u0430\u0436\u0430\u0442\u0430,
+      \u0438 \u0432\u0441\u0442\u0430\u0451\u0442, \u043A\u0430\u043A \u0442\u043E\u043B\u044C\u043A\u043E
+      \u0435\u0451 \u043E\u0442\u043F\u0443\u0441\u0442\u0438\u043B\u0438."
   - English: Reset every setting to its default?
-    Translation: Сбросить все настройки к значениям по умолчанию?
+    Translation: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0432\u0441\u0435
+      \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043A \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F\u043C
+      \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E?"
   - English: Close without applying the changes?
-    Translation: Закрыть, не применяя изменения?
+    Translation: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C, \u043D\u0435 \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044F
+      \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F?"
   - English: Keep these display settings? Reverting in {0} s
-    Translation: Оставить эти настройки экрана? Возврат через {0} с
+    Translation: "\u041E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u044D\u0442\u0438
+      \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u044D\u043A\u0440\u0430\u043D\u0430?
+      \u0412\u043E\u0437\u0432\u0440\u0430\u0442 \u0447\u0435\u0440\u0435\u0437 {0}
+      \u0441"
   - English: Reset
-    Translation: Сбросить
+    Translation: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C"
   - English: Discard
-    Translation: Отбросить
+    Translation: "\u041E\u0442\u0431\u0440\u043E\u0441\u0438\u0442\u044C"
   - English: Keep editing
-    Translation: Продолжить настройку
+    Translation: "\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0443"
   - English: Keep
-    Translation: Оставить
+    Translation: "\u041E\u0441\u0442\u0430\u0432\u0438\u0442\u044C"
   - English: Ready up
-    Translation: Готов
+    Translation: "\u0413\u043E\u0442\u043E\u0432"
   - English: Stand down
-    Translation: Отменить готовность
+    Translation: "\u041E\u0442\u043C\u0435\u043D\u0438\u0442\u044C \u0433\u043E\u0442\u043E\u0432\u043D\u043E\u0441\u0442\u044C"
   - English: Change
-    Translation: Изменить
+    Translation: "\u0418\u0437\u043C\u0435\u043D\u0438\u0442\u044C"
   - English: Remove
-    Translation: Выгнать
+    Translation: "\u0412\u044B\u0433\u043D\u0430\u0442\u044C"
   - English: Close lobby
-    Translation: Закрыть лобби
+    Translation: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C \u043B\u043E\u0431\u0431\u0438"
   - English: Owner
-    Translation: Хозяин
+    Translation: "\u0425\u043E\u0437\u044F\u0438\u043D"
   - English: Not ready
-    Translation: Не готов
+    Translation: "\u041D\u0435 \u0433\u043E\u0442\u043E\u0432"
   - English: Updating...
-    Translation: Обновление...
+    Translation: "\u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435..."
   - English: Starting...
-    Translation: Запуск...
+    Translation: "\u0417\u0430\u043F\u0443\u0441\u043A..."
   - English: No answer - try again
-    Translation: Нет ответа — попробуйте ещё раз
+    Translation: "\u041D\u0435\u0442 \u043E\u0442\u0432\u0435\u0442\u0430 \u2014
+      \u043F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451
+      \u0440\u0430\u0437"
   - English: '{0} READY'
-    Translation: '{0} ГОТОВЫ'
+    Translation: "{0} \u0413\u041E\u0422\u041E\u0412\u042B"
   - English: Remove {0}? They will not be able to join again this session.
-    Translation: Выгнать {0}? До конца сессии этот игрок вернуться не сможет.
+    Translation: "\u0412\u044B\u0433\u043D\u0430\u0442\u044C {0}? \u0414\u043E \u043A\u043E\u043D\u0446\u0430
+      \u0441\u0435\u0441\u0441\u0438\u0438 \u044D\u0442\u043E\u0442 \u0438\u0433\u0440\u043E\u043A
+      \u0432\u0435\u0440\u043D\u0443\u0442\u044C\u0441\u044F \u043D\u0435 \u0441\u043C\u043E\u0436\u0435\u0442."
   - English: Need {0} more to start
-    Translation: Для начала нужно ещё {0}
+    Translation: "\u0414\u043B\u044F \u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0443\u0436\u043D\u043E
+      \u0435\u0449\u0451 {0}"
   - English: Ready up when you're prepared
-    Translation: Нажмите «Готов», когда будете готовы
+    Translation: "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u0413\u043E\u0442\u043E\u0432\xBB,
+      \u043A\u043E\u0433\u0434\u0430 \u0431\u0443\u0434\u0435\u0442\u0435 \u0433\u043E\u0442\u043E\u0432\u044B"
   - English: Waiting for {0}
-    Translation: Ждём {0}
+    Translation: "\u0416\u0434\u0451\u043C {0}"
   - English: Waiting for {0} players
-    Translation: 'Ждём игроков: {0}'
+    Translation: "\u0416\u0434\u0451\u043C \u0438\u0433\u0440\u043E\u043A\u043E\u0432:
+      {0}"
   - English: Starting the match...
-    Translation: Запускаем матч...
+    Translation: "\u0417\u0430\u043F\u0443\u0441\u043A\u0430\u0435\u043C \u043C\u0430\u0442\u0447..."
   - English: Only the host can change this
-    Translation: Это может менять только хозяин
+    Translation: "\u042D\u0442\u043E \u043C\u043E\u0436\u0435\u0442 \u043C\u0435\u043D\u044F\u0442\u044C
+      \u0442\u043E\u043B\u044C\u043A\u043E \u0445\u043E\u0437\u044F\u0438\u043D"
   - English: Everyone is ready - start the match
-    Translation: Все готовы — можно начинать
+    Translation: "\u0412\u0441\u0435 \u0433\u043E\u0442\u043E\u0432\u044B \u2014
+      \u043C\u043E\u0436\u043D\u043E \u043D\u0430\u0447\u0438\u043D\u0430\u0442\u044C"
   - English: Waiting for the host to start
-    Translation: Ждём, когда хозяин начнёт
+    Translation: "\u0416\u0434\u0451\u043C, \u043A\u043E\u0433\u0434\u0430 \u0445\u043E\u0437\u044F\u0438\u043D
+      \u043D\u0430\u0447\u043D\u0451\u0442"
   - English: Waiting for the room...
-    Translation: Ждём комнату...
+    Translation: "\u0416\u0434\u0451\u043C \u043A\u043E\u043C\u043D\u0430\u0442\u0443..."
   - English: '  (you)'
-    Translation: '  (вы)'
+    Translation: "  (\u0432\u044B)"
   - English: At least {0} while they are standing here.
-    Translation: Не меньше {0}, пока они здесь стоят.
+    Translation: "\u041D\u0435 \u043C\u0435\u043D\u044C\u0448\u0435 {0}, \u043F\u043E\u043A\u0430
+      \u043E\u043D\u0438 \u0437\u0434\u0435\u0441\u044C \u0441\u0442\u043E\u044F\u0442."
   - English: 'Difficulty: {0}'
-    Translation: 'Сложность: {0}'
+    Translation: "\u0421\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u044C: {0}"
   - English: '{0} sets the terms'
-    Translation: Условия задаёт {0}
+    Translation: "\u0423\u0441\u043B\u043E\u0432\u0438\u044F \u0437\u0430\u0434\u0430\u0451\u0442
+      {0}"
   - English: You set the terms
-    Translation: Условия задаёте вы
+    Translation: "\u0423\u0441\u043B\u043E\u0432\u0438\u044F \u0437\u0430\u0434\u0430\u0451\u0442\u0435
+      \u0432\u044B"
   - English: The host sets the terms
-    Translation: Условия задаёт хозяин
+    Translation: "\u0423\u0441\u043B\u043E\u0432\u0438\u044F \u0437\u0430\u0434\u0430\u0451\u0442
+      \u0445\u043E\u0437\u044F\u0438\u043D"
   - English: Host changed difficulty to {0}
-    Translation: Хозяин сменил сложность на «{0}»
+    Translation: "\u0425\u043E\u0437\u044F\u0438\u043D \u0441\u043C\u0435\u043D\u0438\u043B
+      \u0441\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u044C \u043D\u0430 \xAB{0}\xBB"
   - English: You changed difficulty to {0}
-    Translation: Вы сменили сложность на «{0}»
+    Translation: "\u0412\u044B \u0441\u043C\u0435\u043D\u0438\u043B\u0438 \u0441\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u044C
+      \u043D\u0430 \xAB{0}\xBB"
   - English: ' - check your ready status'
-    Translation: ' — проверьте свою готовность'
+    Translation: " \u2014 \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435
+      \u0441\u0432\u043E\u044E \u0433\u043E\u0442\u043E\u0432\u043D\u043E\u0441\u0442\u044C"
   - English: Change difficulty to {0}? Everybody who is ready goes back to not ready.
-    Translation: Сменить сложность на «{0}»? Все готовые снова станут неготовыми.
+    Translation: "\u0421\u043C\u0435\u043D\u0438\u0442\u044C \u0441\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u044C
+      \u043D\u0430 \xAB{0}\xBB? \u0412\u0441\u0435 \u0433\u043E\u0442\u043E\u0432\u044B\u0435
+      \u0441\u043D\u043E\u0432\u0430 \u0441\u0442\u0430\u043D\u0443\u0442 \u043D\u0435\u0433\u043E\u0442\u043E\u0432\u044B\u043C\u0438."
   - English: Lobby closed
-    Translation: Лобби закрыто
+    Translation: "\u041B\u043E\u0431\u0431\u0438 \u0437\u0430\u043A\u0440\u044B\u0442\u043E"
   - English: Lobby open
-    Translation: Лобби открыто
+    Translation: "\u041B\u043E\u0431\u0431\u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u043E"
   - English: Nobody can reach this lobby until you open it.
-    Translation: Пока вы не откроете лобби, в него никто не попадёт.
+    Translation: "\u041F\u043E\u043A\u0430 \u0432\u044B \u043D\u0435 \u043E\u0442\u043A\u0440\u043E\u0435\u0442\u0435
+      \u043B\u043E\u0431\u0431\u0438, \u0432 \u043D\u0435\u0433\u043E \u043D\u0438\u043A\u0442\u043E
+      \u043D\u0435 \u043F\u043E\u043F\u0430\u0434\u0451\u0442."
   - English: Anybody who has {0} can join.
-    Translation: Войти сможет любой, у кого есть {0}.
+    Translation: "\u0412\u043E\u0439\u0442\u0438 \u0441\u043C\u043E\u0436\u0435\u0442
+      \u043B\u044E\u0431\u043E\u0439, \u0443 \u043A\u043E\u0433\u043E \u0435\u0441\u0442\u044C
+      {0}."
   - English: Open, but this machine has no network address to hand out.
-    Translation: Открыто, но у этой машины нет сетевого адреса, который можно раздать.
+    Translation: "\u041E\u0442\u043A\u0440\u044B\u0442\u043E, \u043D\u043E \u0443
+      \u044D\u0442\u043E\u0439 \u043C\u0430\u0448\u0438\u043D\u044B \u043D\u0435\u0442
+      \u0441\u0435\u0442\u0435\u0432\u043E\u0433\u043E \u0430\u0434\u0440\u0435\u0441\u0430,
+      \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u043C\u043E\u0436\u043D\u043E \u0440\u0430\u0437\u0434\u0430\u0442\u044C."
   - English: Only the host can open the door.
-    Translation: Открыть дверь может только хозяин.
+    Translation: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0434\u0432\u0435\u0440\u044C
+      \u043C\u043E\u0436\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0445\u043E\u0437\u044F\u0438\u043D."
   - English: no network
-    Translation: нет сети
+    Translation: "\u043D\u0435\u0442 \u0441\u0435\u0442\u0438"
   - English: Copy invite address
-    Translation: Скопировать адрес для приглашения
+    Translation: "\u0421\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C
+      \u0430\u0434\u0440\u0435\u0441 \u0434\u043B\u044F \u043F\u0440\u0438\u0433\u043B\u0430\u0448\u0435\u043D\u0438\u044F"
   - English: Address copied
-    Translation: Адрес скопирован
+    Translation: "\u0410\u0434\u0440\u0435\u0441 \u0441\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D"
   - English: Open, but the room is full at {0}. Nobody else can get in.
-    Translation: 'Открыто, но комната заполнена: {0}. Больше никто не войдёт.'
+    Translation: "\u041E\u0442\u043A\u0440\u044B\u0442\u043E, \u043D\u043E \u043A\u043E\u043C\u043D\u0430\u0442\u0430
+      \u0437\u0430\u043F\u043E\u043B\u043D\u0435\u043D\u0430: {0}. \u0411\u043E\u043B\u044C\u0448\u0435
+      \u043D\u0438\u043A\u0442\u043E \u043D\u0435 \u0432\u043E\u0439\u0434\u0451\u0442."
   - English: Close the lobby? Everybody else in it goes back to the menu.
-    Translation: Закрыть лобби? Все остальные вернутся в меню.
+    Translation: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C \u043B\u043E\u0431\u0431\u0438?
+      \u0412\u0441\u0435 \u043E\u0441\u0442\u0430\u043B\u044C\u043D\u044B\u0435 \u0432\u0435\u0440\u043D\u0443\u0442\u0441\u044F
+      \u0432 \u043C\u0435\u043D\u044E."
   - English: Close the lobby and go back to the menu?
-    Translation: Закрыть лобби и вернуться в меню?
+    Translation: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C \u043B\u043E\u0431\u0431\u0438
+      \u0438 \u0432\u0435\u0440\u043D\u0443\u0442\u044C\u0441\u044F \u0432 \u043C\u0435\u043D\u044E?"
   - English: PREPARING
-    Translation: ПОДГОТОВКА
+    Translation: "\u041F\u041E\u0414\u0413\u041E\u0422\u041E\u0412\u041A\u0410"
   - English: LOADING SCENE
-    Translation: ЗАГРУЗКА СЦЕНЫ
+    Translation: "\u0417\u0410\u0413\u0420\u0423\u0417\u041A\u0410 \u0421\u0426\u0415\u041D\u042B"
   - English: ENTERING MATCH
-    Translation: ВХОД В МАТЧ
+    Translation: "\u0412\u0425\u041E\u0414 \u0412 \u041C\u0410\u0422\u0427"
   - English: LEAVING SESSION
-    Translation: ВЫХОД ИЗ СЕССИИ
+    Translation: "\u0412\u042B\u0425\u041E\u0414 \u0418\u0417 \u0421\u0415\u0421\u0421\u0418\u0418"
   - English: Loading the selected map...
-    Translation: Загружаем выбранную карту...
+    Translation: "\u0417\u0430\u0433\u0440\u0443\u0436\u0430\u0435\u043C \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u0443\u044E
+      \u043A\u0430\u0440\u0442\u0443..."
   - English: Match is ready...
-    Translation: Матч готов...
+    Translation: "\u041C\u0430\u0442\u0447 \u0433\u043E\u0442\u043E\u0432..."
   - English: Returning to the menu...
-    Translation: Возвращаемся в меню...
+    Translation: "\u0412\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u043C\u0441\u044F
+      \u0432 \u043C\u0435\u043D\u044E..."
   - English: Synchronizing the scene with every player.
-    Translation: Синхронизируем сцену со всеми игроками.
+    Translation: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u043C
+      \u0441\u0446\u0435\u043D\u0443 \u0441\u043E \u0432\u0441\u0435\u043C\u0438
+      \u0438\u0433\u0440\u043E\u043A\u0430\u043C\u0438."
   - English: The host started the match. Waiting for scene synchronization.
-    Translation: Хозяин начал матч. Ждём синхронизации сцены.
+    Translation: "\u0425\u043E\u0437\u044F\u0438\u043D \u043D\u0430\u0447\u0430\u043B
+      \u043C\u0430\u0442\u0447. \u0416\u0434\u0451\u043C \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438
+      \u0441\u0446\u0435\u043D\u044B."
   - English: Stopping network services safely.
-    Translation: Аккуратно останавливаем сетевые службы.
+    Translation: "\u0410\u043A\u043A\u0443\u0440\u0430\u0442\u043D\u043E \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u043C
+      \u0441\u0435\u0442\u0435\u0432\u044B\u0435 \u0441\u043B\u0443\u0436\u0431\u044B."
   - English: '{0} s elapsed'
-    Translation: прошло {0} с
+    Translation: "\u043F\u0440\u043E\u0448\u043B\u043E {0} \u0441"
   - English: Preparing network...
-    Translation: Готовим сеть...
+    Translation: "\u0413\u043E\u0442\u043E\u0432\u0438\u043C \u0441\u0435\u0442\u044C..."
   - English: Starting LAN host...
-    Translation: Запускаем хост в локальной сети...
+    Translation: "\u0417\u0430\u043F\u0443\u0441\u043A\u0430\u0435\u043C \u0445\u043E\u0441\u0442
+      \u0432 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0435\u0442\u0438..."
   - English: Contacting host and awaiting approval...
-    Translation: Связываемся с хостом и ждём подтверждения...
+    Translation: "\u0421\u0432\u044F\u0437\u044B\u0432\u0430\u0435\u043C\u0441\u044F
+      \u0441 \u0445\u043E\u0441\u0442\u043E\u043C \u0438 \u0436\u0434\u0451\u043C
+      \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u044F..."
   - English: Loading lobby...
-    Translation: Загружаем лобби...
+    Translation: "\u0417\u0430\u0433\u0440\u0443\u0436\u0430\u0435\u043C \u043B\u043E\u0431\u0431\u0438..."
   - English: Opening lobby...
-    Translation: Открываем лобби...
+    Translation: "\u041E\u0442\u043A\u0440\u044B\u0432\u0430\u0435\u043C \u043B\u043E\u0431\u0431\u0438..."
   - English: Joining match...
-    Translation: Входим в матч...
+    Translation: "\u0412\u0445\u043E\u0434\u0438\u043C \u0432 \u043C\u0430\u0442\u0447..."
   - English: Cancelling connection...
-    Translation: Отменяем подключение...
+    Translation: "\u041E\u0442\u043C\u0435\u043D\u044F\u0435\u043C \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435..."
   - English: This device will host the LAN session.
-    Translation: Это устройство будет хостом сессии в локальной сети.
+    Translation: "\u042D\u0442\u043E \u0443\u0441\u0442\u0440\u043E\u0439\u0441\u0442\u0432\u043E
+      \u0431\u0443\u0434\u0435\u0442 \u0445\u043E\u0441\u0442\u043E\u043C \u0441\u0435\u0441\u0441\u0438\u0438
+      \u0432 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0435\u0442\u0438."
   - English: Host {0}
-    Translation: Хост {0}
+    Translation: "\u0425\u043E\u0441\u0442 {0}"
   - English: STEP {0} / {1}
-    Translation: ШАГ {0} / {1}
+    Translation: "\u0428\u0410\u0413 {0} / {1}"
   - English: Listening
-    Translation: Слушаем сеть
+    Translation: "\u0421\u043B\u0443\u0448\u0430\u0435\u043C \u0441\u0435\u0442\u044C"
   - English: Discovery unavailable
-    Translation: Поиск недоступен
+    Translation: "\u041F\u043E\u0438\u0441\u043A \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D"
   - English: No lobbies have answered yet
-    Translation: Пока не ответило ни одно лобби
+    Translation: "\u041F\u043E\u043A\u0430 \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B\u043E
+      \u043D\u0438 \u043E\u0434\u043D\u043E \u043B\u043E\u0431\u0431\u0438"
   - English: For a lobby this network cannot see. IPv4, for example 192.168.1.10
-    Translation: Для лобби, которое не видно в этой сети. IPv4, например 192.168.1.10
+    Translation: "\u0414\u043B\u044F \u043B\u043E\u0431\u0431\u0438, \u043A\u043E\u0442\u043E\u0440\u043E\u0435
+      \u043D\u0435 \u0432\u0438\u0434\u043D\u043E \u0432 \u044D\u0442\u043E\u0439
+      \u0441\u0435\u0442\u0438. IPv4, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440
+      192.168.1.10"
   - English: Enter a valid IPv4 address.
-    Translation: Введите корректный адрес IPv4.
+    Translation: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439
+      \u0430\u0434\u0440\u0435\u0441 IPv4."
   - English: Settings are unavailable.
-    Translation: Настройки недоступны.
+    Translation: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B."
   - English: Network session service is missing.
-    Translation: Служба сетевой сессии отсутствует.
+    Translation: "\u0421\u043B\u0443\u0436\u0431\u0430 \u0441\u0435\u0442\u0435\u0432\u043E\u0439
+      \u0441\u0435\u0441\u0441\u0438\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442."
   - English: Failed to start the network session.
-    Translation: Не удалось запустить сетевую сессию.
+    Translation: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C
+      \u0441\u0435\u0442\u0435\u0432\u0443\u044E \u0441\u0435\u0441\u0441\u0438\u044E."
   - English: Connection lost. Reconnecting...
-    Translation: Связь потеряна. Переподключаемся...
+    Translation: "\u0421\u0432\u044F\u0437\u044C \u043F\u043E\u0442\u0435\u0440\u044F\u043D\u0430.
+      \u041F\u0435\u0440\u0435\u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0430\u0435\u043C\u0441\u044F..."
   - English: The connection request is invalid.
-    Translation: Некорректный запрос на подключение.
+    Translation: "\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439
+      \u0437\u0430\u043F\u0440\u043E\u0441 \u043D\u0430 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435."
   - English: The client build is incompatible with the host.
-    Translation: Сборка клиента несовместима с хостом.
+    Translation: "\u0421\u0431\u043E\u0440\u043A\u0430 \u043A\u043B\u0438\u0435\u043D\u0442\u0430
+      \u043D\u0435\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u0430 \u0441
+      \u0445\u043E\u0441\u0442\u043E\u043C."
   - English: The network session is full.
-    Translation: Сетевая сессия заполнена.
+    Translation: "\u0421\u0435\u0442\u0435\u0432\u0430\u044F \u0441\u0435\u0441\u0441\u0438\u044F
+      \u0437\u0430\u043F\u043E\u043B\u043D\u0435\u043D\u0430."
   - English: This player is already connected.
-    Translation: Этот игрок уже подключён.
+    Translation: "\u042D\u0442\u043E\u0442 \u0438\u0433\u0440\u043E\u043A \u0443\u0436\u0435
+      \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D."
   - English: The lobby is private.
-    Translation: Лобби закрыто.
+    Translation: "\u041B\u043E\u0431\u0431\u0438 \u0437\u0430\u043A\u0440\u044B\u0442\u043E."
   - English: The host removed you from the lobby.
-    Translation: Хозяин выгнал вас из лобби.
+    Translation: "\u0425\u043E\u0437\u044F\u0438\u043D \u0432\u044B\u0433\u043D\u0430\u043B
+      \u0432\u0430\u0441 \u0438\u0437 \u043B\u043E\u0431\u0431\u0438."
   - English: The host closed the lobby.
-    Translation: Хозяин закрыл лобби.
+    Translation: "\u0425\u043E\u0437\u044F\u0438\u043D \u0437\u0430\u043A\u0440\u044B\u043B
+      \u043B\u043E\u0431\u0431\u0438."
   - English: Nothing said yet
-    Translation: Пока ничего не сказано
+    Translation: "\u041F\u043E\u043A\u0430 \u043D\u0438\u0447\u0435\u0433\u043E \u043D\u0435
+      \u0441\u043A\u0430\u0437\u0430\u043D\u043E"
   - English: Watching {0}
-    Translation: Смотрим за {0}
+    Translation: "\u0421\u043C\u043E\u0442\u0440\u0438\u043C \u0437\u0430 {0}"
   - English: Nobody left to watch
-    Translation: Смотреть больше не за кем
+    Translation: "\u0421\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0431\u043E\u043B\u044C\u0448\u0435
+      \u043D\u0435 \u0437\u0430 \u043A\u0435\u043C"
   - English: Easy
-    Translation: Лёгкая
+    Translation: "\u041B\u0451\u0433\u043A\u0430\u044F"
   - English: Hard
-    Translation: Высокая
+    Translation: "\u0412\u044B\u0441\u043E\u043A\u0430\u044F"
   - English: Extreme
-    Translation: Запредельная
-  - English: Hears half of what you do and forgets you within a couple of seconds. Narrow sight, a slow search, and she looks only near the spot she lost you.
-    Translation: Слышит половину того, что вы делаете, и забывает вас за пару секунд. Узкое поле зрения, медленный поиск, и ищет она только рядом с тем местом, где вас потеряла.
-  - English: The intended balance. Ordinary hearing, a wide look ahead, a few seconds of memory - she searches the room you left, then moves on.
-    Translation: Задуманный баланс. Обычный слух, широкий обзор впереди, несколько секунд памяти — обыщет комнату, из которой вы ушли, и двинется дальше.
-  - English: Twice the hearing and remembers you for several seconds after losing sight. Turns and accelerates hard, so corners stop shaking her off, and she sweeps a wide area, stopping to look around.
-    Translation: Вдвое лучше слышит и помнит вас ещё несколько секунд после того, как потеряла из виду. Резко поворачивает и разгоняется, так что углами её уже не сбросить, и прочёсывает широкую область, останавливаясь осмотреться.
-  - English: Hears the quietest noise from across the house and sees almost all the way around her. Keeps hunting long after you are out of sight, moves faster than anything below, and searches whole rooms rather than corners.
-    Translation: Слышит тишайший звук через весь дом и видит почти на все стороны. Продолжает охоту ещё долго после того, как вы скрылись, движется быстрее всех предыдущих и обыскивает комнаты целиком, а не по углам.
+    Translation: "\u0417\u0430\u043F\u0440\u0435\u0434\u0435\u043B\u044C\u043D\u0430\u044F"
+  - English: Hears half of what you do and forgets you within a couple of seconds.
+      Narrow sight, a slow search, and she looks only near the spot she lost you.
+    Translation: "\u0421\u043B\u044B\u0448\u0438\u0442 \u043F\u043E\u043B\u043E\u0432\u0438\u043D\u0443
+      \u0442\u043E\u0433\u043E, \u0447\u0442\u043E \u0432\u044B \u0434\u0435\u043B\u0430\u0435\u0442\u0435,
+      \u0438 \u0437\u0430\u0431\u044B\u0432\u0430\u0435\u0442 \u0432\u0430\u0441
+      \u0437\u0430 \u043F\u0430\u0440\u0443 \u0441\u0435\u043A\u0443\u043D\u0434.
+      \u0423\u0437\u043A\u043E\u0435 \u043F\u043E\u043B\u0435 \u0437\u0440\u0435\u043D\u0438\u044F,
+      \u043C\u0435\u0434\u043B\u0435\u043D\u043D\u044B\u0439 \u043F\u043E\u0438\u0441\u043A,
+      \u0438 \u0438\u0449\u0435\u0442 \u043E\u043D\u0430 \u0442\u043E\u043B\u044C\u043A\u043E
+      \u0440\u044F\u0434\u043E\u043C \u0441 \u0442\u0435\u043C \u043C\u0435\u0441\u0442\u043E\u043C,
+      \u0433\u0434\u0435 \u0432\u0430\u0441 \u043F\u043E\u0442\u0435\u0440\u044F\u043B\u0430."
+  - English: The intended balance. Ordinary hearing, a wide look ahead, a few seconds
+      of memory - she searches the room you left, then moves on.
+    Translation: "\u0417\u0430\u0434\u0443\u043C\u0430\u043D\u043D\u044B\u0439 \u0431\u0430\u043B\u0430\u043D\u0441.
+      \u041E\u0431\u044B\u0447\u043D\u044B\u0439 \u0441\u043B\u0443\u0445, \u0448\u0438\u0440\u043E\u043A\u0438\u0439
+      \u043E\u0431\u0437\u043E\u0440 \u0432\u043F\u0435\u0440\u0435\u0434\u0438,
+      \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0441\u0435\u043A\u0443\u043D\u0434
+      \u043F\u0430\u043C\u044F\u0442\u0438 \u2014 \u043E\u0431\u044B\u0449\u0435\u0442
+      \u043A\u043E\u043C\u043D\u0430\u0442\u0443, \u0438\u0437 \u043A\u043E\u0442\u043E\u0440\u043E\u0439
+      \u0432\u044B \u0443\u0448\u043B\u0438, \u0438 \u0434\u0432\u0438\u043D\u0435\u0442\u0441\u044F
+      \u0434\u0430\u043B\u044C\u0448\u0435."
+  - English: Twice the hearing and remembers you for several seconds after losing
+      sight. Turns and accelerates hard, so corners stop shaking her off, and she
+      sweeps a wide area, stopping to look around.
+    Translation: "\u0412\u0434\u0432\u043E\u0435 \u043B\u0443\u0447\u0448\u0435 \u0441\u043B\u044B\u0448\u0438\u0442
+      \u0438 \u043F\u043E\u043C\u043D\u0438\u0442 \u0432\u0430\u0441 \u0435\u0449\u0451
+      \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0441\u0435\u043A\u0443\u043D\u0434
+      \u043F\u043E\u0441\u043B\u0435 \u0442\u043E\u0433\u043E, \u043A\u0430\u043A
+      \u043F\u043E\u0442\u0435\u0440\u044F\u043B\u0430 \u0438\u0437 \u0432\u0438\u0434\u0443.
+      \u0420\u0435\u0437\u043A\u043E \u043F\u043E\u0432\u043E\u0440\u0430\u0447\u0438\u0432\u0430\u0435\u0442
+      \u0438 \u0440\u0430\u0437\u0433\u043E\u043D\u044F\u0435\u0442\u0441\u044F,
+      \u0442\u0430\u043A \u0447\u0442\u043E \u0443\u0433\u043B\u0430\u043C\u0438
+      \u0435\u0451 \u0443\u0436\u0435 \u043D\u0435 \u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C,
+      \u0438 \u043F\u0440\u043E\u0447\u0451\u0441\u044B\u0432\u0430\u0435\u0442 \u0448\u0438\u0440\u043E\u043A\u0443\u044E
+      \u043E\u0431\u043B\u0430\u0441\u0442\u044C, \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u044F\u0441\u044C
+      \u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C\u0441\u044F."
+  - English: Hears the quietest noise from across the house and sees almost all the
+      way around her. Keeps hunting long after you are out of sight, moves faster
+      than anything below, and searches whole rooms rather than corners.
+    Translation: "\u0421\u043B\u044B\u0448\u0438\u0442 \u0442\u0438\u0448\u0430\u0439\u0448\u0438\u0439
+      \u0437\u0432\u0443\u043A \u0447\u0435\u0440\u0435\u0437 \u0432\u0435\u0441\u044C
+      \u0434\u043E\u043C \u0438 \u0432\u0438\u0434\u0438\u0442 \u043F\u043E\u0447\u0442\u0438
+      \u043D\u0430 \u0432\u0441\u0435 \u0441\u0442\u043E\u0440\u043E\u043D\u044B.
+      \u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0430\u0435\u0442 \u043E\u0445\u043E\u0442\u0443
+      \u0435\u0449\u0451 \u0434\u043E\u043B\u0433\u043E \u043F\u043E\u0441\u043B\u0435
+      \u0442\u043E\u0433\u043E, \u043A\u0430\u043A \u0432\u044B \u0441\u043A\u0440\u044B\u043B\u0438\u0441\u044C,
+      \u0434\u0432\u0438\u0436\u0435\u0442\u0441\u044F \u0431\u044B\u0441\u0442\u0440\u0435\u0435
+      \u0432\u0441\u0435\u0445 \u043F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0445
+      \u0438 \u043E\u0431\u044B\u0441\u043A\u0438\u0432\u0430\u0435\u0442 \u043A\u043E\u043C\u043D\u0430\u0442\u044B
+      \u0446\u0435\u043B\u0438\u043A\u043E\u043C, \u0430 \u043D\u0435 \u043F\u043E
+      \u0443\u0433\u043B\u0430\u043C."
   - English: Medium
-    Translation: Средний
+    Translation: "\u0421\u0440\u0435\u0434\u043D\u0438\u0439"
   - English: You got out
-    Translation: Вы выбрались
+    Translation: "\u0412\u044B \u0432\u044B\u0431\u0440\u0430\u043B\u0438\u0441\u044C"
   - English: Everyone was caught
-    Translation: Поймали всех
+    Translation: "\u041F\u043E\u0439\u043C\u0430\u043B\u0438 \u0432\u0441\u0435\u0445"
   - English: The match is over
-    Translation: Матч окончен
+    Translation: "\u041C\u0430\u0442\u0447 \u043E\u043A\u043E\u043D\u0447\u0435\u043D"
   - English: The match is over - you got out.
-    Translation: Матч окончен — вы выбрались.
+    Translation: "\u041C\u0430\u0442\u0447 \u043E\u043A\u043E\u043D\u0447\u0435\u043D
+      \u2014 \u0432\u044B \u0432\u044B\u0431\u0440\u0430\u043B\u0438\u0441\u044C."
   - English: The match is over - everyone was caught.
-    Translation: Матч окончен — поймали всех.
+    Translation: "\u041C\u0430\u0442\u0447 \u043E\u043A\u043E\u043D\u0447\u0435\u043D
+      \u2014 \u043F\u043E\u0439\u043C\u0430\u043B\u0438 \u0432\u0441\u0435\u0445."
   - English: The match is over.
-    Translation: Матч окончен.
+    Translation: "\u041C\u0430\u0442\u0447 \u043E\u043A\u043E\u043D\u0447\u0435\u043D."
   - English: The network session is not accepting new players right now.
-    Translation: Сейчас сетевая сессия не принимает новых игроков.
+    Translation: "\u0421\u0435\u0439\u0447\u0430\u0441 \u0441\u0435\u0442\u0435\u0432\u0430\u044F
+      \u0441\u0435\u0441\u0441\u0438\u044F \u043D\u0435 \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u0442
+      \u043D\u043E\u0432\u044B\u0445 \u0438\u0433\u0440\u043E\u043A\u043E\u0432."
   - English: Mobile
-    Translation: Мобильное
+    Translation: "\u041C\u043E\u0431\u0438\u043B\u044C\u043D\u043E\u0435"
   - English: PC
-    Translation: ПК
+    Translation: "\u041F\u041A"
