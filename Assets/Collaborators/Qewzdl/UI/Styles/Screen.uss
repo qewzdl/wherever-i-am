@@ -95,7 +95,13 @@
 
     transition-property: opacity;
     transition-duration: var(--motion-curtain);
-    transition-timing-function: var(--ease-standard);
+    /* Linear, and the only rule in the theme that is. --ease-standard is
+       ease-out-cubic, which is right for something settling into place over a
+       quarter of a second and wrong for a dimmer: over three seconds it puts
+       the whole lightening into the first half and leaves the rest crawling
+       from 0.04 to nothing, which reads as a jerk followed by a wait rather
+       than as one movement. A curtain comes up at the speed it comes up. */
+    transition-timing-function: linear;
 }
 
 
