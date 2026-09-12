@@ -1,6 +1,6 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
-    <ui:VisualElement name="Screen" class="screen screen--left">
+    <ui:VisualElement name="Screen" class="screen screen--left screen--curtained">
         <ui:VisualElement name="Panel" class="panel panel--rail">
             <ui:Label text="Lobby" name="Title" class="title enter" />
             <ui:VisualElement name="MatchSetup" class="setup enter enter--2">

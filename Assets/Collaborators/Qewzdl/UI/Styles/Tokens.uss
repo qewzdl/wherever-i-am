@@ -318,17 +318,6 @@
     --motion-normal: 0.16s;
     --motion-screen: 0.26s;
 
-    /* Longer than anything a screen does, because it is not a screen: it is
-       the game opening its eyes. At screen speed it reads as a flicker, and
-       the film it follows ends on black at 0.26s - two fades the same length
-       back to back look like one that stuttered.
-
-       Three seconds, chosen by looking at it rather than by reasoning about
-       it. Anything under a second read as a cut with a soft edge rather than
-       as a room coming into the light, and the thing kept wanting to be
-       slower every time it was watched. This is the one screen that can
-       afford it: the menu is not somewhere anybody is in a hurry to get past. */
-    --motion-curtain: 3s;
 
     --ease-standard: ease-out-cubic;
     --ease-entrance: ease-out-back;

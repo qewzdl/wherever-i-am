@@ -1,8 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
-    <!-- The curtain is a sibling of the screen rather than a child of it,
-         and the last one, so that it is painted over everything and is not
-         dimmed by the screen's own fade on the way in. -->
     <ui:VisualElement name="Screen" class="screen screen--left screen--curtained">
         <ui:VisualElement name="Backdrop" picking-mode="Ignore" class="backdrop">
             <ui:VisualElement picking-mode="Ignore" class="backdrop__shade" />
@@ -62,5 +59,4 @@
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
-    <ui:VisualElement name="Curtain" picking-mode="Ignore" class="curtain" />
 </ui:UXML>

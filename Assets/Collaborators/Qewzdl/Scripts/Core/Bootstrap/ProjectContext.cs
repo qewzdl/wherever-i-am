@@ -22,6 +22,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private SettingsService settingsService;
     [SerializeField] private LocalizationService localizationService;
+    [SerializeField] private SceneCurtain sceneCurtain;
     [SerializeField] private SettingsDocument settingsScreen;
     [SerializeField] private AudioManager audioManager;
     [SerializeField] private GameplayNoiseWorldService gameplayNoiseWorldService;
@@ -369,6 +370,11 @@ public sealed class ProjectContext : MonoBehaviour
         valid &= ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager), logErrors);
         valid &= ValidateRequiredReference(settingsService, nameof(settingsService), logErrors);
         valid &= ValidateRequiredReference(
+            sceneCurtain,
+            nameof(sceneCurtain),
+            logErrors);
+
+        valid &= ValidateRequiredReference(
             localizationService,
             nameof(localizationService),
             logErrors);
@@ -418,6 +424,11 @@ public sealed class ProjectContext : MonoBehaviour
         // still starting would show the English it was written in, and then
         // keep showing it, because nothing rebuilds a screen that never knew
         // it was wrong.
+        if (sceneCurtain == null || !sceneCurtain.Initialize())
+            return FailStartup("Scene curtain");
+
+        sceneCurtain.Construct(sceneRegistry);
+
         if (localizationService == null || !localizationService.Initialize())
             return false;
 
@@ -478,6 +489,7 @@ public sealed class ProjectContext : MonoBehaviour
 
         try
         {
+            sceneCurtain?.Release();
             UiLocalization.Release(localizationService);
             localizationService?.ReleaseSettingsService();
             settingsScreen?.ReleaseSettingsService();

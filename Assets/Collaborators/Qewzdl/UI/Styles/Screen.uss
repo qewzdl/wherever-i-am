@@ -69,18 +69,21 @@
 }
 
 
-/* The dark the main menu arrives out of.
+/* The dark a scene arrives out of.
 
-   Over everything and outside .screen on purpose. A screen fades in from
-   nothing, so a curtain inside one would fade in too - the first frames would
-   show the scene at full brightness and then darken it, which is the opposite
-   of the thing. This sits beside the screen and above it, and only it decides
-   how dark the world is.
+   What it looks like and nothing else: black, over the whole frame. How long
+   it takes to come off is per scene and lives in SceneCurtainConfig, and the
+   opacity between one and nought is written by SceneCurtain every frame.
 
-   It is never hidden afterwards. At zero opacity it paints nothing and, being
-   unpickable, catches nothing either - the same arrangement .backdrop has had
-   all along - and a curtain that removed itself would have to agree with the
-   stylesheet about how long the fade took. */
+   That was a USS transition once, and it never ran. An element made in the
+   frame a scene loads has no resolved style for a transition to leave from,
+   so the class that was meant to start the fade only ever set its end value -
+   and a batchmode run, which does not render, advances no transition at all,
+   so no test could tell the difference. A number written every frame fades
+   whether or not anything has been laid out, and anybody can read it.
+
+   SceneCurtain owns the element: it makes one per scene load and takes it out
+   of the tree when the fade is done. */
 .curtain {
     position: absolute;
 
@@ -92,21 +95,6 @@
     background-color: var(--veil-solid);
 
     opacity: 1;
-
-    transition-property: opacity;
-    transition-duration: var(--motion-curtain);
-    /* Linear, and the only rule in the theme that is. --ease-standard is
-       ease-out-cubic, which is right for something settling into place over a
-       quarter of a second and wrong for a dimmer: over three seconds it puts
-       the whole lightening into the first half and leaves the rest crawling
-       from 0.04 to nothing, which reads as a jerk followed by a wait rather
-       than as one movement. A curtain comes up at the speed it comes up. */
-    transition-timing-function: linear;
-}
-
-
-.curtain--lifted {
-    opacity: 0;
 }
 
 

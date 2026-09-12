@@ -15,7 +15,6 @@ using UnityEngine.UIElements;
 public sealed class MainMenuDocument : MonoBehaviour
 {
     private const string OpenClass = "screen--open";
-    private const string CurtainLiftedClass = "curtain--lifted";
     private const string OverlayOpenClass = "overlay--open";
     private const string InvalidInputClass = "input--invalid";
     private const string InputErrorClass = "input__hint--error";
@@ -79,7 +78,6 @@ public sealed class MainMenuDocument : MonoBehaviour
     private Label busyDetail;
     private Label busyElapsed;
     private Label addressHint;
-    private VisualElement curtain;
     private TextField playerName;
     private TextField address;
     private ScrollView browser;
@@ -250,37 +248,6 @@ public sealed class MainMenuDocument : MonoBehaviour
         // element goes from "not laid out" straight to its end state.
         screen.schedule.Execute(() => screen.AddToClassList(OpenClass));
 
-        LiftTheCurtainOnceItIsThere();
-    }
-
-    // The world comes up out of the dark. The film that runs before this ends
-    // on black, and a menu that simply appeared read as a cut rather than as
-    // the game opening - the same on the way back from a match.
-    //
-    // Waited for rather than scheduled. A transition needs a style to leave
-    // from, and an element that has never been laid out has none: the class
-    // lands, the value is already what it was going to be, and nothing moves.
-    // One scheduled frame is the usual way to buy that style and it is enough
-    // for a screen that is already up - this one is asked for while its scene
-    // is still coming up, which is a different race. The first geometry is the
-    // moment the element certainly has been laid out, so that is the moment
-    // the dark starts coming off.
-    private void LiftTheCurtainOnceItIsThere()
-    {
-        if (curtain == null || curtain.ClassListContains(CurtainLiftedClass))
-            return;
-
-        curtain.UnregisterCallback<GeometryChangedEvent>(HandleCurtainLaidOut);
-        curtain.RegisterCallback<GeometryChangedEvent>(HandleCurtainLaidOut);
-    }
-
-    private void HandleCurtainLaidOut(GeometryChangedEvent evt)
-    {
-        curtain.UnregisterCallback<GeometryChangedEvent>(HandleCurtainLaidOut);
-
-        // Laid out is not the same as drawn. The class waits one more frame so
-        // that the opacity it changes has been resolved once before it moves.
-        curtain.schedule.Execute(() => curtain.AddToClassList(CurtainLiftedClass));
     }
 
     private bool Bind(bool complainIfMissing)
@@ -326,7 +293,6 @@ public sealed class MainMenuDocument : MonoBehaviour
         busyDetail = root.Q<Label>("BusyDetail");
         busyElapsed = root.Q<Label>("BusyElapsed");
         addressHint = root.Q<Label>("AddressHint");
-        curtain = root.Q<VisualElement>("Curtain");
         playerName = root.Q<TextField>("PlayerName");
         address = root.Q<TextField>("Address");
         browser = root.Q<ScrollView>("Browser");
