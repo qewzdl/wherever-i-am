@@ -5,7 +5,9 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
-// Reads every screen and writes down every word on it.
+// Reads every screen and writes down every word on it, for the localisation
+// window to call. It used to be a menu item of its own, which meant the one
+// thing you could do to a table was the one thing you rarely wanted.
 //
 // The English table is a catalogue before it is a translation: it is how
 // anybody sees all the game's copy at once instead of opening eight documents,
@@ -22,34 +24,6 @@ public static class LocalizationHarvest
     private static readonly Regex TextAttribute = new(
         @"<ui:(?<tag>Label|Button)\b[^>]*?\btext=""(?<text>[^""]*)""",
         RegexOptions.Compiled);
-
-    [MenuItem("Tools/Wherever I Am/Localization/Harvest screens into table", false, 110)]
-    private static void Harvest()
-    {
-        LocaleTable table = Selection.activeObject as LocaleTable;
-
-        if (table == null)
-        {
-            EditorUtility.DisplayDialog(
-                "Harvest",
-                "Select the locale table to write into first.",
-                "Right");
-
-            return;
-        }
-
-        List<string> found = ReadScreens(out int files);
-        Merge(table, found, out int added, out int kept, out int unused);
-
-        EditorUtility.SetDirty(table);
-        AssetDatabase.SaveAssets();
-
-        Debug.Log(
-            $"Harvested {found.Count} sentences from {files} screens into " +
-            $"'{table.name}': {added} new, {kept} already there, " +
-            $"{unused} row(s) no longer on any screen.",
-            table);
-    }
 
     // Every sentence the markup writes, in the order it is read on screen, so
     // a translator works down the table the way a player works down the page.
@@ -82,20 +56,20 @@ public static class LocalizationHarvest
     // English as the key, a sentence that was edited looks exactly like a
     // sentence that was removed, and throwing away somebody's translation on
     // that guess is not a thing a tool should do quietly.
-    private static void Merge(
+    public static void Merge(
         LocaleTable table,
         List<string> found,
         out int added,
         out int kept,
         out int unused)
     {
-        Dictionary<string, string> existing = new(StringComparer.Ordinal);
+        Dictionary<string, LocaleTable.Entry> existing = new(StringComparer.Ordinal);
         List<LocaleTable.Entry> rows = new();
 
         foreach (LocaleTable.Entry entry in table.Entries)
         {
             if (!string.IsNullOrEmpty(entry.English))
-                existing[entry.English] = entry.Translation;
+                existing[entry.English] = entry;
         }
 
         added = 0;
@@ -103,24 +77,35 @@ public static class LocalizationHarvest
 
         foreach (string english in found)
         {
-            bool known = existing.TryGetValue(english, out string translation);
+            bool known = existing.TryGetValue(english, out LocaleTable.Entry entry);
 
             if (known)
                 kept++;
             else
                 added++;
 
-            rows.Add(new LocaleTable.Entry
+            // The whole row is carried over, not a copy of two of its columns.
+            // Rebuilding it lost the plural forms - silently, and only for
+            // rows that were on a screen, because the ones that were not got
+            // carried over whole further down.
+            if (!known)
             {
-                English = english,
+                entry = new LocaleTable.Entry
+                {
+                    English = english,
 
-                // A new row translates to itself. In the English table that is
-                // the answer; in any other it is a visible placeholder that
-                // reads as untranslated rather than as blank.
-                Translation = known && !string.IsNullOrEmpty(translation)
-                    ? translation
-                    : english
-            });
+                    // A new row translates to itself. In the English table
+                    // that is the answer; in any other it is a placeholder
+                    // that reads as untranslated rather than as blank.
+                    Translation = english
+                };
+            }
+            else if (string.IsNullOrEmpty(entry.Translation))
+            {
+                entry.Translation = english;
+            }
+
+            rows.Add(entry);
         }
 
         unused = 0;

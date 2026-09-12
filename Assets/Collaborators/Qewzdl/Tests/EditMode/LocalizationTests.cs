@@ -45,8 +45,8 @@ public sealed class LocalizationTests
         Assert.That(
             missing,
             Is.Empty,
-            "The screens say things the English table has never heard. Run " +
-            "Tools > Wherever I Am > Localization > Harvest screens into table.");
+            "The screens say things the English table has never heard. Open " +
+            "Tools > Wherever I Am > Localization and read the screens.");
     }
 
     // Translating to itself is what the English table is: every row is its own
@@ -329,6 +329,52 @@ public sealed class LocalizationTests
 
             if (table != null)
                 yield return table;
+        }
+    }
+
+    // Reading the screens used to rebuild every row it recognised out of two
+    // of its columns, which quietly dropped the plural forms. It had not bitten
+    // because the only counted sentences live in components rather than in
+    // markup, so they went down the other branch and were carried over whole.
+    [Test]
+    public void ReadingTheScreensKeepsWhatTheRowsAlreadySay()
+    {
+        LocaleTable table = ScriptableObject.CreateInstance<LocaleTable>();
+
+        try
+        {
+            table.SetEntriesFromEditor(new[]
+            {
+                new LocaleTable.Entry
+                {
+                    English = "{0} ready",
+                    Translation = "many",
+                    One = "one",
+                    Few = "few",
+                    Many = "many"
+                }
+            });
+
+            LocalizationHarvest.Merge(
+                table,
+                new List<string> { "{0} ready" },
+                out int added,
+                out int kept,
+                out int unused);
+
+            Assert.That(added, Is.EqualTo(0));
+            Assert.That(kept, Is.EqualTo(1));
+            Assert.That(unused, Is.EqualTo(0));
+
+            LocaleTable.Entry entry = table.Entries[0];
+
+            Assert.That(entry.One, Is.EqualTo("one"), "The singular was lost.");
+            Assert.That(entry.Few, Is.EqualTo("few"), "The few-form was lost.");
+            Assert.That(entry.Many, Is.EqualTo("many"), "The many-form was lost.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(table);
         }
     }
 
