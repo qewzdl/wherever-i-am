@@ -39,6 +39,71 @@
 }
 
 
+/* A screen a curtain opens.
+
+   It does not arrive by fading and nothing inside it travels, because
+   something opaque is in front of it the whole time it would be arriving: the
+   entrance is played to nobody, and then the curtain plays one over the top of
+   it. The menu is simply there, finished, and the dark is taken off it.
+
+   Only .enter is undone. The menu block itself is a .menu and has no
+   entrance of its own, while the .panel rules belong to the join prompt and
+   the busy overlay - those open later, on their own, in front of a curtain
+   that is long gone, and pinning them here would have taken an animation away
+   from two dialogs to fix the way one screen arrives.
+
+   Written with .screen as well as the modifier because screen--open is still
+   added here - the code does not know which screens are curtained and should
+   not have to. Two classes outweigh it wherever it lands. */
+.screen.screen--curtained {
+    opacity: 1;
+}
+
+
+.screen.screen--curtained .enter {
+    opacity: 1;
+
+    translate: 0 0;
+
+    transition-duration: 0s;
+}
+
+
+/* The dark the main menu arrives out of.
+
+   Over everything and outside .screen on purpose. A screen fades in from
+   nothing, so a curtain inside one would fade in too - the first frames would
+   show the scene at full brightness and then darken it, which is the opposite
+   of the thing. This sits beside the screen and above it, and only it decides
+   how dark the world is.
+
+   It is never hidden afterwards. At zero opacity it paints nothing and, being
+   unpickable, catches nothing either - the same arrangement .backdrop has had
+   all along - and a curtain that removed itself would have to agree with the
+   stylesheet about how long the fade took. */
+.curtain {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    background-color: var(--veil-solid);
+
+    opacity: 1;
+
+    transition-property: opacity;
+    transition-duration: var(--motion-curtain);
+    transition-timing-function: var(--ease-standard);
+}
+
+
+.curtain--lifted {
+    opacity: 0;
+}
+
+
 /* A screen that stands beside what is behind it rather than over it: the menu
    goes to one side and the rest of the frame is left to the scene. Anything
    the camera is looking at becomes the backdrop. */

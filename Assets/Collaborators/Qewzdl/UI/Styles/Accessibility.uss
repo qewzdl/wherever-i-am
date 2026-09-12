@@ -82,6 +82,7 @@
     --motion-fast: 0s;
     --motion-normal: 0s;
     --motion-screen: 0s;
+    --motion-curtain: 0s;
 }
 
 
