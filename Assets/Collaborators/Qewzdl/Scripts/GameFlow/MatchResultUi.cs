@@ -83,9 +83,9 @@ public sealed class MatchResultUi : SceneRuntimeFeature
         {
             resultText.text = matchResult.ResultType switch
             {
-                GameResultType.Victory => victoryText,
-                GameResultType.Defeat => defeatText,
-                _ => drawText
+                GameResultType.Victory => UiLocalization.Text(victoryText),
+                GameResultType.Defeat => UiLocalization.Text(defeatText),
+                _ => UiLocalization.Text(drawText)
             };
         }
 

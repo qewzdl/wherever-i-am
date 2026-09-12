@@ -135,6 +135,11 @@ public sealed class SpectatorDocument : MonoBehaviour
         boundRoot = root;
         UiPreferences.Attach(root);
 
+        // And the language, in the same breath and for the same reason:
+        // it belongs to the tree rather than to this screen, and a tree
+        // is built whenever Unity feels like building one.
+        UiLocalization.Apply(root);
+
         layer = root.Q<VisualElement>("Spectate");
         watchingLabel = root.Q<Label>("Watching");
         survivors = root.Q<VisualElement>("Survivors");
@@ -181,8 +186,8 @@ public sealed class SpectatorDocument : MonoBehaviour
         bool hasName = !string.IsNullOrEmpty(playerName);
 
         watchingLabel.text = hasName
-            ? string.Format(watchingFormat, playerName)
-            : nobodyToWatchText;
+            ? string.Format(UiLocalization.Text(watchingFormat), playerName)
+            : UiLocalization.Text(nobodyToWatchText);
 
         watchingLabel.EnableInClassList(NobodyClass, !hasName);
     }

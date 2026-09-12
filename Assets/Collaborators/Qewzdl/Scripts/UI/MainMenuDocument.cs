@@ -191,6 +191,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void OnDestroy()
     {
+        UiLocalization.Changed -= HandleLanguageChanged;
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         joinPanel?.UnregisterCallback<ClickEvent>(HandleJoinBackdropClicked);
         Unsubscribe();
@@ -235,7 +236,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             return;
 
         shownSeconds = seconds;
-        busyElapsed.text = string.Format(busyElapsedFormat, seconds);
+        busyElapsed.text = string.Format(UiLocalization.Text(busyElapsedFormat), seconds);
     }
 
     private void Show(bool complainIfMissing)
@@ -275,6 +276,13 @@ public sealed class MainMenuDocument : MonoBehaviour
         // text size, whether it moves - applies to this tree too, and applies
         // now rather than the next time they open the settings screen.
         UiPreferences.Attach(root);
+
+        // And the language, in the same breath and for the same reason:
+        // it belongs to the tree rather than to this screen, and a tree
+        // is built whenever Unity feels like building one.
+        UiLocalization.Apply(root);
+        UiLocalization.Changed -= HandleLanguageChanged;
+        UiLocalization.Changed += HandleLanguageChanged;
         screen = root.Q<VisualElement>("Screen");
         panel = root.Q<VisualElement>("Panel");
         joinPanel = root.Q<VisualElement>("JoinPanel");
@@ -506,6 +514,14 @@ public sealed class MainMenuDocument : MonoBehaviour
         discovery?.Tick();
     }
 
+    // What the browser says about itself and what the address field is for are
+    // both written from here rather than by the markup.
+    private void HandleLanguageChanged()
+    {
+        RefreshBrowser();
+        RefreshAddressValidation();
+    }
+
     private void RefreshBrowser()
     {
         if (browser == null)
@@ -514,8 +530,8 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (browserStatus != null)
         {
             browserStatus.text = discovery != null && discovery.IsListening
-                ? browserListeningText
-                : browserUnavailableText;
+                ? UiLocalization.Text(browserListeningText)
+                : UiLocalization.Text(browserUnavailableText);
         }
 
         // A lobby ages off this list when it stops speaking, and until now the
@@ -545,7 +561,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         if (lobbies == null || lobbies.Count == 0)
         {
-            Label empty = new Label(browserEmptyText);
+            Label empty = new Label(UiLocalization.Text(browserEmptyText));
             empty.AddToClassList("browser__empty");
             browser.Add(empty);
             return;
@@ -696,7 +712,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (addressHint == null)
             return;
 
-        addressHint.text = showError ? invalidAddressText : addressHintText;
+        addressHint.text = showError ? UiLocalization.Text(invalidAddressText) : UiLocalization.Text(addressHintText);
         addressHint.EnableInClassList(InputErrorClass, showError);
     }
 
@@ -718,7 +734,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     {
         SavePlayerName();
 
-        if (!TryBeginRequest(hostingDetail))
+        if (!TryBeginRequest(UiLocalization.Text(hostingDetail)))
             return;
 
         try
@@ -768,7 +784,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         string describedAs = string.IsNullOrWhiteSpace(lobbyName) ? host : lobbyName;
 
-        if (!TryBeginRequest(string.Format(joiningDetailFormat, describedAs)))
+        if (!TryBeginRequest(string.Format(UiLocalization.Text(joiningDetailFormat), describedAs)))
             return;
 
         HideJoinPrompt();
@@ -807,7 +823,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             return;
 
         isCancelling = true;
-        SetBusy(true, cancellingMessage, string.Empty, cancellingDetail);
+        SetBusy(true, UiLocalization.Text(cancellingMessage), string.Empty, UiLocalization.Text(cancellingDetail));
         cancelRequestButton?.SetEnabled(false);
 
         try
@@ -842,7 +858,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         HideError();
         SetBusy(
             true,
-            preparingMessage,
+            UiLocalization.Text(preparingMessage),
             FormatStep(current: 1, total: 2),
             requestDetail);
         return true;
@@ -901,7 +917,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             busyDetail.text = detail;
 
         if (busyElapsed != null)
-            busyElapsed.text = string.Format(busyElapsedFormat, 0);
+            busyElapsed.text = string.Format(UiLocalization.Text(busyElapsedFormat), 0);
     }
 
     private void SubscribeToSessionState()
@@ -934,7 +950,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.StartingHost:
                 SetBusy(
                     true,
-                    hostingMessage,
+                    UiLocalization.Text(hostingMessage),
                     FormatStep(1, 2),
                     requestDetail);
                 break;
@@ -942,7 +958,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.StartingClient:
                 SetBusy(
                     true,
-                    joiningMessage,
+                    UiLocalization.Text(joiningMessage),
                     FormatStep(1, 2),
                     requestDetail);
                 break;
@@ -950,7 +966,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.LoadingLobby:
                 SetBusy(
                     true,
-                    loadingLobbyMessage,
+                    UiLocalization.Text(loadingLobbyMessage),
                     FormatStep(2, 2),
                     requestDetail);
                 break;
@@ -958,7 +974,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.Lobby:
                 SetBusy(
                     true,
-                    openingLobbyMessage,
+                    UiLocalization.Text(openingLobbyMessage),
                     FormatStep(2, 2),
                     requestDetail);
                 break;
@@ -967,7 +983,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.InGame:
                 SetBusy(
                     true,
-                    loadingGameMessage,
+                    UiLocalization.Text(loadingGameMessage),
                     FormatStep(2, 2),
                     requestDetail);
                 break;
@@ -975,16 +991,16 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.Disconnecting:
                 SetBusy(
                     true,
-                    cancellingMessage,
+                    UiLocalization.Text(cancellingMessage),
                     string.Empty,
-                    cancellingDetail);
+                    UiLocalization.Text(cancellingDetail));
                 break;
         }
     }
 
     private string FormatStep(int current, int total)
     {
-        return string.Format(busyStepFormat, current, total);
+        return string.Format(UiLocalization.Text(busyStepFormat), current, total);
     }
 
     private static bool KeepsBusyOverlayOpen(NetworkSessionState state)

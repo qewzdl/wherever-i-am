@@ -112,6 +112,14 @@
                 <ui:Label name="CrouchModeHint" class="hint hint--field" />
             </ui:ScrollView>
             <ui:ScrollView name="InterfacePage" class="scroll page">
+                <!-- First, because it decides how every other row on every tab
+                     reads. Its own choices are not translated: a language is
+                     named in itself, or the person looking for it cannot find
+                     it. -->
+                <ui:VisualElement class="field">
+                    <ui:Label text="Language" class="field__label" />
+                    <ui:DropdownField name="Language" class="field__control" />
+                </ui:VisualElement>
                 <ui:VisualElement class="field">
                     <ui:Label text="Interface opacity" class="field__label" />
                     <ui:Slider name="InterfaceOpacity" low-value="0.2" high-value="1" class="field__control" />

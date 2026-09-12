@@ -1,0 +1,391 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7d24e91f03a486cb95e12d7a64f0c28, type: 3}
+  m_Name: Locale_English
+  m_EditorClassIdentifier:
+  locale: en
+  displayName: English
+  entries:
+  - English: OK
+    Translation: OK
+  - English: Lobby
+    Translation: Lobby
+  - English: Players
+    Translation: Players
+  - English: Start
+    Translation: Start
+  - English: Ready
+    Translation: Ready
+  - English: Room settings
+    Translation: Room settings
+  - English: Settings
+    Translation: Settings
+  - English: Leave
+    Translation: Leave
+  - English: Difficulty
+    Translation: Difficulty
+  - English: Done
+    Translation: Done
+  - English: Leave session
+    Translation: Leave session
+  - English: Cancel
+    Translation: Cancel
+  - English: Chat
+    Translation: Chat
+  - English: Name
+    Translation: Name
+  - English: Create lobby
+    Translation: Create lobby
+  - English: Join lobby
+    Translation: Join lobby
+  - English: Quit
+    Translation: Quit
+  - English: Wherever I Am
+    Translation: Wherever I Am
+  - English: Join a lobby
+    Translation: Join a lobby
+  - English: On this network
+    Translation: On this network
+  - English: Or by address
+    Translation: Or by address
+  - English: Refresh
+    Translation: Refresh
+  - English: Connect
+    Translation: Connect
+  - English: Game menu
+    Translation: Game menu
+  - English: The match continues while this menu is open.
+    Translation: The match continues while this menu is open.
+  - English: Back to game
+    Translation: Back to game
+  - English: Main menu
+    Translation: Main menu
+  - English: Graphics
+    Translation: Graphics
+  - English: Audio
+    Translation: Audio
+  - English: Controls
+    Translation: Controls
+  - English: Interface
+    Translation: Interface
+  - English: Accessibility
+    Translation: Accessibility
+  - English: Resolution
+    Translation: Resolution
+  - English: Display mode
+    Translation: Display mode
+  - English: Quality
+    Translation: Quality
+  - English: Frame rate
+    Translation: Frame rate
+  - English: Vertical sync
+    Translation: Vertical sync
+  - English: Field of view
+    Translation: Field of view
+  - English: Camera smoothing
+    Translation: Camera smoothing
+  - English: Smoothing amount
+    Translation: Smoothing amount
+  - English: Camera
+    Translation: Camera
+  - English: Camera shake
+    Translation: Camera shake
+  - English: Head bob
+    Translation: Head bob
+  - English: Roll when turning
+    Translation: Roll when turning
+  - English: Strafe lean
+    Translation: Strafe lean
+  - English: Breathing
+    Translation: Breathing
+  - English: How much the view moves on its own. Zero turns an effect off; Reduced motion silences all five at once.
+    Translation: How much the view moves on its own. Zero turns an effect off; Reduced motion silences all five at once.
+  - English: Master
+    Translation: Master
+  - English: Music
+    Translation: Music
+  - English: Effects
+    Translation: Effects
+  - English: Mouse sensitivity
+    Translation: Mouse sensitivity
+  - English: Invert vertical look
+    Translation: Invert vertical look
+  - English: Crouch
+    Translation: Crouch
+  - English: Language
+    Translation: Language
+  - English: Interface opacity
+    Translation: Interface opacity
+  - English: Crosshair size
+    Translation: Crosshair size
+  - English: Interface scale
+    Translation: Interface scale
+  - English: Everything on screen, together - controls as well as words.
+    Translation: Everything on screen, together - controls as well as words.
+  - English: Text size
+    Translation: Text size
+  - English: The words alone, for when the buttons are already the right size.
+    Translation: The words alone, for when the buttons are already the right size.
+  - English: Reduced motion
+    Translation: Reduced motion
+  - English: Screens open and close without sliding, fading or growing into place.
+    Translation: Screens open and close without sliding, fading or growing into place.
+  - English: Defaults
+    Translation: Defaults
+  - English: Apply
+    Translation: Apply
+  - English: Close
+    Translation: Close
+  - English: Revert
+    Translation: Revert
+  - English: Previous
+    Translation: Previous
+  - English: Next
+    Translation: Next
+  - English: Toggle
+    Translation: Toggle
+  - English: Hold
+    Translation: Hold
+  - English: Fullscreen
+    Translation: Fullscreen
+  - English: Borderless
+    Translation: Borderless
+  - English: Windowed
+    Translation: Windowed
+  - English: Unlimited
+    Translation: Unlimited
+  - English: Small
+    Translation: Small
+  - English: Normal
+    Translation: Normal
+  - English: Large
+    Translation: Large
+  - English: Largest
+    Translation: Largest
+  - English: One press to crouch, another to stand.
+    Translation: One press to crouch, another to stand.
+  - English: Crouched while the key is down, standing the moment it is let go.
+    Translation: Crouched while the key is down, standing the moment it is let go.
+  - English: Reset every setting to its default?
+    Translation: Reset every setting to its default?
+  - English: Close without applying the changes?
+    Translation: Close without applying the changes?
+  - English: Keep these display settings? Reverting in {0} s
+    Translation: Keep these display settings? Reverting in {0} s
+  - English: Reset
+    Translation: Reset
+  - English: Discard
+    Translation: Discard
+  - English: Keep editing
+    Translation: Keep editing
+  - English: Keep
+    Translation: Keep
+  - English: Ready up
+    Translation: Ready up
+  - English: Stand down
+    Translation: Stand down
+  - English: Change
+    Translation: Change
+  - English: Remove
+    Translation: Remove
+  - English: Close lobby
+    Translation: Close lobby
+  - English: Owner
+    Translation: Owner
+  - English: Not ready
+    Translation: Not ready
+  - English: Updating...
+    Translation: Updating...
+  - English: Starting...
+    Translation: Starting...
+  - English: No answer - try again
+    Translation: No answer - try again
+  - English: '{0} READY'
+    Translation: '{0} READY'
+  - English: Remove {0}? They will not be able to join again this session.
+    Translation: Remove {0}? They will not be able to join again this session.
+  - English: Need {0} more to start
+    Translation: Need {0} more to start
+  - English: Ready up when you're prepared
+    Translation: Ready up when you're prepared
+  - English: Waiting for {0}
+    Translation: Waiting for {0}
+  - English: Waiting for {0} players
+    Translation: Waiting for {0} players
+  - English: Starting the match...
+    Translation: Starting the match...
+  - English: Only the host can change this
+    Translation: Only the host can change this
+  - English: Everyone is ready - start the match
+    Translation: Everyone is ready - start the match
+  - English: Waiting for the host to start
+    Translation: Waiting for the host to start
+  - English: Waiting for the room...
+    Translation: Waiting for the room...
+  - English: '  (you)'
+    Translation: '  (you)'
+  - English: At least {0} while they are standing here.
+    Translation: At least {0} while they are standing here.
+  - English: 'Difficulty: {0}'
+    Translation: 'Difficulty: {0}'
+  - English: '{0} sets the terms'
+    Translation: '{0} sets the terms'
+  - English: You set the terms
+    Translation: You set the terms
+  - English: The host sets the terms
+    Translation: The host sets the terms
+  - English: Host changed difficulty to {0}
+    Translation: Host changed difficulty to {0}
+  - English: You changed difficulty to {0}
+    Translation: You changed difficulty to {0}
+  - English: ' - check your ready status'
+    Translation: ' - check your ready status'
+  - English: Change difficulty to {0}? Everybody who is ready goes back to not ready.
+    Translation: Change difficulty to {0}? Everybody who is ready goes back to not ready.
+  - English: Lobby closed
+    Translation: Lobby closed
+  - English: Lobby open
+    Translation: Lobby open
+  - English: Nobody can reach this lobby until you open it.
+    Translation: Nobody can reach this lobby until you open it.
+  - English: Anybody who has {0} can join.
+    Translation: Anybody who has {0} can join.
+  - English: Open, but this machine has no network address to hand out.
+    Translation: Open, but this machine has no network address to hand out.
+  - English: Only the host can open the door.
+    Translation: Only the host can open the door.
+  - English: no network
+    Translation: no network
+  - English: Copy invite address
+    Translation: Copy invite address
+  - English: Address copied
+    Translation: Address copied
+  - English: Open, but the room is full at {0}. Nobody else can get in.
+    Translation: Open, but the room is full at {0}. Nobody else can get in.
+  - English: Close the lobby? Everybody else in it goes back to the menu.
+    Translation: Close the lobby? Everybody else in it goes back to the menu.
+  - English: Close the lobby and go back to the menu?
+    Translation: Close the lobby and go back to the menu?
+  - English: PREPARING
+    Translation: PREPARING
+  - English: LOADING SCENE
+    Translation: LOADING SCENE
+  - English: ENTERING MATCH
+    Translation: ENTERING MATCH
+  - English: LEAVING SESSION
+    Translation: LEAVING SESSION
+  - English: Loading the selected map...
+    Translation: Loading the selected map...
+  - English: Match is ready...
+    Translation: Match is ready...
+  - English: Returning to the menu...
+    Translation: Returning to the menu...
+  - English: Synchronizing the scene with every player.
+    Translation: Synchronizing the scene with every player.
+  - English: The host started the match. Waiting for scene synchronization.
+    Translation: The host started the match. Waiting for scene synchronization.
+  - English: Stopping network services safely.
+    Translation: Stopping network services safely.
+  - English: '{0} s elapsed'
+    Translation: '{0} s elapsed'
+  - English: Preparing network...
+    Translation: Preparing network...
+  - English: Starting LAN host...
+    Translation: Starting LAN host...
+  - English: Contacting host and awaiting approval...
+    Translation: Contacting host and awaiting approval...
+  - English: Loading lobby...
+    Translation: Loading lobby...
+  - English: Opening lobby...
+    Translation: Opening lobby...
+  - English: Joining match...
+    Translation: Joining match...
+  - English: Cancelling connection...
+    Translation: Cancelling connection...
+  - English: This device will host the LAN session.
+    Translation: This device will host the LAN session.
+  - English: Host {0}
+    Translation: Host {0}
+  - English: STEP {0} / {1}
+    Translation: STEP {0} / {1}
+  - English: Listening
+    Translation: Listening
+  - English: Discovery unavailable
+    Translation: Discovery unavailable
+  - English: No lobbies have answered yet
+    Translation: No lobbies have answered yet
+  - English: For a lobby this network cannot see. IPv4, for example 192.168.1.10
+    Translation: For a lobby this network cannot see. IPv4, for example 192.168.1.10
+  - English: Enter a valid IPv4 address.
+    Translation: Enter a valid IPv4 address.
+  - English: Settings are unavailable.
+    Translation: Settings are unavailable.
+  - English: Network session service is missing.
+    Translation: Network session service is missing.
+  - English: Failed to start the network session.
+    Translation: Failed to start the network session.
+  - English: Connection lost. Reconnecting...
+    Translation: Connection lost. Reconnecting...
+  - English: The connection request is invalid.
+    Translation: The connection request is invalid.
+  - English: The client build is incompatible with the host.
+    Translation: The client build is incompatible with the host.
+  - English: The network session is full.
+    Translation: The network session is full.
+  - English: This player is already connected.
+    Translation: This player is already connected.
+  - English: The lobby is private.
+    Translation: The lobby is private.
+  - English: The host removed you from the lobby.
+    Translation: The host removed you from the lobby.
+  - English: The host closed the lobby.
+    Translation: The host closed the lobby.
+  - English: Nothing said yet
+    Translation: Nothing said yet
+  - English: Watching {0}
+    Translation: Watching {0}
+  - English: Nobody left to watch
+    Translation: Nobody left to watch
+  - English: Easy
+    Translation: Easy
+  - English: Hard
+    Translation: Hard
+  - English: Extreme
+    Translation: Extreme
+  - English: Hears half of what you do and forgets you within a couple of seconds. Narrow sight, a slow search, and she looks only near the spot she lost you.
+    Translation: Hears half of what you do and forgets you within a couple of seconds. Narrow sight, a slow search, and she looks only near the spot she lost you.
+  - English: The intended balance. Ordinary hearing, a wide look ahead, a few seconds of memory - she searches the room you left, then moves on.
+    Translation: The intended balance. Ordinary hearing, a wide look ahead, a few seconds of memory - she searches the room you left, then moves on.
+  - English: Twice the hearing and remembers you for several seconds after losing sight. Turns and accelerates hard, so corners stop shaking her off, and she sweeps a wide area, stopping to look around.
+    Translation: Twice the hearing and remembers you for several seconds after losing sight. Turns and accelerates hard, so corners stop shaking her off, and she sweeps a wide area, stopping to look around.
+  - English: Hears the quietest noise from across the house and sees almost all the way around her. Keeps hunting long after you are out of sight, moves faster than anything below, and searches whole rooms rather than corners.
+    Translation: Hears the quietest noise from across the house and sees almost all the way around her. Keeps hunting long after you are out of sight, moves faster than anything below, and searches whole rooms rather than corners.
+  - English: Medium
+    Translation: Medium
+  - English: You got out
+    Translation: You got out
+  - English: Everyone was caught
+    Translation: Everyone was caught
+  - English: The match is over
+    Translation: The match is over
+  - English: The match is over - you got out.
+    Translation: The match is over - you got out.
+  - English: The match is over - everyone was caught.
+    Translation: The match is over - everyone was caught.
+  - English: The match is over.
+    Translation: The match is over.
+  - English: The network session is not accepting new players right now.
+    Translation: The network session is not accepting new players right now.
+  - English: Mobile
+    Translation: Mobile
+  - English: PC
+    Translation: PC

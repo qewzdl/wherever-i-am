@@ -89,6 +89,8 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
         if (!Bind(complainIfMissing: true))
             return;
 
+        message = UiLocalization.Text(message);
+
         errorText.text = string.IsNullOrWhiteSpace(message)
             ? DefaultErrorMessage
             : message;
@@ -150,6 +152,11 @@ public sealed class UiErrorManager : MonoBehaviour, IUiErrorService
         // text size, whether it moves - applies to this tree too, and applies
         // now rather than the next time they open the settings screen.
         UiPreferences.Attach(root);
+
+        // And the language, in the same breath and for the same reason:
+        // it belongs to the tree rather than to this screen, and a tree
+        // is built whenever Unity feels like building one.
+        UiLocalization.Apply(root);
         screen = found;
         errorText = foundText;
         closeButton = root.Q<Button>("CloseButton");

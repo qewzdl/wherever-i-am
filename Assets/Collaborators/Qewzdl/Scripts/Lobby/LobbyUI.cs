@@ -426,7 +426,7 @@ public class LobbyUI : MonoBehaviour
 
         shownTransitionSeconds = seconds;
         matchTransitionElapsedLabel.text = string.Format(
-            transitionElapsedFormat,
+            UiLocalization.Text(transitionElapsedFormat),
             seconds);
     }
 
@@ -470,6 +470,7 @@ public class LobbyUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        UiLocalization.Changed -= HandleLanguageChanged;
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         confirmPanel?.UnregisterCallback<ClickEvent>(HandleConfirmBackdropClicked);
         roomSettingsPanel?.UnregisterCallback<ClickEvent>(HandleRoomSettingsBackdropClicked);
@@ -534,6 +535,13 @@ public class LobbyUI : MonoBehaviour
         // text size, whether it moves - applies to this tree too, and applies
         // now rather than the next time they open the settings screen.
         UiPreferences.Attach(root);
+
+        // And the language, in the same breath and for the same reason:
+        // it belongs to the tree rather than to this screen, and a tree
+        // is built whenever Unity feels like building one.
+        UiLocalization.Apply(root);
+        UiLocalization.Changed -= HandleLanguageChanged;
+        UiLocalization.Changed += HandleLanguageChanged;
         screen = root.Q<VisualElement>("Screen");
         panel = root.Q<VisualElement>("Panel");
         roster = root.Q<VisualElement>("Roster");
@@ -746,9 +754,9 @@ public class LobbyUI : MonoBehaviour
         AskToConfirm(
             PendingAction.CloseLobby,
             readService.PlayerCount > 1
-                ? closeLobbyConfirmText
-                : closeLobbyConfirmAloneText,
-            closeLobbyActionConfirmText,
+                ? UiLocalization.Text(closeLobbyConfirmText)
+                : UiLocalization.Text(closeLobbyConfirmAloneText),
+            UiLocalization.Text(closeLobbyActionConfirmText),
             focusTarget);
     }
 
@@ -842,13 +850,13 @@ public class LobbyUI : MonoBehaviour
             isAddressCopyFeedbackVisible = false;
 
         if (addressLabel != null)
-            addressLabel.text = hasAddress ? address : addressUnknownText;
+            addressLabel.text = hasAddress ? address : UiLocalization.Text(addressUnknownText);
 
         if (addressButton != null)
         {
             addressButton.tooltip = isAddressCopyFeedbackVisible
-                ? addressCopiedText
-                : addressCopyTooltip;
+                ? UiLocalization.Text(addressCopiedText)
+                : UiLocalization.Text(addressCopyTooltip);
             addressButton.SetEnabled(hasAddress);
         }
 
@@ -979,14 +987,14 @@ public class LobbyUI : MonoBehaviour
         if (maxPlayersChange.IsWaiting || maxPlayersChange.HasFailed)
         {
             maxPlayersNoteLabel.text = maxPlayersChange.IsWaiting
-                ? pendingChangeText
-                : pendingFailedText;
+                ? UiLocalization.Text(pendingChangeText)
+                : UiLocalization.Text(pendingFailedText);
             return;
         }
 
         if (!canChange)
         {
-            maxPlayersNoteLabel.text = ownerOnlySettingText;
+            maxPlayersNoteLabel.text = UiLocalization.Text(ownerOnlySettingText);
             return;
         }
 
@@ -994,7 +1002,7 @@ public class LobbyUI : MonoBehaviour
             readService.Settings.MinPlayersToStart,
             readService.PlayerCount);
 
-        maxPlayersNoteLabel.text = string.Format(maxPlayersFloorFormat, floor);
+        maxPlayersNoteLabel.text = string.Format(UiLocalization.Text(maxPlayersFloorFormat), floor);
     }
 
     // The index is read off the field rather than out of the event, which
@@ -1022,8 +1030,8 @@ public class LobbyUI : MonoBehaviour
 
         AskToConfirm(
             PendingAction.ChangeDifficulty,
-            string.Format(difficultyChangeConfirmFormat, DifficultyName(difficultyId)),
-            difficultyChangeActionText,
+            string.Format(UiLocalization.Text(difficultyChangeConfirmFormat), DifficultyName(difficultyId)),
+            UiLocalization.Text(difficultyChangeActionText),
             roomSettingsCloseButton);
     }
 
@@ -1035,6 +1043,14 @@ public class LobbyUI : MonoBehaviour
 
         DifficultySelected?.Invoke(difficultyId);
         RefreshDifficulty();
+    }
+
+    private void HandleLanguageChanged()
+    {
+        // The difficulty list is built once from the catalogue, so it is built
+        // again before anything reads a name out of it.
+        PopulateDifficultyChoices();
+        Refresh();
     }
 
     private void Refresh()
@@ -1076,7 +1092,7 @@ public class LobbyUI : MonoBehaviour
         if (setupDifficultyLabel != null)
         {
             setupDifficultyLabel.text = string.Format(
-                matchDifficultyFormat,
+                UiLocalization.Text(matchDifficultyFormat),
                 DifficultyName(difficultyId));
         }
 
@@ -1108,15 +1124,15 @@ public class LobbyUI : MonoBehaviour
 
         if (readService.IsLocalPlayerRoomOwner)
         {
-            setupOwnerLabel.text = settingsYoursText;
+            setupOwnerLabel.text = UiLocalization.Text(settingsYoursText);
             return;
         }
 
         string ownerName = ResolvePlayerName(readService.RoomOwnerClientId);
 
         setupOwnerLabel.text = string.IsNullOrWhiteSpace(ownerName)
-            ? settingsOwnerUnknownText
-            : string.Format(settingsOwnerFormat, ownerName);
+            ? UiLocalization.Text(settingsOwnerUnknownText)
+            : string.Format(UiLocalization.Text(settingsOwnerFormat), ownerName);
     }
 
     // Said in the words of whoever did it, and only mentioning readiness when
@@ -1131,13 +1147,13 @@ public class LobbyUI : MonoBehaviour
             return;
 
         string format = readService.IsLocalPlayerRoomOwner
-            ? difficultyChangedByYouFormat
-            : difficultyChangedByHostFormat;
+            ? UiLocalization.Text(difficultyChangedByYouFormat)
+            : UiLocalization.Text(difficultyChangedByHostFormat);
 
         string notice = string.Format(format, DifficultyName(difficultyId));
 
         if (readinessWasReset)
-            notice += readinessResetSuffix;
+            notice += UiLocalization.Text(readinessResetSuffix);
 
         setupNoticeLabel.text = notice;
         setupNoticeLabel.style.display = DisplayStyle.Flex;
@@ -1200,8 +1216,8 @@ public class LobbyUI : MonoBehaviour
             }
 
             difficultyIds[i] = entry.DifficultyId;
-            difficultyDescriptions[i] = entry.Description;
-            optionLabels.Add(entry.DisplayName);
+            difficultyDescriptions[i] = UiLocalization.Text(entry.Description);
+            optionLabels.Add(UiLocalization.Text(entry.DisplayName));
         }
 
         difficultyField.choices = optionLabels;
@@ -1264,14 +1280,14 @@ public class LobbyUI : MonoBehaviour
         if (difficultyChange.IsWaiting || difficultyChange.HasFailed)
         {
             difficultyOwnerNoteLabel.text = difficultyChange.IsWaiting
-                ? pendingChangeText
-                : pendingFailedText;
+                ? UiLocalization.Text(pendingChangeText)
+                : UiLocalization.Text(pendingFailedText);
 
             difficultyOwnerNoteLabel.style.display = DisplayStyle.Flex;
             return;
         }
 
-        difficultyOwnerNoteLabel.text = ownerOnlySettingText;
+        difficultyOwnerNoteLabel.text = UiLocalization.Text(ownerOnlySettingText);
         difficultyOwnerNoteLabel.style.display =
             canChangeDifficulty ? DisplayStyle.None : DisplayStyle.Flex;
     }
@@ -1293,7 +1309,7 @@ public class LobbyUI : MonoBehaviour
 
         if (readyCountLabel != null)
         {
-            readyCountLabel.text = string.Format(readyCountFormat, readyCount);
+            readyCountLabel.text = string.Format(UiLocalization.Text(readyCountFormat), readyCount);
             readyCountLabel.EnableInClassList(
                 ReadyCompleteClass,
                 readService.PlayerCount > 0 &&
@@ -1433,7 +1449,7 @@ public class LobbyUI : MonoBehaviour
     {
         if (emptyRosterLabel == null)
         {
-            emptyRosterLabel = new Label(emptyRosterText);
+            emptyRosterLabel = new Label(UiLocalization.Text(emptyRosterText));
             emptyRosterLabel.AddToClassList("roster__empty");
         }
 
@@ -1469,7 +1485,7 @@ public class LobbyUI : MonoBehaviour
         // Both labels are made now and hidden when they have nothing to say,
         // rather than added and removed - a row that grows and shrinks its
         // children is a row that cannot keep anything.
-        Label role = new Label(ownerStatusText);
+        Label role = new Label(UiLocalization.Text(ownerStatusText));
         role.AddToClassList("roster__role");
         badges.Add(role);
 
@@ -1485,7 +1501,7 @@ public class LobbyUI : MonoBehaviour
         Button kick = null;
         kick = new Button(() => HandlePlayerKickRequested(clientId, kick))
         {
-            text = kickActionText
+            text = UiLocalization.Text(kickActionText)
         };
 
         kick.AddToClassList("button");
@@ -1516,12 +1532,12 @@ public class LobbyUI : MonoBehaviour
         row.Root.EnableInClassList("roster__row--you", isLocalPlayer);
 
         row.Name.text = isLocalPlayer
-            ? player.PlayerName + localPlayerSuffix
+            ? player.PlayerName + UiLocalization.Text(localPlayerSuffix)
             : player.PlayerName.ToString();
 
         row.Role.style.display = isRoomOwner ? DisplayStyle.Flex : DisplayStyle.None;
 
-        row.Status.text = player.IsReady ? readyStatusText : notReadyStatusText;
+        row.Status.text = player.IsReady ? UiLocalization.Text(readyStatusText) : UiLocalization.Text(notReadyStatusText);
         row.Status.EnableInClassList("roster__status--ready", player.IsReady);
 
         row.Kick.style.display = canKick ? DisplayStyle.Flex : DisplayStyle.None;
@@ -1539,8 +1555,8 @@ public class LobbyUI : MonoBehaviour
 
         AskToConfirm(
             PendingAction.Kick,
-            string.Format(kickConfirmFormat, ResolvePlayerName(clientId)),
-            kickActionText,
+            string.Format(UiLocalization.Text(kickConfirmFormat), ResolvePlayerName(clientId)),
+            UiLocalization.Text(kickActionText),
             focusTarget);
     }
 
@@ -1739,8 +1755,8 @@ public class LobbyUI : MonoBehaviour
                 isLobbyPhaseOpen && readService.CanStartGame && !startChange.IsWaiting);
 
             startButton.text = startChange.IsWaiting
-                ? startPendingActionText
-                : startActionText;
+                ? UiLocalization.Text(startPendingActionText)
+                : UiLocalization.Text(startActionText);
         }
 
         bool hasLocalPlayer = readService.TryGetLocalPlayer(out LobbyPlayerData localPlayer);
@@ -1755,10 +1771,10 @@ public class LobbyUI : MonoBehaviour
                 isLobbyPhaseOpen && hasLocalPlayer && !readyChange.IsWaiting);
 
             readyButton.text = readyChange.IsWaiting
-                ? pendingChangeText
+                ? UiLocalization.Text(pendingChangeText)
                 : isLocalPlayerReady
-                    ? standDownActionText
-                    : readyActionText;
+                    ? UiLocalization.Text(standDownActionText)
+                    : UiLocalization.Text(readyActionText);
         }
 
         // The lit entry is the thing to do next, and for a host that is two
@@ -1777,8 +1793,8 @@ public class LobbyUI : MonoBehaviour
         if (leaveButton != null)
         {
             leaveButton.text = readService.IsLocalPlayerRoomOwner
-                ? closeLobbyActionText
-                : leaveActionText;
+                ? UiLocalization.Text(closeLobbyActionText)
+                : UiLocalization.Text(leaveActionText);
         }
 
         RefreshStartHint(isLobbyPhaseOpen);
@@ -1806,10 +1822,10 @@ public class LobbyUI : MonoBehaviour
         if (doorStatusLabel != null)
         {
             doorStatusLabel.text = doorChange.IsWaiting
-                ? pendingChangeText
+                ? UiLocalization.Text(pendingChangeText)
                 : doorChange.HasFailed
-                    ? pendingFailedText
-                    : isPublic ? doorOpenStatusText : doorShutStatusText;
+                    ? UiLocalization.Text(pendingFailedText)
+                    : isPublic ? UiLocalization.Text(doorOpenStatusText) : UiLocalization.Text(doorShutStatusText);
 
             // Neither open nor shut while the answer is out, and a failure is
             // not a state of the door either.
@@ -1846,7 +1862,7 @@ public class LobbyUI : MonoBehaviour
 
         if (!isPublic)
         {
-            doorHintLabel.text = isOwner ? doorShutText : doorNotYoursText;
+            doorHintLabel.text = isOwner ? UiLocalization.Text(doorShutText) : UiLocalization.Text(doorNotYoursText);
             return;
         }
 
@@ -1856,7 +1872,7 @@ public class LobbyUI : MonoBehaviour
         // address does not work.
         if (readService.PlayerCount >= readService.Settings.MaxPlayers)
         {
-            doorHintLabel.text = string.Format(doorFullFormat, readService.Settings.MaxPlayers);
+            doorHintLabel.text = string.Format(UiLocalization.Text(doorFullFormat), readService.Settings.MaxPlayers);
             return;
         }
 
@@ -1870,8 +1886,8 @@ public class LobbyUI : MonoBehaviour
         // door being open buys nothing, and the old line handed out the words
         // "no network" as though they were something to type.
         doorHintLabel.text = string.IsNullOrEmpty(address)
-            ? doorOpenNoAddressText
-            : string.Format(doorOpenFormat, address);
+            ? UiLocalization.Text(doorOpenNoAddressText)
+            : string.Format(UiLocalization.Text(doorOpenFormat), address);
     }
 
     // The same reasons the server checks, in the same order, so the line never
@@ -1968,35 +1984,35 @@ public class LobbyUI : MonoBehaviour
         switch (hint)
         {
             case StartHint.Starting:
-                return startingText;
+                return UiLocalization.Text(startingText);
 
             case StartHint.CommandRefused:
-                return pendingFailedText;
+                return UiLocalization.Text(pendingFailedText);
 
             case StartHint.NeedMorePlayers:
                 return string.Format(
-                    needMorePlayersFormat,
+                    UiLocalization.Text(needMorePlayersFormat),
                     settings.MinPlayersToStart - readService.PlayerCount);
 
             case StartHint.ReadyUpYourself:
-                return readyUpPromptText;
+                return UiLocalization.Text(readyUpPromptText);
 
             // The name is looked up here rather than chosen above, because a
             // row can be in the roster before its name has arrived - and a
             // nameless player is counted rather than named.
             case StartHint.WaitingForOne:
                 return TryGetOnlyNotReadyName(out string name)
-                    ? string.Format(waitingForPlayerFormat, name)
-                    : string.Format(waitingForPlayersFormat, 1);
+                    ? string.Format(UiLocalization.Text(waitingForPlayerFormat), name)
+                    : string.Format(UiLocalization.Text(waitingForPlayersFormat), 1);
 
             case StartHint.WaitingForSeveral:
-                return string.Format(waitingForPlayersFormat, CountNotReady());
+                return string.Format(UiLocalization.Text(waitingForPlayersFormat), CountNotReady());
 
             case StartHint.EveryoneReady:
-                return readyToStartText;
+                return UiLocalization.Text(readyToStartText);
 
             default:
-                return waitingForHostText;
+                return UiLocalization.Text(waitingForHostText);
         }
     }
 
@@ -2051,26 +2067,26 @@ public class LobbyUI : MonoBehaviour
         switch (sessionState)
         {
             case NetworkSessionState.LoadingGame:
-                stage = loadingMatchStageText;
-                message = loadingMatchText;
+                stage = UiLocalization.Text(loadingMatchStageText);
+                message = UiLocalization.Text(loadingMatchText);
                 detail = ResolveMatchTransitionDetail();
                 break;
 
             case NetworkSessionState.InGame:
-                stage = enteringMatchStageText;
-                message = enteringMatchText;
+                stage = UiLocalization.Text(enteringMatchStageText);
+                message = UiLocalization.Text(enteringMatchText);
                 detail = ResolveMatchTransitionDetail();
                 break;
 
             case NetworkSessionState.Disconnecting:
-                stage = leavingMatchStageText;
-                message = leavingMatchText;
-                detail = leavingTransitionDetail;
+                stage = UiLocalization.Text(leavingMatchStageText);
+                message = UiLocalization.Text(leavingMatchText);
+                detail = UiLocalization.Text(leavingTransitionDetail);
                 break;
 
             default:
-                stage = preparingMatchStageText;
-                message = preparingMatchText;
+                stage = UiLocalization.Text(preparingMatchStageText);
+                message = UiLocalization.Text(preparingMatchText);
                 detail = ResolveMatchTransitionDetail();
                 break;
         }
@@ -2088,8 +2104,8 @@ public class LobbyUI : MonoBehaviour
     private string ResolveMatchTransitionDetail()
     {
         return readService != null && readService.IsLocalPlayerRoomOwner
-            ? hostTransitionDetail
-            : clientTransitionDetail;
+            ? UiLocalization.Text(hostTransitionDetail)
+            : UiLocalization.Text(clientTransitionDetail);
     }
 
     private void SetMatchTransitionVisible(bool visible)
@@ -2102,7 +2118,7 @@ public class LobbyUI : MonoBehaviour
             if (matchTransitionElapsedLabel != null)
             {
                 matchTransitionElapsedLabel.text = string.Format(
-                    transitionElapsedFormat,
+                    UiLocalization.Text(transitionElapsedFormat),
                     0);
             }
         }

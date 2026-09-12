@@ -21,6 +21,7 @@ public sealed class ProjectContext : MonoBehaviour
     [SerializeField] private NetworkConnectionApprovalService connectionApprovalService;
     [SerializeField] private UiErrorManager uiErrorManager;
     [SerializeField] private SettingsService settingsService;
+    [SerializeField] private LocalizationService localizationService;
     [SerializeField] private SettingsDocument settingsScreen;
     [SerializeField] private AudioManager audioManager;
     [SerializeField] private GameplayNoiseWorldService gameplayNoiseWorldService;
@@ -367,6 +368,10 @@ public sealed class ProjectContext : MonoBehaviour
         valid &= ValidateRequiredReference(connectionApprovalService, nameof(connectionApprovalService), logErrors);
         valid &= ValidateRequiredReference(uiErrorManager, nameof(uiErrorManager), logErrors);
         valid &= ValidateRequiredReference(settingsService, nameof(settingsService), logErrors);
+        valid &= ValidateRequiredReference(
+            localizationService,
+            nameof(localizationService),
+            logErrors);
         valid &= ValidateRequiredReference(settingsScreen, nameof(settingsScreen), logErrors);
         valid &= ValidateRequiredReference(audioManager, nameof(audioManager), logErrors);
         valid &= ValidateRequiredReference(gameplayNoiseWorldService, nameof(gameplayNoiseWorldService), logErrors);
@@ -409,9 +414,19 @@ public sealed class ProjectContext : MonoBehaviour
 
     private bool InitializeProjectServices()
     {
+        // Before anything that draws a word. A screen built while this was
+        // still starting would show the English it was written in, and then
+        // keep showing it, because nothing rebuilds a screen that never knew
+        // it was wrong.
+        if (localizationService == null || !localizationService.Initialize())
+            return false;
+
+        UiLocalization.Use(localizationService);
+
         if (settingsService == null || !settingsService.Initialize())
             return false;
 
+        localizationService.Construct(settingsService);
         settingsScreen.Construct(settingsService);
 
         if (audioManager == null || !audioManager.Construct(sceneRegistry, settingsService))
@@ -463,6 +478,8 @@ public sealed class ProjectContext : MonoBehaviour
 
         try
         {
+            UiLocalization.Release(localizationService);
+            localizationService?.ReleaseSettingsService();
             settingsScreen?.ReleaseSettingsService();
         }
         catch (Exception exception)
@@ -582,6 +599,7 @@ public sealed class ProjectContext : MonoBehaviour
             connectionApprovalService);
         globalServiceScope.Register<IUiErrorService>(uiErrorManager);
         globalServiceScope.Register<ISettingsService>(settingsService);
+        globalServiceScope.Register<ILocalizationService>(localizationService);
         globalServiceScope.Register<ISettingsScreen>(settingsScreen);
         globalServiceScope.Register<IAudioService>(audioManager);
         globalServiceScope.Register<IGameMapCatalog>(mapCatalog);

@@ -59,6 +59,15 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     // Both are what the key does, in the order a player thinks of them.
     private static readonly string[] CrouchModeNames = { "Toggle", "Hold" };
 
+    // In the order FullScreenMode wants them, because the list answers with a
+    // position now rather than with a word - a translated word matches nothing.
+    private static readonly string[] DisplayModeNames =
+        { "Fullscreen", "Borderless", "Windowed" };
+
+    // Read off the service rather than written down, so a language that ships
+    // is a language that is offered, with no second list to forget to update.
+    private readonly List<string> localeCodes = new();
+
     private string selectedTab = "Graphics";
     private PendingQuestion question;
     private Button applyButton;
@@ -147,6 +156,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     {
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
         SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
+        UiLocalization.Changed -= RelabelForLanguage;
         ReleaseSettingsService();
         UiPreferences.Restore();
     }
@@ -220,7 +230,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         if (HasStagedChanges())
         {
             question = PendingQuestion.DiscardChanges;
-            ShowConfirmation("Close without applying the changes?");
+            ShowConfirmation();
             return;
         }
 
@@ -301,6 +311,17 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         // text size, whether it moves - applies to this tree too, and applies
         // now rather than the next time they open the settings screen.
         UiPreferences.Attach(root);
+
+        // And the language, in the same breath and for the same reason:
+        // it belongs to the tree rather than to this screen, and a tree
+        // is built whenever Unity feels like building one.
+        UiLocalization.Apply(root);
+
+        // And is told when it changes, because this is the screen it is changed
+        // from: the lists and hints below are written here rather than in the
+        // markup, so nothing else would write them again.
+        UiLocalization.Changed -= RelabelForLanguage;
+        UiLocalization.Changed += RelabelForLanguage;
         screen = root.Q<VisualElement>("Screen");
         confirmPanel = root.Q<VisualElement>("ConfirmPanel");
         confirmText = root.Q<Label>("ConfirmText");
@@ -393,13 +414,14 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
         if (displayMode != null)
         {
-            displayMode.choices = new List<string> { "Fullscreen", "Borderless", "Windowed" };
+            displayMode.choices = Translate(DisplayModeNames);
             displayMode.RegisterValueChangedCallback(evt =>
             {
-                if (session == null)
-                    return;
+                int index = displayMode.choices.IndexOf(evt.newValue);
 
-                session.Draft.fullScreenMode = (int)ToFullScreenMode(evt.newValue);
+                if (session != null && index >= 0)
+                    session.Draft.fullScreenMode = (int)ToFullScreenMode(index);
+
                 RefreshApplyButton();
             });
         }
@@ -475,12 +497,14 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         // are things the key does, and a tick box makes one of them the absence
         // of the other - which is fine to write and horrible to read when the
         // question is what happens when I press this.
+        BindLanguage(root);
+
         DropdownField crouch = root.Q<DropdownField>("CrouchMode");
 
         if (crouch == null)
             return;
 
-        crouch.choices = new List<string>(CrouchModeNames);
+        crouch.choices = Translate(CrouchModeNames);
         crouch.RegisterValueChangedCallback(evt =>
         {
             int index = crouch.choices.IndexOf(evt.newValue);
@@ -493,6 +517,44 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         });
     }
 
+    // The one control on this screen whose own words are never translated.
+    // Somebody hunting for their language is hunting for the word they call it
+    // by, and a list that renamed itself into the language currently being
+    // spoken would hide exactly the entry they came for.
+    private void BindLanguage(VisualElement root)
+    {
+        DropdownField language = root.Q<DropdownField>("Language");
+
+        if (language == null)
+            return;
+
+        FillLanguages(language);
+
+        language.RegisterValueChangedCallback(evt =>
+        {
+            int index = language.choices.IndexOf(evt.newValue);
+
+            if (session != null && index >= 0 && index < localeCodes.Count)
+                session.Draft.locale = localeCodes[index];
+
+            RefreshApplyButton();
+        });
+    }
+
+    private void FillLanguages(DropdownField language)
+    {
+        localeCodes.Clear();
+        List<string> names = new();
+
+        foreach (LocaleOption option in UiLocalization.AvailableLocales)
+        {
+            localeCodes.Add(option.Locale);
+            names.Add(option.DisplayName);
+        }
+
+        language.choices = names;
+    }
+
     private void RefreshCrouchHint()
     {
         Label hint = document == null
@@ -502,9 +564,10 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         if (hint == null || session == null)
             return;
 
-        hint.text = session.Draft.crouchIsHold
-            ? "Crouched while the key is down, standing the moment it is let go."
-            : "One press to crouch, another to stand.";
+        hint.text = UiLocalization.Text(
+            session.Draft.crouchIsHold
+                ? "Crouched while the key is down, standing the moment it is let go."
+                : "One press to crouch, another to stand.");
     }
 
     private void BindInterface(VisualElement root)
@@ -525,7 +588,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
         if (textSize != null)
         {
-            textSize.choices = new List<string>(GameSettingsData.TextSizeNames);
+            textSize.choices = Translate(GameSettingsData.TextSizeNames);
             textSize.RegisterValueChangedCallback(evt =>
             {
                 int index = textSize.choices.IndexOf(evt.newValue);
@@ -652,6 +715,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         SetSlider(root, "UiScale", draft.uiScale, FormatPercent);
         SetDropdown(root, "TextSize", IndexLabel(GameSettingsData.TextSizeNames, draft.textSize));
         SetDropdown(root, "CrouchMode", IndexLabel(CrouchModeNames, draft.crouchIsHold ? 1 : 0));
+        SetDropdown(root, "Language", LocaleLabel(draft.locale));
         SetToggle(root, "ReducedMotion", draft.reducedMotion);
 
         RefreshCrouchHint();
@@ -720,6 +784,64 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     // The button says whether there is anything to apply, which is also how the
     // player learns that this screen waits: it lights up the moment they touch
     // something, and goes out again when they put it back.
+    private string LocaleLabel(string locale)
+    {
+        int index = localeCodes.IndexOf(locale);
+
+        // An unknown code is a settings file from a build that shipped a
+        // language this one does not, so the picker shows what is actually
+        // being spoken rather than an empty box.
+        if (index < 0)
+            index = 0;
+
+        IReadOnlyList<LocaleOption> available = UiLocalization.AvailableLocales;
+
+        return index < available.Count ? available[index].DisplayName : string.Empty;
+    }
+
+    // The words this screen wrote for itself, written again. Everything the
+    // markup wrote has already been re-translated by the time this is called;
+    // these are the lists, the hint and whatever is currently being asked.
+    private void RelabelForLanguage()
+    {
+        if (boundRoot == null)
+            return;
+
+        DropdownField language = boundRoot.Q<DropdownField>("Language");
+
+        if (language != null)
+            FillLanguages(language);
+
+        SetChoices(boundRoot, "DisplayMode", Translate(DisplayModeNames));
+        SetChoices(boundRoot, "CrouchMode", Translate(CrouchModeNames));
+        SetChoices(boundRoot, "TextSize", Translate(GameSettingsData.TextSizeNames));
+        SetChoices(boundRoot, "FrameRate", BuildFrameRateChoices());
+
+        // Every one of those lists just lost the label it was pointing at, so
+        // the values are taken from the draft again rather than left blank.
+        if (session != null)
+            RefreshFromDraft();
+
+        if (question == PendingQuestion.None)
+            return;
+
+        SetAnswerLabels();
+
+        if (confirmText != null)
+            confirmText.text = QuestionText();
+    }
+
+    private static void SetChoices(
+        VisualElement root,
+        string name,
+        List<string> choices)
+    {
+        DropdownField dropdown = root.Q<DropdownField>(name);
+
+        if (dropdown != null)
+            dropdown.choices = choices;
+    }
+
     private void RefreshApplyButton()
     {
         applyButton?.SetEnabled(HasStagedChanges());
@@ -731,7 +853,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
             return;
 
         question = PendingQuestion.Defaults;
-        ShowConfirmation("Reset every setting to its default?");
+        ShowConfirmation();
     }
 
     // The left button always means "go ahead with what was asked".
@@ -777,14 +899,34 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
     private void ShowDisplayConfirmation()
     {
-        int remaining = Mathf.CeilToInt(settingsService.DisplayConfirmationRemaining);
-        ShowConfirmation($"Keep these display settings? Reverting in {remaining} s");
+        ShowConfirmation();
     }
 
-    private void ShowConfirmation(string message)
+    // What the panel is asking, in the language being spoken. Built from the
+    // pending question rather than handed in, so it can be asked again when
+    // that language changes underneath an open dialog.
+    private string QuestionText()
+    {
+        return question switch
+        {
+            PendingQuestion.Defaults =>
+                UiLocalization.Text("Reset every setting to its default?"),
+
+            PendingQuestion.DiscardChanges =>
+                UiLocalization.Text("Close without applying the changes?"),
+
+            PendingQuestion.DisplayConfirmation => string.Format(
+                UiLocalization.Text("Keep these display settings? Reverting in {0} s"),
+                Mathf.CeilToInt(settingsService.DisplayConfirmationRemaining)),
+
+            _ => string.Empty
+        };
+    }
+
+    private void ShowConfirmation()
     {
         if (confirmText != null)
-            confirmText.text = message;
+            confirmText.text = QuestionText();
 
         SetAnswerLabels();
 
@@ -831,8 +973,8 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         string revertLabel,
         string revertTone)
     {
-        SetAnswer(confirmButton, confirmLabel, confirmTone);
-        SetAnswer(revertButton, revertLabel, revertTone);
+        SetAnswer(confirmButton, UiLocalization.Text(confirmLabel), confirmTone);
+        SetAnswer(revertButton, UiLocalization.Text(revertLabel), revertTone);
     }
 
     // Both tones come off before one goes on. The dialog is reused for every
@@ -926,32 +1068,44 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
 
     private static string FrameRateLabel(int limit)
     {
-        return limit <= 0 ? "Unlimited" : $"{limit} fps";
+        return limit <= 0 ? UiLocalization.Text("Unlimited") : $"{limit} fps";
     }
 
     private static string DisplayModeLabel(FullScreenMode mode)
     {
         return mode switch
         {
-            FullScreenMode.ExclusiveFullScreen => "Fullscreen",
-            FullScreenMode.FullScreenWindow => "Borderless",
-            _ => "Windowed"
+            FullScreenMode.ExclusiveFullScreen => UiLocalization.Text(DisplayModeNames[0]),
+            FullScreenMode.FullScreenWindow => UiLocalization.Text(DisplayModeNames[1]),
+            _ => UiLocalization.Text(DisplayModeNames[2])
         };
     }
 
-    private static FullScreenMode ToFullScreenMode(string label)
+    private static FullScreenMode ToFullScreenMode(int index)
     {
-        return label switch
+        return index switch
         {
-            "Fullscreen" => FullScreenMode.ExclusiveFullScreen,
-            "Borderless" => FullScreenMode.FullScreenWindow,
+            0 => FullScreenMode.ExclusiveFullScreen,
+            1 => FullScreenMode.FullScreenWindow,
             _ => FullScreenMode.Windowed
         };
     }
 
+    private static List<string> Translate(string[] names)
+    {
+        List<string> translated = new(names.Length);
+
+        for (int i = 0; i < names.Length; i++)
+            translated.Add(UiLocalization.Text(names[i]));
+
+        return translated;
+    }
+
     private static string IndexLabel(string[] names, int index)
     {
-        return names != null && index >= 0 && index < names.Length ? names[index] : string.Empty;
+        return names != null && index >= 0 && index < names.Length
+            ? UiLocalization.Text(names[index])
+            : string.Empty;
     }
 
     private static string FormatPercent(float value)

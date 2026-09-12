@@ -22,7 +22,7 @@ public sealed class GameSettingsData
     /// шрифта задан токенами в USS, и класс на корне документа может переопределить
     /// их только заранее известным набором значений.
     /// </summary>
-    public static readonly string[] TextSizeNames = { "Small", "Normal", "Large", "Largest" };
+    public static readonly string[] TextSizeNames = { "Small", "Medium", "Large", "Largest" };
 
     public int version = CurrentVersion;
 
@@ -48,6 +48,11 @@ public sealed class GameSettingsData
 
     // Меньше движения: интерфейс перестаёт ездить и растворяться.
     public bool reducedMotion;
+
+    // Язык интерфейса, тегом BCP 47. Пустая строка означает «язык по
+    // умолчанию»: так выглядит файл настроек, написанный до того, как выбор
+    // языка вообще появился.
+    public string locale = "en";
 
     public float mouseSensitivity = 100f;
     public bool invertVerticalLook;

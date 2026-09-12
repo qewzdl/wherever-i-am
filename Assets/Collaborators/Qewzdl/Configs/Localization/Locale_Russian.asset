@@ -1,0 +1,391 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7d24e91f03a486cb95e12d7a64f0c28, type: 3}
+  m_Name: Locale_Russian
+  m_EditorClassIdentifier:
+  locale: ru
+  displayName: Русский
+  entries:
+  - English: OK
+    Translation: ОК
+  - English: Lobby
+    Translation: Лобби
+  - English: Players
+    Translation: Игроки
+  - English: Start
+    Translation: Начать
+  - English: Ready
+    Translation: Готов
+  - English: Room settings
+    Translation: Настройки комнаты
+  - English: Settings
+    Translation: Настройки
+  - English: Leave
+    Translation: Покинуть
+  - English: Difficulty
+    Translation: Сложность
+  - English: Done
+    Translation: Готово
+  - English: Leave session
+    Translation: Покинуть сессию
+  - English: Cancel
+    Translation: Отмена
+  - English: Chat
+    Translation: Чат
+  - English: Name
+    Translation: Имя
+  - English: Create lobby
+    Translation: Создать лобби
+  - English: Join lobby
+    Translation: Войти в лобби
+  - English: Quit
+    Translation: Выход
+  - English: Wherever I Am
+    Translation: Wherever I Am
+  - English: Join a lobby
+    Translation: Вход в лобби
+  - English: On this network
+    Translation: В этой сети
+  - English: Or by address
+    Translation: Или по адресу
+  - English: Refresh
+    Translation: Обновить
+  - English: Connect
+    Translation: Подключиться
+  - English: Game menu
+    Translation: Игровое меню
+  - English: The match continues while this menu is open.
+    Translation: Матч продолжается, пока открыто это меню.
+  - English: Back to game
+    Translation: Вернуться в игру
+  - English: Main menu
+    Translation: Главное меню
+  - English: Graphics
+    Translation: Графика
+  - English: Audio
+    Translation: Звук
+  - English: Controls
+    Translation: Управление
+  - English: Interface
+    Translation: Интерфейс
+  - English: Accessibility
+    Translation: Доступность
+  - English: Resolution
+    Translation: Разрешение
+  - English: Display mode
+    Translation: Режим экрана
+  - English: Quality
+    Translation: Качество
+  - English: Frame rate
+    Translation: Частота кадров
+  - English: Vertical sync
+    Translation: Вертикальная синхронизация
+  - English: Field of view
+    Translation: Поле зрения
+  - English: Camera smoothing
+    Translation: Сглаживание камеры
+  - English: Smoothing amount
+    Translation: Сила сглаживания
+  - English: Camera
+    Translation: Камера
+  - English: Camera shake
+    Translation: Тряска камеры
+  - English: Head bob
+    Translation: Покачивание при ходьбе
+  - English: Roll when turning
+    Translation: Крен при повороте
+  - English: Strafe lean
+    Translation: Наклон в стороны
+  - English: Breathing
+    Translation: Дыхание
+  - English: How much the view moves on its own. Zero turns an effect off; Reduced motion silences all five at once.
+    Translation: Насколько камера двигается сама. Ноль выключает эффект; «Меньше движения» глушит все пять разом.
+  - English: Master
+    Translation: Общая
+  - English: Music
+    Translation: Музыка
+  - English: Effects
+    Translation: Эффекты
+  - English: Mouse sensitivity
+    Translation: Чувствительность мыши
+  - English: Invert vertical look
+    Translation: Инвертировать вертикаль
+  - English: Crouch
+    Translation: Приседание
+  - English: Language
+    Translation: Язык
+  - English: Interface opacity
+    Translation: Видимость интерфейса
+  - English: Crosshair size
+    Translation: Размер прицела
+  - English: Interface scale
+    Translation: Масштаб интерфейса
+  - English: Everything on screen, together - controls as well as words.
+    Translation: Всё на экране разом — и элементы управления, и текст.
+  - English: Text size
+    Translation: Размер текста
+  - English: The words alone, for when the buttons are already the right size.
+    Translation: Только текст — когда кнопки уже нужного размера.
+  - English: Reduced motion
+    Translation: Меньше движения
+  - English: Screens open and close without sliding, fading or growing into place.
+    Translation: Экраны открываются и закрываются без сдвигов, затуханий и роста.
+  - English: Defaults
+    Translation: По умолчанию
+  - English: Apply
+    Translation: Применить
+  - English: Close
+    Translation: Закрыть
+  - English: Revert
+    Translation: Вернуть
+  - English: Previous
+    Translation: Предыдущий
+  - English: Next
+    Translation: Следующий
+  - English: Toggle
+    Translation: Переключение
+  - English: Hold
+    Translation: Удержание
+  - English: Fullscreen
+    Translation: Полный экран
+  - English: Borderless
+    Translation: Без рамки
+  - English: Windowed
+    Translation: В окне
+  - English: Unlimited
+    Translation: Без ограничения
+  - English: Small
+    Translation: Мелкий
+  - English: Normal
+    Translation: Обычная
+  - English: Large
+    Translation: Крупный
+  - English: Largest
+    Translation: Самый крупный
+  - English: One press to crouch, another to stand.
+    Translation: Одно нажатие — присесть, ещё одно — встать.
+  - English: Crouched while the key is down, standing the moment it is let go.
+    Translation: Приседает, пока клавиша зажата, и встаёт, как только её отпустили.
+  - English: Reset every setting to its default?
+    Translation: Сбросить все настройки к значениям по умолчанию?
+  - English: Close without applying the changes?
+    Translation: Закрыть, не применяя изменения?
+  - English: Keep these display settings? Reverting in {0} s
+    Translation: Оставить эти настройки экрана? Возврат через {0} с
+  - English: Reset
+    Translation: Сбросить
+  - English: Discard
+    Translation: Отбросить
+  - English: Keep editing
+    Translation: Продолжить настройку
+  - English: Keep
+    Translation: Оставить
+  - English: Ready up
+    Translation: Готов
+  - English: Stand down
+    Translation: Отменить готовность
+  - English: Change
+    Translation: Изменить
+  - English: Remove
+    Translation: Выгнать
+  - English: Close lobby
+    Translation: Закрыть лобби
+  - English: Owner
+    Translation: Хозяин
+  - English: Not ready
+    Translation: Не готов
+  - English: Updating...
+    Translation: Обновление...
+  - English: Starting...
+    Translation: Запуск...
+  - English: No answer - try again
+    Translation: Нет ответа — попробуйте ещё раз
+  - English: '{0} READY'
+    Translation: '{0} ГОТОВЫ'
+  - English: Remove {0}? They will not be able to join again this session.
+    Translation: Выгнать {0}? До конца сессии этот игрок вернуться не сможет.
+  - English: Need {0} more to start
+    Translation: Для начала нужно ещё {0}
+  - English: Ready up when you're prepared
+    Translation: Нажмите «Готов», когда будете готовы
+  - English: Waiting for {0}
+    Translation: Ждём {0}
+  - English: Waiting for {0} players
+    Translation: 'Ждём игроков: {0}'
+  - English: Starting the match...
+    Translation: Запускаем матч...
+  - English: Only the host can change this
+    Translation: Это может менять только хозяин
+  - English: Everyone is ready - start the match
+    Translation: Все готовы — можно начинать
+  - English: Waiting for the host to start
+    Translation: Ждём, когда хозяин начнёт
+  - English: Waiting for the room...
+    Translation: Ждём комнату...
+  - English: '  (you)'
+    Translation: '  (вы)'
+  - English: At least {0} while they are standing here.
+    Translation: Не меньше {0}, пока они здесь стоят.
+  - English: 'Difficulty: {0}'
+    Translation: 'Сложность: {0}'
+  - English: '{0} sets the terms'
+    Translation: Условия задаёт {0}
+  - English: You set the terms
+    Translation: Условия задаёте вы
+  - English: The host sets the terms
+    Translation: Условия задаёт хозяин
+  - English: Host changed difficulty to {0}
+    Translation: Хозяин сменил сложность на «{0}»
+  - English: You changed difficulty to {0}
+    Translation: Вы сменили сложность на «{0}»
+  - English: ' - check your ready status'
+    Translation: ' — проверьте свою готовность'
+  - English: Change difficulty to {0}? Everybody who is ready goes back to not ready.
+    Translation: Сменить сложность на «{0}»? Все готовые снова станут неготовыми.
+  - English: Lobby closed
+    Translation: Лобби закрыто
+  - English: Lobby open
+    Translation: Лобби открыто
+  - English: Nobody can reach this lobby until you open it.
+    Translation: Пока вы не откроете лобби, в него никто не попадёт.
+  - English: Anybody who has {0} can join.
+    Translation: Войти сможет любой, у кого есть {0}.
+  - English: Open, but this machine has no network address to hand out.
+    Translation: Открыто, но у этой машины нет сетевого адреса, который можно раздать.
+  - English: Only the host can open the door.
+    Translation: Открыть дверь может только хозяин.
+  - English: no network
+    Translation: нет сети
+  - English: Copy invite address
+    Translation: Скопировать адрес для приглашения
+  - English: Address copied
+    Translation: Адрес скопирован
+  - English: Open, but the room is full at {0}. Nobody else can get in.
+    Translation: 'Открыто, но комната заполнена: {0}. Больше никто не войдёт.'
+  - English: Close the lobby? Everybody else in it goes back to the menu.
+    Translation: Закрыть лобби? Все остальные вернутся в меню.
+  - English: Close the lobby and go back to the menu?
+    Translation: Закрыть лобби и вернуться в меню?
+  - English: PREPARING
+    Translation: ПОДГОТОВКА
+  - English: LOADING SCENE
+    Translation: ЗАГРУЗКА СЦЕНЫ
+  - English: ENTERING MATCH
+    Translation: ВХОД В МАТЧ
+  - English: LEAVING SESSION
+    Translation: ВЫХОД ИЗ СЕССИИ
+  - English: Loading the selected map...
+    Translation: Загружаем выбранную карту...
+  - English: Match is ready...
+    Translation: Матч готов...
+  - English: Returning to the menu...
+    Translation: Возвращаемся в меню...
+  - English: Synchronizing the scene with every player.
+    Translation: Синхронизируем сцену со всеми игроками.
+  - English: The host started the match. Waiting for scene synchronization.
+    Translation: Хозяин начал матч. Ждём синхронизации сцены.
+  - English: Stopping network services safely.
+    Translation: Аккуратно останавливаем сетевые службы.
+  - English: '{0} s elapsed'
+    Translation: прошло {0} с
+  - English: Preparing network...
+    Translation: Готовим сеть...
+  - English: Starting LAN host...
+    Translation: Запускаем хост в локальной сети...
+  - English: Contacting host and awaiting approval...
+    Translation: Связываемся с хостом и ждём подтверждения...
+  - English: Loading lobby...
+    Translation: Загружаем лобби...
+  - English: Opening lobby...
+    Translation: Открываем лобби...
+  - English: Joining match...
+    Translation: Входим в матч...
+  - English: Cancelling connection...
+    Translation: Отменяем подключение...
+  - English: This device will host the LAN session.
+    Translation: Это устройство будет хостом сессии в локальной сети.
+  - English: Host {0}
+    Translation: Хост {0}
+  - English: STEP {0} / {1}
+    Translation: ШАГ {0} / {1}
+  - English: Listening
+    Translation: Слушаем сеть
+  - English: Discovery unavailable
+    Translation: Поиск недоступен
+  - English: No lobbies have answered yet
+    Translation: Пока не ответило ни одно лобби
+  - English: For a lobby this network cannot see. IPv4, for example 192.168.1.10
+    Translation: Для лобби, которое не видно в этой сети. IPv4, например 192.168.1.10
+  - English: Enter a valid IPv4 address.
+    Translation: Введите корректный адрес IPv4.
+  - English: Settings are unavailable.
+    Translation: Настройки недоступны.
+  - English: Network session service is missing.
+    Translation: Служба сетевой сессии отсутствует.
+  - English: Failed to start the network session.
+    Translation: Не удалось запустить сетевую сессию.
+  - English: Connection lost. Reconnecting...
+    Translation: Связь потеряна. Переподключаемся...
+  - English: The connection request is invalid.
+    Translation: Некорректный запрос на подключение.
+  - English: The client build is incompatible with the host.
+    Translation: Сборка клиента несовместима с хостом.
+  - English: The network session is full.
+    Translation: Сетевая сессия заполнена.
+  - English: This player is already connected.
+    Translation: Этот игрок уже подключён.
+  - English: The lobby is private.
+    Translation: Лобби закрыто.
+  - English: The host removed you from the lobby.
+    Translation: Хозяин выгнал вас из лобби.
+  - English: The host closed the lobby.
+    Translation: Хозяин закрыл лобби.
+  - English: Nothing said yet
+    Translation: Пока ничего не сказано
+  - English: Watching {0}
+    Translation: Смотрим за {0}
+  - English: Nobody left to watch
+    Translation: Смотреть больше не за кем
+  - English: Easy
+    Translation: Лёгкая
+  - English: Hard
+    Translation: Высокая
+  - English: Extreme
+    Translation: Запредельная
+  - English: Hears half of what you do and forgets you within a couple of seconds. Narrow sight, a slow search, and she looks only near the spot she lost you.
+    Translation: Слышит половину того, что вы делаете, и забывает вас за пару секунд. Узкое поле зрения, медленный поиск, и ищет она только рядом с тем местом, где вас потеряла.
+  - English: The intended balance. Ordinary hearing, a wide look ahead, a few seconds of memory - she searches the room you left, then moves on.
+    Translation: Задуманный баланс. Обычный слух, широкий обзор впереди, несколько секунд памяти — обыщет комнату, из которой вы ушли, и двинется дальше.
+  - English: Twice the hearing and remembers you for several seconds after losing sight. Turns and accelerates hard, so corners stop shaking her off, and she sweeps a wide area, stopping to look around.
+    Translation: Вдвое лучше слышит и помнит вас ещё несколько секунд после того, как потеряла из виду. Резко поворачивает и разгоняется, так что углами её уже не сбросить, и прочёсывает широкую область, останавливаясь осмотреться.
+  - English: Hears the quietest noise from across the house and sees almost all the way around her. Keeps hunting long after you are out of sight, moves faster than anything below, and searches whole rooms rather than corners.
+    Translation: Слышит тишайший звук через весь дом и видит почти на все стороны. Продолжает охоту ещё долго после того, как вы скрылись, движется быстрее всех предыдущих и обыскивает комнаты целиком, а не по углам.
+  - English: Medium
+    Translation: Средний
+  - English: You got out
+    Translation: Вы выбрались
+  - English: Everyone was caught
+    Translation: Поймали всех
+  - English: The match is over
+    Translation: Матч окончен
+  - English: The match is over - you got out.
+    Translation: Матч окончен — вы выбрались.
+  - English: The match is over - everyone was caught.
+    Translation: Матч окончен — поймали всех.
+  - English: The match is over.
+    Translation: Матч окончен.
+  - English: The network session is not accepting new players right now.
+    Translation: Сейчас сетевая сессия не принимает новых игроков.
+  - English: Mobile
+    Translation: Мобильное
+  - English: PC
+    Translation: ПК

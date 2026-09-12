@@ -904,6 +904,7 @@ public sealed class GTests
             typeof(IUiErrorService),
             typeof(ISettingsService),
             typeof(ISettingsScreen),
+            typeof(ILocalizationService),
             typeof(IAudioService),
             typeof(IGameMapCatalog)
         };

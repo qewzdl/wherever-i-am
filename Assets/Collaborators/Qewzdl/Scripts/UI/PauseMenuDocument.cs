@@ -122,6 +122,11 @@ public sealed class PauseMenuDocument : MonoBehaviour, IPauseServiceConsumer
 
         UiPreferences.Attach(root);
 
+        // And the language, in the same breath and for the same reason:
+        // it belongs to the tree rather than to this screen, and a tree
+        // is built whenever Unity feels like building one.
+        UiLocalization.Apply(root);
+
         screen = root.Q<VisualElement>("Screen");
         resumeButton = root.Q<Button>("ResumeButton");
         settingsButton = root.Q<Button>("SettingsButton");

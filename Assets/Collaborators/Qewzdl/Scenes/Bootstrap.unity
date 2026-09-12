@@ -158,6 +158,7 @@ GameObject:
   - component: {fileID: 481143005}
   - component: {fileID: 481143007}
   - component: {fileID: 481143008}
+  - component: {fileID: 481143090}
   m_Layer: 0
   m_Name: BootstrapManager
   m_TagString: Untagged
@@ -343,6 +344,7 @@ MonoBehaviour:
   connectionApprovalService: {fileID: 481142991}
   uiErrorManager: {fileID: 1020719287}
   settingsService: {fileID: 481143008}
+  localizationService: {fileID: 481143090}
   settingsScreen: {fileID: 556307082}
   audioManager: {fileID: 1269671436}
   gameplayNoiseWorldService: {fileID: 481143003}
@@ -1562,6 +1564,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1269671437}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &481143090
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 481142975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c91e560a4b8d47f2ae03d156b7492e60, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tables:
+  - {fileID: 11400000, guid: 4d7f2b09e15c48a3b06d9c8172e5af34, type: 2}
+  - {fileID: 11400000, guid: 6b1d84f0c37a4e29b5d0af62931ce745, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

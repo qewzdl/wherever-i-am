@@ -309,6 +309,11 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         boundRoot = root;
         UiPreferences.Attach(root);
 
+        // And the language, in the same breath and for the same reason:
+        // it belongs to the tree rather than to this screen, and a tree
+        // is built whenever Unity feels like building one.
+        UiLocalization.Apply(root);
+
         chatLayer = root.Q<VisualElement>("Chat");
         chatWindow = root.Q<VisualElement>("Window");
         tab = root.Q<Button>("Tab");
@@ -553,7 +558,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
         string key = chatInput != null ? chatInput.OpenChatDisplayName : string.Empty;
 
-        tabKey.text = string.IsNullOrWhiteSpace(key) ? fallbackOpenChatKey : key;
+        tabKey.text = string.IsNullOrWhiteSpace(key) ? UiLocalization.Text(fallbackOpenChatKey) : key;
     }
 
     // What was said while nobody was looking. Hidden at nought rather than
@@ -605,7 +610,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         // between the rule and the sentence explaining that there is nothing.
         if (shown == 0)
         {
-            Label empty = new Label(emptyChatText);
+            Label empty = new Label(UiLocalization.Text(emptyChatText));
             empty.AddToClassList(EmptyClass);
             messages.Add(empty);
             return;
@@ -649,7 +654,12 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
             }
         }
 
-        Label text = new Label(message.Text.ToString()) { enableRichText = false };
+        string body = message.Text.ToString();
+
+        if (isSystem)
+            body = UiLocalization.Text(body);
+
+        Label text = new Label(body) { enableRichText = false };
         text.AddToClassList(TextClass);
         row.Add(text);
 
