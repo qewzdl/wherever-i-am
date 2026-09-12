@@ -178,12 +178,12 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         clientB.Manager.Shutdown(discardMessageQueue: false);
 
         // Sampled the first frame the release lands, not after the wait
-        // returns. The server puts the item back on its spawn point and makes
-        // it dynamic again in the same step, and nothing in this test world is
-        // holding it up, so it is falling from the next frame on. Reading the
-        // position afterwards measured how many frames the wait happened to
-        // take - fine on its own, past the tolerance with the whole suite
-        // running.
+        // returns, so this reads where the server put the item rather than
+        // where it had got to by the time the wait noticed.
+        //
+        // Gravity is off in this fixture, so nothing pulls it down; what used
+        // to move it was the velocity it had been carrying since before it was
+        // picked up, which the server now clears when it puts the item back.
         bool hasRestoredPosition = false;
         Vector3 restoredPosition = Vector3.zero;
 
