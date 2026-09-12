@@ -1,0 +1,50 @@
+/* ==========================================================================
+   MATCH RESULT
+
+   The screen a match ends on. It was a TextMeshPro label on a canvas of its
+   own while everything else moved to UI Toolkit, so it kept a font, a scale
+   and a set of colours that stopped matching the rest of the game.
+
+   It has no panel, and that is the whole shape of it. A panel is a card put in
+   front of the game because the game is still there to go back to - a pause
+   menu, the settings, a prompt. This is the game being over: the frame goes
+   dark and the sentence is written on the dark.
+
+   The screen layer already centres what is on it and already carries the veil,
+   so there is nothing here about either.
+   ========================================================================== */
+
+.result__outcome {
+    color: var(--text);
+    font-size: var(--font-size-xl);
+
+    letter-spacing: var(--tracking-wide);
+
+    margin-bottom: var(--space-m);
+
+    white-space: normal;
+
+    -unity-text-align: middle-center;
+}
+
+
+/* Rust is the one place the quiet breaks in this palette, and everybody being
+   caught is the one thing in a match worth breaking it for. A win is left in
+   the ordinary colour: it is the outcome the game is about, and shouting it
+   would make the other one quieter by comparison. */
+.result--defeat .result__outcome {
+    color: var(--danger);
+}
+
+
+/* Bigger than a hint anywhere else in the game. A hint is normally a note
+   beside something a player is doing and can be small because they are looking
+   at the thing, not at it; here there is nothing else on the screen, and next
+   to a sentence at fifty-six it read as fine print. */
+.result__note {
+    font-size: var(--font-size-m);
+
+    margin-bottom: 0;
+
+    -unity-text-align: middle-center;
+}

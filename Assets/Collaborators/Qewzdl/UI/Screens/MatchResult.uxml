@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- No panel. Every other screen puts a card in front of the game because
+         the game is still there to go back to; this one is the game being
+         over, so the whole frame goes dark and the sentence is written on it.
+
+         The outcome itself is written from code: it is the one thing here that
+         changes. -->
+    <ui:VisualElement name="Screen" class="screen result">
+        <ui:Label name="Outcome" class="result__outcome" />
+        <ui:Label text="Everyone is going back to the lobby." name="Note" class="hint result__note" />
+    </ui:VisualElement>
+</ui:UXML>
