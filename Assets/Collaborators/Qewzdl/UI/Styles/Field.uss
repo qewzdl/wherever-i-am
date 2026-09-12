@@ -46,12 +46,30 @@
 .field__label {
     width: var(--label-width);
 
+    /* The gap between a setting's name and the setting, taken out of the
+       label's own column rather than added to the control's side.
+       The column's edge is a line other things are lined up against - the hint
+       under a control in the lobby is pushed out by exactly --label-width - so
+       moving the control would have moved it away from the words explaining
+       it. Padding leaves the edge where it is and steps the text back from it. */
+    padding-right: var(--space-m);
+
     flex-shrink: 0;
 
     align-self: stretch;
 
     color: var(--text);
     font-size: var(--font-size-s);
+
+    /* Wraps, because the column it sits in is a fixed width and a label that
+       does not wrap does not stay in it - it runs on across the control it is
+       naming. Two lines of label is a row that got taller; a sentence written
+       over a dropdown is a screen that looks broken.
+
+       Russian is wider than English at the same size and the text setting adds
+       a third on top of that, so this is not an edge case: half the rows on
+       the settings screen were doing it. */
+    white-space: normal;
 
     -unity-text-align: middle-left;
 }
@@ -133,7 +151,13 @@
    A column needs none of this: its entries are already as wide as the column. */
 
 .footer .button {
-    width: 160px;
+    /* A floor rather than a width. Even was the whole point of the number and
+       even is what it still is for every word that fits; what it cannot be any
+       more is a promise, because a word that does not fit was being painted
+       outside its own frame and over the button beside it. Russian is wider
+       than English at the same size, the text setting adds a third on top, and
+       "По умолчанию" wanted two hundred pixels of a hundred and sixty. */
+    min-width: 160px;
 
     margin-left: var(--space-s);
 
