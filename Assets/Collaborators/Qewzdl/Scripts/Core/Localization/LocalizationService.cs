@@ -141,6 +141,15 @@ public sealed class LocalizationService : MonoBehaviour, ILocalizationService
         return translation;
     }
 
+    public string Translate(string english, int count)
+    {
+        if (string.IsNullOrEmpty(english) || active == null)
+            return english;
+
+        active.TryTranslate(english, count, out string translation);
+        return translation;
+    }
+
     public bool TrySetLocale(string locale)
     {
         if (string.IsNullOrWhiteSpace(locale) || tables == null)

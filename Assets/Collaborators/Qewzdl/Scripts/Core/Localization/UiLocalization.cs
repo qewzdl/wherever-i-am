@@ -103,6 +103,15 @@ public static class UiLocalization
     }
 
     /// <summary>
+    /// One sentence, in the form that agrees with a count. Safe before
+    /// anything is composed.
+    /// </summary>
+    public static string Text(string english, int count)
+    {
+        return service != null ? service.Translate(english, count) : english;
+    }
+
+    /// <summary>
     /// Every static word in a tree, translated in place.
     /// </summary>
     /// <remarks>

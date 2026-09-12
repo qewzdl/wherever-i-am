@@ -48,6 +48,13 @@ public interface ILocalizationService
     string Translate(string english);
 
     /// <summary>
+    /// The given English in the form that agrees with <paramref name="count"/>.
+    /// The count chooses the form; putting it into the sentence is still the
+    /// caller's job, because the sentence may say more than the number.
+    /// </summary>
+    string Translate(string english, int count);
+
+    /// <summary>
     /// Raised when the language changes, so anything already on screen can ask
     /// again. Screens are built from this service rather than caching it, so
     /// most of them only need to rebuild.

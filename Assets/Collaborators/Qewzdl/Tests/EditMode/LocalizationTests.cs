@@ -214,6 +214,124 @@ public sealed class LocalizationTests
         }
     }
 
+    // A row that fills one form and not the others falls back to the default
+    // for the rest, which is not a fallback but a wrong sentence with a right
+    // one sitting next to it.
+    [Test]
+    public void EveryCountedRowFillsEveryFormItsLanguageCanAskFor()
+    {
+        foreach (LocaleTable table in Tables())
+        {
+            foreach (LocaleTable.Entry entry in table.Entries)
+            {
+                bool counted =
+                    !string.IsNullOrEmpty(entry.One) ||
+                    !string.IsNullOrEmpty(entry.Few) ||
+                    !string.IsNullOrEmpty(entry.Many);
+
+                if (!counted)
+                    continue;
+
+                Assert.That(
+                    table.PluralRule,
+                    Is.Not.EqualTo(PluralRule.None),
+                    $"'{table.name}' gives \"{entry.English}\" plural forms " +
+                    "and then says the language never uses one.");
+
+                Assert.That(
+                    entry.One,
+                    Is.Not.Empty,
+                    $"'{table.name}' has no singular for \"{entry.English}\".");
+
+                if (table.PluralRule != PluralRule.EastSlavic)
+                    continue;
+
+                Assert.That(
+                    entry.Few,
+                    Is.Not.Empty,
+                    $"'{table.name}' has no few-form for \"{entry.English}\".");
+
+                Assert.That(
+                    entry.Many,
+                    Is.Not.Empty,
+                    $"'{table.name}' has no many-form for \"{entry.English}\".");
+            }
+        }
+    }
+
+    // The arithmetic, checked against the forms a row declares rather than
+    // against any particular Russian - this is a test about counting, and it
+    // should go on passing when somebody rewrites the sentence.
+    [Test]
+    public void TheEastSlavicRuleCountsTheWayRussianDoes()
+    {
+        foreach (LocaleTable table in Tables())
+        {
+            if (table.PluralRule != PluralRule.EastSlavic)
+                continue;
+
+            LocaleTable.Entry counted = default;
+            bool found = false;
+
+            foreach (LocaleTable.Entry entry in table.Entries)
+            {
+                if (string.IsNullOrEmpty(entry.One))
+                    continue;
+
+                counted = entry;
+                found = true;
+                break;
+            }
+
+            Assert.That(
+                found,
+                Is.True,
+                $"'{table.name}' counts, but no row in it does.");
+
+            // 21 and 101 end in one and take the singular. 11 ends in one and
+            // does not: the teens are the exception this rule is known for,
+            // and getting it wrong is the classic way to ship "11 ГОТОВ".
+            AssertForm(table, counted, counted.One, 1, 21, 101, 1001);
+            AssertForm(table, counted, counted.Few, 2, 3, 4, 22, 104);
+            AssertForm(table, counted, counted.Many, 0, 5, 11, 12, 14, 19, 25, 100);
+        }
+    }
+
+    private static void AssertForm(
+        LocaleTable table,
+        LocaleTable.Entry entry,
+        string expected,
+        params int[] counts)
+    {
+        foreach (int count in counts)
+        {
+            table.TryTranslate(entry.English, count, out string translation);
+
+            Assert.That(
+                translation,
+                Is.EqualTo(expected),
+                $"'{table.name}' picked the wrong form for {count}.");
+        }
+    }
+
+    private static IEnumerable<LocaleTable> Tables()
+    {
+        string[] guids = AssetDatabase.FindAssets(
+            "t:LocaleTable",
+            new[] { "Assets/Collaborators/Qewzdl/Configs/Localization" });
+
+        Assert.That(guids, Is.Not.Empty, "No locale tables ship.");
+
+        foreach (string guid in guids)
+        {
+            LocaleTable table = AssetDatabase.LoadAssetAtPath<LocaleTable>(
+                AssetDatabase.GUIDToAssetPath(guid));
+
+            if (table != null)
+                yield return table;
+        }
+    }
+
     // Anything the table does not know comes back as it went in, which is what
     // makes a missing row a stale sentence rather than a blank screen.
     [Test]
@@ -285,6 +403,11 @@ public sealed class LocalizationTests
         public string Translate(string english)
         {
             return string.IsNullOrEmpty(english) ? english : $"<{english}>";
+        }
+
+        public string Translate(string english, int count)
+        {
+            return Translate(english);
         }
     }
 

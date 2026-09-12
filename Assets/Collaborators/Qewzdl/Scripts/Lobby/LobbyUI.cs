@@ -1309,7 +1309,9 @@ public class LobbyUI : MonoBehaviour
 
         if (readyCountLabel != null)
         {
-            readyCountLabel.text = string.Format(UiLocalization.Text(readyCountFormat), readyCount);
+            readyCountLabel.text = string.Format(
+                UiLocalization.Text(readyCountFormat, readyCount),
+                readyCount);
             readyCountLabel.EnableInClassList(
                 ReadyCompleteClass,
                 readService.PlayerCount > 0 &&
@@ -1990,9 +1992,11 @@ public class LobbyUI : MonoBehaviour
                 return UiLocalization.Text(pendingFailedText);
 
             case StartHint.NeedMorePlayers:
+                int needed = settings.MinPlayersToStart - readService.PlayerCount;
+
                 return string.Format(
-                    UiLocalization.Text(needMorePlayersFormat),
-                    settings.MinPlayersToStart - readService.PlayerCount);
+                    UiLocalization.Text(needMorePlayersFormat, needed),
+                    needed);
 
             case StartHint.ReadyUpYourself:
                 return UiLocalization.Text(readyUpPromptText);
@@ -2003,10 +2007,14 @@ public class LobbyUI : MonoBehaviour
             case StartHint.WaitingForOne:
                 return TryGetOnlyNotReadyName(out string name)
                     ? string.Format(UiLocalization.Text(waitingForPlayerFormat), name)
-                    : string.Format(UiLocalization.Text(waitingForPlayersFormat), 1);
+                    : string.Format(UiLocalization.Text(waitingForPlayersFormat, 1), 1);
 
             case StartHint.WaitingForSeveral:
-                return string.Format(UiLocalization.Text(waitingForPlayersFormat), CountNotReady());
+                int waiting = CountNotReady();
+
+                return string.Format(
+                    UiLocalization.Text(waitingForPlayersFormat, waiting),
+                    waiting);
 
             case StartHint.EveryoneReady:
                 return UiLocalization.Text(readyToStartText);
