@@ -17,9 +17,9 @@ public abstract class PickupItem : DraggableObject
 
     private Transform ownerTransform;
     private GameObject viewModel;
-    private Vector3 hiddenPosition = new Vector3(0, -1000, 0);
     private PickUpContext context;
     private MeshRenderer meshRenderer;
+    private Collider[] colliders;
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
 
@@ -143,11 +143,8 @@ public abstract class PickupItem : DraggableObject
     {
         if (ownerTransform == null) return;
 
-        var renderer = GetMeshRenderer();
-        if (renderer != null)
-            renderer.enabled = true;
+        SetCarried(false);
 
-        rb.isKinematic = false;
         rb.rotation = Quaternion.identity;
         rb.position = ownerTransform.position;
 
@@ -223,17 +220,45 @@ public abstract class PickupItem : DraggableObject
             context = null;
     }
 
+    // Carried means out of sight and out of the way. It used to also mean a
+    // thousand metres underground: every instance teleported the body there
+    // while somebody held it.
+    //
+    // That was a position written by instances that do not own the position.
+    // These items sync through a NetworkTransform with owner authority, so a
+    // non-owner writing rb.position is writing something the network is about
+    // to overwrite, and which of the two lands last is a matter of frame
+    // timing. It showed up as an item that came back a few centimetres off its
+    // spawn point, or a thousand metres under it, or an ownership handover
+    // that never arrived - three faces of the same race.
+    //
+    // Turning the renderer and the colliders off does everything the teleport
+    // was for. Nothing sees it, nothing walks into it, and nobody writes a
+    // position they do not own.
+    private void SetCarried(bool carried)
+    {
+        MeshRenderer renderer = GetMeshRenderer();
+
+        if (renderer != null)
+            renderer.enabled = !carried;
+
+        colliders ??= GetComponentsInChildren<Collider>(true);
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null)
+                colliders[i].enabled = !carried;
+        }
+
+        rb.isKinematic = carried;
+    }
+
     // Client RPCs
 
     [Rpc(SendTo.ClientsAndHost)]
     private void HidePickupClientRpc()
     {
-        var renderer = GetMeshRenderer();
-        if (renderer != null)
-            renderer.enabled = false;
-
-        rb.isKinematic = true;
-        rb.position = hiddenPosition;
+        SetCarried(true);
     }
 
     [Rpc(SendTo.Owner)]
@@ -252,11 +277,7 @@ public abstract class PickupItem : DraggableObject
     {
         if (IsOwner) return;
 
-        var renderer = GetMeshRenderer();
-        if (renderer != null)
-            renderer.enabled = true;
-
-        rb.isKinematic = false;
+        SetCarried(false);
     }
 
     // Server

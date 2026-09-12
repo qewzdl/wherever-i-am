@@ -181,14 +181,12 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         // returns, so this reads where the server put the item rather than
         // where it had got to by the time the wait noticed.
         //
-        // Gravity is off in this fixture, so nothing pulls it down, and what
-        // does move it is not understood. Clearing the body velocity when the
-        // server puts the item back was tried and measured: it made the drift
-        // five times worse, so it was taken out again. Sampling the body
-        // rather than the transform was tried too and was worse still.
-        //
-        // So this still fails about one run in three on its own, and passes in
-        // the suite. The tolerance is not the problem and has been left alone.
+        // What moved it was a carried item being hidden by teleporting the
+        // body a thousand metres down, on every instance, including the ones
+        // that do not own the position. These items sync through a
+        // NetworkTransform with owner authority, so those writes raced the
+        // sync and whichever landed last decided where the item was. Hiding
+        // turns the renderer and the colliders off now and moves nothing.
         bool hasRestoredPosition = false;
         Vector3 restoredPosition = Vector3.zero;
 
