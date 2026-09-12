@@ -88,8 +88,40 @@ public sealed class LocalizationService : MonoBehaviour, ILocalizationService
 
     private void ApplySettings()
     {
-        if (settingsService != null)
-            TrySetLocale(settingsService.Current.locale);
+        if (settingsService == null)
+            return;
+
+        string locale = settingsService.Current.locale;
+
+        // Nothing stored is not English - it is nobody having said yet. The
+        // machine is asked instead, every run, until somebody picks one: a
+        // player who never opens the settings goes on getting the language
+        // their computer is in, and one who picks keeps their pick for good.
+        if (string.IsNullOrWhiteSpace(locale))
+            locale = SystemLocale();
+
+        TrySetLocale(locale);
+    }
+
+    private string SystemLocale()
+    {
+        SystemLanguage language = Application.systemLanguage;
+
+        for (int i = 0; i < tables.Length; i++)
+        {
+            LocaleTable table = tables[i];
+
+            if (table != null &&
+                table.SystemLanguage != SystemLanguage.Unknown &&
+                table.SystemLanguage == language)
+            {
+                return table.Locale;
+            }
+        }
+
+        // No table speaks it, so the first one does - the same fallback
+        // Initialize starts from.
+        return tables.Length > 0 && tables[0] != null ? tables[0].Locale : null;
     }
 
     private void OnDestroy()

@@ -172,6 +172,48 @@ public sealed class LocalizationTests
         }
     }
 
+    // Which machine opens in which language is a number in the asset, and a
+    // wrong number opens the game in the wrong language for somebody who is
+    // not in the room. The two that ship are checked by name so the number
+    // cannot be wrong quietly.
+    [Test]
+    public void EveryLanguageAnswersForTheMachineItIsSpokenOn()
+    {
+        Dictionary<string, SystemLanguage> byLocale = new()
+        {
+            { "en", SystemLanguage.English },
+            { "ru", SystemLanguage.Russian }
+        };
+
+        string[] guids = AssetDatabase.FindAssets(
+            "t:LocaleTable",
+            new[] { "Assets/Collaborators/Qewzdl/Configs/Localization" });
+
+        foreach (string guid in guids)
+        {
+            LocaleTable table = AssetDatabase.LoadAssetAtPath<LocaleTable>(
+                AssetDatabase.GUIDToAssetPath(guid));
+
+            if (table == null)
+                continue;
+
+            Assert.That(
+                table.SystemLanguage,
+                Is.Not.EqualTo(SystemLanguage.Unknown),
+                $"'{table.name}' answers for no machine, so nobody is ever " +
+                "opened in it without going to the settings screen first.");
+
+            if (byLocale.TryGetValue(table.Locale, out SystemLanguage language))
+            {
+                Assert.That(
+                    table.SystemLanguage,
+                    Is.EqualTo(language),
+                    $"'{table.name}' says it is {table.Locale} but answers " +
+                    $"for {table.SystemLanguage}.");
+            }
+        }
+    }
+
     // Anything the table does not know comes back as it went in, which is what
     // makes a missing row a stale sentence rather than a blank screen.
     [Test]

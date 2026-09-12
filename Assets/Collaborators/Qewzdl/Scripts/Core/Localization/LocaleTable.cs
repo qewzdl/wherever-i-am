@@ -48,6 +48,17 @@ public sealed class LocaleTable : ScriptableObject
              "Required: nothing else in the project names a font.")]
     [SerializeField] private FontAsset font;
 
+    // Which machine opens in this language on its first run, before anybody
+    // has been to the settings screen.
+    //
+    // Here rather than derived from the locale code, because "ru" is not a
+    // rule that produces SystemLanguage.Russian - it is a fact about Russian,
+    // and facts about a language belong to the language. A new table declares
+    // its own and no code is touched to add one.
+    [Tooltip("The operating system language this table answers for on a " +
+             "machine that has never chosen one.")]
+    [SerializeField] private SystemLanguage systemLanguage = SystemLanguage.Unknown;
+
     [SerializeField] private Entry[] entries = Array.Empty<Entry>();
 
     private Dictionary<string, string> lookup;
@@ -55,6 +66,7 @@ public sealed class LocaleTable : ScriptableObject
     public string Locale => locale;
     public string DisplayName => displayName;
     public FontAsset Font => font;
+    public SystemLanguage SystemLanguage => systemLanguage;
     public int Count => entries != null ? entries.Length : 0;
 
     public IReadOnlyList<Entry> Entries => entries ?? Array.Empty<Entry>();

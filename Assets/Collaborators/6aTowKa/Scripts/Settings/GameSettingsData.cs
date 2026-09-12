@@ -52,7 +52,10 @@ public sealed class GameSettingsData
     // Язык интерфейса, тегом BCP 47. Пустая строка означает «язык по
     // умолчанию»: так выглядит файл настроек, написанный до того, как выбор
     // языка вообще появился.
-    public string locale = "en";
+    // Empty on purpose, and it is not a missing default: it is the difference
+    // between "nobody has chosen" and "somebody chose English". The first
+    // follows the machine, the second is a decision and outlives it.
+    public string locale = string.Empty;
 
     public float mouseSensitivity = 100f;
     public bool invertVerticalLook;

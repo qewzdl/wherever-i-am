@@ -93,6 +93,9 @@ public static class UiLocalization
     public static IReadOnlyList<LocaleOption> AvailableLocales =>
         service != null ? service.AvailableLocales : Array.Empty<LocaleOption>();
 
+    /// <summary>The locale being spoken, or empty before composition.</summary>
+    public static string Locale => service != null ? service.Locale : string.Empty;
+
     /// <summary>One sentence, translated. Safe before anything is composed.</summary>
     public static string Text(string english)
     {

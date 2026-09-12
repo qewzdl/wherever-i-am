@@ -788,9 +788,14 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     {
         int index = localeCodes.IndexOf(locale);
 
-        // An unknown code is a settings file from a build that shipped a
-        // language this one does not, so the picker shows what is actually
-        // being spoken rather than an empty box.
+        // Nothing chosen yet, or a settings file from a build that shipped a
+        // language this one does not. Either way the picker shows what is
+        // actually being spoken rather than an empty box or a guess at the
+        // top of the list - on a Russian machine that guess used to read
+        // English over a screen that was already in Russian.
+        if (index < 0)
+            index = localeCodes.IndexOf(UiLocalization.Locale);
+
         if (index < 0)
             index = 0;
 
