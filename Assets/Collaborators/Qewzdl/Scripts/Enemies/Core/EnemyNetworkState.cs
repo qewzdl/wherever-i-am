@@ -29,10 +29,23 @@ public class EnemyNetworkState : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private readonly NetworkVariable<EnemyHeardNoiseSnapshot> heardNoise = new(
+        EnemyHeardNoiseSnapshot.None,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private uint heardNoiseCount;
+
     public event Action<EnemyState, EnemyState> StateChanged;
     public event Action<EnemyTargetIdentity, EnemyTargetIdentity> TargetChanged;
     public event Action<EnemyPosture, EnemyPosture> PostureChanged;
     public event Action<EnemyAttackPhaseSnapshot, EnemyAttackPhaseSnapshot> AttackPhaseChanged;
+
+    // The score, because that is all a listener needs. Whether it was loud
+    // enough to be worth a sound is a presentation question and is answered
+    // where the sound lives.
+    public event Action<float> HeardNoise;
 
     public EnemyState CurrentState => currentState.Value;
     public EnemyTargetIdentity CurrentTargetIdentity => currentTargetIdentity.Value;
@@ -49,6 +62,7 @@ public class EnemyNetworkState : NetworkBehaviour
         currentTargetIdentity.OnValueChanged += HandleTargetChanged;
         currentPosture.OnValueChanged += HandlePostureChanged;
         currentAttackPhase.OnValueChanged += HandleAttackPhaseChanged;
+        heardNoise.OnValueChanged += HandleHeardNoiseChanged;
     }
 
     public override void OnNetworkDespawn()
@@ -57,6 +71,7 @@ public class EnemyNetworkState : NetworkBehaviour
         currentTargetIdentity.OnValueChanged -= HandleTargetChanged;
         currentPosture.OnValueChanged -= HandlePostureChanged;
         currentAttackPhase.OnValueChanged -= HandleAttackPhaseChanged;
+        heardNoise.OnValueChanged -= HandleHeardNoiseChanged;
     }
 
     public bool TryGetCurrentTargetNetworkObject(out NetworkObject targetNetworkObject)
@@ -117,6 +132,21 @@ public class EnemyNetworkState : NetworkBehaviour
         SetAttackPhaseSnapshotServer(
             EnemyAttackPhaseSnapshot.FromEvent(phaseEvent, serverTime)
         );
+    }
+
+    // Counts from one and never repeats, so a second noise of exactly the same
+    // loudness still reads as a second noise. Late joiners get whatever the
+    // last report was in their initial sync and no event with it, which is
+    // right: they did not hear it happen.
+    public void ReportHeardNoiseServer(float score)
+    {
+        if (!IsServer)
+        {
+            return;
+        }
+
+        heardNoiseCount++;
+        heardNoise.Value = new EnemyHeardNoiseSnapshot(heardNoiseCount, score);
     }
 
     public void ClearTargetServer()
@@ -188,6 +218,19 @@ public class EnemyNetworkState : NetworkBehaviour
     )
     {
         PostureChanged?.Invoke(previousPosture, nextPosture);
+    }
+
+    private void HandleHeardNoiseChanged(
+        EnemyHeardNoiseSnapshot previousReport,
+        EnemyHeardNoiseSnapshot nextReport
+    )
+    {
+        if (!nextReport.HasReport)
+        {
+            return;
+        }
+
+        HeardNoise?.Invoke(nextReport.Score);
     }
 
     private void HandleAttackPhaseChanged(

@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   stateIntegerParameter: EnemyState
   useStateIntegerParameter: 1
+  attackPhaseIntegerParameter: EnemyAttackPhase
+  useAttackPhaseIntegerParameter: 1
   states:
   - state: 0
     animatorStateValue: 0
@@ -28,7 +30,6 @@ MonoBehaviour:
       maxDelay: 8
       chance: 1
     animationSounds: []
-    threatLevel: 0
   - state: 1
     animatorStateValue: 1
     enterTrigger: 
@@ -48,7 +49,6 @@ MonoBehaviour:
       maxDelay: 1
       chance: 1
     animationSounds: []
-    threatLevel: 0
   - state: 2
     animatorStateValue: 2
     enterTrigger: 
@@ -74,7 +74,6 @@ MonoBehaviour:
       maxDelay: 4
       chance: 1
     animationSounds: []
-    threatLevel: 2
   - state: 3
     animatorStateValue: 3
     enterTrigger: 
@@ -86,7 +85,6 @@ MonoBehaviour:
       chance: 1
     loopingSounds: []
     animationSounds: []
-    threatLevel: 3
   - state: 4
     animatorStateValue: 4
     enterTrigger: 
@@ -112,10 +110,9 @@ MonoBehaviour:
       maxDelay: 1
       chance: 1
     animationSounds: []
-    threatLevel: 1
   - state: 5
     animatorStateValue: 5
-    enterTrigger:
+    enterTrigger: 
     resetTriggerOnExit: 0
     enterSounds: []
     loopingSounds:
@@ -134,7 +131,7 @@ MonoBehaviour:
     animationSounds: []
   - state: 6
     animatorStateValue: 6
-    enterTrigger:
+    enterTrigger: 
     resetTriggerOnExit: 0
     enterSounds: []
     loopingSounds:
@@ -153,7 +150,7 @@ MonoBehaviour:
     animationSounds: []
   - state: 7
     animatorStateValue: 7
-    enterTrigger:
+    enterTrigger: 
     resetTriggerOnExit: 0
     enterSounds: []
     loopingSounds:
@@ -172,7 +169,7 @@ MonoBehaviour:
     animationSounds: []
   - state: 8
     animatorStateValue: 8
-    enterTrigger:
+    enterTrigger: 
     resetTriggerOnExit: 0
     enterSounds: []
     loopingSounds:
@@ -183,4 +180,11 @@ MonoBehaviour:
       maxDelay: 6
       chance: 1
     animationSounds: []
+  heardLoudNoiseSound:
+    sound: {fileID: 11400000, guid: 0116defcf45f09443aab7c5e0c119f79, type: 2}
+    playAtEnemyPosition: 1
+    delay: 2
+    chance: 1
+  heardLoudNoiseScore: 0.35
+  heardLoudNoiseCooldown: 6
   fallbackAnimationSounds: []

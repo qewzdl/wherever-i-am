@@ -31,7 +31,8 @@ public sealed class EnemyServerBrain
         EnemyPostureController postureController,
         EnemyBlackboard blackboard,
         Action<EnemyState> setState,
-        Action<EnemyTargetIdentity> setTargetIdentity
+        Action<EnemyTargetIdentity> setTargetIdentity,
+        Action<float> reportHeardNoise
     )
     {
         if (usesTargetDetection && targetDetector == null)
@@ -59,7 +60,8 @@ public sealed class EnemyServerBrain
             targetDetector,
             usesTargetDetection,
             this.blackboard,
-            setTargetIdentity
+            setTargetIdentity,
+            reportHeardNoise
         );
 
         context = new EnemyBrainContext(

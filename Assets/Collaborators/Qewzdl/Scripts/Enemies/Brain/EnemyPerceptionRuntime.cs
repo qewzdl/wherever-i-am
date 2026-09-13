@@ -8,6 +8,7 @@ public sealed class EnemyPerceptionRuntime
     private readonly bool usesTargetDetection;
     private readonly EnemyBlackboard blackboard;
     private readonly Action<EnemyTargetIdentity> setTargetIdentity;
+    private readonly Action<float> reportHeardNoise;
 
     private float targetRefreshTimer;
 
@@ -16,7 +17,8 @@ public sealed class EnemyPerceptionRuntime
         EnemyTargetDetector targetDetector,
         bool usesTargetDetection,
         EnemyBlackboard blackboard,
-        Action<EnemyTargetIdentity> setTargetIdentity
+        Action<EnemyTargetIdentity> setTargetIdentity,
+        Action<float> reportHeardNoise
     )
     {
         if (usesTargetDetection && targetDetector == null)
@@ -35,6 +37,7 @@ public sealed class EnemyPerceptionRuntime
             $"{nameof(EnemyPerceptionRuntime)} requires non-null {nameof(EnemyBlackboard)}."
         );
         this.setTargetIdentity = setTargetIdentity;
+        this.reportHeardNoise = reportHeardNoise;
     }
 
     public EnemyPerceptionDecision Tick(float deltaTime, EnemyState currentState)
@@ -165,6 +168,8 @@ public sealed class EnemyPerceptionRuntime
 
         blackboard.SetCurrentStimulus(resolution.PrimaryStimulus, Time.time);
 
+        ReportHeardNoise(resolution.PrimaryStimulus);
+
         switch (resolution.Action)
         {
             case EnemyStimulusResolutionAction.ChaseConfirmedTarget:
@@ -193,6 +198,23 @@ public sealed class EnemyPerceptionRuntime
             default:
                 return HandleNoStimulus(currentState);
         }
+    }
+
+    // The noise she is acting on, not every noise in earshot.
+    //
+    // The primary stimulus only, so a bang somewhere else while she is already
+    // looking at somebody goes unremarked - she is busy, and a reaction to a
+    // sound she is ignoring would read as her having been distracted when she
+    // was not.
+    private void ReportHeardNoise(EnemyPerceptionStimulus stimulus)
+    {
+        if (!stimulus.HasStimulus ||
+            stimulus.Source != EnemyPerceptionSource.Hearing)
+        {
+            return;
+        }
+
+        reportHeardNoise?.Invoke(stimulus.Score);
     }
 
     private void RememberSecondarySuspiciousStimulus(EnemyPerceptionStimulus stimulus)

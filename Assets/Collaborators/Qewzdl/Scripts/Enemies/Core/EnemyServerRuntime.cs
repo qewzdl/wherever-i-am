@@ -236,7 +236,8 @@ public class EnemyServerRuntime : MonoBehaviour
             postureController,
             blackboard,
             networkState.SetStateServer,
-            networkState.SetTargetIdentityServer
+            networkState.SetTargetIdentityServer,
+            networkState.ReportHeardNoiseServer
         );
     }
 

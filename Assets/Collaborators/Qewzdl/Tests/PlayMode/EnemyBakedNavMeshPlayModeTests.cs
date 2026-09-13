@@ -26,6 +26,25 @@ internal sealed class BakedNavMeshAttackEffectProbe : IEnemyAttackEffect
     }
 }
 
+internal sealed class BakedNavMeshGameplaySoundProbe : IGameplaySoundService
+{
+    internal List<SoundEffect> Played { get; } = new();
+
+    public void Play2D(SoundEffect sound)
+    {
+        Played.Add(sound);
+    }
+
+    public void PlayAtPosition(SoundEffect sound, Vector3 position)
+    {
+        Played.Add(sound);
+    }
+
+    public void SetMasterVolume(float volume)
+    {
+    }
+}
+
 [Category("Gameplay")]
 // Only the active map root matters to the spawner; the rest of the contract is
 // here because the interface asks for it.
@@ -260,9 +279,21 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
             "Production enemy did not start on the prebuilt NavMesh.");
 
+        // What the clients are told she heard. The server reports every noise
+        // it acts on; whether that is worth a sound is decided beside the clip.
+        EnemyNetworkState enemyNetworkState =
+            enemy.GetComponent<EnemyNetworkState>();
+        List<float> heardNoiseScores = new();
+        enemyNetworkState.HeardNoise += heardNoiseScores.Add;
+
         Vector3 noisePosition = new Vector3(3f, 0f, -1f);
         float distanceBeforeNoise =
             Vector3.Distance(enemy.transform.position, noisePosition);
+
+        Assert.That(
+            heardNoiseScores,
+            Is.Empty,
+            "The enemy reported hearing something before anything was heard.");
 
         Assert.That(
             noiseWorld.TryRaiseNoiseServer(
@@ -280,6 +311,20 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                   distanceBeforeNoise - 0.5f,
             "Enemy did not navigate toward the heard noise.");
 
+        Assert.That(
+            heardNoiseScores,
+            Is.Not.Empty,
+            "The enemy walked to a noise without ever reporting that it heard " +
+            "one, so nothing on any client could react to it.");
+
+        Assert.That(
+            heardNoiseScores[0],
+            Is.GreaterThan(0f),
+            "A noise raised at full loudness inside the hearing radius was " +
+            "reported with no loudness at all.");
+
+        int heardBeforeSight = heardNoiseScores.Count;
+
         PlayModeTestReflection.SetField(target, "canBeDetected", true);
         target.transform.position =
             enemy.transform.position + enemy.transform.forward * 7f;
@@ -296,6 +341,13 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                   enemy.CurrentState == EnemyState.Attack,
             "Enemy acquired the target but did not chase it on NavMesh.");
 
+        // Chasing somebody it can see is not hearing something. Without the
+        // source check this fires on every refresh of the pursuit.
+        Assert.That(
+            heardNoiseScores.Count,
+            Is.EqualTo(heardBeforeSight),
+            "Seeing a target was reported to the clients as hearing a noise.");
+
         target.transform.position =
             enemy.transform.position + Vector3.forward * 60f;
         Physics.SyncTransforms();
@@ -304,6 +356,88 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             () => !enemy.HasTarget &&
                   enemy.CurrentState == EnemyState.Investigate,
             "Enemy did not lose the distant target and preserve investigation state.");
+    }
+
+    // A reaction sound with a delay on it never arrived, and the delay is the
+    // whole difference: at zero it plays, at anything else it does not.
+    //
+    // Delayed presentation sounds are coroutines, and every state change stops
+    // all of them. Hearing a noise worth reacting to is exactly the thing that
+    // sends her to Investigate, so the reaction cancels itself - and the
+    // cooldown has already been spent scheduling it, so no later report tries
+    // again before the noise has faded from memory.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_HearingALoudNoise_PlaysAReactionThatHasADelayOnIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -5f));
+        EnemyServerRuntime runtime =
+            enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        EnemyPresentationController presentation =
+            enemy.GetComponent<EnemyPresentationController>();
+
+        Assert.That(
+            presentation,
+            Is.Not.Null,
+            "The shipped enemy has no presentation controller to react with.");
+
+        SoundEffect reaction = Track(ScriptableObject.CreateInstance<SoundEffect>());
+
+        EnemyPresentationSound reactionSound = new();
+        PlayModeTestReflection.SetField(reactionSound, "sound", reaction);
+        PlayModeTestReflection.SetField(reactionSound, "chance", 1f);
+        PlayModeTestReflection.SetField(reactionSound, "delay", 0.4f);
+
+        EnemyPresentationProfile profile = Track(
+            UnityEngine.Object.Instantiate(
+                PlayModeTestReflection.GetField<EnemyPresentationProfile>(
+                    presentation,
+                    "profile")));
+
+        PlayModeTestReflection.SetField(
+            profile,
+            "heardLoudNoiseSound",
+            reactionSound);
+        PlayModeTestReflection.SetField(profile, "heardLoudNoiseScore", 0f);
+        // The shipped default, and the point of the test. At zero the next
+        // report a quarter of a second later schedules the sound again, by
+        // which time she is already investigating and nothing cancels it - so
+        // a zero cooldown hides exactly the bug this is about.
+        PlayModeTestReflection.SetField(profile, "heardLoudNoiseCooldown", 6f);
+        PlayModeTestReflection.SetField(presentation, "profile", profile);
+
+        BakedNavMeshGameplaySoundProbe soundProbe = new();
+        presentation.Construct(soundProbe);
+
+        Assert.That(
+            noiseWorld.TryRaiseNoiseServer(
+                new Vector3(3f, 0f, -1f),
+                20f,
+                1f,
+                GameplayNoiseSourceType.Item),
+            Is.True);
+
+        yield return WaitForCondition(
+            () => soundProbe.Played.Contains(reaction),
+            "The enemy heard a noise and never played the reaction sound " +
+            "assigned to it, because the sound had a delay.");
     }
 
     [UnityTest]
@@ -1068,6 +1202,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             detector,
             usesTargetDetection: true,
             blackboard,
+            _ => { },
             _ => { });
 
         yield return TickPerceptionUntil(
@@ -1123,6 +1258,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             detector,
             usesTargetDetection: true,
             blackboard,
+            _ => { },
             _ => { });
 
         float endTime = Time.realtimeSinceStartup + 2f;

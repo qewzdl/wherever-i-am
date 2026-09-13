@@ -43,6 +43,9 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
     private readonly HashSet<EnemyState> warnedMissingPresentations = new();
 
+    private Coroutine heardNoiseRoutine;
+    private float nextHeardNoiseSoundTime = float.NegativeInfinity;
+
     private bool isRegistered;
     private bool subscribedToNetworkState;
     private IGameplaySoundService gameplaySoundService;
@@ -272,6 +275,86 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         animator.ResetTrigger(previousPresentation.EnterTrigger);
     }
 
+    // She heard something and it was worth making a sound about.
+    //
+    // The threshold is checked here rather than on the server because it is a
+    // question about the sound, not about her: the server reports every noise
+    // it acts on, and what counts as loud enough to be worth hearing her react
+    // to belongs beside the clip somebody chose. Nothing about her behaviour
+    // reads it.
+    //
+    // The cooldown is not decoration. One noise lives in the world for the
+    // whole hearing memory and perception re-reads it several times a second,
+    // so the same bang arrives here again and again while she walks towards
+    // it.
+    private void HandleHeardNoise(float score)
+    {
+        if (profile == null ||
+            profile.HeardLoudNoiseSound == null ||
+            score < profile.HeardLoudNoiseScore ||
+            Time.time < nextHeardNoiseSoundTime)
+        {
+            return;
+        }
+
+        // Spent whether or not the roll comes up, so chance means "how often
+        // she reacts" rather than "keep rolling until she does". Perception
+        // re-reads the same noise several times a second, and a chance that
+        // only consumed the cooldown on success would come up eventually every
+        // single time.
+        nextHeardNoiseSoundTime = Time.time + profile.HeardLoudNoiseCooldown;
+
+        EnemyPresentationSound reaction = profile.HeardLoudNoiseSound;
+
+        if (!reaction.ShouldPlay())
+        {
+            return;
+        }
+
+        if (!reaction.HasDelay)
+        {
+            PlaySound(reaction.Sound, reaction.PlayAtEnemyPosition);
+            return;
+        }
+
+        // Its own coroutine, and deliberately not one of the state sounds.
+        //
+        // Delayed state sounds are cancelled by the next state change, which is
+        // right for them: they belong to the state that scheduled them, and a
+        // growl for a chase that ended before it played would be a lie. This
+        // one belongs to a noise, and hearing a noise worth reacting to is the
+        // thing that sends her to Investigate - so on the shared list it
+        // cancelled itself, every time, and only when a delay was set. The
+        // cooldown had already been spent scheduling it, and the noise faded
+        // from her hearing memory long before the cooldown was up, so she
+        // reacted to it exactly never.
+        StopHeardNoiseSound();
+        heardNoiseRoutine = StartCoroutine(PlayHeardNoiseSoundDelayed(reaction));
+    }
+
+    private IEnumerator PlayHeardNoiseSoundDelayed(EnemyPresentationSound reaction)
+    {
+        yield return new WaitForSeconds(reaction.Delay);
+
+        heardNoiseRoutine = null;
+
+        if (reaction.IsValid)
+        {
+            PlaySound(reaction.Sound, reaction.PlayAtEnemyPosition);
+        }
+    }
+
+    private void StopHeardNoiseSound()
+    {
+        if (heardNoiseRoutine == null)
+        {
+            return;
+        }
+
+        StopCoroutine(heardNoiseRoutine);
+        heardNoiseRoutine = null;
+    }
+
     private void PlayEnterSounds(EnemyStatePresentation presentation)
     {
         if (presentation == null || !presentation.HasEnterSounds)
@@ -429,6 +512,7 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
         networkState.StateChanged += HandleStateChanged;
         networkState.AttackPhaseChanged += HandleAttackPhaseChanged;
+        networkState.HeardNoise += HandleHeardNoise;
 
         subscribedToNetworkState = true;
     }
@@ -442,6 +526,7 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
         networkState.StateChanged -= HandleStateChanged;
         networkState.AttackPhaseChanged -= HandleAttackPhaseChanged;
+        networkState.HeardNoise -= HandleHeardNoise;
 
         subscribedToNetworkState = false;
     }
@@ -481,6 +566,7 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         UnsubscribeFromNetworkState();
         UnregisterClientPresentation();
 
+        StopHeardNoiseSound();
         StopDelayedSounds();
         StopLoopingSounds();
 
