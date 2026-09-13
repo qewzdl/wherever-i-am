@@ -249,6 +249,17 @@ public sealed class ScreenOverflowPlayModeTests
         if (box.width <= 0f || float.IsNaN(box.width))
             return;
 
+        // An element that ellipsizes has already answered the question this
+        // test asks. It is not drawn over its neighbour - it is cut short, on
+        // purpose, with a mark saying so.
+        //
+        // This is the difference between overflowing and clipping, and the
+        // first version of this check did not know there was one: it reported
+        // a name in the roster as spilling when the roster had said in its own
+        // stylesheet what happens to a name that is too long.
+        if (element.resolvedStyle.textOverflow == TextOverflow.Ellipsis)
+            return;
+
         bool wraps = element.resolvedStyle.whiteSpace == WhiteSpace.Normal;
 
         if (wraps)
@@ -296,6 +307,15 @@ public sealed class ScreenOverflowPlayModeTests
     {
         if (!string.IsNullOrEmpty(element.name))
             return $"#{element.name}";
+
+        // The project's own class, not Unity's. Every Label carries
+        // unity-text-element, so reporting the first class it finds names
+        // every offender the same thing and tells nobody which row it was in.
+        foreach (string className in element.GetClasses())
+        {
+            if (!className.StartsWith("unity-"))
+                return $".{className}";
+        }
 
         foreach (string className in element.GetClasses())
             return $".{className}";

@@ -106,7 +106,14 @@
     color: var(--text);
     font-size: var(--font-size-s);
 
+    /* Cut with a mark rather than cut off. A name that does not fit was being
+       sliced through the middle of a letter, which reads as a rendering fault;
+       an ellipsis says the name is longer than the column and that the column
+       knows it. A row is one line high and stays that way - a roster is a list
+       of people, and a list whose rows are different heights is harder to
+       count than to read. */
     overflow: hidden;
+    text-overflow: ellipsis;
 
     -unity-text-align: middle-left;
 }
