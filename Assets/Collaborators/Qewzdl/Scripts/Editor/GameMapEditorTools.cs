@@ -18,6 +18,8 @@ public sealed class GameMapManagerWindow : EditorWindow
     private readonly List<MapValidationEntry> validationEntries = new List<MapValidationEntry>();
     private string catalogError;
 
+    // The world group: what the game is made of. See ProjectSceneMenu for the
+    // scheme the numbers follow.
     [MenuItem("Tools/Wherever I Am/Map Manager", false, 100)]
     private static void OpenWindow()
     {

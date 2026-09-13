@@ -11,7 +11,22 @@ public static class ProjectSceneMenu
     // Every item under Tools/Wherever I Am sets its priority, so the order is
     // decided rather than inherited from Unity's default of 1000. Consecutive
     // numbers keep a group together; a gap of 11 or more draws a separator.
-    private const int MenuPriority = 140;
+    //
+    // The menu is three groups, in the order somebody reaches for them:
+    //
+    //     0    getting somewhere    - Scenes
+    //   100    the world            - Map Manager, Item Creator
+    //   200    what the player      - Localization, Startup Intro
+    //          reads and watches
+    //
+    // They were one undivided block of four before, with the scenes below
+    // them: a catalogue of maps, a maker of items, a film's volume and a table
+    // of translations all reading as the same kind of thing because nothing
+    // said otherwise.
+    //
+    // Numbers rather than submenus. Five tools do not need folders, and a
+    // folder is a click charged for every use of the thing inside it.
+    private const int MenuPriority = 0;
 
     [MenuItem("Tools/Wherever I Am/Scenes/Bootstrap", false, MenuPriority)]
     private static void OpenBootstrapScene()

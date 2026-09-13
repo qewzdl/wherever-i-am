@@ -16,7 +16,9 @@ public sealed class StartupIntroWindow : EditorWindow
 
     private SerializedObject serialized;
 
-    [MenuItem("Tools/Wherever I Am/Startup Intro", false, 102)]
+    // What the player watches, beside what they read. See ProjectSceneMenu for
+    // the scheme the numbers follow.
+    [MenuItem("Tools/Wherever I Am/Startup Intro", false, 201)]
     private static void OpenWindow()
     {
         StartupIntroWindow window = GetWindow<StartupIntroWindow>("Startup Intro");

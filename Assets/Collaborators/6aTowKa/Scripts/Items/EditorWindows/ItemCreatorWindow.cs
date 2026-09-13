@@ -141,6 +141,8 @@ public partial class ItemCreatorWindow : EditorWindow
     private bool _stylesInitialized;
 
     // ── Open ─────────────────────────────────────────────────────────────────
+    // The world group, beside the map manager. See ProjectSceneMenu for the
+    // scheme the numbers follow.
     [MenuItem("Tools/Wherever I Am/Item Creator", false, 101)]
     public static void Open()
     {

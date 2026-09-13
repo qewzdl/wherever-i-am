@@ -29,7 +29,9 @@ public sealed class LocalizationWindow : EditorWindow
     private string search = string.Empty;
     private bool onlyUnfinished;
 
-    [MenuItem("Tools/Wherever I Am/Localization", false, 110)]
+    // What the player reads, which is a different job from what the game is
+    // made of. See ProjectSceneMenu for the scheme the numbers follow.
+    [MenuItem("Tools/Wherever I Am/Localization", false, 200)]
     private static void OpenWindow()
     {
         LocalizationWindow window = GetWindow<LocalizationWindow>("Localization");
