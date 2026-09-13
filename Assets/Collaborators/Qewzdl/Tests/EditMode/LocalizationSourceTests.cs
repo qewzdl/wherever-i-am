@@ -35,17 +35,6 @@ public sealed class LocalizationSourceTests
     // the field rather than about anybody's patience.
     private static readonly HashSet<string> NotForReading = new()
     {
-        // Composed on the server with a player's name already inside them and
-        // broadcast finished, so the client receives a sentence that is in no
-        // table and never can be. Translating these means sending the key and
-        // the name apart and formatting on the client - a change to the
-        // protocol rather than to the localisation.
-        "playerJoinedMessageFormat",
-        "playerLeftMessageFormat",
-        "playerKickedMessageFormat",
-        "playerLostConnectionMessageFormat",
-        "playerCameBackMessageFormat",
-
         // Diagnostics. These go into the transition reason the game flow keeps
         // for the log, and no screen ever shows one.
         "hitReason",

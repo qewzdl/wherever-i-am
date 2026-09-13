@@ -621,6 +621,21 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         messages.schedule.Execute(ScrollToBottom);
     }
 
+    // A translation is somebody else's text and can say anything, including a
+    // brace that was never meant as a placeholder. A line that cannot be
+    // filled is shown as it stands rather than not shown at all.
+    private static string Fill(string sentence, string name)
+    {
+        try
+        {
+            return string.Format(sentence, name);
+        }
+        catch (FormatException)
+        {
+            return sentence;
+        }
+    }
+
     private VisualElement BuildMessage(ChatMessageData message)
     {
         bool isSystem = message.Channel == ChatChannel.System;
@@ -657,7 +672,18 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         string body = message.Text.ToString();
 
         if (isSystem)
+        {
             body = UiLocalization.Text(body);
+
+            // A system line about somebody arrives as a sentence with a hole
+            // in it and the name to put in the hole, so that the sentence can
+            // be translated and the name cannot. "System" is what the server
+            // signs a line that is about nobody.
+            string about = message.SenderName.ToString();
+
+            if (!string.IsNullOrEmpty(about) && about != "System")
+                body = Fill(body, about);
+        }
 
         Label text = new Label(body) { enableRichText = false };
         text.AddToClassList(TextClass);

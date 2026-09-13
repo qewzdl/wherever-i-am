@@ -99,6 +99,114 @@ public sealed class ScreenOverflowPlayModeTests
             "on top of whatever is next to it:\n  " + string.Join("\n  ", spills));
     }
 
+    // The rows nobody can see by opening a markup file.
+    //
+    // A lobby's roster and a server browser are built a row at a time in code,
+    // so the screen check above walks straight past them - and they are the
+    // ones with a height nailed on: forty-six pixels, whatever the text does.
+    // Nothing clips, so a name that outgrows that row is drawn across the row
+    // below it.
+    //
+    // Built here the way the two documents build them, by the classes they
+    // hang on. That is a copy of a structure and it can drift; it is also the
+    // only way to ask this question without a running lobby, and the classes
+    // are the part that the stylesheet actually answers.
+    [UnityTest]
+    public IEnumerator NoRowBuiltInCodeSpillsAtTheLargestText()
+    {
+        PanelSettings source = AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath);
+        Assert.That(source, Is.Not.Null, $"No panel settings at '{PanelPath}'.");
+
+        panel = Object.Instantiate(source);
+        host = new GameObject(nameof(ScreenOverflowPlayModeTests));
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+
+        VisualElement root = document.rootVisualElement;
+        root.AddToClassList("text--largest");
+
+        // A name as long as the field lets somebody type, because that is the
+        // longest a row will ever have to hold.
+        // Sixteen of the widest letter there is. The name field stops at
+        // sixteen characters, so this is the longest a row will ever be asked
+        // to hold - not a guess at a long name, the actual ceiling.
+        const string LongName = "WWWWWWWWWWWWWWWW";
+
+        // In the columns they actually live in. Dropped straight onto the
+        // root they get the whole window to spread into, which is a width no
+        // row in this game has ever had - the first version of this passed
+        // with a name half a sentence long because of it.
+        root.Add(Column("panel--rail", RosterRow(LongName)));
+        root.Add(Column("panel--wide", BrowserRow(LongName)));
+
+        yield return null;
+        yield return null;
+
+        List<string> spills = new();
+        Collect(root, "rows built in code", spills);
+
+        Assert.That(
+            spills,
+            Is.Empty,
+            "These are drawn outside the row that holds them, which means on " +
+            "top of the row below:\n  " + string.Join("\n  ", spills));
+    }
+
+    private static VisualElement Column(string modifier, VisualElement row)
+    {
+        VisualElement column = new();
+        column.AddToClassList("panel");
+        column.AddToClassList(modifier);
+        column.Add(row);
+        return column;
+    }
+
+    private static VisualElement RosterRow(string playerName)
+    {
+        VisualElement row = new();
+        row.AddToClassList("roster__row");
+
+        Label name = new(playerName);
+        name.AddToClassList("roster__name");
+        row.Add(name);
+
+        VisualElement badges = new();
+        badges.AddToClassList("roster__badges");
+        row.Add(badges);
+
+        Label role = new("Owner");
+        role.AddToClassList("roster__role");
+        badges.Add(role);
+
+        Label status = new("Not ready");
+        status.AddToClassList("roster__status");
+        badges.Add(status);
+
+        Button kick = new() { text = "Remove" };
+        kick.AddToClassList("roster__kick");
+        row.Add(kick);
+
+        return row;
+    }
+
+    private static VisualElement BrowserRow(string lobbyName)
+    {
+        Button row = new() { text = string.Empty };
+        row.AddToClassList("button");
+        row.AddToClassList("browser__row");
+
+        Label name = new(lobbyName);
+        name.AddToClassList("browser__name");
+        row.Add(name);
+
+        Label count = new("4/8");
+        count.AddToClassList("browser__count");
+        row.Add(count);
+
+        return row;
+    }
+
     // The Russian for everything the markup says, because it is the longest
     // the game currently gets - and a screen that survives it survives the
     // English it was drawn for.

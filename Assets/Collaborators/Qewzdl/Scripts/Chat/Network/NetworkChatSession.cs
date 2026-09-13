@@ -333,6 +333,19 @@ public class NetworkChatSession : NetworkBehaviour,
 
     public void AddSystemMessage(string text)
     {
+        AddSystemMessage(text, string.Empty);
+    }
+
+    /// <summary>
+    /// A system line, and the name it is about if it is about anybody.
+    /// </summary>
+    /// <remarks>
+    /// The name is carried beside the sentence rather than inside it so that
+    /// the sentence is still one a locale table can answer for. Whoever draws
+    /// it puts the two together, in whatever language they are reading.
+    /// </remarks>
+    public void AddSystemMessage(string text, string about)
+    {
         if (!IsServer)
             return;
 
@@ -341,7 +354,7 @@ public class NetworkChatSession : NetworkBehaviour,
 
         AppendMessage(
             0,
-            "System",
+            string.IsNullOrWhiteSpace(about) ? "System" : about,
             normalizedText,
             ChatChannel.System
         );
@@ -613,44 +626,30 @@ public class NetworkChatSession : NetworkBehaviour,
         return clientId != NetworkManager.ServerClientId;
     }
 
+    // The format and the name, not the sentence they make.
+    //
+    // These used to be joined here and broadcast finished, which put the one
+    // kind of message nobody could translate into every player's chat: the
+    // client received "Bob joined the game." and no table has ever heard of
+    // that - the row says "{0} joined the game." and the name is different
+    // every time.
+    //
+    // Nothing was added to the wire to fix it. A system message carries a
+    // sender name that the chat window has always ignored, because the room
+    // speaking gets no name, so the name travels there and the sentence stays
+    // a sentence a table can answer for.
     private void AddConnectionSystemMessage(ulong clientId, string messageFormat)
     {
-        if (!TryCreateConnectionSystemMessage(clientId, messageFormat, out string message))
-            return;
-
-        AddSystemMessage(message);
-    }
-
-    private bool TryCreateConnectionSystemMessage(
-        ulong clientId,
-        string messageFormat,
-        out string message)
-    {
-        message = string.Empty;
-
         if (string.IsNullOrWhiteSpace(messageFormat))
         {
-            Debug.LogError($"{nameof(NetworkChatSession)} connection notification format is empty.", this);
-            return false;
+            Debug.LogError(
+                $"{nameof(NetworkChatSession)} connection notification format is empty.",
+                this);
+
+            return;
         }
 
-        try
-        {
-            message = string.Format(messageFormat, ResolveSenderName(clientId));
-        }
-        catch (FormatException exception)
-        {
-            Debug.LogError($"{nameof(NetworkChatSession)} connection notification format is invalid: {exception.Message}", this);
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            Debug.LogError($"{nameof(NetworkChatSession)} connection notification message is empty.", this);
-            return false;
-        }
-
-        return true;
+        AddSystemMessage(messageFormat, ResolveSenderName(clientId));
     }
 
     private void HandleMessagesChanged(NetworkListEvent<ChatMessageData> changeEvent)

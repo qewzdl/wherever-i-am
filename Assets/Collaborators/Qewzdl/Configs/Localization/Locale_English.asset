@@ -410,3 +410,13 @@ MonoBehaviour:
     Translation: PC
   - English: Everyone is going back to the lobby.
     Translation: Everyone is going back to the lobby.
+  - English: '{0} joined the game.'
+    Translation: '{0} joined the game.'
+  - English: '{0} left the game.'
+    Translation: '{0} left the game.'
+  - English: '{0} was removed by the host.'
+    Translation: '{0} was removed by the host.'
+  - English: '{0} lost connection.'
+    Translation: '{0} lost connection.'
+  - English: '{0} came back.'
+    Translation: '{0} came back.'

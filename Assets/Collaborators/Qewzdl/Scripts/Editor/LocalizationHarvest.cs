@@ -21,8 +21,25 @@ public static class LocalizationHarvest
 {
     private const string ScreensFolder = "Assets/Collaborators/Qewzdl/UI/Screens";
 
-    private static readonly Regex TextAttribute = new(
-        @"<ui:(?<tag>Label|Button)\b[^>]*?\btext=""(?<text>[^""]*)""",
+    // Every element, and every attribute on it that a player can read.
+    //
+    // It used to be text= on a Label or a Button and nothing else, which
+    // was true of the markup on the day it was written and is not a rule
+    // anybody is keeping. A Toggle carries its words in label=, a text
+    // field explains itself in placeholder-text=, and there is already a
+    // tooltip= on a screen in this project that the harvest has never
+    // seen - it reached the table by another road, and the next one will
+    // not.
+    //
+    // A guard with a hole in it is worse than no guard: the test that
+    // says every sentence on every screen is in the table was telling the
+    // truth only about the sentences it happened to look at.
+    private static readonly Regex Element = new(
+        @"<ui:[A-Za-z][A-Za-z0-9]*\b[^>]*>",
+        RegexOptions.Compiled);
+
+    private static readonly Regex ReadableAttribute = new(
+        @"\b(?:text|label|tooltip|placeholder-text)=""(?<text>[^""]*)""",
         RegexOptions.Compiled);
 
     // Every sentence the markup writes, in the order it is read on screen, so
@@ -37,14 +54,17 @@ public static class LocalizationHarvest
 
         foreach (string file in files)
         {
-            foreach (Match match in TextAttribute.Matches(File.ReadAllText(file)))
+            foreach (Match element in Element.Matches(File.ReadAllText(file)))
             {
-                string text = match.Groups["text"].Value;
+                foreach (Match attribute in ReadableAttribute.Matches(element.Value))
+                {
+                    string text = attribute.Groups["text"].Value;
 
-                if (string.IsNullOrWhiteSpace(text) || !seen.Add(text))
-                    continue;
+                    if (string.IsNullOrWhiteSpace(text) || !seen.Add(text))
+                        continue;
 
-                found.Add(text);
+                    found.Add(text);
+                }
             }
         }
 
