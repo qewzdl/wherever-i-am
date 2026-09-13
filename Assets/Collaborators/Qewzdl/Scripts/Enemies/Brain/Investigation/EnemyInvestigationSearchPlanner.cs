@@ -93,7 +93,27 @@ public sealed class EnemyInvestigationSearchPlanner
     )
     {
         float branchAngleStep = Mathf.Max(MinAngleStep, 360f / branchPointCount);
-        float branchStartAngle = GetFlatAngle(origin, enemyPosition) + 45f;
+
+        // Turned by a random part of one step, so that the same situation does
+        // not produce the same walk twice.
+        //
+        // Everything about the route was decided: the start angle is the
+        // direction she came from plus forty-five degrees, the spacing is the
+        // circle divided by the count, and the order is the order it was
+        // built. Drop something in the same corner, arrive from the same side,
+        // and she searches the same points in the same order at the same
+        // speed - which players read in two or three matches, and what they
+        // learn is not that she is careful but that the left of the doorway is
+        // safe for the first two seconds. The fear goes before the difficulty
+        // does: it lives on not knowing where she will look.
+        //
+        // A whole step of turn, so every angle is as likely as every other and
+        // the even spread the rest of this depends on is untouched. The
+        // fallback pass below turns again rather than repeating a fit that
+        // already failed.
+        float branchStartAngle = GetFlatAngle(origin, enemyPosition)
+                                 + 45f
+                                 + Random.Range(0f, branchAngleStep);
         int validBranchIndex = 0;
 
         for (int i = 0; i < branchPointCount; i++)
