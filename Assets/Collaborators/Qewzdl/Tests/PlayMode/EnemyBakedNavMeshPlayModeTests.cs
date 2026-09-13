@@ -964,6 +964,15 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         bool sampledInvestigateEntry = false;
         Vector3 investigateLastKnown = Vector3.zero;
         float closestApproach = float.PositiveInfinity;
+
+        // How long she stands next to the box without opening it. The old
+        // order sent her into the look-around dwell first, so this came to the
+        // whole dwell duration - a second and a half of scanning an empty room
+        // in front of a box she watched the player climb into.
+        float besideTheBoxSeconds = 0f;
+        float besideTheBoxDistance =
+            enemy.Config.investigationReachDistance + 0.35f;
+
         float openTimeout = Time.realtimeSinceStartup + 25f;
 
         while (hidingPlace.State == HidingTransitionState.Occupied &&
@@ -986,11 +995,16 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                     .InvestigationMemory.LastKnownTargetPosition;
             }
 
-            closestApproach = Mathf.Min(
-                closestApproach,
-                Vector3.Distance(
-                    enemy.transform.position,
-                    hidingPlace.EnemyInvestigationPosition));
+            float distanceToBox = Vector3.Distance(
+                enemy.transform.position,
+                hidingPlace.EnemyInvestigationPosition);
+
+            closestApproach = Mathf.Min(closestApproach, distanceToBox);
+
+            if (distanceToBox <= besideTheBoxDistance)
+            {
+                besideTheBoxSeconds += Time.deltaTime;
+            }
 
             yield return null;
         }
@@ -1007,6 +1021,24 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             $"anchor={hidingPlace.EnemyInvestigationPosition} " +
             $"reachDistance={enemy.Config.investigationReachDistance:F2} " +
             $"openDistance={hidingPlace.Configuration.EnemyInvestigationDistance:F2}");
+
+        // Without this the timing assertion below would pass on an enemy that
+        // opened the box from across the room, or never got near it at all.
+        Assert.That(
+            closestApproach,
+            Is.LessThanOrEqualTo(besideTheBoxDistance),
+            "Production enemy opened the box without ever standing next to " +
+            "it, so there is no arrival to time.");
+
+        Assert.That(
+            besideTheBoxSeconds,
+            Is.LessThan(enemy.Config.investigationPointDwellDuration),
+            "Production enemy stood beside a box it watched the player climb " +
+            "into for longer than a search dwell before opening it, which is " +
+            "the look-around it should have skipped. " +
+            $"besideTheBoxSeconds={besideTheBoxSeconds:F2} " +
+            $"dwell={enemy.Config.investigationPointDwellDuration:F2} " +
+            $"states=[{string.Join(",", observedStates)}]");
 
         yield return WaitForCondition(
             () => !occupant.IsInHidingSequence,

@@ -104,11 +104,6 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
                 return;
             }
 
-            if (TryStartHidingPlaceCheck())
-            {
-                return;
-            }
-
             StartHierarchicalSearch();
             return;
         }
@@ -130,12 +125,42 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        if (TryBeginPointDwell())
+        // A box she watched somebody climb into is not a place to look around
+        // at, and this used to be the other way round.
+        //
+        // The dwell exists for a place where the target MIGHT be: she stops,
+        // turns her head either way, and covers the corners the walk would
+        // have dragged her cone past. When the origin is a hiding place she
+        // saw the target get into, there is nothing to cover - she knows. So
+        // the old order stood her in front of the box for the whole dwell,
+        // a second and a half of scanning an empty room, before opening it.
+        //
+        // From a player's side that is the entire bug: watched from two metres
+        // away, she walks over, stops, looks slowly left, looks slowly right,
+        // and only then lifts the lid. It reads as her having lost you and
+        // searching the room, because that is exactly the behaviour she is
+        // performing.
+        // A box she watched somebody climb into is not a place to look around
+        // at, and this used to be the other way round.
+        //
+        // The dwell exists for a place where the target MIGHT be: she stops,
+        // turns her head either way, and covers the corners the walk would
+        // have dragged her cone past. When the origin is a hiding place she
+        // saw the target get into, there is nothing to cover - she knows. So
+        // the old order stood her in front of the box for the whole dwell,
+        // a second and a half of scanning an empty room, before opening it.
+        //
+        // From a player's side that is the entire bug: watched from two metres
+        // away, she walks over, stops, looks slowly left, looks slowly right,
+        // and only then lifts the lid. It reads as her having lost you and
+        // searching the room, because that is exactly the behaviour she is
+        // performing.
+        if (TryStartHidingPlaceCheck())
         {
             return;
         }
 
-        if (TryStartHidingPlaceCheck())
+        if (TryBeginPointDwell())
         {
             return;
         }
