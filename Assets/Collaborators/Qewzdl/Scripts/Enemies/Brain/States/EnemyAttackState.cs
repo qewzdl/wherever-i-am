@@ -67,7 +67,29 @@ public sealed class EnemyAttackState : IEnemyStateHandler
 
         if (context.AttackController != null && context.AttackController.IsBusy)
         {
-            context.StopNavigation();
+            // Winding up is not standing still.
+            //
+            // She used to stop dead the moment she decided to swing and hold
+            // there for the whole windup, which is a third of a second of her
+            // promising not to move while the player is under no such promise.
+            // Walking backwards covers about a metre in that time - past the
+            // reach of the blow - so the swing was cancelled, she closed
+            // again, stopped again, and a player who simply kept stepping back
+            // could do it for ever.
+            //
+            // So the windup follows. Backing away now delays the blow instead
+            // of undoing it, and getting away from her means getting away from
+            // her: breaking her sight, or putting something between you.
+            //
+            // Only the windup. The commit is the blow landing and the recovery
+            // is her open - both of those are meant to be moments she is not
+            // going anywhere, and they are what a player reads to time an
+            // escape.
+            if (context.AttackController.Phase == EnemyAttackPhase.AttackWindup)
+                context.TryMoveTo(targetPosition, context.Config.chaseSpeed, allowPushThrough: true);
+            else
+                context.StopNavigation();
+
             return;
         }
 

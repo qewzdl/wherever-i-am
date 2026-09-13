@@ -236,9 +236,17 @@ public sealed class EnemyAttackPipeline
     {
         phaseTimer -= deltaTime;
 
+        // The range the blow can reach, not the range that starts one.
+        //
+        // A swing already under way was being cancelled the moment the target
+        // passed attackDistance, while the blow itself is allowed out to
+        // attackCommitMaxDistance - so the tolerance that exists to make melee
+        // "fair but not pixel-perfect", in its own tooltip's words, could
+        // never be reached. The windup threw the attack away before anything
+        // ever asked the commit what it could hit.
         if (!TryRefreshPendingContext(
                 attackerPosition,
-                activeConfig != null ? activeConfig.attackDistance : 0f,
+                activeConfig != null ? activeConfig.attackCommitMaxDistance : 0f,
                 out EnemyAttackResultType failureType
             ))
         {
