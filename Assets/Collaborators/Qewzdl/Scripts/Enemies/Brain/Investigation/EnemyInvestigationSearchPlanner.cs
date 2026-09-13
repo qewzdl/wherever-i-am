@@ -82,6 +82,57 @@ public sealed class EnemyInvestigationSearchPlanner
         );
     }
 
+    // The centre the ring wants, before anything checks she can walk there.
+    //
+    // Here rather than in the state that calls it because it is arithmetic
+    // with two guards in it and no way to ask a running level whether it got
+    // them right.
+    //
+    // The sighting has to be about this place. A noise carries a position and
+    // nothing else, so investigating one must not lean on a direction left
+    // over from an earlier chase across the level: anything further from the
+    // origin than the ring itself is a different event, and gets the
+    // symmetric ring it deserves.
+    //
+    // A forward that flattens to nothing - straight up, straight down, or a
+    // target that was never given one - is not a direction, and normalising
+    // it would point the search at an arbitrary corner with total confidence.
+    public static bool TryGetLeadOrigin(
+        Vector3 origin,
+        Vector3 sightingPosition,
+        Vector3 sightingForward,
+        float leadDistance,
+        float branchRadius,
+        out Vector3 leadOrigin
+    )
+    {
+        leadOrigin = origin;
+
+        if (leadDistance <= 0f)
+        {
+            return false;
+        }
+
+        Vector3 fromSighting = sightingPosition - origin;
+        fromSighting.y = 0f;
+
+        if (fromSighting.sqrMagnitude > branchRadius * branchRadius)
+        {
+            return false;
+        }
+
+        Vector3 flatForward = Vector3.ProjectOnPlane(sightingForward, Vector3.up);
+
+        if (flatForward.sqrMagnitude <= 0.001f)
+        {
+            return false;
+        }
+
+        leadOrigin = origin + flatForward.normalized * leadDistance;
+
+        return true;
+    }
+
     private void BuildBranchPoints(
         Vector3 origin,
         Vector3 enemyPosition,

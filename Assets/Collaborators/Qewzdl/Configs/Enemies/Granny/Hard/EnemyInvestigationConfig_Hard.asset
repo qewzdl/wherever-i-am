@@ -22,3 +22,4 @@ MonoBehaviour:
   investigationPointDwellDuration: 1.5
   investigationLookAroundAngle: 65
   investigationLookAroundSpeed: 175
+  investigationLeadDistance: 2

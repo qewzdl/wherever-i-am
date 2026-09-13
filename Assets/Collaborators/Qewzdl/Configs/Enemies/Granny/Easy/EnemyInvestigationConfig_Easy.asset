@@ -19,3 +19,4 @@ MonoBehaviour:
   investigationLeafRadius: 1.5
   investigationLeafPointCountPerBranch: 2
   investigationSearchSpeed: 1.5
+  investigationLeadDistance: 0.75

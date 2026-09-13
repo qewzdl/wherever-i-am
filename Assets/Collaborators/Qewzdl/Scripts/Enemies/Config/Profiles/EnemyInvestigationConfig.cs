@@ -22,6 +22,15 @@ public class EnemyInvestigationConfig : ScriptableObject
     [Min(0f)] public float investigationSearchSpeed = 1.7f;
 
     [Tooltip(
+        "Metres the search ring is pushed along the direction the target was " +
+        "last facing, so the enemy searches ahead of where it lost them " +
+        "rather than evenly around it. Only applies when the last sighting " +
+        "was at the place being searched - a noise has no direction. The " +
+        "push stops at the first NavMesh edge, so it never reaches through a " +
+        "wall. Zero restores the symmetric ring.")]
+    [Min(0f)] public float investigationLeadDistance = 1.5f;
+
+    [Tooltip(
         "Seconds the enemy stands at each reached point, turning to look " +
         "around by investigationLookAroundAngle. Zero restores the old " +
         "walk-through behaviour and no look around happens at all.")]
@@ -44,6 +53,7 @@ public class EnemyInvestigationConfig : ScriptableObject
         investigationLeafRadius = Mathf.Max(0f, investigationLeafRadius);
         investigationLeafPointCountPerBranch = Mathf.Max(0, investigationLeafPointCountPerBranch);
         investigationSearchSpeed = Mathf.Max(0f, investigationSearchSpeed);
+        investigationLeadDistance = Mathf.Max(0f, investigationLeadDistance);
         investigationPointDwellDuration =
             Mathf.Max(0f, investigationPointDwellDuration);
         investigationLookAroundAngle =

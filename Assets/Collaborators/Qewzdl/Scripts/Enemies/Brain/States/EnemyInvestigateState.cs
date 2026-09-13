@@ -359,7 +359,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         context.InvestigationMemory.ClearLastKnownTargetPosition();
 
         searchPlanner.BuildHierarchicalSearchPlan(
-            investigationOrigin,
+            GetSearchOrigin(),
             context.Navigator.Position,
             context.Config.investigationBranchRadius,
             context.Config.investigationBranchPointCount,
@@ -379,6 +379,60 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         }
 
         MoveToNextSearchPointOrFinish();
+    }
+
+    // Where to centre the ring, which is not the same as where she walked to.
+    //
+    // She already knows which way the target was moving when she last saw
+    // them: the observation carries a forward beside its position, and until
+    // now only the flank planner ever read it. The search did not, so the ring
+    // was built evenly around the spot where they vanished - and half of it
+    // therefore covered ground behind her, which is the one place a running
+    // target provably is not. She spent the dwell at those points looking at
+    // an empty floor while the seconds the search is allowed ran out.
+    //
+    // Leaning the ring forward searches the half worth searching. The origin
+    // she walked to is left alone: that is the last honest sighting, it is
+    // what the hiding-place check and the debug overlay are about, and the
+    // target may well still be standing on it.
+    //
+    // The push has to stay on floor she can walk. NavMesh.Raycast walks from
+    // the origin towards the lead and stops at the first edge, so a target
+    // last seen facing a wall shifts the ring as far as the wall and no
+    // further. Without it the lead could land in the next room, and the
+    // planner binds the whole route to whichever room its origin is in - she
+    // would have gone off to search next door.
+    private Vector3 GetSearchOrigin()
+    {
+        if (!context.TargetMemory.TryGetLastObservation(
+                out EnemyTargetObservation observation) ||
+            !EnemyInvestigationSearchPlanner.TryGetLeadOrigin(
+                investigationOrigin,
+                observation.Position,
+                observation.Forward,
+                context.Config.investigationLeadDistance,
+                context.Config.investigationBranchRadius,
+                out Vector3 leadOrigin))
+        {
+            return investigationOrigin;
+        }
+
+        if (!NavMesh.Raycast(
+                investigationOrigin,
+                leadOrigin,
+                out NavMeshHit hit,
+                GetNavigationQueryFilter()))
+        {
+            return leadOrigin;
+        }
+
+        // A query that could not start - the sighting was off the mesh -
+        // reports a hit at infinity rather than an error. Anything past the
+        // lead we asked for is not an answer, and NaN fails this too.
+        return Vector3.Distance(hit.position, investigationOrigin) <=
+               context.Config.investigationLeadDistance
+            ? hit.position
+            : investigationOrigin;
     }
 
     private void TickFollowingSearchRoute(float deltaTime)

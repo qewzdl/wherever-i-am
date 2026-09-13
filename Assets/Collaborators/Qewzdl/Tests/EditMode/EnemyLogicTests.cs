@@ -162,6 +162,69 @@ public sealed class EnemyLogicTests
     }
 
     [Test]
+    public void SearchPlan_LeansTowardsWhereTheTargetWasHeaded()
+    {
+        Vector3 origin = new(4f, 0f, 4f);
+
+        // Seen at the origin, walking down positive Z.
+        Assert.That(
+            EnemyInvestigationSearchPlanner.TryGetLeadOrigin(
+                origin,
+                origin,
+                Vector3.forward,
+                leadDistance: 1.5f,
+                branchRadius: 2.5f,
+                out Vector3 lead),
+            Is.True);
+
+        Assert.That((lead - origin).magnitude, Is.EqualTo(1.5f).Within(0.001f));
+        Assert.That(
+            Vector3.Dot((lead - origin).normalized, Vector3.forward),
+            Is.EqualTo(1f).Within(0.001f));
+
+        // A sighting from somewhere else entirely is a different event - this
+        // is what an investigated noise looks like, and it must not inherit
+        // the direction of an older chase.
+        Assert.That(
+            EnemyInvestigationSearchPlanner.TryGetLeadOrigin(
+                origin,
+                origin + Vector3.right * 9f,
+                Vector3.forward,
+                leadDistance: 1.5f,
+                branchRadius: 2.5f,
+                out Vector3 unled),
+            Is.False);
+
+        Assert.That(unled, Is.EqualTo(origin));
+
+        // Height alone is not a direction to search in.
+        Assert.That(
+            EnemyInvestigationSearchPlanner.TryGetLeadOrigin(
+                origin,
+                origin,
+                Vector3.up,
+                leadDistance: 1.5f,
+                branchRadius: 2.5f,
+                out Vector3 upright),
+            Is.False);
+
+        Assert.That(upright, Is.EqualTo(origin));
+
+        // Zero turns the whole thing off and leaves the ring where it was.
+        Assert.That(
+            EnemyInvestigationSearchPlanner.TryGetLeadOrigin(
+                origin,
+                origin,
+                Vector3.forward,
+                leadDistance: 0f,
+                branchRadius: 2.5f,
+                out Vector3 disabled),
+            Is.False);
+
+        Assert.That(disabled, Is.EqualTo(origin));
+    }
+
+    [Test]
     public void PerceptionMemory_TracksVisionHearingAndResetsAllTimestamps()
     {
         EnemyPerceptionMemory memory = new();

@@ -181,6 +181,7 @@ public class EnemyConfig : ScriptableObject
     public float investigationLeafRadius => investigationProfile.investigationLeafRadius;
     public int investigationLeafPointCountPerBranch => investigationProfile.investigationLeafPointCountPerBranch;
     public float investigationSearchSpeed => investigationProfile.investigationSearchSpeed;
+    public float investigationLeadDistance => investigationProfile.investigationLeadDistance;
     public float investigationPointDwellDuration =>
         investigationProfile.investigationPointDwellDuration;
     public float investigationLookAroundAngle =>
