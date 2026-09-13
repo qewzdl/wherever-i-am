@@ -257,8 +257,19 @@
        word meaning both was a trap laid for whoever read the file next.
        ====================================================================== */
 
-    --font-size-xs: 13px;
-    --font-size-s: 16px;
+    /* The bottom two steps were raised by two pixels each, and everything
+       above them was left alone.
+
+       Thirteen and sixteen were the sizes of most of the words in this game:
+       thirty-two rules read from these two, and they are the explaining half
+       of the interface - the hints, the section headings, a player's status in
+       the roster, the keys the spectator is told to press, what a lobby says
+       about itself. The big end was never the problem. The floor was.
+
+       Raised here rather than in the rules that spend it, because thirty-two
+       places is not a list anybody keeps in step by hand. */
+    --font-size-xs: 15px;
+    --font-size-s: 18px;
     --font-size-m: 20px;
     --font-size-l: 34px;
     --font-size-xl: 56px;

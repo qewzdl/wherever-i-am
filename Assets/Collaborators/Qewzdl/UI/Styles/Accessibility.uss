@@ -34,8 +34,8 @@
    ========================================================================== */
 
 .text--small {
-    --font-size-xs: 12px;
-    --font-size-s: 14px;
+    --font-size-xs: 14px;
+    --font-size-s: 16px;
     --font-size-m: 17px;
     --font-size-l: 29px;
     --font-size-xl: 48px;
@@ -43,8 +43,8 @@
 
 
 .text--large {
-    --font-size-xs: 15px;
-    --font-size-s: 19px;
+    --font-size-xs: 17px;
+    --font-size-s: 21px;
     --font-size-m: 23px;
     --font-size-l: 39px;
     --font-size-xl: 64px;
@@ -52,8 +52,8 @@
 
 
 .text--largest {
-    --font-size-xs: 17px;
-    --font-size-s: 22px;
+    --font-size-xs: 19px;
+    --font-size-s: 24px;
     --font-size-m: 27px;
     --font-size-l: 44px;
     --font-size-xl: 72px;
