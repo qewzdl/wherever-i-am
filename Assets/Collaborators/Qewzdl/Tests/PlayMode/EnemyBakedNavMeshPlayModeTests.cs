@@ -1690,6 +1690,153 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.LessThanOrEqualTo(config.patrolPointReachDistance + 0.1f));
     }
 
+    // Two habits that made the patrol a timetable: it always began at the
+    // point the designer dragged in first, and it always went round the same
+    // way. Both are asked about here by which route point the controller hands
+    // out, without waiting for the enemy to walk anywhere.
+    [UnityTest]
+    public IEnumerator PatrolController_JoinsTheRouteNearbyAndTurnsRoundOnTheWay()
+    {
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyConfig config = CloneNavigationConfig(enemyConfig);
+
+        EnemyPatrolConfig patrolProfile = Track(
+            UnityEngine.Object.Instantiate(enemyConfig.PatrolProfile));
+        patrolProfile.patrolReverseChance = 0f;
+        PlayModeTestReflection.SetField(config, "patrolProfile", patrolProfile);
+
+        GameObject routeObject = Track(new GameObject("Turning patrol route"));
+        Transform[] points = new Transform[4];
+
+        for (int i = 0; i < points.Length; i++)
+        {
+            GameObject point = new($"Patrol point {i}");
+            point.transform.SetParent(routeObject.transform);
+            point.transform.position = new Vector3(-6f + (i * 4f), 0f, 0f);
+            points[i] = point.transform;
+        }
+
+        EnemyPatrolRoute route = routeObject.AddComponent<EnemyPatrolRoute>();
+        PlayModeTestReflection.SetField(route, "points", points);
+
+        // Standing beside the third point, as far from the first as the route
+        // is long - so joining at the first is a visible mistake rather than a
+        // coincidence.
+        GameObject actor = Track(new GameObject("Turning patrol enemy"));
+        actor.SetActive(false);
+        actor.transform.position = new Vector3(2f, 0f, 1.5f);
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Turning patrol test actor could not be placed on the baked surface.");
+        navigator.Configure(config);
+
+        EnemyPatrolController controller = new(
+            route,
+            navigator,
+            config,
+            new EnemyBlackboard());
+
+        List<int> straight = new();
+
+        for (int i = 0; i < 4; i++)
+        {
+            controller.MoveToNextRoutePoint();
+
+            Assert.That(controller.HasCurrentRoutePoint, Is.True);
+            straight.Add(RoutePointIndex(points, controller.CurrentRoutePointPosition));
+
+            yield return null;
+        }
+
+        Assert.That(
+            straight[0],
+            Is.EqualTo(2),
+            "Patrol joined the route at the designer's first point rather than " +
+            "the one it was standing next to.");
+
+        int step = RouteStep(straight[0], straight[1], points.Length);
+
+        Assert.That(
+            step,
+            Is.EqualTo(1).Or.EqualTo(points.Length - 1),
+            "Patrol skipped a point instead of walking to the neighbouring one.");
+
+        for (int i = 1; i < straight.Count - 1; i++)
+        {
+            Assert.That(
+                RouteStep(straight[i], straight[i + 1], points.Length),
+                Is.EqualTo(step),
+                "With no chance of reversing, the patrol changed direction anyway: " +
+                string.Join(", ", straight));
+        }
+
+        // Certain to turn at every point, which is not a setting anybody would
+        // ship - it is how the turn itself is made visible. She should walk
+        // back to the point she has just come from, and keep doing it.
+        patrolProfile.patrolReverseChance = 1f;
+
+        List<int> turning = new();
+
+        for (int i = 0; i < 4; i++)
+        {
+            controller.MoveToNextRoutePoint();
+
+            Assert.That(controller.HasCurrentRoutePoint, Is.True);
+            turning.Add(RoutePointIndex(points, controller.CurrentRoutePointPosition));
+
+            yield return null;
+        }
+
+        Assert.That(
+            RouteStep(turning[0], turning[1], points.Length),
+            Is.EqualTo(1).Or.EqualTo(points.Length - 1),
+            "A reversal must step to the neighbouring point, not across the route: " +
+            string.Join(", ", turning));
+
+        Assert.That(
+            turning[2],
+            Is.EqualTo(turning[0]),
+            "Reversing at every point must walk back and forth over one pair: " +
+            string.Join(", ", turning));
+
+        Assert.That(
+            turning[3],
+            Is.EqualTo(turning[1]),
+            "Reversing at every point must walk back and forth over one pair: " +
+            string.Join(", ", turning));
+    }
+
+    private static int RoutePointIndex(Transform[] points, Vector3 position)
+    {
+        for (int i = 0; i < points.Length; i++)
+        {
+            if (Vector3.Distance(points[i].position, position) <= 0.01f)
+            {
+                return i;
+            }
+        }
+
+        Assert.Fail($"Patrol chose {position}, which is not one of its route points.");
+        return -1;
+    }
+
+    private static int RouteStep(int from, int to, int count)
+    {
+        return ((to - from) % count + count) % count;
+    }
+
     [UnityTest]
     public IEnumerator Navigator_OnDualBakedNavMeshes_CrawlsUnderCeilingAndStandsAfterExit()
     {

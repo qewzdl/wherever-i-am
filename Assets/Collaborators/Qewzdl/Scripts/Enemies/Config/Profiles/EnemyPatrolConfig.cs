@@ -15,6 +15,14 @@ public class EnemyPatrolConfig : ScriptableObject
     [Min(1f)] public float patrolIntermediatePointSpacing = 5f;
     [Min(1)] public int patrolRouteSampleAttempts = 12;
 
+    [Tooltip(
+        "Chance, at each route point she reaches, that she turns round and " +
+        "walks the loop the other way. Rolled per point, so a route of any " +
+        "length reverses about this often. Zero is the old fixed circuit, " +
+        "learnable in two matches; one is a walk back and forth between the " +
+        "same two points.")]
+    [Range(0f, 1f)] public float patrolReverseChance = 0.15f;
+
     [Header("Stop Wander")]
     [Min(0f)] public float patrolStopDuration = 4f;
     [Min(0f)] public float patrolStopWanderRadius = 2f;
@@ -31,6 +39,7 @@ public class EnemyPatrolConfig : ScriptableObject
         patrolMaxDetourRatio = Mathf.Max(1f, patrolMaxDetourRatio);
         patrolIntermediatePointSpacing = Mathf.Max(1f, patrolIntermediatePointSpacing);
         patrolRouteSampleAttempts = Mathf.Max(1, patrolRouteSampleAttempts);
+        patrolReverseChance = Mathf.Clamp01(patrolReverseChance);
         patrolStopDuration = Mathf.Max(0f, patrolStopDuration);
         patrolStopWanderRadius = Mathf.Max(0f, patrolStopWanderRadius);
         patrolStopWanderSpeed = Mathf.Max(0f, patrolStopWanderSpeed);

@@ -224,6 +224,7 @@ public class EnemyConfig : ScriptableObject
     public float patrolIntermediatePointSpacing =>
         patrolProfile.patrolIntermediatePointSpacing;
     public int patrolRouteSampleAttempts => patrolProfile.patrolRouteSampleAttempts;
+    public float patrolReverseChance => patrolProfile.patrolReverseChance;
     public float patrolStopDuration => patrolProfile.patrolStopDuration;
     public float patrolStopWanderRadius => patrolProfile.patrolStopWanderRadius;
     public float patrolStopWanderSpeed => patrolProfile.patrolStopWanderSpeed;

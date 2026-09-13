@@ -12,7 +12,13 @@ public sealed class EnemyPatrolController
     private readonly EnemyPatrolPathPlanner pathPlanner;
     private readonly List<Vector3> plannedRoutePoints = new();
 
-    private int patrolPointIndex;
+    // Which point she walks to next, and which way round the loop she is
+    // going. Meaningless until she has joined the route - before that there is
+    // no "next", and joining is what picks both.
+    private int nextRoutePointIndex;
+    private bool hasJoinedRoute;
+    private int routeDirection = 1;
+
     private int nextPlannedRoutePointIndex;
     private Transform currentRoutePoint;
     private bool hasActiveWanderDestination;
@@ -52,8 +58,18 @@ public sealed class EnemyPatrolController
             return false;
         }
 
-        currentRoutePoint = patrolRoute.GetPoint(patrolPointIndex);
-        patrolPointIndex++;
+        // The first leg of a match used to walk to whichever point the
+        // designer happened to drag in first, from wherever she spawned -
+        // sometimes across the whole level, and always the same point.
+        if (!hasJoinedRoute && !JoinRouteNear(navigator.Position))
+        {
+            currentRoutePoint = null;
+            blackboard?.ClearCurrentDestination();
+            return false;
+        }
+
+        currentRoutePoint = patrolRoute.GetPoint(nextRoutePointIndex);
+        AdvanceRouteIndex();
 
         if (currentRoutePoint == null)
         {
@@ -74,27 +90,11 @@ public sealed class EnemyPatrolController
 
     // Pick the loop up near somewhere, instead of where it was interrupted.
     //
-    // The index is where the route goes next, not where it has been, so
-    // setting it sends her to that point first and then onwards around the
-    // loop from there. Nothing else is disturbed: the route is the same route
-    // in the same order, she simply rejoins it at a different place.
+    // Nothing about the route itself is disturbed: same points, same spacing.
+    // She simply rejoins it in a different place, which is the whole of it.
     public bool ResumeNearest(Vector3 position)
     {
-        if (!HasRoute)
-        {
-            return false;
-        }
-
-        int nearest = patrolRoute.NearestPointIndex(position);
-
-        if (nearest < 0)
-        {
-            return false;
-        }
-
-        patrolPointIndex = nearest;
-
-        return true;
+        return JoinRouteNear(position);
     }
 
     public bool HasReachedCurrentRoutePoint()
@@ -190,11 +190,61 @@ public sealed class EnemyPatrolController
 
     public void Reset()
     {
-        patrolPointIndex = 0;
+        hasJoinedRoute = false;
         currentRoutePoint = null;
         hasActiveWanderDestination = false;
         ClearPlannedRoute();
         blackboard?.ClearCurrentDestination();
+    }
+
+    // Step round the loop, and now and then turn round instead.
+    //
+    // The circuit ran one way from one point for the whole match, and a
+    // patrol is the thing a player sees most of: two matches was enough to
+    // learn where she would be and which way she would be facing, and after
+    // that the level had a timetable rather than somebody walking round it.
+    // The wander at each stop softened where she stood; it never touched the
+    // order or the direction.
+    //
+    // Rolled per point rather than per lap, so how often she turns does not
+    // depend on how many points a particular route happens to have. The turn
+    // sends her back to the point she has just come from, which is what
+    // somebody doubling back actually does - and is why it wants to stay
+    // rare. At a half chance she would spend the match pacing between two
+    // points, which is not unpredictable, only broken.
+    private void AdvanceRouteIndex()
+    {
+        if (config != null && Random.value < config.patrolReverseChance)
+        {
+            routeDirection = -routeDirection;
+        }
+
+        nextRoutePointIndex += routeDirection;
+    }
+
+    // Joining is the one moment both the place and the direction are open, so
+    // both are decided here: the nearest point, and a coin for which way round
+    // she sets off. A search that ends near the same doorway twice does not
+    // then send her the same way twice.
+    private bool JoinRouteNear(Vector3 position)
+    {
+        if (!HasRoute)
+        {
+            return false;
+        }
+
+        int nearest = patrolRoute.NearestPointIndex(position);
+
+        if (nearest < 0)
+        {
+            return false;
+        }
+
+        nextRoutePointIndex = nearest;
+        routeDirection = Random.value < 0.5f ? 1 : -1;
+        hasJoinedRoute = true;
+
+        return true;
     }
 
     private void BuildPlannedRoute(Vector3 destination)

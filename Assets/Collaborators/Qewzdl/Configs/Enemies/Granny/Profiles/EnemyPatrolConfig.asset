@@ -24,3 +24,4 @@ MonoBehaviour:
   patrolStopWanderPointReachDistance: 0.35
   patrolStopWanderSampleAttempts: 12
   patrolStopWanderMinDistanceFromEnemy: 0.75
+  patrolReverseChance: 0.15
