@@ -16,6 +16,17 @@ public sealed class GameMapManagerWindow : EditorWindow
     [SerializeField] private Vector2 scrollPosition;
 
     private readonly List<MapValidationEntry> validationEntries = new List<MapValidationEntry>();
+
+    // Definitions that exist as assets and are in no catalogue.
+    //
+    // A map that is not registered is not half-registered: the game cannot
+    // load it, the manager did not list it, and nothing anywhere said it was
+    // there. The only way in was to make a new one or to duplicate one that
+    // was already in - so a definition that arrived any other way, from a
+    // branch, from a copy, from a catalogue entry somebody removed, was gone
+    // as far as the tools were concerned while sitting in plain sight in the
+    // project window.
+    private readonly List<GameMapDefinition> unregistered = new List<GameMapDefinition>();
     private string catalogError;
 
     // The world group: what the game is made of. See ProjectSceneMenu for the
@@ -58,6 +69,7 @@ public sealed class GameMapManagerWindow : EditorWindow
         DrawCatalogStatus();
         DrawDefaultMapSelector();
         DrawCreateSection();
+        DrawUnregisteredSection();
         DrawMapList();
         EditorGUILayout.EndScrollView();
     }
@@ -152,6 +164,107 @@ public sealed class GameMapManagerWindow : EditorWindow
                     CreateMap(nextMapId, newMapName);
             }
         }
+    }
+
+    private void DrawUnregisteredSection()
+    {
+        if (unregistered.Count == 0)
+            return;
+
+        EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField("Not In The Catalog", EditorStyles.boldLabel);
+
+        EditorGUILayout.HelpBox(
+            unregistered.Count == 1
+                ? "One map definition exists in the project and is not registered. The game cannot load it until it is."
+                : $"{unregistered.Count} map definitions exist in the project and are not registered. The game cannot load them until they are.",
+            MessageType.Info);
+
+        for (int i = 0; i < unregistered.Count; i++)
+            DrawUnregisteredEntry(unregistered[i]);
+    }
+
+    private void DrawUnregisteredEntry(GameMapDefinition definition)
+    {
+        if (definition == null)
+            return;
+
+        using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
+        {
+            string name = string.IsNullOrWhiteSpace(definition.DisplayName)
+                ? definition.name
+                : definition.DisplayName;
+
+            EditorGUILayout.LabelField(name, EditorStyles.boldLabel);
+
+            // The id it is carrying, and whether it can keep it. A definition
+            // copied from another branch usually cannot: the number it was
+            // given there belongs to something else here.
+            bool idIsFree = !catalog.TryGetMap(definition.MapId, out _) &&
+                            definition.MapId >= 0;
+
+            EditorGUILayout.LabelField(
+                idIsFree
+                    ? $"Id {definition.MapId}"
+                    : $"Id {definition.MapId} taken, will become {catalog.GetNextAvailableMapIdEditor()}",
+                GUILayout.Width(240f));
+
+            if (GUILayout.Button("Ping", GUILayout.Width(48f)))
+                EditorGUIUtility.PingObject(definition);
+
+            if (GUILayout.Button("Add", GUILayout.Width(58f)))
+                AddExistingMap(definition);
+        }
+    }
+
+    // Registering something that is already there, which is a different job
+    // from making one: the scene and the definition exist and are not touched
+    // beyond the id, and the id is only touched when it has to be.
+    private void AddExistingMap(GameMapDefinition definition)
+    {
+        if (definition == null || catalog == null)
+            return;
+
+        int mapId = definition.MapId;
+
+        if (mapId < 0 || catalog.TryGetMap(mapId, out _))
+        {
+            mapId = catalog.GetNextAvailableMapIdEditor();
+
+            Undo.RecordObject(definition, "Renumber Game Map");
+            definition.ConfigureEditor(
+                mapId,
+                definition.DisplayName,
+                definition.SceneName,
+                definition.ScenePath);
+
+            EditorUtility.SetDirty(definition);
+        }
+
+        Undo.RecordObject(catalog, "Register Game Map");
+
+        if (!catalog.AddMapEditor(definition))
+        {
+            EditorUtility.DisplayDialog(
+                "Add Game Map",
+                $"'{definition.name}' could not be registered under id {mapId}.",
+                "OK");
+
+            return;
+        }
+
+        EditorUtility.SetDirty(catalog);
+
+        // A map the game cannot load is not registered in any useful sense,
+        // and it cannot load a scene that is not in the build.
+        if (!string.IsNullOrWhiteSpace(definition.ScenePath))
+            GameMapEditorUtility.EnsureSceneInBuildSettings(definition.ScenePath);
+
+        AssetDatabase.SaveAssets();
+        RefreshValidation();
+
+        Selection.activeObject = definition;
+        EditorGUIUtility.PingObject(definition);
     }
 
     private void DrawMapList()
@@ -575,6 +688,73 @@ public sealed class GameMapManagerWindow : EditorWindow
                     catalog.GetMapAt(i),
                     defaultObjectiveSequence));
         }
+
+        RefreshUnregistered();
+    }
+
+    // Every definition in the project, minus the ones this catalogue already
+    // holds. Read off disk rather than remembered, for the same reason the
+    // rest of this window is: the assets are made and moved outside it.
+    private void RefreshUnregistered()
+    {
+        List<GameMapDefinition> all = new();
+
+        foreach (string guid in AssetDatabase.FindAssets($"t:{nameof(GameMapDefinition)}"))
+        {
+            GameMapDefinition definition =
+                AssetDatabase.LoadAssetAtPath<GameMapDefinition>(
+                    AssetDatabase.GUIDToAssetPath(guid));
+
+            if (definition != null)
+                all.Add(definition);
+        }
+
+        CollectUnregistered(catalog, all, unregistered);
+    }
+
+    /// <summary>
+    /// Which of these the catalog does not hold.
+    /// </summary>
+    /// <remarks>
+    /// Told what to look at rather than going and finding it, so the one
+    /// decision worth getting right can be tested without a project full of
+    /// assets around it.
+    ///
+    /// Compared by asset and not by id on purpose: two definitions can carry
+    /// the same number - that is exactly what a copy from another branch does -
+    /// and the one the catalog actually holds is the one that counts. By id,
+    /// the copy would look registered and quietly never be.
+    /// </remarks>
+    public static void CollectUnregistered(
+        GameMapCatalog catalog,
+        IReadOnlyList<GameMapDefinition> all,
+        List<GameMapDefinition> into)
+    {
+        into.Clear();
+
+        if (catalog == null || all == null)
+            return;
+
+        for (int i = 0; i < all.Count; i++)
+        {
+            GameMapDefinition definition = all[i];
+
+            if (definition == null || Registered(catalog, definition))
+                continue;
+
+            into.Add(definition);
+        }
+    }
+
+    private static bool Registered(GameMapCatalog catalog, GameMapDefinition definition)
+    {
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            if (catalog.GetMapAt(i) == definition)
+                return true;
+        }
+
+        return false;
     }
 }
 
