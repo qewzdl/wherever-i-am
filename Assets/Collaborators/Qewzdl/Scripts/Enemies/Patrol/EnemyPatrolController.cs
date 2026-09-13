@@ -72,6 +72,31 @@ public sealed class EnemyPatrolController
         return moved;
     }
 
+    // Pick the loop up near somewhere, instead of where it was interrupted.
+    //
+    // The index is where the route goes next, not where it has been, so
+    // setting it sends her to that point first and then onwards around the
+    // loop from there. Nothing else is disturbed: the route is the same route
+    // in the same order, she simply rejoins it at a different place.
+    public bool ResumeNearest(Vector3 position)
+    {
+        if (!HasRoute)
+        {
+            return false;
+        }
+
+        int nearest = patrolRoute.NearestPointIndex(position);
+
+        if (nearest < 0)
+        {
+            return false;
+        }
+
+        patrolPointIndex = nearest;
+
+        return true;
+    }
+
     public bool HasReachedCurrentRoutePoint()
     {
         if (navigator == null || config == null || currentRoutePoint == null)

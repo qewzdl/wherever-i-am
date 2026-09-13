@@ -15,6 +15,40 @@ public class EnemyPatrolRoute : MonoBehaviour
 
     public bool HasPoints => Count > 0;
 
+    // Which point sits closest to somewhere. Negative when the route has
+    // nothing to offer - no points at all, or every one of them an empty slot
+    // left in the array by a designer.
+    //
+    // Squared distances, because nothing here needs the real one and the
+    // comparison is the same either way.
+    public int NearestPointIndex(Vector3 position)
+    {
+        int nearest = -1;
+        float nearestDistance = float.PositiveInfinity;
+
+        for (int i = 0; i < Count; i++)
+        {
+            Transform point = points[i];
+
+            if (point == null)
+            {
+                continue;
+            }
+
+            float distance = (point.position - position).sqrMagnitude;
+
+            if (distance >= nearestDistance)
+            {
+                continue;
+            }
+
+            nearestDistance = distance;
+            nearest = i;
+        }
+
+        return nearest;
+    }
+
     public Transform GetPoint(int index)
     {
         if (!HasPoints)

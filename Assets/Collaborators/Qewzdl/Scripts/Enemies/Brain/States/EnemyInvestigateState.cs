@@ -16,6 +16,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private InvestigationPhase phase;
 
     private Vector3 investigationOrigin;
+    private bool hasInvestigationOrigin;
     private Vector3 currentDestination;
 
     private int currentSearchPointIndex;
@@ -45,6 +46,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             FinishInvestigation();
             return;
         }
+
+        hasInvestigationOrigin = true;
 
         context.InvestigationDebugData?.Begin(investigationOrigin);
 
@@ -501,6 +504,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         {
             if (TryResolveInvestigationOrigin(out investigationOrigin))
             {
+                hasInvestigationOrigin = true;
+
                 context.InvestigationDebugData?.Begin(investigationOrigin);
 
                 phase = InvestigationPhase.MovingToLastKnownPosition;
@@ -642,6 +647,31 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         context.Blackboard.ClearCurrentInvestigationRoute();
         context.Blackboard.ClearCurrentDestination();
 
+        // She goes back to patrolling, but not back to where patrolling had
+        // got to.
+        //
+        // Losing somebody used to cost her nothing at all: the search ended,
+        // the route carried on from whichever point it had been interrupted
+        // at, and within a few seconds she was somewhere else in the level
+        // behaving exactly as she had before she ever saw anyone. A player who
+        // was nearly caught could wait fifteen seconds and walk back into the
+        // same room, because nothing about that room was different.
+        //
+        // Rejoining the loop at the point nearest where the search ran out
+        // keeps her in that part of the level for a while, without a raised
+        // alert state, a suspicion timer, or anything else that has to be
+        // tuned and decay and be explained to the player. She is not angrier.
+        // She is just still nearby, which is the thing that makes coming back
+        // out feel like a decision.
+        //
+        // Only when the search had somewhere to be. An investigation that
+        // ended because it could not work out where to go in the first place
+        // knows nothing about the level, and its origin is the world origin.
+        if (hasInvestigationOrigin)
+        {
+            context.PatrolController?.ResumeNearest(investigationOrigin);
+        }
+
         context.ClearAllTargetMemory();
         context.ReturnToDefaultBehaviour();
     }
@@ -651,6 +681,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         phase = InvestigationPhase.MovingToLastKnownPosition;
 
         investigationOrigin = default;
+        hasInvestigationOrigin = false;
         currentDestination = default;
 
         currentSearchPointIndex = 0;

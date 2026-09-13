@@ -162,6 +162,51 @@ public sealed class EnemyLogicTests
     }
 
     [Test]
+    public void PatrolRoute_FindsThePointNearestWhereTheSearchEnded()
+    {
+        GameObject routeObject = new("Patrol route");
+
+        try
+        {
+            EnemyPatrolRoute route = routeObject.AddComponent<EnemyPatrolRoute>();
+
+            Assert.That(
+                route.NearestPointIndex(Vector3.zero),
+                Is.EqualTo(-1),
+                "A route with no points has nowhere to resume.");
+
+            Transform[] points =
+            {
+                MakePoint(routeObject, new Vector3(0f, 0f, 0f)),
+                null,
+                MakePoint(routeObject, new Vector3(10f, 0f, 0f)),
+                MakePoint(routeObject, new Vector3(20f, 0f, 0f))
+            };
+
+            TestReflection.SetField(route, "points", points);
+
+            Assert.That(route.NearestPointIndex(new Vector3(19f, 0f, 0f)), Is.EqualTo(3));
+            Assert.That(route.NearestPointIndex(new Vector3(9f, 0f, 3f)), Is.EqualTo(2));
+
+            // The hole a designer left in the array is not a place to patrol.
+            Assert.That(route.NearestPointIndex(new Vector3(5f, 0f, 0f)), Is.Not.EqualTo(1));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(routeObject);
+        }
+    }
+
+    private static Transform MakePoint(GameObject parent, Vector3 position)
+    {
+        GameObject point = new("Patrol point");
+        point.transform.SetParent(parent.transform);
+        point.transform.position = position;
+
+        return point.transform;
+    }
+
+    [Test]
     public void SearchPlan_LeansTowardsWhereTheTargetWasHeaded()
     {
         Vector3 origin = new(4f, 0f, 4f);
