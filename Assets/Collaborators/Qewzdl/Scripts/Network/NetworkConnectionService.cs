@@ -24,6 +24,12 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
     private Task connectionAttemptTask = Task.CompletedTask;
     private Task shutdownTask = Task.CompletedTask;
     private bool immediateShutdownRequested;
+    // Long enough for a callback Netcode really is about to raise - it raises
+    // them while processing its own shutdown, within a frame or two - and
+    // short enough that a callback which is never coming costs a blink rather
+    // than half a minute.
+    private const float StoppedSettleSeconds = 0.5f;
+
     private bool requireClientStoppedCallback;
     private bool requireServerStoppedCallback;
     private bool clientStoppedObserved;
@@ -330,17 +336,60 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
         RuntimeLog.Info("Network shutdown.");
     }
 
+    // A stop callback that can no longer arrive is not worth waiting for.
+    //
+    // The callbacks exist to catch a NetworkManager that reports itself
+    // stopped before it has finished, and for that they are the right thing to
+    // wait on. They are not a way to find out whether anything stopped at all.
+    //
+    // A host whose transport fails inside StartHost never finishes starting,
+    // so it never raises OnClientStopped or OnServerStopped - and the manager
+    // reports IsClient and IsServer true for the moment in between, which is
+    // exactly when a transport failure runs and arms the requirement. That is
+    // a second copy of the game on one machine pressing Create Lobby: the port
+    // is taken, the start fails, and the shutdown then waits fifteen seconds
+    // for a callback about a session that never existed, retries, waits again,
+    // and throws. Half a minute of a panel that cannot be cancelled, because
+    // cancelling asks for the shutdown that is already stuck.
+    //
+    // So once the manager has been stopped for a settle window with no
+    // shutdown running, the wait is over. Anything Netcode had to raise it has
+    // raised by then; what has not come is not coming.
     private async Task WaitUntilFullyStoppedAsync(
         NetworkManager manager,
         Func<bool> requiredCallbacksCompleted,
         Func<string> callbackState)
     {
         DateTime timeoutAt = DateTime.UtcNow.AddSeconds(shutdownTimeoutSeconds);
+        DateTime stoppedSince = DateTime.MaxValue;
 
-        while (!IsFullyStopped(manager) ||
-               (requiredCallbacksCompleted != null &&
-                !requiredCallbacksCompleted.Invoke()))
+        while (true)
         {
+            bool isStopped = IsFullyStopped(manager);
+
+            if (!isStopped)
+            {
+                stoppedSince = DateTime.MaxValue;
+            }
+            else
+            {
+                if (stoppedSince == DateTime.MaxValue)
+                    stoppedSince = DateTime.UtcNow;
+
+                if (requiredCallbacksCompleted == null ||
+                    requiredCallbacksCompleted.Invoke())
+                {
+                    return;
+                }
+
+                if (DateTime.UtcNow - stoppedSince >=
+                    TimeSpan.FromSeconds(StoppedSettleSeconds))
+                {
+                    return;
+                }
+
+            }
+
             if (DateTime.UtcNow >= timeoutAt)
             {
                 string callbackDetails = callbackState != null

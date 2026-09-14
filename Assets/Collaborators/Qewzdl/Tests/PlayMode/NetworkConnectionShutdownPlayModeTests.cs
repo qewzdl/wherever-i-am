@@ -150,6 +150,69 @@ public sealed class NetworkConnectionShutdownPlayModeTests
         Assert.That(serverStoppedCount, Is.EqualTo(1));
     }
 
+    // Two copies of the game on one machine, both pressing Create Lobby.
+    //
+    // The second one's transport cannot have the port, so it fails inside
+    // NetworkManager.StartHost - which runs the failure handler synchronously,
+    // at the one moment the manager reports itself both client and server
+    // without having finished starting. The shutdown that follows reads that
+    // and promises to wait for OnClientStopped and OnServerStopped, and
+    // neither is ever raised, because nothing ever started.
+    //
+    // What the player saw was a panel that said it was opening a host, could
+    // not be cancelled - cancelling asks for the shutdown that is already
+    // stuck - and sat there for two fifteen second attempts before throwing.
+    //
+    // Set up here by hand rather than by racing two real hosts for a port: the
+    // state that matters is a stopped manager plus a promise of callbacks that
+    // cannot arrive, and that is exactly what these two fields are.
+    [UnityTest]
+    public IEnumerator Shutdown_WhenStopCallbacksCanNoLongerArrive_ReturnsInsteadOfHanging()
+    {
+        NetworkEndpointFixture endpoint = CreateEndpoint("Host that never started");
+        NetworkConnectionService service = endpoint.ConnectionService;
+
+        Assert.That(
+            IsFullyStopped(endpoint.Manager),
+            Is.True,
+            "The fixture started something, so there is no never-started case to test.");
+
+        PlayModeTestReflection.SetField(service, "requireClientStoppedCallback", true);
+        PlayModeTestReflection.SetField(service, "requireServerStoppedCallback", true);
+
+        // Shorter than the shipped fifteen so a regression costs the test five
+        // seconds rather than half a minute.
+        PlayModeTestReflection.SetField(service, "shutdownTimeoutSeconds", 5f);
+
+        float startedAt = Time.realtimeSinceStartup;
+        Task shutdown = service.ShutdownAndWaitAsync(NetworkShutdownMode.Immediate);
+
+        while (!shutdown.IsCompleted &&
+               Time.realtimeSinceStartup - startedAt < 10f)
+        {
+            yield return null;
+        }
+
+        float elapsed = Time.realtimeSinceStartup - startedAt;
+
+        Assert.That(
+            shutdown.IsCompleted,
+            Is.True,
+            $"Shutdown never finished. {elapsed:F1}s elapsed.");
+
+        Assert.That(
+            shutdown.IsFaulted,
+            Is.False,
+            "Shutdown threw rather than giving up on a callback that cannot " +
+            $"arrive: {shutdown.Exception}");
+
+        Assert.That(
+            elapsed,
+            Is.LessThan(3f),
+            "Shutdown waited on stop callbacks for a session that never " +
+            $"existed. {elapsed:F1}s elapsed.");
+    }
+
     private NetworkEndpointFixture CreateEndpoint(
         string name,
         bool includeConnectionService = true)
