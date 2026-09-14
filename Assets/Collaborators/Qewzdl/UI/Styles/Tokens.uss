@@ -116,13 +116,19 @@
        ====================================================================== */
 
     /* Behind the picture, so that a frame the art does not reach still reads
-       as part of the same room. */
-    --backdrop: var(--palette-ink-1000);
+       as part of the same room.
+
+       Black rather than the ink the rest of the interface is built on. Six of
+       six of six is the darkest thing anything else in the game is allowed to
+       be, because a surface at true black stops reading as a surface - but the
+       menu's backdrop is not a surface, it is the absence of one, and the name
+       of the game is now a film playing on it. Film wants nothing behind it. */
+    --backdrop: rgb(0, 0, 0);
 
     /* Laid over the picture rather than mixed into it: art is chosen for how
        it looks, not for how much text it can carry, and this is the dial that
        makes any of it quiet enough to read across. */
-    --backdrop-shade: rgba(6, 6, 6, 0.35);
+    --backdrop-shade: rgba(0, 0, 0, 0.35);
 
     /* Opaque enough that what is behind it stops mattering. At nine tenths a
        column standing over a lit stage sat somewhere between rgb(8,10,13) and

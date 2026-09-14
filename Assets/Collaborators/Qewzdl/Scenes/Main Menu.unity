@@ -529,6 +529,7 @@ GameObject:
   - component: {fileID: 771010502}
   - component: {fileID: 771010503}
   - component: {fileID: 771010504}
+  - component: {fileID: 771010505}
   m_Layer: 5
   m_Name: MainMenuScreen
   m_TagString: Untagged
@@ -657,6 +658,21 @@ MonoBehaviour:
   cancellingDetail: Stopping network services safely.
   busyStepFormat: STEP {0} / {1}
   busyElapsedFormat: '{0} s elapsed'
+--- !u!114 &771010505
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 771010500}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bda255424cc546a2be6f6df3978e6b1a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  document: {fileID: 771010502}
+  clip: {fileID: 32900000, guid: 0ab6eb2a1e787a94ba6735fb22955bea, type: 3}
+  displayHeight: 260
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
