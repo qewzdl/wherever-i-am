@@ -284,7 +284,13 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         EnemyNetworkState enemyNetworkState =
             enemy.GetComponent<EnemyNetworkState>();
         List<float> heardNoiseScores = new();
-        enemyNetworkState.HeardNoise += heardNoiseScores.Add;
+        List<GameplayNoiseSourceType> heardNoiseKinds = new();
+
+        enemyNetworkState.HeardNoise += (score, source) =>
+        {
+            heardNoiseScores.Add(score);
+            heardNoiseKinds.Add(source);
+        };
 
         Vector3 noisePosition = new Vector3(3f, 0f, -1f);
         float distanceBeforeNoise =
@@ -322,6 +328,13 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.GreaterThan(0f),
             "A noise raised at full loudness inside the hearing radius was " +
             "reported with no loudness at all.");
+
+        // The kind travels with the report, which is what lets a client decide
+        // that footsteps are not worth exclaiming at while a door still is.
+        Assert.That(
+            heardNoiseKinds[0],
+            Is.EqualTo(GameplayNoiseSourceType.Item),
+            "The report lost track of what made the noise.");
 
         int heardBeforeSight = heardNoiseScores.Count;
 
@@ -1203,7 +1216,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             usesTargetDetection: true,
             blackboard,
             _ => { },
-            _ => { });
+            (_, _) => { });
 
         yield return TickPerceptionUntil(
             perception,
@@ -1259,7 +1272,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             usesTargetDetection: true,
             blackboard,
             _ => { },
-            _ => { });
+            (_, _) => { });
 
         float endTime = Time.realtimeSinceStartup + 2f;
 

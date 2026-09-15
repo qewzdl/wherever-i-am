@@ -15,10 +15,12 @@ public struct EnemyHeardNoiseSnapshot :
     INetworkSerializable,
     IEquatable<EnemyHeardNoiseSnapshot>
 {
-    public static readonly EnemyHeardNoiseSnapshot None = new(0u, 0f);
+    public static readonly EnemyHeardNoiseSnapshot None =
+        new(0u, 0f, GameplayNoiseSourceType.Unknown);
 
     private uint id;
     private float score;
+    private GameplayNoiseSourceType source;
 
     public uint Id => id;
 
@@ -26,12 +28,20 @@ public struct EnemyHeardNoiseSnapshot :
     // rather than how loud it was where it happened.
     public float Score => score;
 
+    // What made it. Whether a kind is worth reacting to out loud is a
+    // presentation question, answered where the clip lives.
+    public GameplayNoiseSourceType Source => source;
+
     public bool HasReport => id != 0u;
 
-    public EnemyHeardNoiseSnapshot(uint id, float score)
+    public EnemyHeardNoiseSnapshot(
+        uint id,
+        float score,
+        GameplayNoiseSourceType source)
     {
         this.id = id;
         this.score = Mathf.Max(0f, score);
+        this.source = source;
     }
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer)
@@ -39,11 +49,13 @@ public struct EnemyHeardNoiseSnapshot :
     {
         serializer.SerializeValue(ref id);
         serializer.SerializeValue(ref score);
+        serializer.SerializeValue(ref source);
     }
 
     public bool Equals(EnemyHeardNoiseSnapshot other)
     {
         return id == other.id &&
+               source == other.source &&
                Mathf.Approximately(score, other.score);
     }
 
@@ -54,7 +66,7 @@ public struct EnemyHeardNoiseSnapshot :
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(id, score);
+        return HashCode.Combine(id, score, source);
     }
 
     public static bool operator ==(

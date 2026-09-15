@@ -446,7 +446,11 @@ public sealed class PlayerAndItemLogicTests
     {
         PlayerSignals signals = new();
 
-        Assert.That(signals.SignalsList.Count, Is.EqualTo(9));
+        // Ten since running arrived. The count is hard-coded rather than
+        // derived on purpose: a signal added without a thought lands here
+        // before it lands in a build, which is the only moment anybody is
+        // going to ask whether it needed to exist.
+        Assert.That(signals.SignalsList.Count, Is.EqualTo(10));
         Assert.That(
             signals.SignalsList.Cast<BasePlayerSignal>().Select(signal => signal.DebugName),
             Is.Unique);

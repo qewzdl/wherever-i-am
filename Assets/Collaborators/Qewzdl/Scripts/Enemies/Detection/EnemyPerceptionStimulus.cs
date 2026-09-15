@@ -12,7 +12,8 @@ public readonly struct EnemyPerceptionStimulus
         default,
         0f,
         EnemyPerceptionSource.None,
-        false
+        false,
+        GameplayNoiseSourceType.Unknown
     );
 
     public bool HasStimulus { get; }
@@ -22,6 +23,11 @@ public readonly struct EnemyPerceptionStimulus
     public EnemyPerceptionSource Source { get; }
     public bool IsConfirmedTarget { get; }
 
+    // What made the sound, when hearing is what perceived it. Unknown for
+    // everything else, which is the honest answer: sight does not report a
+    // kind of noise.
+    public GameplayNoiseSourceType NoiseSource { get; }
+
     public bool HasTarget => Target != null;
 
     private EnemyPerceptionStimulus(
@@ -30,7 +36,8 @@ public readonly struct EnemyPerceptionStimulus
         Vector3 position,
         float score,
         EnemyPerceptionSource source,
-        bool isConfirmedTarget
+        bool isConfirmedTarget,
+        GameplayNoiseSourceType noiseSource
     )
     {
         HasStimulus = hasStimulus;
@@ -39,6 +46,7 @@ public readonly struct EnemyPerceptionStimulus
         Score = score;
         Source = source;
         IsConfirmedTarget = isConfirmedTarget;
+        NoiseSource = noiseSource;
     }
 
     public static EnemyPerceptionStimulus ForConfirmedTarget(
@@ -59,7 +67,8 @@ public readonly struct EnemyPerceptionStimulus
             position,
             score,
             source,
-            true
+            true,
+            GameplayNoiseSourceType.Unknown
         );
     }
 
@@ -69,13 +78,28 @@ public readonly struct EnemyPerceptionStimulus
         EnemyPerceptionSource source
     )
     {
+        return ForSuspiciousPosition(
+            position,
+            score,
+            source,
+            GameplayNoiseSourceType.Unknown);
+    }
+
+    public static EnemyPerceptionStimulus ForSuspiciousPosition(
+        Vector3 position,
+        float score,
+        EnemyPerceptionSource source,
+        GameplayNoiseSourceType noiseSource
+    )
+    {
         return new EnemyPerceptionStimulus(
             true,
             null,
             position,
             score,
             source,
-            false
+            false,
+            noiseSource
         );
     }
 }

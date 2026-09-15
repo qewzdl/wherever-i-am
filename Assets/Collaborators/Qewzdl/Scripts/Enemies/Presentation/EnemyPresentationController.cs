@@ -287,8 +287,17 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
     // whole hearing memory and perception re-reads it several times a second,
     // so the same bang arrives here again and again while she walks towards
     // it.
-    private void HandleHeardNoise(float score)
+    private void HandleHeardNoise(float score, GameplayNoiseSourceType source)
     {
+        // Footsteps are the one noise she is walking towards for as long as it
+        // is being made. Exclaiming at it would have her exclaiming every
+        // cooldown for the length of a chase.
+        if (source == GameplayNoiseSourceType.Footstep &&
+            (profile == null || !profile.ReactsToFootsteps))
+        {
+            return;
+        }
+
         if (profile == null ||
             profile.HeardLoudNoiseSound == null ||
             score < profile.HeardLoudNoiseScore ||

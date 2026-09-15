@@ -10,6 +10,12 @@ public class PlayerSignals
     // Which of those a press means - flip the stance, or hold it - is a setting
     // now, and only the thing that owns the stance can answer it.
     public readonly PlayerSignal<bool> CrouchInputSignal;
+
+    // Held rather than toggled, unlike crouch. Crouch is a stance you settle
+    // into and a setting decides whether a press flips or holds it; running is
+    // something you do while you are doing it, and a run you have to remember
+    // to switch off is a run you sprint into a wall with.
+    public readonly PlayerSignal<bool> RunInputSignal;
     public readonly PlayerSignal<bool> CrouchUpdateSignal;
     public readonly PlayerSignal<bool> CrouchSyncSignal;
     public readonly PlayerSignal<Sprite> CrosshairSpriteSignal;
@@ -22,6 +28,7 @@ public class PlayerSignals
     {
         MoveSignal = new(SignalsList, nameof(MoveSignal));
         CrouchInputSignal = new(SignalsList, nameof(CrouchInputSignal));
+        RunInputSignal = new(SignalsList, nameof(RunInputSignal));
         CrouchUpdateSignal = new(SignalsList, nameof(CrouchUpdateSignal));
         CrouchSyncSignal = new(SignalsList, nameof(CrouchSyncSignal));
         CrosshairSpriteSignal = new(SignalsList, nameof(CrosshairSpriteSignal));

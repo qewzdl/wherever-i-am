@@ -10,15 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c7ecd4af83654fb4aa3b9a79655e585b, type: 3}
-  m_Name: Sfx_Footsteps
+  m_Name: Sfx_Breathlessness
   m_EditorClassIdentifier: 
   clips:
-  - {fileID: 8300000, guid: c57930c64bc09024fa799e2d9c379bc5, type: 3}
-  - {fileID: 8300000, guid: eda23a6e62eae974284552879a1ef16b, type: 3}
-  - {fileID: 8300000, guid: 163f25731af1a2042a841b652b3b60e3, type: 3}
-  - {fileID: 8300000, guid: f59732704140e1b439da4d0f0d6d2431, type: 3}
-  - {fileID: 8300000, guid: 03d2d8382cfd54e429288216efc4236f, type: 3}
-  volume: 0.05
+  - {fileID: 8300000, guid: 212c00bbc8a4d8945a002a8d7a52a171, type: 3}
+  - {fileID: 8300000, guid: e5433dcac3732044cb6b3bcf25f76e3e, type: 3}
+  - {fileID: 8300000, guid: 23a9964000105604b826f59d995e25d4, type: 3}
+  - {fileID: 8300000, guid: 0fce5ab7f45174249a314783400da24f, type: 3}
+  - {fileID: 8300000, guid: d5f7179fd27762349a401ec5ccd44612, type: 3}
+  - {fileID: 8300000, guid: 40e2a60fd91b26b4881cc89765102224, type: 3}
+  volume: 0.5
   randomizeVolume: 0
   minVolume: 0.9
   maxVolume: 1

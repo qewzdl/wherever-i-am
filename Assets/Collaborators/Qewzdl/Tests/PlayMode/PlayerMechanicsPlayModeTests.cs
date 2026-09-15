@@ -103,7 +103,9 @@ public sealed class PlayerMechanicsPlayModeTests
         // than a player with a hole in it.
         InputActionAsset actions = Track(ScriptableObject.CreateInstance<InputActionAsset>());
         actions.name = "Input handler test actions";
-        actions.AddActionMap("Player").AddAction("Crouch", InputActionType.Button);
+        InputActionMap playerMap = actions.AddActionMap("Player");
+        playerMap.AddAction("Crouch", InputActionType.Button);
+        playerMap.AddAction("Run", InputActionType.Button);
 
         PlayerInput playerInput = player.AddComponent<PlayerInput>();
         playerInput.actions = actions;

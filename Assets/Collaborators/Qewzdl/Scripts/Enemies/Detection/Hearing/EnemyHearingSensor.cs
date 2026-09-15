@@ -78,10 +78,13 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
         // fact hearing cannot give it - which container the player climbed
         // into - so anyone within the entry noise radius was opened up with
         // certainty and no counterplay. Only sight arms a hiding place check.
+        // The kind travels; the source object still does not. Which container
+        // a player climbed into remains something only sight can arm.
         stimulus = EnemyPerceptionStimulus.ForSuspiciousPosition(
             noiseEvent.Position,
             score,
-            EnemyPerceptionSource.Hearing
+            EnemyPerceptionSource.Hearing,
+            noiseEvent.SourceType
         );
 
         return true;

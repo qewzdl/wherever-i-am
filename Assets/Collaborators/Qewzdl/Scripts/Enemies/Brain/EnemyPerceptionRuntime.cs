@@ -8,7 +8,7 @@ public sealed class EnemyPerceptionRuntime
     private readonly bool usesTargetDetection;
     private readonly EnemyBlackboard blackboard;
     private readonly Action<EnemyTargetIdentity> setTargetIdentity;
-    private readonly Action<float> reportHeardNoise;
+    private readonly Action<float, GameplayNoiseSourceType> reportHeardNoise;
 
     private float targetRefreshTimer;
 
@@ -18,7 +18,7 @@ public sealed class EnemyPerceptionRuntime
         bool usesTargetDetection,
         EnemyBlackboard blackboard,
         Action<EnemyTargetIdentity> setTargetIdentity,
-        Action<float> reportHeardNoise
+        Action<float, GameplayNoiseSourceType> reportHeardNoise
     )
     {
         if (usesTargetDetection && targetDetector == null)
@@ -214,7 +214,7 @@ public sealed class EnemyPerceptionRuntime
             return;
         }
 
-        reportHeardNoise?.Invoke(stimulus.Score);
+        reportHeardNoise?.Invoke(stimulus.Score, stimulus.NoiseSource);
     }
 
     private void RememberSecondarySuspiciousStimulus(EnemyPerceptionStimulus stimulus)

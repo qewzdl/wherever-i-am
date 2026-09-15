@@ -32,7 +32,7 @@ public sealed class EnemyServerBrain
         EnemyBlackboard blackboard,
         Action<EnemyState> setState,
         Action<EnemyTargetIdentity> setTargetIdentity,
-        Action<float> reportHeardNoise
+        Action<float, GameplayNoiseSourceType> reportHeardNoise
     )
     {
         if (usesTargetDetection && targetDetector == null)

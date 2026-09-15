@@ -5,8 +5,16 @@ using UnityEngine;
 public class PlayerController : PlayerComponent, IPlayerSignalListener, ISettingsServiceConsumer
 {
     [Header("Movement")]
+    // The base speed, which is not a constant: DraggableObject scales it while
+    // something heavy is being pulled and puts it back afterwards. The gaits
+    // are multipliers over whatever it currently is, so the drag penalty
+    // composes with them instead of being argued with.
     [SerializeField, Min(0f)] private float speed = 5f;
-    [SerializeField, Range(0f, 1f)] private float crouchSpeedMultiplier = 0.55f;
+
+    // The ladder the gaits are cut from, shared with whatever has to judge how
+    // loud a footstep is. Two places keeping their own idea of what running
+    // means is a pair of numbers that agree until one of them is balanced.
+    [SerializeField] private PlayerMovementProfile movement;
     [SerializeField, Min(0f)] private float acceleration = 30f;
     [SerializeField, Min(0f)] private float deceleration = 40f;
     [SerializeField, Range(0f, 1f)] private float airControlMultiplier = 0.35f;
@@ -31,6 +39,12 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
 
     private Vector2 direction;
     private bool isCrouching;
+    private bool isRunning;
+
+    // One over the tank, one for whether the tank has been emptied and not yet
+    // recovered enough to be worth opening again.
+    private float stamina = 1f;
+    private bool isWinded;
     private bool crouchIsHold;
     private bool wantsToStand;
     private ISettingsService settingsService;
@@ -58,6 +72,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
 
         signals.MoveSignal.Listen(SetDirection);
         signals.CrouchInputSignal.Listen(UpdateIsCrouching);
+        signals.RunInputSignal.Listen(UpdateIsRunning);
 
         if (isMultiplayer && hasLocalControl)
         {
@@ -76,6 +91,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
 
         signals.MoveSignal.Unlisten(SetDirection);
         signals.CrouchInputSignal.Unlisten(UpdateIsCrouching);
+        signals.RunInputSignal.Unlisten(UpdateIsRunning);
 
         if (listensToCrouchSync)
             signals.CrouchSyncSignal.Unlisten(SyncCrouchState);
@@ -98,6 +114,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
         bool isGrounded = CheckGrounded();
         IsGrounded = isGrounded;
 
+        TickStamina(Time.fixedDeltaTime);
         UpdatePendingStand();
         CacheDraggedItemConstraints();
         Move(isGrounded);
@@ -191,14 +208,78 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
         rb.linearVelocity += Physics.gravity * ((gravityMultiplier - 1f) * Time.fixedDeltaTime);
     }
 
+    // Crouching wins over running rather than combining with it. A crouched
+    // sprint would be the quiet gait at the loud speed, which is the one
+    // combination the whole arrangement exists to refuse - and it would be
+    // reached by holding two keys nobody would think to stop holding.
     private float GetTargetSpeed()
     {
-        float targetSpeed = speed;
+        if (movement == null)
+            return isCrouching ? speed * 0.55f : speed;
 
-        if (isCrouching)
-            return targetSpeed * crouchSpeedMultiplier;
+        return speed * movement.ScaleFor(
+            isCrouching,
+            IsRunningForward(),
+            stamina);
+    }
 
-        return targetSpeed;
+    // Deliberately never shown. The player finds out how much is left from how
+    // fast they are going and from what they can hear themselves doing, which
+    // is the whole reason there is no bar: a number turns pacing into
+    // arithmetic, and breath turns it into a feeling.
+    public float StaminaNormalized => stamina;
+    public bool IsWinded => isWinded;
+    public bool IsRunningNow => IsRunningForward();
+
+    private void TickStamina(float deltaTime)
+    {
+        if (movement == null || deltaTime <= 0f)
+            return;
+
+        if (IsRunningForward())
+        {
+            stamina = Mathf.Max(
+                0f,
+                stamina - deltaTime / movement.RunSeconds);
+
+            // Emptied. Running stays shut until enough has come back, or the
+            // key becomes a stutter button worth tapping.
+            if (stamina <= 0f)
+                isWinded = true;
+
+            return;
+        }
+
+        stamina = Mathf.Min(
+            1f,
+            stamina + deltaTime / movement.RecoverySeconds);
+
+        if (isWinded && stamina >= movement.RecoveredEnoughToRun)
+            isWinded = false;
+    }
+
+    // Running is a thing you do towards something.
+    //
+    // Backwards at a sprint is how a player fights an enemy that is faster
+    // than them: keep her in frame, keep the distance, never turn around. The
+    // whole reason to run is supposed to be that you have decided to stop
+    // looking. Sideways goes with it - the same trick works at ninety degrees
+    // and reads even stranger.
+    //
+    // Judged on the input rather than on the velocity, because velocity lags
+    // and a player who has just let go of forward would keep sprinting through
+    // the turn. The dead zone is the one the rest of the movement already
+    // uses: at rest the stick is never quite centred, and without it a run
+    // would flicker on and off while somebody stands still leaning on shift.
+    private bool IsRunningForward()
+    {
+        return isRunning && !isWinded && direction.y > moveInputDeadZone;
+    }
+
+    // Held, not toggled. Letting go is how you stop.
+    private void UpdateIsRunning(bool value)
+    {
+        isRunning = value;
     }
 
     private bool CheckGrounded()

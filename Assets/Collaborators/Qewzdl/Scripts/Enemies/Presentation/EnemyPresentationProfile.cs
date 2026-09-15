@@ -35,6 +35,13 @@ public class EnemyPresentationProfile : ScriptableObject
         "second, so without this one bang would set her off a dozen times.")]
     [SerializeField, Min(0f)] private float heardLoudNoiseCooldown = 6f;
 
+    [Tooltip(
+        "On, she will react out loud to footsteps as well. Off by default, " +
+        "and that is the point of footsteps having a kind of their own: a " +
+        "walk is a rhythm rather than an event, so a reaction to one repeats " +
+        "for as long as anybody is moving and stops being a reaction.")]
+    [SerializeField] private bool reactsToFootsteps;
+
     [Header("Fallback Animation Event Sounds")]
     [SerializeField] private EnemyAnimationSound[] fallbackAnimationSounds;
 
@@ -44,6 +51,7 @@ public class EnemyPresentationProfile : ScriptableObject
     public EnemyPresentationSound HeardLoudNoiseSound => heardLoudNoiseSound;
     public float HeardLoudNoiseScore => heardLoudNoiseScore;
     public float HeardLoudNoiseCooldown => heardLoudNoiseCooldown;
+    public bool ReactsToFootsteps => reactsToFootsteps;
 
     public string AttackPhaseIntegerParameter => attackPhaseIntegerParameter;
     public bool UseAttackPhaseIntegerParameter => useAttackPhaseIntegerParameter;

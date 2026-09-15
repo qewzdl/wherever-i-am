@@ -12,6 +12,7 @@ public class PlayerInputHandler : PlayerComponent, ILocalPlayerInputService
     // - which is where the last version of this went wrong, silently, in a
     // build that compiled.
     private const string CrouchActionName = "Crouch";
+    private const string RunActionName = "Run";
 
     [SerializeField] private CameraLook cameraLook;
     [SerializeField] private PlayerInput playerInput;
@@ -24,15 +25,18 @@ public class PlayerInputHandler : PlayerComponent, ILocalPlayerInputService
 
     private Vector2 lastMoveInputDirection;
     private InputAction crouchAction;
+    private InputAction runAction;
 
     private void OnEnable()
     {
         SubscribeToCrouch();
+        SubscribeToRun();
     }
 
     private void OnDisable()
     {
         UnsubscribeFromCrouch();
+        UnsubscribeFromRun();
 
         if (cameraLook != null)
             cameraLook.SetLookActive(this, true);
@@ -41,6 +45,7 @@ public class PlayerInputHandler : PlayerComponent, ILocalPlayerInputService
     private void OnDestroy()
     {
         UnsubscribeFromCrouch();
+        UnsubscribeFromRun();
     }
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
@@ -69,17 +74,63 @@ public class PlayerInputHandler : PlayerComponent, ILocalPlayerInputService
             return;
         }
 
-        crouchAction = playerInput.actions.FindAction(CrouchActionName);
-
-        if (crouchAction == null)
-        {
-            Debug.LogError(
-                $"{nameof(PlayerInputHandler)} found no '{CrouchActionName}' action.",
-                this);
-            return;
-        }
+        // Each one resolved and reported on its own, and none of them allowed
+        // to end the method. Bailing out on the first miss is how adding a
+        // second action took the first one down with it: a project without Run
+        // lost crouch as well, and the log said only that Run was missing.
+        crouchAction = ResolveAction(CrouchActionName);
+        runAction = ResolveAction(RunActionName);
 
         SubscribeToCrouch();
+        SubscribeToRun();
+    }
+
+    private InputAction ResolveAction(string actionName)
+    {
+        InputAction action = playerInput.actions.FindAction(actionName);
+
+        if (action == null)
+        {
+            Debug.LogError(
+                $"{nameof(PlayerInputHandler)} found no '{actionName}' action.",
+                this);
+        }
+
+        return action;
+    }
+
+    // Both edges, for the reason crouch gives above: performed repeats, and a
+    // run that is re-started every frame it is held would re-trigger whatever
+    // eventually listens for the start of one.
+    private void SubscribeToRun()
+    {
+        if (runAction == null)
+            return;
+
+        UnsubscribeFromRun();
+
+        runAction.started += HandleRunInput;
+        runAction.canceled += HandleRunInput;
+    }
+
+    private void UnsubscribeFromRun()
+    {
+        if (runAction == null)
+            return;
+
+        runAction.started -= HandleRunInput;
+        runAction.canceled -= HandleRunInput;
+    }
+
+    private void HandleRunInput(InputAction.CallbackContext context)
+    {
+        if (!inputActive || !isLocalControl)
+            return;
+
+        if (context.started)
+            signals.RunInputSignal.Trigger(true);
+        else if (context.canceled)
+            signals.RunInputSignal.Trigger(false);
     }
 
     // Both edges, and only the edges. Started is the key going down and

@@ -45,7 +45,7 @@ public class EnemyNetworkState : NetworkBehaviour
     // The score, because that is all a listener needs. Whether it was loud
     // enough to be worth a sound is a presentation question and is answered
     // where the sound lives.
-    public event Action<float> HeardNoise;
+    public event Action<float, GameplayNoiseSourceType> HeardNoise;
 
     public EnemyState CurrentState => currentState.Value;
     public EnemyTargetIdentity CurrentTargetIdentity => currentTargetIdentity.Value;
@@ -138,7 +138,9 @@ public class EnemyNetworkState : NetworkBehaviour
     // loudness still reads as a second noise. Late joiners get whatever the
     // last report was in their initial sync and no event with it, which is
     // right: they did not hear it happen.
-    public void ReportHeardNoiseServer(float score)
+    public void ReportHeardNoiseServer(
+        float score,
+        GameplayNoiseSourceType source)
     {
         if (!IsServer)
         {
@@ -146,7 +148,10 @@ public class EnemyNetworkState : NetworkBehaviour
         }
 
         heardNoiseCount++;
-        heardNoise.Value = new EnemyHeardNoiseSnapshot(heardNoiseCount, score);
+        heardNoise.Value = new EnemyHeardNoiseSnapshot(
+            heardNoiseCount,
+            score,
+            source);
     }
 
     public void ClearTargetServer()
@@ -230,7 +235,7 @@ public class EnemyNetworkState : NetworkBehaviour
             return;
         }
 
-        HeardNoise?.Invoke(nextReport.Score);
+        HeardNoise?.Invoke(nextReport.Score, nextReport.Source);
     }
 
     private void HandleAttackPhaseChanged(
