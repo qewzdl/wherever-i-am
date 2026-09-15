@@ -85,6 +85,17 @@
 }
 
 
+/* The step the two wordy columns take under the pointer. It is an offset
+   rather than a duration, so it survives a zeroed transition: without this the
+   entry would still jump four pixels, just instantly, which is the opposite of
+   what was asked for. */
+
+.motion--reduced .menu .stack .button:hover:enabled,
+.motion--reduced .panel--rail .stack .button:hover:enabled {
+    translate: 0 0;
+}
+
+
 /* The entrance offsets, which are not durations and so survive a zeroed
    transition: a panel that starts at 0.97 and never animates would simply sit
    there slightly small and slightly low. Everything begins where it ends. */

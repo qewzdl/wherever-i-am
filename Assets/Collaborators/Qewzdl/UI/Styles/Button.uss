@@ -74,13 +74,18 @@
     margin-left: 0;
     margin-right: 0;
 
+    /* translate is listed for the sake of the two columns that use it - the
+       menu's entries and the lobby's - and no framed button sets it. A boxed
+       button moving would drag its frame around with it, and the frame is the
+       thing that says where it is. */
     transition-property:
         color,
         background-color,
         border-left-color,
         border-right-color,
         border-top-color,
-        border-bottom-color;
+        border-bottom-color,
+        translate;
 
     transition-duration: var(--motion-normal);
     transition-timing-function: var(--ease-standard);

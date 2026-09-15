@@ -267,6 +267,19 @@
     color: var(--accent);
 
     background-color: var(--transparent);
+
+    /* A step out of the column. These are words rather than boxes, so there is
+       no frame to drag along and nothing to say where the entry was - which is
+       exactly what lets it move at all. Four pixels: enough to be felt as the
+       pointer travels down the list, not enough to be measured.
+
+       Under the pointer only, which leaves the keyboard with nothing here -
+       these two columns have no focus rule of their own, and the framed
+       button's accent rim cannot show on a border of zero width. That gap
+       predates this and is not made worse by it, but it is the reason this
+       says "under the pointer" rather than "under the pointer, because focus
+       has its own answer". It does not. */
+    translate: 4px 0;
 }
 
 
