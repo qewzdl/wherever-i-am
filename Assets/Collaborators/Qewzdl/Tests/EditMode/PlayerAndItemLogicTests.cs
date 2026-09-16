@@ -441,6 +441,102 @@ public sealed class PlayerAndItemLogicTests
         );
     }
 
+    // Four rests, four numbers, and a switch between them that is one typo
+    // away from handing crouching the walking rate.
+    //
+    // Proved by giving the four fields values nothing else could produce, so a
+    // swapped branch cannot pass by landing on a number that happens to match.
+    // The ordering of the shipped values is deliberately not asserted - that is
+    // tuning, and a test that freezes tuning is a test somebody deletes.
+    [Test]
+    public void MovementProfile_RecoveryRateComesFromTheRightRest()
+    {
+        PlayerMovementProfile profile =
+            ScriptableObject.CreateInstance<PlayerMovementProfile>();
+
+        try
+        {
+            TestReflection.SetField(profile, "recoveryStanding", 0.11f);
+            TestReflection.SetField(profile, "recoveryWalking", 0.22f);
+            TestReflection.SetField(profile, "recoveryCrouchingStill", 0.33f);
+            TestReflection.SetField(profile, "recoveryCrouchWalking", 0.44f);
+
+            Assert.That(profile.RecoveryRateFor(false, false), Is.EqualTo(0.11f).Within(0.0001f),
+                "Standing still did not read the standing rate.");
+            Assert.That(profile.RecoveryRateFor(false, true), Is.EqualTo(0.22f).Within(0.0001f),
+                "Walking did not read the walking rate.");
+            Assert.That(profile.RecoveryRateFor(true, false), Is.EqualTo(0.33f).Within(0.0001f),
+                "Crouching still did not read the crouching-still rate.");
+            Assert.That(profile.RecoveryRateFor(true, true), Is.EqualTo(0.44f).Within(0.0001f),
+                "Crouch walking did not read the crouch-walking rate.");
+        }
+        finally
+        {
+            Object.DestroyImmediate(profile);
+        }
+    }
+
+    // Being tired is allowed to cost speed and is not allowed to buy any.
+    //
+    // The scale is a lerp with a threshold, and a lerp with its ends the wrong
+    // way round still returns plausible numbers - it just returns them for the
+    // wrong stamina, which on a screen with no stamina bar is invisible. So
+    // the direction is asserted rather than the values: nothing below the
+    // threshold may be faster than being above it, and nothing anywhere may
+    // exceed a full tank.
+    [Test]
+    public void MovementProfile_TirednessOnlyEverCostsSpeed()
+    {
+        PlayerMovementProfile profile =
+            ScriptableObject.CreateInstance<PlayerMovementProfile>();
+
+        try
+        {
+            TestReflection.SetField(profile, "tiredBelow", 0.4f);
+            TestReflection.SetField(profile, "exhaustedOverallScale", 0.5f);
+
+            Assert.That(profile.OverallScaleAtStamina(1f), Is.EqualTo(1f),
+                "A full tank is not tired.");
+            Assert.That(profile.OverallScaleAtStamina(0.4f), Is.EqualTo(1f),
+                "The threshold itself is the last place that is not tired.");
+            Assert.That(profile.OverallScaleAtStamina(0f), Is.EqualTo(0.5f).Within(0.0001f),
+                "An empty tank is not at the exhausted scale.");
+
+            float previous = float.PositiveInfinity;
+
+            for (int step = 20; step >= 0; step--)
+            {
+                float stamina = step / 20f;
+                float scale = profile.OverallScaleAtStamina(stamina);
+
+                Assert.That(scale, Is.LessThanOrEqualTo(1f),
+                    $"At {stamina:0.00} of a tank tiredness made the player faster than fresh.");
+
+                Assert.That(scale, Is.LessThanOrEqualTo(previous + 0.0001f),
+                    $"At {stamina:0.00} of a tank the player sped up as the tank emptied.");
+
+                previous = scale;
+            }
+
+            // And the same on the way out, through the thing the controller
+            // actually calls - a gait scale that forgot to include tiredness
+            // would pass everything above and still ship the bug.
+            foreach (bool running in new[] { false, true })
+            {
+                Assert.That(
+                    profile.TotalScaleFor(false, running, 0f),
+                    Is.LessThan(profile.TotalScaleFor(false, running, 1f)),
+                    running
+                        ? "An exhausted run is not slower than a fresh one."
+                        : "An exhausted walk is not slower than a fresh one.");
+            }
+        }
+        finally
+        {
+            Object.DestroyImmediate(profile);
+        }
+    }
+
     // The tank has to be able to leave empty.
     //
     // The recovery curve multiplies the fill rate and is read at the current
