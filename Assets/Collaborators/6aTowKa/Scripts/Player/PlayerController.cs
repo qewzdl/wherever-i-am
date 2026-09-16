@@ -217,7 +217,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
         if (movement == null)
             return isCrouching ? speed * 0.55f : speed;
 
-        return speed * movement.ScaleFor(
+        return speed * movement.TotalScaleFor(
             isCrouching,
             IsRunningForward(),
             stamina);
@@ -250,9 +250,16 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
             return;
         }
 
+        // Three things decide how fast it comes back: the base rate, what
+        // the player is doing while it does, and where in the tank they are.
+        // The last one is a curve somebody draws, so the shape of a recovery
+        // is a decision rather than a consequence of division.
+        float rate = movement.RecoveryRateFor(isCrouching, IsMovingOnFoot()) *
+                     movement.RecoveryCurveAt(stamina);
+
         stamina = Mathf.Min(
             1f,
-            stamina + deltaTime / movement.RecoverySeconds);
+            stamina + deltaTime * rate / movement.RecoverySeconds);
 
         if (isWinded && stamina >= movement.RecoveredEnoughToRun)
             isWinded = false;
@@ -271,6 +278,14 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
     // the turn. The dead zone is the one the rest of the movement already
     // uses: at rest the stick is never quite centred, and without it a run
     // would flicker on and off while somebody stands still leaning on shift.
+    // Moving under your own feet, which is not the same as having a velocity:
+    // being shoved by an item or sliding down something is not walking, and
+    // resting through it should not be punished as though it were.
+    private bool IsMovingOnFoot()
+    {
+        return direction.sqrMagnitude > moveInputDeadZone * moveInputDeadZone;
+    }
+
     private bool IsRunningForward()
     {
         return isRunning && !isWinded && direction.y > moveInputDeadZone;

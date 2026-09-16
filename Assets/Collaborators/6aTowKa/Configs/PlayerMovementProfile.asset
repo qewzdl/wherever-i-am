@@ -17,5 +17,35 @@ MonoBehaviour:
   crouchSpeedMultiplier: 0.5
   runSeconds: 8
   recoverySeconds: 14
+  recoveryCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.6
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 2
+      outSlope: 2
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  recoveryStanding: 1
+  recoveryCrouchingStill: 1.4
+  recoveryWalking: 0.6
+  recoveryCrouchWalking: 0.85
   exhaustedRunScale: 0.45
   recoveredEnoughToRun: 0.25
+  tiredBelow: 0.35
+  exhaustedOverallScale: 0.85

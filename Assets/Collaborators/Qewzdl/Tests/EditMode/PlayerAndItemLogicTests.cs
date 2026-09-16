@@ -441,6 +441,75 @@ public sealed class PlayerAndItemLogicTests
         );
     }
 
+    // The tank has to be able to leave empty.
+    //
+    // The recovery curve multiplies the fill rate and is read at the current
+    // level, so a curve touching zero at its left end makes empty a state
+    // nothing can escape: no stamina, no recovery, no stamina. That shipped,
+    // and it took playing the game to find - a player stuck at zero for the
+    // rest of the match, with no error anywhere and every test passing.
+    //
+    // The shape that does it is the obvious one. "Slow at first" is drawn from
+    // the bottom-left corner, which is exactly zero.
+    //
+    // Asserted as a property of the curve rather than by running a fill loop:
+    // a loop here would be a second copy of the controller's arithmetic, free
+    // to agree with a version of that formula which no longer exists. What
+    // actually matters is that the multiplier is never zero anywhere, because
+    // that is what makes any fill loop terminate.
+    [Test]
+    public void MovementProfile_RecoveryCurveNeverStopsTheTankRefilling()
+    {
+        PlayerMovementProfile profile =
+            ScriptableObject.CreateInstance<PlayerMovementProfile>();
+
+        try
+        {
+            TestReflection.SetField(
+                profile,
+                "recoveryCurve",
+                AnimationCurve.Linear(0f, 0f, 1f, 1f));
+
+            Assert.That(
+                profile.RecoveryCurveStrandsAtEmpty(),
+                Is.True,
+                "A curve drawn to zero at the empty end has to be reported as " +
+                "one, or the floor silently replaces a shape somebody drew " +
+                "and nobody is told.");
+
+            for (int step = 0; step <= 20; step++)
+            {
+                float stamina = step / 20f;
+
+                Assert.That(
+                    profile.RecoveryCurveAt(stamina),
+                    Is.GreaterThan(0f),
+                    $"At {stamina:0.00} of a tank the curve fills it at no " +
+                    "rate at all, so it can never leave that level.");
+            }
+
+            // A curve nobody drew is an absence of opinion, not a zero.
+            TestReflection.SetField(profile, "recoveryCurve", new AnimationCurve());
+
+            Assert.That(profile.RecoveryCurveAt(0f), Is.EqualTo(1f));
+            Assert.That(profile.RecoveryCurveStrandsAtEmpty(), Is.False);
+
+            // And a flat one is still exactly itself: the floor is a floor,
+            // not a correction applied to every curve on the way past.
+            TestReflection.SetField(
+                profile,
+                "recoveryCurve",
+                AnimationCurve.Constant(0f, 1f, 0.5f));
+
+            Assert.That(profile.RecoveryCurveAt(0f), Is.EqualTo(0.5f).Within(0.0001f));
+            Assert.That(profile.RecoveryCurveStrandsAtEmpty(), Is.False);
+        }
+        finally
+        {
+            Object.DestroyImmediate(profile);
+        }
+    }
+
     [Test]
     public void PlayerSignals_RegisterUniqueNamedSignalsAndDispatchListeners()
     {

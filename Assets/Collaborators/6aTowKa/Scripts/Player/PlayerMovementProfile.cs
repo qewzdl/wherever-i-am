@@ -35,8 +35,33 @@ public sealed class PlayerMovementProfile : ScriptableObject
     [Tooltip("Seconds of running a full tank buys.")]
     [SerializeField, Min(0.1f)] private float runSeconds = 8f;
 
-    [Tooltip("Seconds of not running it takes to fill again from empty.")]
+    [Tooltip(
+        "Seconds of standing still to fill from empty, before the curve and " +
+        "the per-condition rates below are applied. Those multiply it, so " +
+        "this is the best case rather than the only case.")]
     [SerializeField, Min(0.1f)] private float recoverySeconds = 14f;
+
+    [Tooltip(
+        "How fast the tank fills at each point along itself, as a " +
+        "multiplier on the base rate. Read at the CURRENT level, so the " +
+        "left of the curve is an empty tank and the right is a full one. " +
+        "Flat at one is the straight line it used to be. Low on the left " +
+        "makes emptying it something you regret for a while; low on the " +
+        "right makes the last of it slow to come back, which is gentler " +
+        "moment to moment and harsher over a whole match. An empty curve " +
+        "counts as flat.")]
+    [SerializeField] private AnimationCurve recoveryCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+
+    [Header("Recovery By Condition")]
+    [Tooltip("Standing still. The reference the other three are read against.")]
+    [SerializeField, Range(0f, 3f)] private float recoveryStanding = 1f;
+
+    [Tooltip("Crouching still - the best rest there is, and the slowest.")]
+    [SerializeField, Range(0f, 3f)] private float recoveryCrouchingStill = 1.4f;
+
+    [SerializeField, Range(0f, 3f)] private float recoveryWalking = 0.6f;
+
+    [SerializeField, Range(0f, 3f)] private float recoveryCrouchWalking = 0.85f;
 
     [Tooltip(
         "What running is worth on an empty tank, as a share of a fresh run. " +
@@ -52,8 +77,89 @@ public sealed class PlayerMovementProfile : ScriptableObject
         "ticks over zero, which is faster than walking and looks absurd.")]
     [SerializeField, Range(0f, 1f)] private float recoveredEnoughToRun = 0.25f;
 
+    [Header("Tiredness")]
+    [Tooltip(
+        "Share of the tank under which everything slows down, not only " +
+        "running. Walking away from something while winded should not be the " +
+        "same walk as walking towards it fresh.")]
+    [SerializeField, Range(0f, 1f)] private float tiredBelow = 0.35f;
+
+    [Tooltip(
+        "What every gait is worth on an empty tank. Compounds with the run " +
+        "scale above, so a spent sprint is slowed twice - once for being a " +
+        "sprint nobody has the breath for, once for being tired. Keep it " +
+        "mild.")]
+    [SerializeField, Range(0.25f, 1f)] private float exhaustedOverallScale = 0.85f;
+
+    public float TiredBelow => Mathf.Clamp01(tiredBelow);
+    public float ExhaustedOverallScale => Mathf.Clamp(exhaustedOverallScale, 0.25f, 1f);
+
+    // One above the threshold, sliding to the exhausted share at empty.
+    public float OverallScaleAtStamina(float normalizedStamina)
+    {
+        float threshold = TiredBelow;
+
+        if (threshold <= 0f || normalizedStamina >= threshold)
+            return 1f;
+
+        return Mathf.Lerp(
+            ExhaustedOverallScale,
+            1f,
+            Mathf.Clamp01(normalizedStamina / threshold));
+    }
+
     public float RunSeconds => Mathf.Max(0.1f, runSeconds);
     public float RecoverySeconds => Mathf.Max(0.1f, recoverySeconds);
+
+    // Rest is a thing you choose, and the four ways of choosing it are worth
+    // different amounts. Crouching still is the best because it is also the
+    // most expensive: you are low, slow and committed while you take it.
+    public float RecoveryRateFor(bool isCrouching, bool isMoving)
+    {
+        if (isCrouching)
+            return isMoving ? recoveryCrouchWalking : recoveryCrouchingStill;
+
+        return isMoving ? recoveryWalking : recoveryStanding;
+    }
+
+    // A quarter, and the number matters more than it looks.
+    //
+    // The curve multiplies the fill RATE and is read at the current level, so
+    // time is the integral of one over it. A dip does not cost proportionally
+    // - it costs inversely, and it costs it across the whole stretch it
+    // covers. Somebody drawing a curve down to a twentieth is picturing "a bit
+    // slower" and getting twenty times longer, which is how a fourteen second
+    // refill became sixty-nine seconds of standing still before the game would
+    // let them run again.
+    //
+    // At a quarter the worst a curve can do is quadruple a stretch. That is a
+    // punishment somebody can feel and still believe; it is also the floor
+    // that keeps zero from meaning never, which is what it meant before this
+    // existed at all.
+    public const float MinimumRecoveryRate = 0.25f;
+
+    // A curve with nothing in it is a curve nobody has drawn, and the honest
+    // reading of that is "no opinion" rather than "multiply by zero".
+    public float RecoveryCurveAt(float normalizedStamina)
+    {
+        if (recoveryCurve == null || recoveryCurve.length == 0)
+            return 1f;
+
+        return Mathf.Max(
+            MinimumRecoveryRate,
+            recoveryCurve.Evaluate(Mathf.Clamp01(normalizedStamina)));
+    }
+
+    // Whether the shape somebody drew would have stranded the player at empty
+    // if the floor were not there. Worth saying out loud in the editor rather
+    // than quietly correcting and letting them believe the curve is what they
+    // drew.
+    public bool RecoveryCurveStrandsAtEmpty()
+    {
+        return recoveryCurve != null &&
+               recoveryCurve.length > 0 &&
+               recoveryCurve.Evaluate(0f) < MinimumRecoveryRate;
+    }
     public float ExhaustedRunScale => Mathf.Clamp(exhaustedRunScale, 0.1f, 1f);
     public float RecoveredEnoughToRun => Mathf.Clamp01(recoveredEnoughToRun);
 
@@ -112,6 +218,14 @@ public sealed class PlayerMovementProfile : ScriptableObject
             return CrouchSpeedMultiplier;
 
         return isRunning ? RunScaleAtStamina(normalizedStamina) : 1f;
+    }
+
+    // Everything the legs are worth right now: the gait, and then how tired
+    // the legs are.
+    public float TotalScaleFor(bool isCrouching, bool isRunning, float normalizedStamina)
+    {
+        return ScaleFor(isCrouching, isRunning, normalizedStamina) *
+               OverallScaleAtStamina(normalizedStamina);
     }
 
 #if UNITY_EDITOR

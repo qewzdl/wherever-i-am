@@ -16,6 +16,10 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
     private const float MetricsInterval = 0.2f;
     private const float EnemyConfirmationSeconds = 3f;
 
+    // Twenty would read as a number and defeat the point of drawing a bar at
+    // all; ten is enough to see a tank draining at a glance.
+    private const int StaminaBarCells = 10;
+
     private readonly NoClipController noClip = new();
     private readonly Dictionary<string, GameObject> metricSections = new();
     private ISettingsService settings;
@@ -239,7 +243,7 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         PlayerController player = TryGetLocalPlayer();
         SetMetric("player", player == null
             ? "Игрок\nЛокальный игрок не найден"
-            : $"Игрок\nПозиция: {player.transform.position:F2}\nNoClip: {(noClip.IsEnabled ? "вкл." : "выкл.")}");
+            : $"Игрок\nПозиция: {player.transform.position:F2}\nNoClip: {(noClip.IsEnabled ? "вкл." : "выкл.")}\n{DescribeStamina(player)}");
 
         NetworkManager network = NetworkManager.Singleton;
         string role = network == null || !network.IsListening ? "Offline" : network.IsHost ? "Host" : network.IsServer ? "Server" : "Client";
@@ -256,6 +260,30 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
             if (text != null)
                 text.text = value;
         }
+    }
+
+    // Стамина не показывается игроку нигде и не должна: её узнают по одышке, а не по
+    // полоске. Но отлаживать состояние, которого не видно, иначе нечем — приходится
+    // верить на слух, а слух подводит именно там, где числа расходятся на проценты.
+    //
+    // Полоска здесь, а не в игре, и это не мелочь: F4-окно существует только в редакторе
+    // и в development-сборке, так что показать её тут — единственный способ увидеть бак,
+    // не открывая его игроку.
+    private static string DescribeStamina(PlayerController player)
+    {
+        float stamina = Mathf.Clamp01(player.StaminaNormalized);
+        int filled = Mathf.RoundToInt(stamina * StaminaBarCells);
+
+        string bar = new string('#', filled) +
+                     new string('.', StaminaBarCells - filled);
+
+        string state = player.IsWinded
+            ? "отдышка (бег заблокирован)"
+            : player.IsRunningNow
+                ? "бежит"
+                : "восстанавливается";
+
+        return $"Стамина: [{bar}] {stamina * 100f:0}%\nСостояние: {state}";
     }
 
     // Сначала netcode, потом поиск по сцене — второй нужен, когда сцену запускают из
