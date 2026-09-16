@@ -336,7 +336,9 @@ public sealed class PlayerSetupWindow : EditorWindow
         wired &= Warn("Footsteps", "walkingPreset", "walking makes no noise the enemy can hear.");
         wired &= Warn("Footsteps", "runningSound", "running is silent to people.");
         wired &= Warn("Footsteps", "walkingSound", "walking is silent to people.");
-        wired &= Warn("Breathing", "windedBreath", "being out of breath cannot be heard.");
+        wired &= Warn("Breathing", "inhale", "there is no breath in, only a breath out.");
+        wired &= Warn("Breathing", "exhale", "being out of breath cannot be heard.");
+        wired &= Warn("Breathing", "cough", "nobody ever coughs. This one may be on purpose.");
 
         if (wired)
             EditorGUILayout.HelpBox("Everything is wired.", MessageType.Info);

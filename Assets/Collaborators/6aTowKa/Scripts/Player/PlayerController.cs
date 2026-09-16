@@ -45,6 +45,12 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
     // recovered enough to be worth opening again.
     private float stamina = 1f;
     private bool isWinded;
+
+    // How much of the tank this spell of exertion has cost, which is not the
+    // same as how empty the tank is. Sprinting a third of it away and stopping
+    // leaves two thirds in the tank and a third spent, and it is the spent
+    // figure that says how hard somebody just worked.
+    private float staminaSpentInBurst;
     private bool crouchIsHold;
     private bool wantsToStand;
     private ISettingsService settingsService;
@@ -231,6 +237,11 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
     public bool IsWinded => isWinded;
     public bool IsRunningNow => IsRunningForward();
 
+    // Reset when the tank climbs back over the tiredness threshold: the cost
+    // belongs to the spell it was paid in, and the spell is over when the
+    // player is no longer tired.
+    public float StaminaSpentInBurst => staminaSpentInBurst;
+
     private void TickStamina(float deltaTime)
     {
         if (movement == null || deltaTime <= 0f)
@@ -238,9 +249,13 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
 
         if (IsRunningForward())
         {
+            float before = stamina;
+
             stamina = Mathf.Max(
                 0f,
                 stamina - deltaTime / movement.RunSeconds);
+
+            staminaSpentInBurst += before - stamina;
 
             // Emptied. Running stays shut until enough has come back, or the
             // key becomes a stutter button worth tapping.
@@ -263,6 +278,14 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
 
         if (isWinded && stamina >= movement.RecoveredEnoughToRun)
             isWinded = false;
+
+        // Back above the line the tiredness starts at, so the effort that put
+        // them under it is over and its cost stops counting. Running again
+        // before that adds to the same total rather than starting a new one -
+        // a second sprint out of a hole you never climbed out of is not a
+        // second effort, it is more of the first.
+        if (stamina >= movement.TiredBelow)
+            staminaSpentInBurst = 0f;
     }
 
     // Running is a thing you do towards something.
