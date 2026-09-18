@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c7ecd4af83654fb4aa3b9a79655e585b, type: 3}
-  m_Name: Sfx_Ingale
+  m_Name: Sfx_Inhale
   m_EditorClassIdentifier: 
   clips:
   - {fileID: 8300000, guid: e5433dcac3732044cb6b3bcf25f76e3e, type: 3}
