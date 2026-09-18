@@ -44,15 +44,12 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class PlayerBreathingSounds : MonoBehaviour
 {
-    private enum Breath
-    {
-        Inhale,
-        Exhale,
-        Cough,
-    }
-
     [Header("References")]
     [SerializeField] private PlayerController controller;
+
+    // How the breath reaches the enemy. Left empty, breathing is heard by
+    // nobody but the player making it, which is what it was until now.
+    [SerializeField] private GameplayNoiseEmitter noiseEmitter;
 
     [Header("Sounds")]
     [Tooltip("One breath in. Several clips inside the asset, or it is a loop.")]
@@ -63,6 +60,17 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
 
     [Tooltip("One cough. Left empty, nobody ever coughs.")]
     [SerializeField] private SoundEffect cough;
+
+    [Header("Heard By The Enemy")]
+    [Tooltip(
+        "The noise a breath makes. Quiet and short-range - being out of " +
+        "breath should cost a player the room they are in, not the floor.")]
+    [SerializeField] private GameplayNoisePreset breathNoise;
+
+    [Tooltip(
+        "The noise a cough makes. This is the betrayal: loud, involuntary, " +
+        "and paid for by a decision made half a minute earlier.")]
+    [SerializeField] private GameplayNoisePreset coughNoise;
 
     [Header("When")]
     [Tooltip(
@@ -122,9 +130,7 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
     private NetworkObject networkObject;
     private IGameplaySoundService gameplaySound;
 
-    private Breath next = Breath.Inhale;
-    private bool lastExhaleWasSecond;
-    private bool lastCoughWasSecond;
+    private readonly BreathRhythm rhythm = new();
     private float nextBreathTime;
 
     private void Awake()
@@ -153,9 +159,7 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
             // rather than from wherever the last one was interrupted. Half a
             // cycle left over from two minutes ago is not a state worth
             // keeping.
-            next = Breath.Inhale;
-            lastExhaleWasSecond = false;
-            lastCoughWasSecond = false;
+            rhythm.Reset();
             nextBreathTime = Time.time;
             return;
         }
@@ -163,75 +167,33 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
         if (Time.time < nextBreathTime)
             return;
 
-        Play(next);
-        Advance();
+        Play(rhythm.Current);
+
+        BreathRhythm.Step played = rhythm.Current;
+
+        rhythm.Advance(
+            new BreathRhythm.Chances(doubleExhaleChance, coughChance, doubleCoughChance),
+            CanCough(),
+            () => Random.value);
+
+        nextBreathTime = Time.time + GapAfter(played, rhythm.Current, rhythm.IsRepeat);
     }
 
-    // Where the rhythm lives. Each step says what comes next and how long from
-    // now, and the gaps differ on purpose - that difference is the whole
-    // effect.
-    private void Advance()
+    // How long to wait, given what was just played and what comes next. The
+    // order is BreathRhythm's business; the clock is this component's, because
+    // the gaps are tuning and the order is rules.
+    private float GapAfter(
+        BreathRhythm.Step played,
+        BreathRhythm.Step next,
+        bool isRepeat)
     {
-        switch (next)
-        {
-            case Breath.Inhale:
-                next = Breath.Exhale;
-                lastExhaleWasSecond = false;
-                nextBreathTime = Time.time + inhaleToExhale;
-                return;
+        if (next == BreathRhythm.Step.Cough)
+            return isRepeat ? coughToCough : exhaleToCough;
 
-            case Breath.Cough:
-                AdvanceAfterCough();
-                return;
+        if (next == BreathRhythm.Step.Exhale)
+            return isRepeat ? exhaleToExhale : inhaleToExhale;
 
-            default:
-                AdvanceAfterExhale();
-                return;
-        }
-    }
-
-    // Two and no more. A third would stop being a cough and start being a
-    // condition, and the player has not got one - they have been running.
-    private void AdvanceAfterCough()
-    {
-        if (!lastCoughWasSecond && Roll(doubleCoughChance))
-        {
-            next = Breath.Cough;
-            lastCoughWasSecond = true;
-            nextBreathTime = Time.time + coughToCough;
-            return;
-        }
-
-        next = Breath.Inhale;
-        lastCoughWasSecond = false;
-        nextBreathTime = Time.time + coughToInhale;
-    }
-
-    private void AdvanceAfterExhale()
-    {
-        // A cough grows out of the first exhale of a breath. Refusing it after
-        // a second exhale is what stops a fit assembling itself out of an
-        // unlucky run of rolls, and is why the chance can be set high enough
-        // to actually hear without it becoming the whole soundtrack.
-        if (CanCough() && Roll(coughChance))
-        {
-            next = Breath.Cough;
-            lastCoughWasSecond = false;
-            nextBreathTime = Time.time + exhaleToCough;
-            return;
-        }
-
-        if (!lastExhaleWasSecond && Roll(doubleExhaleChance))
-        {
-            next = Breath.Exhale;
-            lastExhaleWasSecond = true;
-            nextBreathTime = Time.time + exhaleToExhale;
-            return;
-        }
-
-        next = Breath.Inhale;
-        lastExhaleWasSecond = false;
-        nextBreathTime = Time.time + exhaleToInhale;
+        return played == BreathRhythm.Step.Cough ? coughToInhale : exhaleToInhale;
     }
 
     // Coughing is earned rather than rolled for.
@@ -243,13 +205,9 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
     // not how empty the tank happens to be: a third spent from full and a
     // third spent from half are the same work, and the tank level cannot tell
     // them apart.
-    //
-    // Second exhales are still refused, so a fit cannot assemble itself out of
-    // an unlucky run of rolls once the gate is open.
     private bool CanCough()
     {
-        return !lastExhaleWasSecond &&
-               HasClip(cough) &&
+        return HasClip(cough) &&
                controller.StaminaSpentInBurst >= coughAfterSpending;
     }
 
@@ -257,20 +215,48 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
     // around the hole, so half-filled slots while somebody is still recording
     // sound thin rather than broken - and a cough nobody has recorded is never
     // chosen at all, rather than being chosen and silently skipped.
-    private void Play(Breath breath)
+    private void Play(BreathRhythm.Step breath)
     {
         SoundEffect sound = breath switch
         {
-            Breath.Inhale => inhale,
-            Breath.Exhale => exhale,
+            BreathRhythm.Step.Inhale => inhale,
+            BreathRhythm.Step.Exhale => exhale,
             _ => cough,
         };
+
+        // The noise goes out whether or not there is a clip for it. They are
+        // two audiences for one event - the player hearing themselves, and the
+        // thing in the house hearing them - and a missing recording is not a
+        // reason for the second one to go deaf.
+        EmitNoise(breath);
 
         if (!HasClip(sound))
             return;
 
         gameplaySound ??= AudioServices.Gameplay();
         gameplaySound?.Play2D(sound);
+    }
+
+    // Asked for rather than emitted directly, because this runs on the owner
+    // and the owner is a client. The server decides whether to believe it -
+    // see ServerObservedExertionNoiseValidator, which will not accept a breath
+    // from somebody it has not watched running.
+    //
+    // Exactly the same instant as the sound, which is the whole reason the
+    // client asks instead of the server inventing its own rhythm: a cough the
+    // server timed separately would land somewhere else, and a player would
+    // hear themselves cough twice.
+    private void EmitNoise(BreathRhythm.Step breath)
+    {
+        if (noiseEmitter == null)
+            return;
+
+        GameplayNoisePreset preset = breath == BreathRhythm.Step.Cough
+            ? coughNoise
+            : breathNoise;
+
+        if (preset != null)
+            noiseEmitter.RequestEmitFromOwner(preset);
     }
 
     private static bool HasClip(SoundEffect sound)

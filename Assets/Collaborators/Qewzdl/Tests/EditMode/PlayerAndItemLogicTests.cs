@@ -441,6 +441,206 @@ public sealed class PlayerAndItemLogicTests
         );
     }
 
+    // Four rules about a winded chest, none of which anybody can hear break.
+    //
+    // Coughs and second exhales are rare on purpose, so losing one of these in
+    // a refactor produces a recording somebody would have to sit through for
+    // several minutes to doubt. That is exactly the kind of rule worth writing
+    // down rather than listening for.
+    [Test]
+    public void BreathRhythm_KeepsTheRulesOfAWindedChest()
+    {
+        // Everything certain, so the only thing deciding the order is the
+        // order itself.
+        BreathRhythm.Chances always = new(1f, 1f, 1f);
+        BreathRhythm rhythm = new();
+
+        Assert.That(rhythm.Current, Is.EqualTo(BreathRhythm.Step.Inhale),
+            "A spell of breathing has to start by breathing in.");
+
+        // A cough cannot follow an inhale however certain the rolls, because
+        // the air has to be going out for there to be a cough at all.
+        rhythm.Advance(always, coughAllowed: true, () => 0f);
+
+        Assert.That(rhythm.Current, Is.EqualTo(BreathRhythm.Step.Exhale),
+            "Something other than an exhale followed an inhale - a cough can " +
+            "only come out of air already on its way out.");
+
+        // Two coughs, and then no more: a third stops being tiredness and
+        // starts being a condition.
+        rhythm.Advance(always, coughAllowed: true, () => 0f);
+        Assert.That(rhythm.Current, Is.EqualTo(BreathRhythm.Step.Cough));
+
+        rhythm.Advance(always, coughAllowed: true, () => 0f);
+        Assert.That(rhythm.Current, Is.EqualTo(BreathRhythm.Step.Cough));
+        Assert.That(rhythm.IsRepeat, Is.True,
+            "The second cough was not marked as a repeat, so it will be " +
+            "spaced like a first one.");
+
+        rhythm.Advance(always, coughAllowed: true, () => 0f);
+        Assert.That(rhythm.Current, Is.EqualTo(BreathRhythm.Step.Inhale),
+            "A third cough in a row. Two is a chest; three is a chest " +
+            "infection, and the player has only been running.");
+
+        // The same for exhales, with coughing refused so the exhale branch is
+        // the only one left.
+        rhythm = new BreathRhythm();
+        rhythm.Advance(always, coughAllowed: false, () => 0f);
+        rhythm.Advance(always, coughAllowed: false, () => 0f);
+
+        Assert.That(rhythm.Current, Is.EqualTo(BreathRhythm.Step.Exhale));
+        Assert.That(rhythm.IsRepeat, Is.True);
+
+        rhythm.Advance(always, coughAllowed: false, () => 0f);
+        Assert.That(rhythm.Current, Is.EqualTo(BreathRhythm.Step.Inhale),
+            "A third exhale in a row.");
+
+        // And the gate. Refused, a cough is impossible no matter how the dice
+        // land - that is what makes it a gate rather than another chance.
+        rhythm = new BreathRhythm();
+
+        for (int step = 0; step < 50; step++)
+        {
+            rhythm.Advance(always, coughAllowed: false, () => 0f);
+
+            Assert.That(
+                rhythm.Current,
+                Is.Not.EqualTo(BreathRhythm.Step.Cough),
+                "A cough happened while coughing was refused, so a player who " +
+                "jogged to a door can be heard hacking at it.");
+        }
+    }
+
+    // Setting off is heard, and then every stride after it.
+    //
+    // The first half of that was a bug somebody reported by ear: a player
+    // walked a noticeable distance in silence before the first footstep
+    // arrived, because the count started from zero every time and the
+    // acceleration up to walking pace was silent on top of it. The fix is easy
+    // to lose in a refactor and hard to hear yourself back into, so it is
+    // written down here instead.
+    [Test]
+    public void StrideCounter_LandsAFootWhenMovementStartsAndEveryStrideAfter()
+    {
+        const float Stride = 0.9f;
+        StrideCounter counter = new();
+
+        Assert.That(
+            counter.Advance(true, 0.001f, Stride),
+            Is.True,
+            "Setting off did not land a foot, so a player walks away in " +
+            "silence until a whole stride has gone by.");
+
+        Assert.That(
+            counter.Advance(true, Stride * 0.5f, Stride),
+            Is.False,
+            "A second step landed half a stride after the first.");
+
+        Assert.That(
+            counter.Advance(true, Stride * 0.5f, Stride),
+            Is.True,
+            "No step landed after a full stride of walking.");
+
+        // Stopping forgets the part-stride. Creeping half a stride and then
+        // standing up to walk must not pay for that crouched half with a step
+        // on the first loud frame - that is a footstep for ground already
+        // crossed quietly.
+        Assert.That(counter.Advance(true, Stride * 0.9f, Stride), Is.False);
+        Assert.That(counter.Advance(false, 0f, Stride), Is.False);
+
+        Assert.That(
+            counter.Advance(true, 0.001f, Stride),
+            Is.True,
+            "Moving again did not land a foot.");
+
+        Assert.That(
+            counter.Advance(true, Stride * 0.5f, Stride),
+            Is.False,
+            "The part-stride from before the stop was still being counted.");
+    }
+
+    // A player who walked cannot claim to be out of breath.
+    //
+    // Breathing is the one noise the client asks for rather than the server
+    // deriving - the breath and the sound of it have to be the same instant,
+    // or a player hears themselves cough twice. What keeps that honest is this
+    // model, which works out how hard somebody has been working from nothing
+    // but where they have been.
+    //
+    // Two ways for it to be wrong, and both look identical from outside the
+    // game: draining on any movement lets a walker be heard gasping, and
+    // draining on none refuses every breath in the match. So the assertions
+    // are about which gaits cost something, not about the exact level left.
+    [Test]
+    public void ObservedExertion_OnlyRunningCostsAnything()
+    {
+        PlayerMovementProfile profile =
+            ScriptableObject.CreateInstance<PlayerMovementProfile>();
+
+        try
+        {
+            TestReflection.SetField(profile, "walkSpeed", 2.5f);
+            TestReflection.SetField(profile, "runSpeedMultiplier", 1.5f);
+            TestReflection.SetField(profile, "crouchSpeedMultiplier", 0.5f);
+            TestReflection.SetField(profile, "runSeconds", 8f);
+            TestReflection.SetField(profile, "recoverySeconds", 14f);
+
+            Assert.That(
+                Travel(profile, profile.WalkSpeed, 30f), Is.EqualTo(1f),
+                "Half a minute of walking emptied a tank, so a player who " +
+                "never ran could be heard gasping.");
+
+            Assert.That(
+                Travel(profile, profile.CrouchSpeed, 30f), Is.EqualTo(1f),
+                "Crouching emptied a tank.");
+
+            Assert.That(
+                Travel(profile, 0f, 30f), Is.EqualTo(1f),
+                "Standing still emptied a tank.");
+
+            float afterRunning = Travel(profile, profile.RunSpeed, 4f);
+
+            Assert.That(
+                afterRunning, Is.LessThan(1f),
+                "Four seconds of running cost nothing, so nobody could ever " +
+                "be heard breathing at all.");
+
+            // Roughly half of an eight second tank, and asserted loosely: what
+            // matters is that it drains at about the rate the legs drain at,
+            // not that two models agree to the frame.
+            Assert.That(afterRunning, Is.EqualTo(0.5f).Within(0.05f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(profile);
+        }
+    }
+
+    // Walks a body in a straight line at one speed and hands back what the
+    // observer believes is left. Sampled at sixty a second, because that is
+    // roughly what it will see in a game and a model that only works at large
+    // steps is not one worth having.
+    private static float Travel(
+        PlayerMovementProfile profile,
+        float speed,
+        float seconds)
+    {
+        ObservedExertion exertion = new();
+
+        const float Step = 1f / 60f;
+        int steps = Mathf.RoundToInt(seconds / Step);
+
+        for (int i = 0; i <= steps; i++)
+        {
+            exertion.Sample(
+                new Vector3(speed * i * Step, 0f, 0f),
+                i * Step,
+                profile);
+        }
+
+        return exertion.Stamina;
+    }
+
     // Four rests, four numbers, and a switch between them that is one typo
     // away from handing crouching the walking rate.
     //

@@ -53,6 +53,20 @@ public class EnemyPresentationProfile : ScriptableObject
     public float HeardLoudNoiseCooldown => heardLoudNoiseCooldown;
     public bool ReactsToFootsteps => reactsToFootsteps;
 
+    // Whether a noise of this kind is worth saying something about.
+    //
+    // Footsteps and breathing are rhythms: they go on for as long as somebody
+    // is moving or winded, and a reaction that repeats for that long stops
+    // being a reaction. Everything else is an event - a door, a dropped tin, a
+    // cough - and an event is exactly what a reaction is for.
+    public bool ShouldReactAloudTo(GameplayNoiseSourceType source)
+    {
+        bool isRhythm = source == GameplayNoiseSourceType.Footstep ||
+                        source == GameplayNoiseSourceType.Breath;
+
+        return !isRhythm || reactsToFootsteps;
+    }
+
     public string AttackPhaseIntegerParameter => attackPhaseIntegerParameter;
     public bool UseAttackPhaseIntegerParameter => useAttackPhaseIntegerParameter;
 

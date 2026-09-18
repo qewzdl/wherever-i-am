@@ -206,6 +206,64 @@ public sealed class EnemyLogicTests
         return point.transform;
     }
 
+    // She walks towards footsteps in silence and says something about a cough.
+    //
+    // This was asked for in those words - do not let her cry out at the sound
+    // of somebody walking - and until now nothing checked it. The rule is
+    // about kinds rather than loudness: a rhythm goes on for as long as
+    // somebody is moving or winded, so a reaction to one repeats every
+    // cooldown for the length of a chase and stops reading as a reaction at
+    // all. An event is a door, a dropped tin, a cough - one thing, once.
+    [Test]
+    public void PresentationProfile_SaysNothingAboutRhythmsAndSomethingAboutEvents()
+    {
+        EnemyPresentationProfile profile =
+            ScriptableObject.CreateInstance<EnemyPresentationProfile>();
+
+        try
+        {
+            Assert.That(
+                profile.ShouldReactAloudTo(GameplayNoiseSourceType.Footstep),
+                Is.False,
+                "She would exclaim at every step anybody takes.");
+
+            Assert.That(
+                profile.ShouldReactAloudTo(GameplayNoiseSourceType.Breath),
+                Is.False,
+                "She would exclaim for as long as somebody is out of breath.");
+
+            Assert.That(
+                profile.ShouldReactAloudTo(GameplayNoiseSourceType.Player),
+                Is.True,
+                "A cough is the loudest thing a player does by accident and " +
+                "she would let it pass without a word.");
+
+            Assert.That(
+                profile.ShouldReactAloudTo(GameplayNoiseSourceType.Door),
+                Is.True,
+                "A door is an event.");
+
+            // The switch exists for somebody who wants her chattier, and it
+            // has to actually reach the rhythms - that is the only thing it
+            // was ever for.
+            TestReflection.SetField(profile, "reactsToFootsteps", true);
+
+            Assert.That(
+                profile.ShouldReactAloudTo(GameplayNoiseSourceType.Footstep),
+                Is.True,
+                "Turning the switch on left footsteps silent.");
+
+            Assert.That(
+                profile.ShouldReactAloudTo(GameplayNoiseSourceType.Breath),
+                Is.True,
+                "Turning the switch on left breathing silent.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(profile);
+        }
+    }
+
     [Test]
     public void SearchPlan_LeansTowardsWhereTheTargetWasHeaded()
     {

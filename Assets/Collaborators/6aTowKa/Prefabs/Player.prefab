@@ -866,6 +866,7 @@ GameObject:
   - component: {fileID: 867530900123456790}
   - component: {fileID: 867530900123456791}
   - component: {fileID: 867530900123456792}
+  - component: {fileID: 867530900123456793}
   - component: {fileID: 867530900123456789}
   - component: {fileID: 771234567890123457}
   - component: {fileID: 771234567890123458}
@@ -1425,8 +1426,10 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   defaultPreset: {fileID: 0}
   noiseOrigin: {fileID: 9134326554751017068}
-  ownerRequestValidatorBehaviour: {fileID: 0}
-  ownerRequestPresets: []
+  ownerRequestValidatorBehaviour: {fileID: 867530900123456793}
+  ownerRequestPresets:
+  - {fileID: 11400000, guid: 196ba2a73f034f4aba2ee14f66ad7340, type: 2}
+  - {fileID: 11400000, guid: cd1c563e156a4a5fa2234712f976aabf, type: 2}
 --- !u!114 &867530900123456791
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1461,9 +1464,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   controller: {fileID: 1852548442045173992}
+  noiseEmitter: {fileID: 867530900123456790}
   inhale: {fileID: 11400000, guid: 66cca2a960b341d40b031ed6f0be445e, type: 2}
   exhale: {fileID: 11400000, guid: 80b4554b622441248b9d930cbe9f83a7, type: 2}
   cough: {fileID: 11400000, guid: d91a0ced7014c264db01572b4ab9058c, type: 2}
+  breathNoise: {fileID: 11400000, guid: 196ba2a73f034f4aba2ee14f66ad7340, type: 2}
+  coughNoise: {fileID: 11400000, guid: cd1c563e156a4a5fa2234712f976aabf, type: 2}
   windedBelow: 0.35
   inhaleToExhale: 1.2
   exhaleToInhale: 1.2
@@ -1475,6 +1481,21 @@ MonoBehaviour:
   coughChance: 0.12
   coughAfterSpending: 0.4
   doubleCoughChance: 0.65
+--- !u!114 &867530900123456793
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 817603aac00441959777a296a02ce6f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  observedTransform: {fileID: 0}
+  movement: {fileID: 11400000, guid: 566f34fde8634827b253b3ab644002a0, type: 2}
+  windedBelow: 0.5
 --- !u!114 &867530900123456789
 MonoBehaviour:
   m_ObjectHideFlags: 0

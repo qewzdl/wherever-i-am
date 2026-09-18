@@ -749,6 +749,100 @@ public sealed class ProjectAssetValidationTests
         Assert.That(failures, Is.Empty, string.Join(Environment.NewLine, failures.Distinct()));
     }
 
+    // The setup window looks its fields up by name, and a rename it did not
+    // follow turns a warning into a silence.
+    //
+    // It does say so at runtime now - a name matching nothing draws a red box -
+    // but only to somebody who opens the window, and the whole point of that
+    // block is to be read by somebody who has forgotten to. Here it is read by
+    // the suite instead.
+    [Test]
+    public void PlayerSetupWindow_LooksUpFieldsThatStillExist()
+    {
+        AssertSerializedField<FootstepEmitter>("movement");
+        AssertSerializedField<FootstepEmitter>("noiseEmitter");
+        AssertSerializedField<FootstepEmitter>("runningPreset");
+        AssertSerializedField<FootstepEmitter>("walkingPreset");
+        AssertSerializedField<FootstepEmitter>("runningSound");
+        AssertSerializedField<FootstepEmitter>("walkingSound");
+        AssertSerializedField<PlayerBreathingSounds>("inhale");
+        AssertSerializedField<PlayerBreathingSounds>("exhale");
+        AssertSerializedField<PlayerBreathingSounds>("cough");
+        AssertSerializedField<PlayerController>("movement");
+    }
+
+    private static void AssertSerializedField<T>(string fieldName)
+    {
+        FieldInfo field = typeof(T).GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+        Assert.That(
+            field,
+            Is.Not.Null,
+            $"{typeof(T).Name} has no field called '{fieldName}', so the " +
+            "player setup window would stop warning about it rather than " +
+            "start warning about something else.");
+    }
+
+    // The enemy's manners live in these four assets, not only in her code.
+    //
+    // Whether she exclaims at a noise is decided by its kind: footsteps and
+    // breathing are rhythms she walks towards in silence, a cough is an event
+    // she is allowed to notice out loud. That decision reads sourceType off
+    // the preset - so somebody changing one in the inspector changes how she
+    // behaves, with nothing logged and nothing to see.
+    //
+    // The kinds are asserted rather than the radii and loudness, which are
+    // tuning and belong to whoever is tuning them.
+    [Test]
+    public void PlayerNoisePresets_KeepTheKindsTheEnemyReadsThemBy()
+    {
+        AssertNoiseKind(
+            "Assets/Collaborators/Qewzdl/Configs/Noise/Noise_FootstepRunning.asset",
+            GameplayNoiseSourceType.Footstep,
+            "she would exclaim at every stride of a chase.");
+
+        AssertNoiseKind(
+            "Assets/Collaborators/Qewzdl/Configs/Noise/Noise_FootstepWalking.asset",
+            GameplayNoiseSourceType.Footstep,
+            "she would exclaim at every step anybody takes.");
+
+        AssertNoiseKind(
+            "Assets/Collaborators/Qewzdl/Configs/Noise/Noise_Breath.asset",
+            GameplayNoiseSourceType.Breath,
+            "she would exclaim for as long as somebody is out of breath.");
+
+        // The one that is meant to be an event. A cough as Footstep or Breath
+        // would be heard and walked towards, but never remarked on - which is
+        // the whole reason a cough is worth having.
+        AssertNoiseKind(
+            "Assets/Collaborators/Qewzdl/Configs/Noise/Noise_Cough.asset",
+            GameplayNoiseSourceType.Player,
+            "the loudest thing a player can do by accident would pass " +
+            "without her reacting to it.");
+    }
+
+    private static void AssertNoiseKind(
+        string path,
+        GameplayNoiseSourceType expected,
+        string consequence)
+    {
+        GameplayNoisePreset preset = LoadRequiredAsset<GameplayNoisePreset>(path);
+
+        Assert.That(
+            preset.SourceType,
+            Is.EqualTo(expected),
+            $"{System.IO.Path.GetFileName(path)} is a {preset.SourceType} " +
+            $"rather than a {expected}, so {consequence}");
+
+        Assert.That(
+            preset.IsValid,
+            Is.True,
+            $"{System.IO.Path.GetFileName(path)} would be refused by the " +
+            "emitter, so the noise never reaches anybody.");
+    }
+
     private static T LoadRequiredAsset<T>(string path) where T : UnityEngine.Object
     {
         T asset = AssetDatabase.LoadAssetAtPath<T>(path);

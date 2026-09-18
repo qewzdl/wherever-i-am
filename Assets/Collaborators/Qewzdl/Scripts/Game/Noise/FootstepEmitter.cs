@@ -63,8 +63,7 @@ public sealed class FootstepEmitter : NetworkBehaviour
     private Vector3 previousPosition;
     private float previousSampleTime;
     private bool hasPreviousSample;
-    private float distanceSinceStep;
-    private bool wasMoving;
+    private readonly StrideCounter stride = new();
 
     private IGameplaySoundService gameplaySound;
 
@@ -124,41 +123,15 @@ public sealed class FootstepEmitter : NetworkBehaviour
 
         // Silence is the absence of an event, not an event with nothing in it -
         // so there is no silent preset, no silent clip, and nothing to play
-        // them with.
-        //
-        // The stride is forgotten rather than kept. Creeping half a stride and
-        // then standing up to walk would otherwise pay for that crouched half
-        // with a step on the first loud frame, which is a footstep for ground
-        // already crossed quietly.
-        if (gait == PlayerGait.Silent)
+        // them with. The stride bookkeeping is in StrideCounter, along with
+        // the reason the first footfall does not wait for a stride.
+        if (!stride.Advance(
+                gait != PlayerGait.Silent,
+                travelled,
+                strideLength))
         {
-            distanceSinceStep = 0f;
-            wasMoving = false;
             return;
         }
-
-        distanceSinceStep += travelled;
-
-        // The first footfall lands when you start walking, not a stride later.
-        //
-        // Counting from zero every time meant setting off in silence and
-        // hearing nothing until a whole stride had gone by - and since the
-        // gait band is not reached until nearly two metres a second, the
-        // acceleration up to it was silent too. Two steps of nothing, every
-        // time anybody started moving, which is the one moment a footstep is
-        // most expected.
-        //
-        // Nothing can trigger this by twitching: crossing out of Silent needs
-        // real speed, which is what the band is.
-        bool startedMoving = !wasMoving;
-        wasMoving = true;
-
-        if (!startedMoving && distanceSinceStep < strideLength)
-            return;
-
-        distanceSinceStep = startedMoving
-            ? 0f
-            : distanceSinceStep - strideLength;
 
         bool isRunning = gait == PlayerGait.Running;
 
@@ -192,7 +165,7 @@ public sealed class FootstepEmitter : NetworkBehaviour
     private void ResetObservation()
     {
         hasPreviousSample = false;
-        distanceSinceStep = 0f;
+        stride.Reset();
         previousPosition = Vector3.zero;
         previousSampleTime = 0f;
     }

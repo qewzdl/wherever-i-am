@@ -289,14 +289,10 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
     // it.
     private void HandleHeardNoise(float score, GameplayNoiseSourceType source)
     {
-        // Footsteps are the one noise she is walking towards for as long as it
-        // is being made. Exclaiming at it would have her exclaiming every
-        // cooldown for the length of a chase.
-        if (source == GameplayNoiseSourceType.Footstep &&
-            (profile == null || !profile.ReactsToFootsteps))
-        {
+        // Whether a kind is worth exclaiming at is the profile's question -
+        // see ShouldReactAloudTo, which is also where the reasoning is.
+        if (profile == null || !profile.ShouldReactAloudTo(source))
             return;
-        }
 
         if (profile == null ||
             profile.HeardLoudNoiseSound == null ||
