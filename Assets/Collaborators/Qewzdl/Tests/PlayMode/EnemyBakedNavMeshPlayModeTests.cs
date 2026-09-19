@@ -1052,6 +1052,124 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Assert.That(occupant.IsHidden, Is.True);
     }
 
+    // The same thing again, with the noise a real player makes.
+    //
+    // The test above spawns a hiding player who is perfectly silent, which was
+    // an accurate model of this game until footsteps existed. It is not one
+    // now: a player crossing a room leaves noise events behind them that live
+    // in the world for the whole hearing memory, so at the instant they vanish
+    // into a box the enemy has something to hear as well as nothing to see.
+    //
+    // That changes which branch of perception runs. The visual memory grace
+    // period is started in the no-stimulus branch, and with footsteps still
+    // audible there is no such thing as no stimulus - so the route from
+    // "target gone" to "go and look" is a different route from the one the
+    // quiet test walks.
+    //
+    // Reported from play: she goes to Investigate and then wanders off, as
+    // though she had not watched it happen.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_WatchingANoisyPlayerHide_StillOpensTheBox()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+
+        Vector3 playerPosition = new(0.8f, 0f, -1.2f);
+        PlayerHidingController occupant = CreateSpawnedHidingPlayer(playerPosition);
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -8f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        yield return WaitForCondition(
+            () => enemy.HasTarget &&
+                  (enemy.CurrentState == EnemyState.Chase ||
+                   enemy.CurrentState == EnemyState.Attack),
+            "Production enemy never saw the player standing in the open.");
+
+        // Walking up to the box, audibly. The preset is the shipped one, so
+        // this is the noise a player actually leaves rather than an invention
+        // of the test.
+        // Built here rather than loaded: a PlayMode assembly has no
+        // AssetDatabase, and the numbers matter less than the kind. What has
+        // to be true of this noise is that it is a footstep and that it is
+        // audible from where she is standing.
+        const float FootstepRadius = 7f;
+        const float FootstepLoudness = 0.35f;
+        const GameplayNoiseSourceType FootstepKind = GameplayNoiseSourceType.Footstep;
+
+        for (int step = 0; step < 6; step++)
+        {
+            noiseWorld.TryRaiseNoiseServer(
+                playerPosition,
+                FootstepRadius,
+                FootstepLoudness,
+                FootstepKind);
+
+            yield return null;
+        }
+
+        Assert.That(hidingPlace.TryRequestEnter(occupant), Is.True);
+        Assert.That(
+            hidingPlace.State,
+            Is.EqualTo(HidingTransitionState.Occupied));
+
+        // And the last few steps are still ringing as she loses sight of them,
+        // which is the whole point: hearing has something to say at exactly
+        // the moment vision stops.
+        noiseWorld.TryRaiseNoiseServer(
+            playerPosition,
+            FootstepRadius,
+            FootstepLoudness,
+            FootstepKind);
+
+        EnemyBlackboard enemyBlackboard =
+            PlayModeTestReflection.GetField<EnemyBlackboard>(runtime, "blackboard");
+
+        List<EnemyState> observedStates = new();
+        bool everRememberedHidingPlace = false;
+        float openTimeout = Time.realtimeSinceStartup + 25f;
+
+        while (hidingPlace.State == HidingTransitionState.Occupied &&
+               Time.realtimeSinceStartup < openTimeout)
+        {
+            if (observedStates.Count == 0 ||
+                observedStates[observedStates.Count - 1] != enemy.CurrentState)
+            {
+                observedStates.Add(enemy.CurrentState);
+            }
+
+            everRememberedHidingPlace |=
+                enemyBlackboard.InvestigationMemory.ObservedHidingPlace != null;
+
+            yield return null;
+        }
+
+        Assert.That(
+            hidingPlace.State != HidingTransitionState.Occupied,
+            Is.True,
+            "A noisy player climbed in while she watched and she never opened " +
+            "the box. " +
+            $"states=[{string.Join(",", observedStates)}] " +
+            $"everRememberedHidingPlace={everRememberedHidingPlace}");
+    }
+
     // The closest thing to a playtest that runs unattended: the shipped enemy
     // prefab with its real brain, a real networked player and a real hiding
     // place on a baked NavMesh. Every other test here drives one link of the
@@ -1186,6 +1304,89 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             $"besideTheBoxSeconds={besideTheBoxSeconds:F2} " +
             $"dwell={enemy.Config.investigationPointDwellDuration:F2} " +
             $"states=[{string.Join(",", observedStates)}]");
+
+        yield return WaitForCondition(
+            () => !occupant.IsInHidingSequence,
+            "Opened hiding place did not release its occupant.");
+    }
+
+    // Every hiding place cuts a hole in the NavMesh the size of its own
+    // collider, from the moment the server spawns it, whether or not anybody is
+    // inside. Test Hiding Box then points its interaction anchor at the box's
+    // own transform - there is no Interaction Anchor child in that prefab at
+    // all - so the point the enemy is sent to sits in the middle of that hole.
+    //
+    // The path came back unreachable, the navigator halted her where she stood,
+    // and the check timed out several metres short of a box she had watched
+    // somebody climb into. Every other test here builds its box with the anchor
+    // politely out in front, which is the authored arrangement rather than the
+    // shipped one, so all of them missed it.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_BoxAnchoredInsideItsOwnCarve_StillOpensIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        HidingPlaceInteractable hidingPlace = CreateSpawnedHidingPlace(
+            Vector3.zero,
+            anchoredInsideItsOwnCarve: true);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -8f));
+        EnemyServerRuntime runtime =
+            enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        yield return WaitForCondition(
+            () => enemy.HasTarget &&
+                  (enemy.CurrentState == EnemyState.Chase ||
+                   enemy.CurrentState == EnemyState.Attack),
+            "Production enemy never saw the player standing in the open.");
+
+        Assert.That(hidingPlace.TryRequestEnter(occupant), Is.True);
+        Assert.That(
+            hidingPlace.State,
+            Is.EqualTo(HidingTransitionState.Occupied));
+
+        // The anchor is the thing she cannot stand on, so distance to it is
+        // what says whether she ever got there rather than stalling on the
+        // spot where the path failed.
+        float closestApproach = float.PositiveInfinity;
+        float openTimeout = Time.realtimeSinceStartup + 25f;
+
+        while (hidingPlace.State == HidingTransitionState.Occupied &&
+               Time.realtimeSinceStartup < openTimeout)
+        {
+            closestApproach = Mathf.Min(
+                closestApproach,
+                Vector3.Distance(
+                    enemy.transform.position,
+                    hidingPlace.EnemyInvestigationPosition));
+
+            yield return null;
+        }
+
+        Assert.That(
+            hidingPlace.State != HidingTransitionState.Occupied,
+            Is.True,
+            "Production enemy never opened a box whose anchor sits inside the " +
+            "NavMesh hole the box itself carves. " +
+            $"closestApproach={closestApproach:F2} " +
+            $"openDistance={hidingPlace.Configuration.EnemyInvestigationDistance:F2}");
 
         yield return WaitForCondition(
             () => !occupant.IsInHidingSequence,
@@ -3165,8 +3366,34 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
     private HidingPlaceInteractable CreateSpawnedHidingPlace(Vector3 position)
     {
+        return CreateSpawnedHidingPlace(position, anchoredInsideItsOwnCarve: false);
+    }
+
+    // anchoredInsideItsOwnCarve builds the box the way Test Hiding Box is
+    // actually authored: a carving NavMesh obstacle, and an interaction anchor
+    // wired to the box's own transform rather than to a child standing in front
+    // of it. That combination names a destination in the middle of the hole the
+    // box cuts out of the NavMesh, which no agent can ever stand on.
+    //
+    // Entry line of sight comes off with it, because nothing can see a point
+    // inside a solid box and the player still has to be able to climb in. That
+    // is a concession to staging rather than to the fix: what is under test
+    // here is whether the enemy can navigate to the place, not whether the
+    // player can see it.
+    private HidingPlaceInteractable CreateSpawnedHidingPlace(
+        Vector3 position,
+        bool anchoredInsideItsOwnCarve)
+    {
         HidingPlaceData settings =
             Track(ScriptableObject.CreateInstance<HidingPlaceData>());
+
+        if (anchoredInsideItsOwnCarve)
+        {
+            PlayModeTestReflection.SetField(
+                settings,
+                "requireEntryLineOfSight",
+                false);
+        }
         // Instant entry, matching the shipped configuration: nothing here may
         // depend on the Entering state surviving a frame.
         PlayModeTestReflection.SetField(settings, "enterDuration", 0f);
@@ -3194,7 +3421,14 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Transform interactionAnchor = CreateHidingAnchor(
             placeObject.transform,
             "Interaction Anchor",
-            new Vector3(0f, 0.1f, -1.2f));
+            anchoredInsideItsOwnCarve
+                ? Vector3.zero
+                : new Vector3(0f, 0.1f, -1.2f));
+
+        if (anchoredInsideItsOwnCarve)
+        {
+            placeObject.AddComponent<HidingPlaceNavigationObstacle>();
+        }
         Transform hidingPoint = CreateHidingAnchor(
             placeObject.transform,
             "Hiding Point",

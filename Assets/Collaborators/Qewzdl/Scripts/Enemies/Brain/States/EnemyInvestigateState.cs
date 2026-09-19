@@ -302,7 +302,27 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         HidingPlaceData settings = hidingPlace.Configuration;
 
         checkedHidingPlace = hidingPlace;
+
+        // The budget has to pay for the walk as well as for the transition,
+        // because the clock starts here and the destination below is somewhere
+        // she has not got to yet.
+        //
+        // Sized on the durations alone it came to half a second on the shipped
+        // data asset - enterDuration and exitDuration are both zero there,
+        // since the box has no animation to wait out - and half a second
+        // expired while she was still crossing the room. She walked up to a box
+        // she had watched somebody climb into, stood next to it, and left,
+        // which is the whole of the bug this arithmetic caused.
+        //
+        // Three times the straight line, because a route around furniture is
+        // longer than the line through it. Past that she is not walking slowly,
+        // she is not getting there at all, and giving up is the right answer.
+        float travelDistance = Vector3.Distance(
+            context.Navigator.Position,
+            hidingPlace.EnemyInvestigationPosition);
+
         hidingCheckTimer =
+            travelDistance / Mathf.Max(0.1f, context.Config.chaseSpeed) * 3f +
             (settings != null
                 ? settings.EnterDuration + settings.ExitDuration
                 : 0f) + 0.5f;
@@ -311,8 +331,22 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         // Walk up to the hiding place instead of stopping where the stimulus
         // was: the server only opens it from within EnemyInvestigationDistance,
         // and the investigation origin can sit a metre or two off the anchor.
+        //
+        // Beside the anchor rather than on it. Every hiding place carves a hole
+        // in the NavMesh the size of its own collider - HidingPlaceNavigationObstacle
+        // turns that on the moment the server spawns it, occupied or not - and
+        // an anchor authored at the box's centre therefore names a point no
+        // agent can ever stand on. The path comes back unreachable, the
+        // navigator halts her where she is, and she waits out the check several
+        // metres short of the box she came to check.
+        //
+        // Standing off toward wherever she is approaching from keeps the
+        // destination on open floor whatever the anchor is, which matters
+        // because the anchor is level data: Test Hiding Box has it wired to the
+        // box's own transform today, and any authored place is one mis-drag
+        // away from the same dead stop.
         if (!TrySetDestination(
-                hidingPlace.EnemyInvestigationPosition,
+                GetApproachPosition(hidingPlace, settings),
                 context.Config.chaseSpeed))
         {
             context.StopNavigation();
@@ -334,6 +368,13 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             !checkedHidingPlace.IsSpawned ||
             hidingCheckTimer <= 0f)
         {
+            if (checkedHidingPlace != null)
+            {
+                RuntimeLog.Info(
+                    "Hiding place check ran out of time in state " +
+                    $"{checkedHidingPlace.State}.");
+            }
+
             context.InvestigationMemory.ClearObservedHidingPlace();
             checkedHidingPlace = null;
             StartHierarchicalSearch();
@@ -348,10 +389,25 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
+        // Somebody is in there and the lid would not come off this frame.
+        //
+        // That is not evidence the box is empty, and it used to be treated as
+        // exactly that: the open is refused while she is further away than the
+        // place allows, and it is refused again if the occupant has nowhere to
+        // be put down - an exit point inside a wall, a doorway a dragged item
+        // has closed. Any of those, on any single frame, and she forgot a box
+        // she had watched somebody climb into and walked off to search the
+        // room. From the player's side that is the whole bug: seen, followed,
+        // and then apparently forgotten.
+        //
+        // So a refused open keeps her here. The wait is already bounded - the
+        // timer above pays for the walk and the transition and no more - and
+        // running it out is the honest way to give up on a box that will not
+        // open, rather than giving up on the first attempt.
         if (checkedHidingPlace.State ==
-            HidingTransitionState.Occupied &&
-            TryOpenCheckedHidingPlace())
+            HidingTransitionState.Occupied)
         {
+            TryOpenCheckedHidingPlace();
             return;
         }
 
@@ -361,9 +417,51 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
+        // Genuinely nothing in it: available, or emptied by somebody else
+        // while she walked over. Worth saying out loud while this is being
+        // chased - a box that reports itself free with a player inside it is a
+        // different fault from the one above, in a different file.
+        RuntimeLog.Info(
+            "Hiding place checked and found " +
+            $"{checkedHidingPlace.State} rather than occupied.");
+
         context.InvestigationMemory.ClearObservedHidingPlace();
         checkedHidingPlace = null;
         StartHierarchicalSearch();
+    }
+
+    // A spot beside the anchor, on the side she is coming from, close enough
+    // that the server will open the place from it.
+    //
+    // Six tenths of the opening distance rather than all of it: the remainder
+    // is the margin that absorbs an agent stopping a little short, the radius
+    // of the agent itself, and a carve that reaches slightly further than the
+    // collider it was built from.
+    private Vector3 GetApproachPosition(
+        HidingPlaceInteractable hidingPlace,
+        HidingPlaceData settings)
+    {
+        Vector3 anchor = hidingPlace.EnemyInvestigationPosition;
+
+        if (settings == null)
+        {
+            return anchor;
+        }
+
+        Vector3 approach = context.Navigator.Position - anchor;
+        approach.y = 0f;
+
+        // Standing exactly on top of it gives no direction to back off along.
+        // Rare, and the anchor is no worse a guess than an arbitrary compass
+        // point would be.
+        if (approach.sqrMagnitude <= 0.0001f)
+        {
+            return anchor;
+        }
+
+        return anchor +
+               approach.normalized *
+               (settings.EnemyInvestigationDistance * 0.6f);
     }
 
     private bool TryOpenCheckedHidingPlace()
