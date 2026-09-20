@@ -238,7 +238,6 @@ public sealed class ProjectAssetValidationTests
     {
         // Anatomy and wiring, not difficulty.
         "EnemyVisionConfig.targetHeightOffset",
-        "EnemyHearingConfig.hearingEnabled",
 
         // The chase is balanced around following a target through walls for
         // the memory duration; turning it off for one difficulty would be a

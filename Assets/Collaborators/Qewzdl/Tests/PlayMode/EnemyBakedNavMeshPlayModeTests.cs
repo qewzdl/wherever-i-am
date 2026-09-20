@@ -4035,6 +4035,15 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         detectorObject.SetActive(true);
 
         detector.Construct(noiseWorld);
+
+        // Both senses, because they are behaviours now and a detector built by
+        // hand has none. These tests are about what an enemy can perceive from
+        // where it is standing, not about which senses it was configured with,
+        // and a detector that silently went blind would fail them in a way that
+        // says nothing about perception.
+        detector.InstallSight();
+        detector.InstallHearing();
+
         return detector;
     }
 

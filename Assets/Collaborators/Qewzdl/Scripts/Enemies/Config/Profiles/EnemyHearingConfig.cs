@@ -6,7 +6,6 @@ using UnityEngine;
 )]
 public class EnemyHearingConfig : ScriptableObject
 {
-    public bool hearingEnabled = true;
 
     [Tooltip("The hard ceiling. However sharp the ears, nothing is heard past this.")]
     [Min(0f)] public float hearingRadius = 10f;

@@ -70,6 +70,13 @@ public class EnemyServerRuntime : MonoBehaviour
         }
 
         SubscribeToAttackPhaseServer();
+
+        // Cleared here for the same reason the navigator clears its own
+        // installed behaviours in Configure: the modules install during
+        // CreateBrainServer, and a body reused for an enemy built from a
+        // different config would otherwise keep the senses the last one had.
+        targetDetector?.ForgetInstalledSenses();
+
         CreateBrainServer();
 
         initializedServer = true;

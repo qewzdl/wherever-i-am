@@ -9,10 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c71ff236613d8ab47afb7e1f747080a8, type: 3}
-  m_Name: EnemyHearingConfig_Extreme
+  m_Script: {fileID: 11500000, guid: f319c8f44bee4fa8a0e9389ceca98e42, type: 3}
+  m_Name: GrannyFlankBehavior
   m_EditorClassIdentifier: 
-  hearingRadius: 60
-  hearingSensitivity: 5
-  hearingMemoryDuration: 8
-  minimumNoiseLoudness: 0.05
+  notes: Circles round to come at you from behind. Gates the ambush.

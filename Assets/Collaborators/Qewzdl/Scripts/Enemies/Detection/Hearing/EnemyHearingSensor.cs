@@ -50,11 +50,6 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
             return false;
         }
 
-        if (!config.hearingEnabled)
-        {
-            return false;
-        }
-
         if (!ValidateRuntimeDependencies())
         {
             return false;
@@ -133,7 +128,7 @@ public class EnemyHearingSensor : MonoBehaviour, IEnemyPerceptionSensor
         NetworkEnemyController controller = GetComponent<NetworkEnemyController>();
         EnemyConfig config = controller != null ? controller.Config : null;
 
-        if (config == null || !config.hearingEnabled)
+        if (config == null)
         {
             return;
         }

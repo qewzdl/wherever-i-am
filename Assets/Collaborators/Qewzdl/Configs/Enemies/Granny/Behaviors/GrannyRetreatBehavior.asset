@@ -9,10 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c71ff236613d8ab47afb7e1f747080a8, type: 3}
-  m_Name: EnemyHearingConfig_Extreme
+  m_Script: {fileID: 11500000, guid: b5f55b0d9789415898932f78df54a097, type: 3}
+  m_Name: GrannyRetreatBehavior
   m_EditorClassIdentifier: 
-  hearingRadius: 60
-  hearingSensitivity: 5
-  hearingMemoryDuration: 8
-  minimumNoiseLoudness: 0.05
+  notes: Breaks off once she knows she has been seen.

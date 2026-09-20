@@ -18,6 +18,21 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
     private bool invalidRuntimeConfigurationLogged;
     private bool missingHearingSensorLogged;
 
+    // Neither sense until a behaviour module installs it.
+    //
+    // Both are safe to leave off because "saw nothing this tick" and "heard
+    // nothing this tick" are what the resolver is handed most frames anyway -
+    // switching a sense off makes it report nothing for good, which is a case
+    // every path downstream was already written for.
+    //
+    // Two flags rather than a list of sensors, even though both sensors
+    // implement IEnemyPerceptionSensor. The resolver takes sight and sound as
+    // separate arguments on purpose: seeing somebody confirms who they are and
+    // hearing them only suggests where they might be, and that distinction is
+    // the whole of how this enemy decides what to believe.
+    private bool canSee;
+    private bool canHear;
+
     public bool IsConfigured =>
         ValidateStaticDependencies(false) &&
         ValidateRuntimeDependencies(false);
@@ -25,6 +40,26 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
     public void Construct(IGameplayNoiseService noiseService)
     {
         hearingSensor?.Construct(noiseService);
+    }
+
+    // Installed by behaviour modules, and cleared before they get their turn so
+    // that a body reused for an enemy built from a different config does not
+    // keep the senses the last one was given.
+    public void InstallSight()
+    {
+        canSee = true;
+    }
+
+    public void InstallHearing()
+    {
+        canHear = true;
+    }
+
+    public void ForgetInstalledSenses()
+    {
+        canSee = false;
+        canHear = false;
+        missingHearingSensorLogged = false;
     }
 
     private void Awake()
@@ -85,17 +120,26 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
         }
 
         EnemyTarget currentTarget = blackboard?.TargetMemory.CurrentTarget;
-        bool hasVisionStimulus = visionSensor.TryFindBestStimulus(
-            config,
-            currentTarget,
-            out EnemyPerceptionStimulus visionStimulus,
-            out EnemyPerceptionStimulus currentTargetVisionStimulus
-        );
+
+        bool hasVisionStimulus = false;
+        EnemyPerceptionStimulus visionStimulus = EnemyPerceptionStimulus.None;
+        EnemyPerceptionStimulus currentTargetVisionStimulus =
+            EnemyPerceptionStimulus.None;
+
+        if (canSee)
+        {
+            hasVisionStimulus = visionSensor.TryFindBestStimulus(
+                config,
+                currentTarget,
+                out visionStimulus,
+                out currentTargetVisionStimulus
+            );
+        }
 
         bool hasHearingStimulus = false;
         EnemyPerceptionStimulus hearingStimulus = EnemyPerceptionStimulus.None;
 
-        if (config.hearingEnabled)
+        if (canHear)
         {
             hasHearingStimulus = hearingSensor.TryFindBestStimulus(
                 config,
@@ -338,9 +382,16 @@ public class EnemyTargetDetector : MonoBehaviour, IEnemyValidatedComponent
         return false;
     }
 
+    // Takes the config it no longer reads, because every other Validate here
+    // does and a lone odd signature reads like an oversight.
+    //
+    // Asked of the installed sense rather than of a setting, which also means
+    // the check before the brain is built finds nothing to complain about - no
+    // module has had its turn yet - and the per-tick call is what catches an
+    // enemy told to hear with no sensor bolted on.
     private bool ValidateHearingDependencies(EnemyConfig config)
     {
-        if (!config.hearingEnabled)
+        if (!canHear)
         {
             missingHearingSensorLogged = false;
             return true;

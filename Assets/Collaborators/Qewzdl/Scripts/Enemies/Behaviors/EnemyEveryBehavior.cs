@@ -23,11 +23,16 @@ public static class EnemyEveryBehavior
 {
     public static void Install(EnemyBehaviorInstaller installer)
     {
+        Install<EnemySightModule>(installer);
+        Install<EnemyHearingModule>(installer);
         Install<EnemyChaseBehaviorModule>(installer);
         Install<EnemyAttackBehaviorModule>(installer);
         Install<EnemyPatrolBehaviorModule>(installer);
         Install<EnemyInvestigationBehaviorModule>(installer);
-        Install<EnemyStealthManeuverBehaviorModule>(installer);
+        Install<EnemyStalkBehaviorModule>(installer);
+        Install<EnemyRetreatBehaviorModule>(installer);
+        Install<EnemyFlankBehaviorModule>(installer);
+        Install<EnemyAmbushBehaviorModule>(installer);
         Install<EnemyHidingPlaceCheckModule>(installer);
         Install<EnemyDoorTraversalModule>(installer);
         Install<EnemyItemPushingModule>(installer);

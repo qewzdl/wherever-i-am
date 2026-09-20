@@ -850,10 +850,10 @@ public sealed class EnemyLogicTests
             "enemy in the game.");
     }
 
-    // Doors and barricades install themselves into the navigator rather than
-    // into the capability registry, so the test above cannot see them: it hands
-    // the installer a null context, and a module that reaches for the navigator
-    // through it quietly does nothing.
+    // Doors, barricades and both senses install themselves into a component
+    // on the enemy rather than into the capability registry, so the test above
+    // cannot see them: it hands the installer a context with no components, and
+    // a module that reaches through it quietly does nothing.
     //
     // That silence is the hazard. Both modules are one missing null check away
     // from being list entries the inspector shows and the game ignores, and the
@@ -861,7 +861,7 @@ public sealed class EnemyLogicTests
     // this asserts they ask the navigator for something - the asking is what
     // cannot be checked anywhere cheaper.
     [Test]
-    public void NavigatorBehaviorModules_WithNoNavigator_DoNotThrow()
+    public void ComponentBehaviorModules_WithNoComponents_DoNotThrow()
     {
         Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
         EnemyBehaviorCapabilities capabilities = new();
@@ -870,15 +870,16 @@ public sealed class EnemyLogicTests
             handlers,
             capabilities);
 
-        foreach (EnemyBehaviorModule module in CreateNavigatorModules())
+        foreach (EnemyBehaviorModule module in CreateComponentModules())
         {
             try
             {
                 Assert.DoesNotThrow(
                     () => module.Install(installer),
-                    $"{module.GetType().Name} cannot cope with an enemy that " +
-                    "has no navigator, so building one would take the whole " +
-                    "enemy down rather than one behaviour.");
+                    $"{module.GetType().Name} cannot cope with an enemy " +
+                    "missing the component it reaches for, so building one " +
+                    "would take the whole enemy down rather than one " +
+                    "behaviour.");
             }
             finally
             {
@@ -889,7 +890,7 @@ public sealed class EnemyLogicTests
         Assert.That(
             handlers,
             Is.Empty,
-            "A navigator module claimed a state, which would take it off " +
+            "A component module claimed a state, which would take it off " +
             "whichever state module was supposed to provide it.");
     }
 
@@ -911,10 +912,15 @@ public sealed class EnemyLogicTests
             null);
     }
 
-    private static IEnumerable<EnemyBehaviorModule> CreateNavigatorModules()
+    // Modules that reach for a component on the enemy rather than adding a
+    // state or a capability. They all have the same hazard - a null component
+    // and they quietly do nothing - and none of them may claim a state.
+    private static IEnumerable<EnemyBehaviorModule> CreateComponentModules()
     {
         yield return ScriptableObject.CreateInstance<EnemyDoorTraversalModule>();
         yield return ScriptableObject.CreateInstance<EnemyItemPushingModule>();
+        yield return ScriptableObject.CreateInstance<EnemySightModule>();
+        yield return ScriptableObject.CreateInstance<EnemyHearingModule>();
     }
 
     // The state modules only. Capability modules install no states at all,
@@ -928,8 +934,10 @@ public sealed class EnemyLogicTests
         yield return ScriptableObject.CreateInstance<EnemyPatrolBehaviorModule>();
         yield return ScriptableObject
             .CreateInstance<EnemyInvestigationBehaviorModule>();
-        yield return ScriptableObject
-            .CreateInstance<EnemyStealthManeuverBehaviorModule>();
+        yield return ScriptableObject.CreateInstance<EnemyStalkBehaviorModule>();
+        yield return ScriptableObject.CreateInstance<EnemyRetreatBehaviorModule>();
+        yield return ScriptableObject.CreateInstance<EnemyFlankBehaviorModule>();
+        yield return ScriptableObject.CreateInstance<EnemyAmbushBehaviorModule>();
     }
 
     // A capability module adds something the states can look up and claims no
