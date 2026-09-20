@@ -1090,6 +1090,109 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Assert.That(occupant.IsInHidingSequence, Is.True);
     }
 
+    // The search route is the largest thing that was inside the investigating
+    // state, and until this was written nothing checked that it does anything.
+    // Every existing investigation test passed with the capability removed,
+    // which is a fair description of untested.
+    //
+    // What it buys is the difference between looking AT a noise and looking
+    // AROUND it. With the route she plans a ring of points, publishes it, and
+    // walks out to them; without it she arrives, finds nothing, and is done.
+    [UnityTest]
+    public IEnumerator InvestigateState_WithTheSearchRoute_LooksAroundTheStimulusRatherThanAtIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        Vector3 stimulus = Vector3.zero;
+
+        EnemyInvestigateState searching = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject searchingActor,
+            out EnemyBlackboard searchingBlackboard,
+            out List<EnemyState> _,
+            withSearchRoute: true);
+
+        searchingBlackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            stimulus);
+        searching.Enter();
+
+        yield return TickInvestigationUntil(
+            searching,
+            () => searchingBlackboard.CurrentInvestigationRoute.Count > 0,
+            "An enemy with the search route never planned one.");
+
+        // Planning it is not walking it. What says the route is real is her
+        // leaving the spot she came to and going out to the ring.
+        float wandered = 0f;
+        float watchUntil = Time.realtimeSinceStartup + 12f;
+
+        while (Time.realtimeSinceStartup < watchUntil &&
+               wandered <= enemyConfig.investigationBranchRadius * 0.5f)
+        {
+            searching.Tick(Time.deltaTime);
+
+            wandered = Mathf.Max(
+                wandered,
+                Vector3.Distance(searchingActor.transform.position, stimulus));
+
+            yield return null;
+        }
+
+        Assert.That(
+            wandered,
+            Is.GreaterThan(enemyConfig.investigationBranchRadius * 0.5f),
+            "An enemy with the search route never left the spot it walked to, " +
+            $"so it looked at the stimulus rather than around it. " +
+            $"wandered={wandered:F2} " +
+            $"branchRadius={enemyConfig.investigationBranchRadius:F2}");
+    }
+
+    // The same staging with the capability left out, which is what makes the
+    // test above about the module rather than about investigating in general.
+    [UnityTest]
+    public IEnumerator InvestigateState_WithoutTheSearchRoute_GivesUpAtTheStimulus()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject _,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> stateChanges,
+            withSearchRoute: false);
+
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            Vector3.zero);
+        state.Enter();
+
+        // Finishing means asking the brain for something else to do. That is
+        // the whole of what "no search route" looks like from outside.
+        yield return TickInvestigationUntil(
+            state,
+            () => stateChanges.Count > 0,
+            "An enemy with no search route investigated forever instead of " +
+            "giving up when the spot turned out to be empty.");
+
+        Assert.That(
+            blackboard.CurrentInvestigationRoute,
+            Is.Empty,
+            "An enemy with no search route planned one anyway.");
+    }
+
     // Whichever way the open is refused, the place has to be able to say which
     // way it was.
     //
@@ -3936,6 +4039,23 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         out EnemyBlackboard blackboard,
         out List<EnemyState> stateChanges)
     {
+        return CreateInvestigateState(
+            position,
+            standingAgentTypeId,
+            out actor,
+            out blackboard,
+            out stateChanges,
+            withSearchRoute: true);
+    }
+
+    private EnemyInvestigateState CreateInvestigateState(
+        Vector3 position,
+        int standingAgentTypeId,
+        out GameObject actor,
+        out EnemyBlackboard blackboard,
+        out List<EnemyState> stateChanges,
+        bool withSearchRoute)
+    {
         actor = Track(new GameObject("Investigating enemy"));
         actor.SetActive(false);
         actor.layer = 6;
@@ -3983,6 +4103,12 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         // the hiding check switched off - which is a different enemy from the
         // one every test here means to be exercising.
         context.Capabilities.Add(new EnemyHidingPlaceCheck(context));
+        context.Capabilities.Add(new EnemyLookAround(context));
+
+        if (withSearchRoute)
+        {
+            context.Capabilities.Add(new EnemySearchRoute(context));
+        }
 
         return new EnemyInvestigateState(context);
     }

@@ -845,9 +845,22 @@ public sealed class EnemyLogicTests
         Assert.That(
             capabilities.Has<EnemyHidingPlaceCheck>(),
             Is.True,
-            "A default enemy no longer checks hiding places. That used to " +
-            "live inside the investigating state and came free with every " +
-            "enemy in the game.");
+            "The full set no longer checks hiding places. That used to live " +
+            "inside the investigating state and came free with every enemy " +
+            "in the game.");
+
+        // The same trap as the hiding check, twice over: both of these were
+        // parts of the investigating state until they were pulled out, so
+        // neither looks like something the enemy is supposed to be given.
+        Assert.That(
+            capabilities.Has<EnemyLookAround>(),
+            Is.True,
+            "The full set no longer pauses to look around on arrival.");
+
+        Assert.That(
+            capabilities.Has<EnemySearchRoute>(),
+            Is.True,
+            "The full set no longer searches around a stimulus, only at it.");
     }
 
     // Doors, barricades and both senses install themselves into a component

@@ -34,6 +34,8 @@ public static class EnemyEveryBehavior
         Install<EnemyFlankBehaviorModule>(installer);
         Install<EnemyAmbushBehaviorModule>(installer);
         Install<EnemyHidingPlaceCheckModule>(installer);
+        Install<EnemyLookAroundModule>(installer);
+        Install<EnemySearchRouteModule>(installer);
         Install<EnemyDoorTraversalModule>(installer);
         Install<EnemyItemPushingModule>(installer);
         Install<EnemyCrawlingModule>(installer);

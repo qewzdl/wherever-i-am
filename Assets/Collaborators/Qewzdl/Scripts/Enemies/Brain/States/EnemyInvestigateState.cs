@@ -11,7 +11,6 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     }
 
     private readonly EnemyBrainContext context;
-    private readonly EnemyInvestigationSearchPlanner searchPlanner = new();
 
     private InvestigationPhase phase;
 
@@ -19,12 +18,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     private bool hasInvestigationOrigin;
     private Vector3 currentDestination;
 
-    private int currentSearchPointIndex;
     private float repathTimer;
-    private float dwellTimer;
-    private float dwellDurationTotal;
-    private Vector3 dwellArrivalForward;
-    private bool isDwelling;
 
     private bool hasDestination;
 
@@ -33,6 +27,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
     // this one may not have had its turn yet. Null is the ordinary answer for
     // an enemy that was not given it.
     private EnemyHidingPlaceCheck hidingPlaceCheck;
+    private EnemyLookAround lookAround;
+    private EnemySearchRoute searchRoute;
 
     public EnemyState State => EnemyState.Investigate;
 
@@ -46,6 +42,8 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         ResetRuntimeState();
 
         context.Capabilities.TryGet(out hidingPlaceCheck);
+        context.Capabilities.TryGet(out lookAround);
+        context.Capabilities.TryGet(out searchRoute);
 
         if (!TryResolveInvestigationOrigin(out investigationOrigin))
         {
@@ -103,9 +101,9 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private void TickMovingToLastKnownPosition(float deltaTime)
     {
-        if (isDwelling)
+        if (lookAround != null && lookAround.IsLookingAround)
         {
-            if (TickPointDwell(deltaTime))
+            if (lookAround.Tick(deltaTime))
             {
                 return;
             }
@@ -151,77 +149,12 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        if (TryBeginPointDwell())
+        if (lookAround != null && lookAround.TryBegin())
         {
             return;
         }
 
         StartHierarchicalSearch();
-    }
-
-    // Standing still is the whole point. TickLookAround turns the body while
-    // the enemy waits here, so a stationary stop covers the corners around
-    // this point, where walking just drags the vision cone along the route.
-    //
-    // Has to be checked before RepathToCurrentDestination: the repath would
-    // re-issue the destination and undo StopNavigation on its next interval.
-    private bool TryBeginPointDwell()
-    {
-        float dwellDuration = context.Config.investigationPointDwellDuration;
-
-        if (dwellDuration <= 0f)
-        {
-            return false;
-        }
-
-        isDwelling = true;
-        dwellTimer = dwellDuration;
-        dwellDurationTotal = dwellDuration;
-        dwellArrivalForward = context.Navigator.transform.forward;
-        context.StopNavigation();
-
-        return true;
-    }
-
-    private bool TickPointDwell(float deltaTime)
-    {
-        dwellTimer -= Mathf.Max(0f, deltaTime);
-
-        if (dwellTimer > 0f)
-        {
-            TickLookAround(deltaTime);
-            return true;
-        }
-
-        isDwelling = false;
-        dwellTimer = 0f;
-
-        return false;
-    }
-
-    // First half of the dwell turns one way, second half the other. A turn that
-    // does not fit in its half simply stops short - the enemy looks less far
-    // rather than snapping around - so the angle and speed can be tuned against
-    // the dwell without any of the three having to agree exactly.
-    private void TickLookAround(float deltaTime)
-    {
-        float angle = context.Config.investigationLookAroundAngle;
-
-        if (angle <= 0f || dwellDurationTotal <= 0f)
-        {
-            return;
-        }
-
-        bool isFirstHalf = dwellTimer > dwellDurationTotal * 0.5f;
-        float targetYaw = isFirstHalf ? -angle : angle;
-        Vector3 targetDirection =
-            Quaternion.Euler(0f, targetYaw, 0f) * dwellArrivalForward;
-
-        context.Navigator.FaceDirection(
-            targetDirection,
-            context.Config.investigationLookAroundSpeed,
-            deltaTime
-        );
     }
 
     // A stimulus that lands while the enemy is already investigating updates
@@ -314,28 +247,28 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         RepathToCurrentDestination(context.Config.chaseSpeed);
     }
 
+    // Nothing to search with means the investigation is over once the walk to
+    // the stimulus is: she tries whatever second lead she has and gives up.
+    // That is the enemy you can hide from by not being exactly where you were
+    // heard, and it is a configuration rather than a failure.
     private void StartHierarchicalSearch()
     {
+        if (searchRoute == null)
+        {
+            TryMoveToSecondaryOrFinish();
+            return;
+        }
+
         phase = InvestigationPhase.FollowingSearchRoute;
-        currentSearchPointIndex = 0;
 
         context.InvestigationMemory.ClearLastKnownTargetPosition();
 
-        searchPlanner.BuildHierarchicalSearchPlan(
-            GetSearchOrigin(),
-            context.Navigator.Position,
-            context.Config.investigationBranchRadius,
-            context.Config.investigationBranchPointCount,
-            context.Config.investigationLeafRadius,
-            context.Config.investigationLeafPointCountPerBranch,
-            GetNavigationQueryFilter()
-        );
+        NavMeshQueryFilter filter = GetNavigationQueryFilter();
+        searchRoute.Plan(
+            searchRoute.GetLedCentre(investigationOrigin, filter),
+            filter);
 
-        context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
-        context.InvestigationDebugData?.SetBoundRoom(searchPlanner.OriginRoom);
-        context.Blackboard.SetCurrentInvestigationRoute(searchPlanner.Points);
-
-        if (searchPlanner.PointCount == 0)
+        if (searchRoute.PointCount == 0)
         {
             TryMoveToSecondaryOrFinish();
             return;
@@ -344,65 +277,11 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         MoveToNextSearchPointOrFinish();
     }
 
-    // Where to centre the ring, which is not the same as where she walked to.
-    //
-    // She already knows which way the target was moving when she last saw
-    // them: the observation carries a forward beside its position, and until
-    // now only the flank planner ever read it. The search did not, so the ring
-    // was built evenly around the spot where they vanished - and half of it
-    // therefore covered ground behind her, which is the one place a running
-    // target provably is not. She spent the dwell at those points looking at
-    // an empty floor while the seconds the search is allowed ran out.
-    //
-    // Leaning the ring forward searches the half worth searching. The origin
-    // she walked to is left alone: that is the last honest sighting, it is
-    // what the hiding-place check and the debug overlay are about, and the
-    // target may well still be standing on it.
-    //
-    // The push has to stay on floor she can walk. NavMesh.Raycast walks from
-    // the origin towards the lead and stops at the first edge, so a target
-    // last seen facing a wall shifts the ring as far as the wall and no
-    // further. Without it the lead could land in the next room, and the
-    // planner binds the whole route to whichever room its origin is in - she
-    // would have gone off to search next door.
-    private Vector3 GetSearchOrigin()
-    {
-        if (!context.TargetMemory.TryGetLastObservation(
-                out EnemyTargetObservation observation) ||
-            !EnemyInvestigationSearchPlanner.TryGetLeadOrigin(
-                investigationOrigin,
-                observation.Position,
-                observation.Forward,
-                context.Config.investigationLeadDistance,
-                context.Config.investigationBranchRadius,
-                out Vector3 leadOrigin))
-        {
-            return investigationOrigin;
-        }
-
-        if (!NavMesh.Raycast(
-                investigationOrigin,
-                leadOrigin,
-                out NavMeshHit hit,
-                GetNavigationQueryFilter()))
-        {
-            return leadOrigin;
-        }
-
-        // A query that could not start - the sighting was off the mesh -
-        // reports a hit at infinity rather than an error. Anything past the
-        // lead we asked for is not an answer, and NaN fails this too.
-        return Vector3.Distance(hit.position, investigationOrigin) <=
-               context.Config.investigationLeadDistance
-            ? hit.position
-            : investigationOrigin;
-    }
-
     private void TickFollowingSearchRoute(float deltaTime)
     {
-        if (isDwelling)
+        if (lookAround != null && lookAround.IsLookingAround)
         {
-            if (TickPointDwell(deltaTime))
+            if (lookAround.Tick(deltaTime))
             {
                 return;
             }
@@ -424,7 +303,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        if (TryBeginPointDwell())
+        if (lookAround != null && lookAround.TryBegin())
         {
             return;
         }
@@ -434,17 +313,14 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private void MoveToNextSearchPointOrFinish()
     {
-        while (currentSearchPointIndex < searchPlanner.PointCount)
+        while (searchRoute != null &&
+               searchRoute.TryTakeNextPoint(
+                   out Vector3 nextPoint,
+                   out int routeIndex))
         {
-            int routeIndex = currentSearchPointIndex;
-            currentSearchPointIndex++;
-
-            if (!searchPlanner.TryGetPoint(routeIndex, out Vector3 nextPoint))
-            {
-                continue;
-            }
-
-            if (!TrySetDestination(nextPoint, context.Config.investigationSearchSpeed))
+            if (!TrySetDestination(
+                    nextPoint,
+                    context.Config.investigationSearchSpeed))
             {
                 continue;
             }
@@ -469,21 +345,11 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
                 context.InvestigationDebugData?.Begin(investigationOrigin);
 
                 phase = InvestigationPhase.MovingToLastKnownPosition;
-                currentSearchPointIndex = 0;
 
-                searchPlanner.BuildHierarchicalSearchPlan(
-                    investigationOrigin,
-                    context.Navigator.Position,
-                    context.Config.investigationBranchRadius,
-                    context.Config.investigationBranchPointCount,
-                    context.Config.investigationLeafRadius,
-                    context.Config.investigationLeafPointCountPerBranch,
-                    GetNavigationQueryFilter()
-                );
-
-                context.InvestigationDebugData?.SetSearchPoints(searchPlanner.Points);
-                context.InvestigationDebugData?.SetBoundRoom(searchPlanner.OriginRoom);
-                context.Blackboard.SetCurrentInvestigationRoute(searchPlanner.Points);
+                // Planned around the origin itself rather than the led centre.
+                // The lead is a guess about where somebody was going; a second
+                // stimulus is a fresh fact, and a fact does not want leading.
+                searchRoute?.Plan(investigationOrigin, GetNavigationQueryFilter());
 
                 if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
                 {
@@ -641,12 +507,10 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         hasInvestigationOrigin = false;
         currentDestination = default;
 
-        currentSearchPointIndex = 0;
         repathTimer = 0f;
-        dwellTimer = 0f;
-        dwellDurationTotal = 0f;
-        dwellArrivalForward = Vector3.forward;
-        isDwelling = false;
+
+        lookAround?.Reset();
+        searchRoute?.Reset();
 
         hasDestination = false;
         hidingPlaceCheck?.Reset();
