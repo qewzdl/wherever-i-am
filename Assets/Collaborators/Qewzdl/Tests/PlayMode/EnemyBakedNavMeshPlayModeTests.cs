@@ -512,7 +512,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Test navigator could not be placed on the baked surface.");
         navigator.Configure(config);
-        InstallDefaultBehaviorsOn(navigator, config);
+        InstallEveryBehaviorOn(navigator, config);
 
         Vector3 destination = new Vector3(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -582,7 +582,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Halted navigation enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
-        InstallDefaultBehaviorsOn(navigator, enemyConfig);
+        InstallEveryBehaviorOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -649,7 +649,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Item avoidance enemy could not be placed on NavMesh.");
         navigator.Configure(enemyConfig);
-        InstallDefaultBehaviorsOn(navigator, enemyConfig);
+        InstallEveryBehaviorOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -726,7 +726,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Hiding avoidance enemy could not be placed on NavMesh.");
         navigator.Configure(enemyConfig);
-        InstallDefaultBehaviorsOn(navigator, enemyConfig);
+        InstallEveryBehaviorOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -1841,7 +1841,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Item pushing enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
-        InstallDefaultBehaviorsOn(navigator, enemyConfig);
+        InstallEveryBehaviorOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -1964,7 +1964,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Dragged-item route enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
-        InstallDefaultBehaviorsOn(navigator, enemyConfig);
+        InstallEveryBehaviorOn(navigator, enemyConfig);
         Vector3 destination = new(0f, 0f, 4f);
 
         Assert.That(
@@ -2042,7 +2042,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Barricaded room enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
-        InstallDefaultBehaviorsOn(navigator, enemyConfig);
+        InstallEveryBehaviorOn(navigator, enemyConfig);
 
         // The player barricades the doorway, then is spotted over a low wall:
         // the straight line to them never touches the crates.
@@ -2334,7 +2334,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Patrol test actor could not be placed on the baked surface.");
         navigator.Configure(config);
-        InstallDefaultBehaviorsOn(navigator, config);
+        InstallEveryBehaviorOn(navigator, config);
 
         EnemyBlackboard blackboard = new();
         EnemyPatrolController controller = new(
@@ -2427,7 +2427,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Turning patrol test actor could not be placed on the baked surface.");
         navigator.Configure(config);
-        InstallDefaultBehaviorsOn(navigator, config);
+        InstallEveryBehaviorOn(navigator, config);
 
         EnemyPatrolController controller = new(
             route,
@@ -3127,7 +3127,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 Is.True,
                 $"Query budget enemy {i} could not be placed on NavMesh.");
             navigator.Configure(config);
-            InstallDefaultBehaviorsOn(navigator, config);
+            InstallEveryBehaviorOn(navigator, config);
             navigators.Add(navigator);
         }
 
@@ -3517,11 +3517,11 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     // directly, so a behaviour added to the default set arrives here too. The
     // states and capabilities it also installs are thrown away; only what it
     // does to the navigator matters here.
-    private static void InstallDefaultBehaviorsOn(
+    private static void InstallEveryBehaviorOn(
         EnemyNavigator navigator,
         EnemyConfig config)
     {
-        EnemyDefaultBehaviors.Install(
+        EnemyEveryBehavior.Install(
             new EnemyBehaviorInstaller(
                 new EnemyBrainContext(
                     config,
@@ -3951,7 +3951,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         EnemyConfig config = CloneNavigationConfig(enemyConfig);
         navigator.Configure(config);
-        InstallDefaultBehaviorsOn(navigator, config);
+        InstallEveryBehaviorOn(navigator, config);
 
         EnemyBlackboard createdBlackboard = new();
         List<EnemyState> observedStateChanges = new();
@@ -5073,7 +5073,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             postureController.TryInitializeServer(config, networkState),
             Is.True);
         navigator.Configure(config);
-        InstallDefaultBehaviorsOn(navigator, config);
+        InstallEveryBehaviorOn(navigator, config);
 
         return navigator;
     }

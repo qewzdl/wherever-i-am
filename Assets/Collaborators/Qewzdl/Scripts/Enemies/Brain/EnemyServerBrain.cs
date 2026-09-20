@@ -179,35 +179,43 @@ public sealed class EnemyServerBrain
 
     // Which behaviours this enemy actually gets.
     //
-    // The list on the config is the whole answer. A state that no module
-    // installed is not a state this enemy can be in, and nothing else has to
-    // know: every request for one goes through ChangeState, which walks
-    // EnemyStateRules' fallback chain and lands on something that is installed.
-    // That is why the switch is here rather than scattered over the two dozen
-    // places that ask for a transition.
+    // The list on the config is the whole answer, and an empty list means an
+    // enemy that does nothing rather than an enemy that does everything. There
+    // is no default set to fall back on: a config nobody filled in is a mistake
+    // worth seeing, and ProjectAssetValidationTests catches it before anybody
+    // plays, which a silent runtime substitution never could.
     //
-    // An empty list means the full set rather than an enemy that does nothing.
-    // The field is newer than every config in the project, so empty is what
-    // ships until somebody fills it in, and reading it as "no behaviours" would
-    // have taken patrolling, searching and sneaking off every enemy in the game
-    // at once - with a standing-still enemy as the only symptom.
+    // A state no module installed is not a state this enemy can be in, and
+    // nothing else has to know. Every request for one goes through ChangeState,
+    // which walks EnemyStateRules' fallback chain and lands on something that
+    // is installed - which is why the switch is here rather than scattered over
+    // the two dozen places that ask for a transition.
     private void RegisterStateHandlers()
     {
-        EnemyBehaviorInstaller installer = new(
-            context,
-            stateHandlers,
-            context.Capabilities);
+        // Standing still is not one of the behaviours, and goes in whether or
+        // not anybody asked for it.
+        //
+        // It is where every fallback chain ends, and it is the only state with
+        // nothing to tune, nothing to switch off, and nothing to do but watch
+        // for a reason to do something else. An enemy without it would not be
+        // an enemy with one behaviour fewer - it would be a state machine with
+        // nowhere to be in between, freezing on the first transition it could
+        // not satisfy rather than standing about waiting for work.
+        EnemyIdleState idle = new(context);
+        stateHandlers[idle.State] = idle;
 
         IReadOnlyList<EnemyBehaviorModule> modules =
             config != null ? config.BehaviorModules : null;
 
-        if (modules == null || modules.Count == 0)
+        if (modules == null)
         {
-            EnemyDefaultBehaviors.Install(installer);
             return;
         }
 
-        bool installedAnything = false;
+        EnemyBehaviorInstaller installer = new(
+            context,
+            stateHandlers,
+            context.Capabilities);
 
         foreach (EnemyBehaviorModule module in modules)
         {
@@ -219,12 +227,6 @@ public sealed class EnemyServerBrain
             }
 
             module.Install(installer);
-            installedAnything = true;
-        }
-
-        if (!installedAnything)
-        {
-            EnemyDefaultBehaviors.Install(installer);
         }
     }
 

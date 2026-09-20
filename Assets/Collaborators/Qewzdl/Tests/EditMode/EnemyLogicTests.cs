@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using Unity.Netcode;
 using UnityEngine;
@@ -631,12 +632,19 @@ public sealed class EnemyLogicTests
     // here rather than read off the brain because that is the point: if
     // somebody makes one of these optional, the chains below stop landing
     // anywhere and this file should be what says so.
-    private static readonly EnemyState[] CoreStates =
+    // The one state the brain installs itself, and the one every fallback
+    // chain has to end at. Written here rather than read off the brain because
+    // that is the point: if somebody makes standing still optional, the chains
+    // stop landing anywhere and this file should be what says so.
+    private static readonly EnemyState[] FloorStates =
     {
         EnemyState.Idle,
-        EnemyState.Chase,
-        EnemyState.Attack,
     };
+
+    // Everything a module can install: the nine states less standing still,
+    // which no module provides because it is not a behaviour.
+    private static EnemyState[] ModuleInstalledStates =>
+        AllStates.Where(state => Array.IndexOf(FloorStates, state) < 0).ToArray();
 
     private static readonly EnemyState[] AllStates =
     {
@@ -667,13 +675,14 @@ public sealed class EnemyLogicTests
             EnemyState state = start;
             int steps = 0;
 
-            while (Array.IndexOf(CoreStates, state) < 0)
+            while (Array.IndexOf(FloorStates, state) < 0)
             {
                 Assert.That(
                     EnemyStateRules.TryGetFallback(state, out EnemyState next),
                     Is.True,
-                    $"{state} is neither core nor has a fallback, so an enemy " +
-                    "built without it has nowhere to go when asked for it.");
+                    $"{state} is neither the floor nor has a fallback, so " +
+                    "an enemy built without it has nowhere to go when asked " +
+                    "for it.");
 
                 state = next;
                 steps++;
@@ -686,13 +695,13 @@ public sealed class EnemyLogicTests
         }
     }
 
-    // Core states must NOT have a fallback. One that did would be a state the
+    // The floor must NOT have a fallback. One that did would be a state the
     // brain always installs and yet quietly redirects away from, which is a
     // transition nobody asked for and nothing would explain.
     [Test]
-    public void StateFallbacks_ForCoreStates_AreRefused()
+    public void StateFallbacks_ForTheFloorState_AreRefused()
     {
-        foreach (EnemyState state in CoreStates)
+        foreach (EnemyState state in FloorStates)
         {
             Assert.That(
                 EnemyStateRules.TryGetFallback(state, out _),
@@ -768,12 +777,13 @@ public sealed class EnemyLogicTests
 
         Assert.That(
             handlers.Keys,
-            Is.EquivalentTo(AllStates),
-            "The shipped modules do not install exactly the nine states.");
+            Is.EquivalentTo(ModuleInstalledStates),
+            "The shipped modules do not install exactly the eight states that " +
+            "are behaviours. Standing still is the ninth and is the brain's.");
 
         Assert.That(
             claimed,
-            Is.EqualTo(AllStates.Length),
+            Is.EqualTo(ModuleInstalledStates.Length),
             "Two modules claimed the same state, so one of them silently " +
             "replaced the other depending on list order.");
     }
@@ -816,12 +826,12 @@ public sealed class EnemyLogicTests
     // testing the state rather than the wiring - which left nothing at all
     // watching this. Hence a test that asks the question directly.
     [Test]
-    public void DefaultBehaviors_AreEverythingAnEnemyHadBeforeTheListExisted()
+    public void EveryBehavior_CoversEveryModuleInstalledState()
     {
         Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
         EnemyBehaviorCapabilities capabilities = new();
 
-        EnemyDefaultBehaviors.Install(
+        EnemyEveryBehavior.Install(
             new EnemyBehaviorInstaller(
                 CreateContextWithoutANavigator(),
                 handlers,
@@ -829,8 +839,8 @@ public sealed class EnemyLogicTests
 
         Assert.That(
             handlers.Keys,
-            Is.EquivalentTo(AllStates),
-            "A default enemy cannot reach every state it used to.");
+            Is.EquivalentTo(ModuleInstalledStates),
+            "The full set no longer covers every state a module provides.");
 
         Assert.That(
             capabilities.Has<EnemyHidingPlaceCheck>(),
@@ -913,7 +923,8 @@ public sealed class EnemyLogicTests
     // rule they exist to break.
     private static IEnumerable<EnemyBehaviorModule> CreateShippedStateModules()
     {
-        yield return ScriptableObject.CreateInstance<EnemyCoreBehaviorModule>();
+        yield return ScriptableObject.CreateInstance<EnemyChaseBehaviorModule>();
+        yield return ScriptableObject.CreateInstance<EnemyAttackBehaviorModule>();
         yield return ScriptableObject.CreateInstance<EnemyPatrolBehaviorModule>();
         yield return ScriptableObject
             .CreateInstance<EnemyInvestigationBehaviorModule>();

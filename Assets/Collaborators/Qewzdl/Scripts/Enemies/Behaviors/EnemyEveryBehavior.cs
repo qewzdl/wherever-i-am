@@ -1,37 +1,34 @@
 using UnityEngine;
 
-// What an enemy is, when nobody has said otherwise.
+// Every behaviour there is, in one call.
 //
-// A config with an empty module list gets this. That leniency is deliberate -
-// the list is newer than every config in the project, and reading empty as "no
-// behaviours" would have stopped every enemy in the game dead - but it puts a
-// duty on this file: the default set has to stay equal to what an enemy could
-// do before the list existed. Anything short of that takes a behaviour away
-// from every config nobody has got round to filling in, and takes it away
-// silently, because an enemy that no longer checks boxes still looks like an
-// enemy searching a room.
+// Used by tests, and by nothing that ships. It was EnemyDefaultBehaviors, and
+// the brain installed it for any config with an empty list - which made it the
+// answer to "what is an enemy when nobody said". There is no such enemy any
+// more: an empty list now means an enemy that does nothing, and a config nobody
+// filled in is caught by ProjectAssetValidationTests rather than quietly
+// substituted for at runtime.
 //
-// That is not a hypothetical either. The hiding place check was left out of
-// this set on the first attempt, for exactly one reason: it had been extracted
-// out of the investigating state that day, so it did not look like one of the
-// four things the brain used to install. It used to come free with every enemy
-// in the game.
+// What is left is the other job it was doing, which is worth keeping. Several
+// tests build a navigator or a state by hand, with no config and no modules,
+// and they are about pathing or about searching rather than about which
+// behaviours an enemy was given. Those need the full set, and they need it to
+// keep up on its own when a behaviour is added - a list copied out of here
+// would not.
 //
-// Its own file rather than a method on the brain so that a test can ask what a
-// default enemy is without building one.
-public static class EnemyDefaultBehaviors
+// Standing still is missing from this on purpose. It is not a behaviour and
+// there is no module for it; the brain installs EnemyIdleState itself, because
+// a fallback chain has to end somewhere.
+public static class EnemyEveryBehavior
 {
     public static void Install(EnemyBehaviorInstaller installer)
     {
-        Install<EnemyCoreBehaviorModule>(installer);
+        Install<EnemyChaseBehaviorModule>(installer);
+        Install<EnemyAttackBehaviorModule>(installer);
         Install<EnemyPatrolBehaviorModule>(installer);
         Install<EnemyInvestigationBehaviorModule>(installer);
         Install<EnemyStealthManeuverBehaviorModule>(installer);
         Install<EnemyHidingPlaceCheckModule>(installer);
-
-        // Doors and barricades, for the same reason and with the same trap: the
-        // navigator built both of them in Awake until they became modules, so
-        // every enemy in the game has always had them.
         Install<EnemyDoorTraversalModule>(installer);
         Install<EnemyItemPushingModule>(installer);
     }

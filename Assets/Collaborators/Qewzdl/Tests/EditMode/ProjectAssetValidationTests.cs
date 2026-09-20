@@ -422,12 +422,14 @@ public sealed class ProjectAssetValidationTests
     // hand, correct on disk, and never imported - so it exists everywhere
     // except in the editor, which is the only place anybody looks.
     //
-    // An empty list is legal at runtime - it means the default set - so this is
-    // the only place that can insist a config which HAS been given a list has
-    // been given a sensible one. A list that lost its core module still builds
-    // an enemy, and that enemy stands still for the whole match.
+    // This is also the whole safety net now. The brain used to substitute the
+    // full set for an empty list, which meant a config nobody had filled in
+    // still produced a working enemy and nothing ever said so. It no longer
+    // does: an empty list is an enemy that stands still for the match. Catching
+    // that here, before anybody plays, is the trade that made removing the
+    // substitution worth doing.
     [Test]
-    public void EnemyConfigs_WithABehaviorList_InstallSomethingToFallBackOn()
+    public void EnemyConfigs_ListBehaviorsThatAddUpToAnEnemy()
     {
         string[] configGuids = AssetDatabase.FindAssets(
             $"t:{nameof(EnemyConfig)}");
@@ -436,53 +438,69 @@ public sealed class ProjectAssetValidationTests
 
         List<string> problems = new();
 
-        // Counted as well as checked, because an empty list is legal and means
-        // the default set - so every assertion below is skipped for a config
-        // that has none. A wiring mistake that made EVERY list read as empty
-        // would therefore leave this test, and every other test in the project,
-        // perfectly green while the feature did nothing at all: the enemies
-        // would fall back to the defaults and behave exactly as before.
-        //
-        // That is not hypothetical. The list is serialised by field name into
-        // hand-edited YAML, and a field renamed on one side only is silent.
-        int configsWithAList = 0;
-
         foreach (string guid in configGuids)
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             EnemyConfig config =
                 AssetDatabase.LoadAssetAtPath<EnemyConfig>(path);
 
-            IReadOnlyList<EnemyBehaviorModule> modules = config?.BehaviorModules;
-
-            if (modules == null || modules.Count == 0)
+            if (config == null)
             {
                 continue;
             }
 
-            configsWithAList++;
+            IReadOnlyList<EnemyBehaviorModule> modules = config.BehaviorModules;
+
+            if (modules == null || modules.Count == 0)
+            {
+                problems.Add(
+                    $"{path} lists no behaviours, so it builds an enemy that " +
+                    "stands still for the whole match");
+
+                continue;
+            }
 
             if (modules.Any(module => module == null))
             {
                 problems.Add($"{path} has an empty slot in its behaviour list");
             }
 
-            if (!modules.Any(module => module is EnemyCoreBehaviorModule))
+            // Installed rather than inspected, because what a module
+            // contributes is code rather than a field, and a list of nothing
+            // but capability modules reads as a full list right up until the
+            // enemy has nothing to do with them.
+            Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
+            EnemyBehaviorInstaller installer = new(
+                new EnemyBrainContext(
+                    config,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new EnemyBlackboard(),
+                    null,
+                    null),
+                handlers,
+                new EnemyBehaviorCapabilities());
+
+            foreach (EnemyBehaviorModule module in modules)
+            {
+                if (module != null)
+                {
+                    module.Install(installer);
+                }
+            }
+
+            if (handlers.Count == 0)
             {
                 problems.Add(
-                    $"{path} has a behaviour list with no core module, so " +
-                    "every fallback in EnemyStateRules leads nowhere");
+                    $"{path} lists only capabilities, so the enemy has " +
+                    "nothing to do with any of them");
             }
         }
 
         Assert.That(problems, Is.Empty, string.Join("; ", problems));
-
-        Assert.That(
-            configsWithAList,
-            Is.GreaterThan(0),
-            "Not one enemy config in the project deserialises a behaviour " +
-            "list. Every enemy is silently running the default set, and " +
-            "nothing else in the suite can tell the difference.");
     }
 
     [Test]

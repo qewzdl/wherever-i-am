@@ -61,14 +61,39 @@ public static class EnemyStateRules
     //                              which is what makes the four of them one
     //                              switch rather than four.
     //
-    // Idle, Chase and Attack have none, and that is what makes them the core:
-    // a fallback has to land somewhere, and these three are where it lands.
+    //   Attack      -> Chase       caught them and cannot strike, so keep
+    //                              running them down.
+    //   Chase       -> Investigate cannot run at them, so go and look where
+    //                              they are instead.
+    //
+    // Only standing still has none, and that is what makes it the floor rather
+    // than a behaviour: a fallback has to land somewhere, and this is where
+    // every chain ends. Chasing and attacking used to be down here with it, on
+    // the grounds that the three were installed together. They were never the
+    // same kind of thing - those two are things an enemy does, and this is what
+    // is left when she is doing none of them.
     public static bool TryGetFallback(EnemyState state, out EnemyState fallback)
     {
         switch (state)
         {
             case EnemyState.Patrol:
                 fallback = EnemyState.Idle;
+                return true;
+
+            // Caught up and cannot strike: keep running them down. The enemy
+            // that corners you and never touches you is a design somebody may
+            // want, and it should read as a configuration rather than as a
+            // transition that failed.
+            case EnemyState.Attack:
+                fallback = EnemyState.Chase;
+                return true;
+
+            // Sees somebody and cannot run at them: go and look instead. The
+            // chain continues - no investigating either, and she carries on her
+            // round - which is what makes chasing something that can be left
+            // out at all.
+            case EnemyState.Chase:
+                fallback = EnemyState.Investigate;
                 return true;
 
             case EnemyState.Investigate:
