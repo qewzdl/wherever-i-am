@@ -982,6 +982,88 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         }
     }
 
+    // Whichever way the open is refused, the place has to be able to say which
+    // way it was.
+    //
+    // This exists because of how long the last hiding bug took. The log proved
+    // the enemy was at the box, the box was Occupied, and every attempt to open
+    // it failed for the whole of her patience - and then said nothing about
+    // which of the five refusals kept firing. Four of them were silent, so the
+    // one that did speak was the only one that could be ruled out, and three
+    // separate explanations were argued from what was left.
+    //
+    // Asserting the reason rather than the behaviour on purpose: the behaviour
+    // is geometry, and a test can only stage the geometry it thought of. What
+    // this pins is that the next report comes with its own diagnosis instead of
+    // needing one invented for it.
+    [UnityTest]
+    public IEnumerator HidingPlace_RefusingAnEnemy_SaysWhyItRefused()
+    {
+        yield return StartHost();
+
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+
+        Assert.That(
+            hidingPlace.LastInvestigationRefusal,
+            Is.EqualTo(HidingPlaceInteractable.InvestigationRefusal.None),
+            "A place nobody has tried to open should not be blaming anything.");
+
+        // Nobody in it yet.
+        Assert.That(
+            hidingPlace.TryInvestigateServer(
+                hidingPlace.EnemyInvestigationPosition),
+            Is.False);
+
+        Assert.That(
+            hidingPlace.LastInvestigationRefusal,
+            Is.EqualTo(HidingPlaceInteractable.InvestigationRefusal.NotOccupied));
+
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+
+        Assert.That(hidingPlace.TryRequestEnter(occupant), Is.True);
+        Assert.That(
+            hidingPlace.State,
+            Is.EqualTo(HidingTransitionState.Occupied));
+
+        // Occupied, but asked from the far side of the room. This is the
+        // refusal every previous explanation of the bug came down to, and the
+        // one that used to be indistinguishable from the other three.
+        float openDistance =
+            hidingPlace.Configuration.EnemyInvestigationDistance;
+
+        Vector3 farAway = hidingPlace.EnemyInvestigationPosition +
+                          new Vector3(openDistance * 4f, 0f, 0f);
+
+        Assert.That(hidingPlace.TryInvestigateServer(farAway), Is.False);
+
+        Assert.That(
+            hidingPlace.LastInvestigationRefusal,
+            Is.EqualTo(HidingPlaceInteractable.InvestigationRefusal.TooFar));
+
+        // And how far, because "too far" by a handspan and "too far" by a room
+        // are different faults with the same name.
+        Assert.That(
+            hidingPlace.LastInvestigationDistance,
+            Is.EqualTo(openDistance * 4f).Within(0.01f));
+
+        // Close enough, and it opens - so the reporting above is describing
+        // real refusals rather than a place that never opens for anyone.
+        Assert.That(
+            hidingPlace.TryInvestigateServer(
+                hidingPlace.EnemyInvestigationPosition),
+            Is.True);
+
+        Assert.That(
+            hidingPlace.LastInvestigationRefusal,
+            Is.EqualTo(HidingPlaceInteractable.InvestigationRefusal.None));
+
+        yield return WaitForCondition(
+            () => !occupant.IsInHidingSequence,
+            "Opened hiding place did not release its occupant.");
+    }
+
     // The original complaint: an enemy busy with something else walks straight
     // past an occupied box and yanks the player out of it. An enemy that never
     // watched anyone climb in holds no reference, and without a reference the

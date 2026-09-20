@@ -248,16 +248,58 @@ public sealed class HidingPlaceInteractable : InteractableObject
         return true;
     }
 
+    // Why the last attempt to open this place for an enemy came to nothing.
+    //
+    // Four of the five ways it can refuse are silent, and that cost a day:
+    // a report of an enemy standing at a box she had watched somebody climb
+    // into, and a log that proved she was there, the box was Occupied, and the
+    // open was refused for the whole of her patience - without saying which
+    // refusal it was. The one branch that did speak, the blocked exit, was
+    // therefore the only one that could be ruled out, and ruling out one of
+    // five is not a diagnosis.
+    //
+    // Recorded rather than logged, because the enemy asks this every frame she
+    // stands there and a log per frame is not a log anybody reads. The state
+    // that gives up on the box prints it once, at the point where giving up
+    // actually happens.
+    public enum InvestigationRefusal
+    {
+        None = 0,
+        NotOpenToEnemies = 1,
+        NotOccupied = 2,
+        TooFar = 3,
+        NoOccupant = 4,
+        ExitRefused = 5,
+    }
+
+    public InvestigationRefusal LastInvestigationRefusal { get; private set; }
+
+    // How far the enemy was on the last attempt, and how close it needed to
+    // be. Kept beside the reason because TooFar on its own says nothing about
+    // whether she was a handspan out or in the next room, and those are
+    // different faults.
+    public float LastInvestigationDistance { get; private set; }
+
     public bool TryInvestigateServer(Vector3 enemyPosition)
     {
         HidingPlaceData settings = Configuration;
 
+        LastInvestigationDistance = Vector3.Distance(
+            enemyPosition,
+            EnemyInvestigationPosition);
+
         if (!IsServer ||
             !IsSpawned ||
             settings == null ||
-            !settings.EnemiesCanInvestigate ||
-            State != HidingTransitionState.Occupied)
+            !settings.EnemiesCanInvestigate)
         {
+            LastInvestigationRefusal = InvestigationRefusal.NotOpenToEnemies;
+            return false;
+        }
+
+        if (State != HidingTransitionState.Occupied)
+        {
+            LastInvestigationRefusal = InvestigationRefusal.NotOccupied;
             return false;
         }
 
@@ -265,11 +307,24 @@ public sealed class HidingPlaceInteractable : InteractableObject
         if ((enemyPosition - EnemyInvestigationPosition).sqrMagnitude >
             maxDistance * maxDistance)
         {
+            LastInvestigationRefusal = InvestigationRefusal.TooFar;
             return false;
         }
 
-        return TryGetOccupant(out PlayerHidingController occupant) &&
-               TryExitServer(occupant, teleportToExit: true);
+        if (!TryGetOccupant(out PlayerHidingController occupant))
+        {
+            LastInvestigationRefusal = InvestigationRefusal.NoOccupant;
+            return false;
+        }
+
+        if (!TryExitServer(occupant, teleportToExit: true))
+        {
+            LastInvestigationRefusal = InvestigationRefusal.ExitRefused;
+            return false;
+        }
+
+        LastInvestigationRefusal = InvestigationRefusal.None;
+        return true;
     }
 
     internal bool ReleaseOccupantForPlayerDespawnServer(
