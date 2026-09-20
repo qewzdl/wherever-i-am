@@ -626,4 +626,189 @@ public sealed class EnemyLogicTests
             UnityEngine.Object.DestroyImmediate(config);
         }
     }
+
+    // The three states RegisterStateHandlers installs unconditionally. Written
+    // here rather than read off the brain because that is the point: if
+    // somebody makes one of these optional, the chains below stop landing
+    // anywhere and this file should be what says so.
+    private static readonly EnemyState[] CoreStates =
+    {
+        EnemyState.Idle,
+        EnemyState.Chase,
+        EnemyState.Attack,
+    };
+
+    private static readonly EnemyState[] AllStates =
+    {
+        EnemyState.Idle,
+        EnemyState.Patrol,
+        EnemyState.Chase,
+        EnemyState.Attack,
+        EnemyState.Investigate,
+        EnemyState.Stalk,
+        EnemyState.Retreat,
+        EnemyState.Flank,
+        EnemyState.Ambush,
+    };
+
+    // The invariant the whole behaviour set rests on: whatever is switched off,
+    // a transition request has somewhere to land.
+    //
+    // An enemy built without a behaviour can still be asked for it - perception
+    // does not know what is installed, and should not have to. ChangeState
+    // answers by walking this chain, so a chain that runs out, or runs round,
+    // is an enemy that freezes in whatever she was doing with the stimulus
+    // unanswered. That failure is silent in play: she just stands there.
+    [Test]
+    public void StateFallbacks_FromAnyState_EndAtAStateThatIsAlwaysInstalled()
+    {
+        foreach (EnemyState start in AllStates)
+        {
+            EnemyState state = start;
+            int steps = 0;
+
+            while (Array.IndexOf(CoreStates, state) < 0)
+            {
+                Assert.That(
+                    EnemyStateRules.TryGetFallback(state, out EnemyState next),
+                    Is.True,
+                    $"{state} is neither core nor has a fallback, so an enemy " +
+                    "built without it has nowhere to go when asked for it.");
+
+                state = next;
+                steps++;
+
+                Assert.That(
+                    steps,
+                    Is.LessThan(EnemyStateRules.FallbackChainLimit),
+                    $"Fallback chain from {start} does not terminate.");
+            }
+        }
+    }
+
+    // Core states must NOT have a fallback. One that did would be a state the
+    // brain always installs and yet quietly redirects away from, which is a
+    // transition nobody asked for and nothing would explain.
+    [Test]
+    public void StateFallbacks_ForCoreStates_AreRefused()
+    {
+        foreach (EnemyState state in CoreStates)
+        {
+            Assert.That(
+                EnemyStateRules.TryGetFallback(state, out _),
+                Is.False,
+                $"{state} is installed on every enemy, so redirecting away " +
+                "from it can only ever be wrong.");
+        }
+    }
+
+    // The four phases of sneaking collapse to the same thing, which is what
+    // makes them one switch rather than four. If they ever disagree, switching
+    // the behaviour off would leave an enemy who chases from one phase and
+    // idles from another, depending on where the manoeuvre happened to be.
+    [Test]
+    public void StateFallbacks_ForEveryStealthPhase_AgreeOnChase()
+    {
+        foreach (EnemyState state in AllStates)
+        {
+            if (!EnemyStateRules.IsStealthManeuver(state))
+            {
+                continue;
+            }
+
+            Assert.That(
+                EnemyStateRules.TryGetFallback(state, out EnemyState fallback),
+                Is.True);
+
+            Assert.That(
+                fallback,
+                Is.EqualTo(EnemyState.Chase),
+                $"{state} falls back somewhere other than the rest of the " +
+                "manoeuvre does.");
+        }
+    }
+
+    // Every module the project ships installs at least one state, and the
+    // states they install between them are exactly the nine the brain used to
+    // hardcode - no more, and none missing.
+    //
+    // This is the test that would have caught a module quietly claiming a state
+    // another one also claims, and the one that fails if somebody adds a state
+    // to the enum and forgets to give any module a way to install it: a state
+    // nothing installs is a state ChangeState can only ever fall back away
+    // from, which is a behaviour that exists in the enum and nowhere else.
+    [Test]
+    public void ShippedBehaviorModules_BetweenThem_InstallEveryState()
+    {
+        Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
+        EnemyBehaviorCapabilities capabilities = new();
+        EnemyBehaviorInstaller installer = new(null, handlers, capabilities);
+
+        int claimed = 0;
+
+        foreach (EnemyBehaviorModule module in CreateShippedModules())
+        {
+            try
+            {
+                int before = handlers.Count;
+                module.Install(installer);
+
+                Assert.That(
+                    handlers.Count,
+                    Is.GreaterThan(before),
+                    $"{module.GetType().Name} installed nothing at all.");
+
+                claimed += handlers.Count - before;
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(module);
+            }
+        }
+
+        Assert.That(
+            handlers.Keys,
+            Is.EquivalentTo(AllStates),
+            "The shipped modules do not install exactly the nine states.");
+
+        Assert.That(
+            claimed,
+            Is.EqualTo(AllStates.Length),
+            "Two modules claimed the same state, so one of them silently " +
+            "replaced the other depending on list order.");
+    }
+
+    // A capability is found by the type a state asks for, and absence is an
+    // answer rather than an exception. States are written to carry on without
+    // one, so a registry that threw would turn "this enemy cannot check boxes"
+    // into "this enemy crashes on every investigation".
+    [Test]
+    public void Capabilities_WhenNotInstalled_AreSimplyAbsent()
+    {
+        EnemyBehaviorCapabilities capabilities = new();
+
+        Assert.That(capabilities.Has<EnemyInvestigationSearchPlanner>(), Is.False);
+        Assert.That(
+            capabilities.TryGet(out EnemyInvestigationSearchPlanner _),
+            Is.False);
+
+        EnemyInvestigationSearchPlanner installed = new();
+        capabilities.Add(installed);
+
+        Assert.That(capabilities.Has<EnemyInvestigationSearchPlanner>(), Is.True);
+        Assert.That(
+            capabilities.TryGet(out EnemyInvestigationSearchPlanner found),
+            Is.True);
+        Assert.That(found, Is.SameAs(installed));
+    }
+
+    private static IEnumerable<EnemyBehaviorModule> CreateShippedModules()
+    {
+        yield return ScriptableObject.CreateInstance<EnemyCoreBehaviorModule>();
+        yield return ScriptableObject.CreateInstance<EnemyPatrolBehaviorModule>();
+        yield return ScriptableObject
+            .CreateInstance<EnemyInvestigationBehaviorModule>();
+        yield return ScriptableObject
+            .CreateInstance<EnemyStealthManeuverBehaviorModule>();
+    }
 }

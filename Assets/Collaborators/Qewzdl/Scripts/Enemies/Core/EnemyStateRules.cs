@@ -35,6 +35,59 @@ public static class EnemyStateRules
                state == EnemyState.Ambush;
     }
 
+    // How many steps a fallback walk may take before it is a cycle rather than
+    // a chain. The chains below are two long at most and every one of them
+    // ends at a state that cannot be switched off, so this bound is never
+    // reached today. It is here so that an edit which accidentally points two
+    // states at each other hangs a frame's worth of loop rather than the game.
+    public const int FallbackChainLimit = 9;
+
+    // What an enemy does instead when it has not been given this behaviour.
+    //
+    // Six of the nine states are optional, and leaving one out cannot mean the
+    // brain simply refuses the transition: the request came from perception
+    // noticing something, and refusing it would leave her standing in whatever
+    // she was doing with the stimulus unanswered. So every optional state names
+    // a plainer thing to do in its place, and the chains end at states that are
+    // always installed.
+    //
+    //   Patrol      -> Idle        nowhere to walk, so stand.
+    //   Investigate -> Patrol      nothing to search with, so carry on the
+    //                              round; and on to Idle if there is no
+    //                              patrolling either.
+    //   Stalk, Retreat, Flank, Ambush -> Chase
+    //                              no cunning available, so walk straight at
+    //                              them. All four collapse to the same thing,
+    //                              which is what makes the four of them one
+    //                              switch rather than four.
+    //
+    // Idle, Chase and Attack have none, and that is what makes them the core:
+    // a fallback has to land somewhere, and these three are where it lands.
+    public static bool TryGetFallback(EnemyState state, out EnemyState fallback)
+    {
+        switch (state)
+        {
+            case EnemyState.Patrol:
+                fallback = EnemyState.Idle;
+                return true;
+
+            case EnemyState.Investigate:
+                fallback = EnemyState.Patrol;
+                return true;
+
+            case EnemyState.Stalk:
+            case EnemyState.Retreat:
+            case EnemyState.Flank:
+            case EnemyState.Ambush:
+                fallback = EnemyState.Chase;
+                return true;
+
+            default:
+                fallback = state;
+                return false;
+        }
+    }
+
     // Loses sight of the target as part of doing its job, so being sent off
     // to search the moment it happens interrupts the state rather than
     // finishing it. Three of these break sight deliberately; watching counts

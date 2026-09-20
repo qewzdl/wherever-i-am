@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
@@ -23,7 +24,21 @@ public class EnemyConfig : ScriptableObject
     [SerializeField] private EnemyAttackTimingConfig attackTimingProfile;
     [SerializeField] private EnemyAttackHitValidationConfig attackHitValidationProfile;
 
+    [Header("Behaviors")]
+    [Tooltip(
+        "What this enemy can do, as a list you plug modules into. Each entry " +
+        "installs a state it can be in, a capability its states can use, or " +
+        "both. Left empty it gets the full set - core, patrol, investigation " +
+        "and stealth manoeuvres - which is what every enemy did before this " +
+        "list existed.")]
+    [SerializeField] private List<EnemyBehaviorModule> behaviorModules = new();
+
     public EnemyBehaviorMode BehaviorMode => behaviorMode;
+
+    // Deliberately absent from HasAllProfiles and HasRequiredProfiles below.
+    // Those two ask whether the enemy can be built at all, and one with an
+    // empty list can: it gets the default set, the same as before this field.
+    public IReadOnlyList<EnemyBehaviorModule> BehaviorModules => behaviorModules;
     public bool IsPatrolOnlyEnemy => behaviorMode == EnemyBehaviorMode.PatrolOnly;
     public bool RequiresTargetDetector => !IsPatrolOnlyEnemy;
 

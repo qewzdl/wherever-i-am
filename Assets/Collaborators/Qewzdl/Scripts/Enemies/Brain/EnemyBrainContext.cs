@@ -28,6 +28,12 @@ public sealed class EnemyBrainContext
     // blockers, so a tactical destination that passes is one it can reach.
     public EnemyTacticalNavigationPlanner TacticalPlanner { get; }
 
+    // What the installed behaviour modules can do, for the states that want to
+    // use them. Always present and usually holding nothing: a state asks for a
+    // capability and carries on without it, so this being empty is an enemy
+    // that does less rather than an enemy that is broken.
+    public EnemyBehaviorCapabilities Capabilities { get; } = new();
+
     public EnemyStealthManeuver Maneuver => Blackboard.StealthManeuver;
 
     public EnemyEngagementTacticsRuntime EngagementTactics =>

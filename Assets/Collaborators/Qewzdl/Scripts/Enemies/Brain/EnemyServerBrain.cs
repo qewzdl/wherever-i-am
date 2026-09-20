@@ -177,17 +177,97 @@ public sealed class EnemyServerBrain
         blackboard.EngagementTactics.Clear();
     }
 
+    // Which behaviours this enemy actually gets.
+    //
+    // The list on the config is the whole answer. A state that no module
+    // installed is not a state this enemy can be in, and nothing else has to
+    // know: every request for one goes through ChangeState, which walks
+    // EnemyStateRules' fallback chain and lands on something that is installed.
+    // That is why the switch is here rather than scattered over the two dozen
+    // places that ask for a transition.
+    //
+    // An empty list means the full set rather than an enemy that does nothing.
+    // The field is newer than every config in the project, so empty is what
+    // ships until somebody fills it in, and reading it as "no behaviours" would
+    // have taken patrolling, searching and sneaking off every enemy in the game
+    // at once - with a standing-still enemy as the only symptom.
     private void RegisterStateHandlers()
     {
-        Register(new EnemyIdleState(context));
-        Register(new EnemyPatrolState(context));
-        Register(new EnemyChaseState(context));
-        Register(new EnemyAttackState(context));
-        Register(new EnemyInvestigateState(context));
-        Register(new EnemyStalkState(context));
-        Register(new EnemyRetreatState(context));
-        Register(new EnemyFlankState(context));
-        Register(new EnemyAmbushState(context));
+        EnemyBehaviorInstaller installer = new(
+            context,
+            stateHandlers,
+            context.Capabilities);
+
+        IReadOnlyList<EnemyBehaviorModule> modules =
+            config != null ? config.BehaviorModules : null;
+
+        if (modules == null || modules.Count == 0)
+        {
+            InstallDefaultBehaviors(installer);
+            return;
+        }
+
+        bool installedAnything = false;
+
+        foreach (EnemyBehaviorModule module in modules)
+        {
+            // A hole in the list is somebody midway through filling it in, not
+            // a reason to refuse to build the enemy.
+            if (module == null)
+            {
+                continue;
+            }
+
+            module.Install(installer);
+            installedAnything = true;
+        }
+
+        if (!installedAnything)
+        {
+            InstallDefaultBehaviors(installer);
+        }
+    }
+
+    // What every enemy did before modules existed, for configs that have not
+    // been given a list yet. Written as module instances rather than as another
+    // copy of the nine constructor calls, so that there is exactly one
+    // description of what each behaviour installs and this cannot drift away
+    // from the assets.
+    private static void InstallDefaultBehaviors(EnemyBehaviorInstaller installer)
+    {
+        Install<EnemyCoreBehaviorModule>(installer);
+        Install<EnemyPatrolBehaviorModule>(installer);
+        Install<EnemyInvestigationBehaviorModule>(installer);
+        Install<EnemyStealthManeuverBehaviorModule>(installer);
+    }
+
+    private static void Install<T>(EnemyBehaviorInstaller installer)
+        where T : EnemyBehaviorModule
+    {
+        T module = ScriptableObject.CreateInstance<T>();
+
+        try
+        {
+            module.Install(installer);
+        }
+        finally
+        {
+            // The handlers it made outlive it; the module itself was only ever
+            // a factory, and a ScriptableObject nobody destroys is a leak per
+            // enemy per match.
+            //
+            // Both spellings, because this runs in edit mode too - the EditMode
+            // tests build brains - and Destroy throws there while
+            // DestroyImmediate is refused during play.
+            if (Application.isPlaying)
+            {
+                UnityEngine.Object.Destroy(module);
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(module);
+            }
+        }
     }
 
     private void Register(IEnemyStateHandler handler)
@@ -200,18 +280,62 @@ public sealed class EnemyServerBrain
         stateHandlers[handler.State] = handler;
     }
 
-    private void ChangeState(EnemyState nextState)
+    // The nearest thing to what was asked for that this enemy actually has.
+    //
+    // Walks the fallback chain rather than taking one step, because the chains
+    // compose: an enemy with neither investigating nor patrolling asks for
+    // Investigate, is offered Patrol, has not got that either, and ends at
+    // Idle. One step would have stopped at a state as missing as the first.
+    private bool TryResolveInstalledState(
+        EnemyState requestedState,
+        out EnemyState installedState)
     {
+        installedState = requestedState;
+
+        for (int step = 0; step < EnemyStateRules.FallbackChainLimit; step++)
+        {
+            if (stateHandlers.ContainsKey(installedState))
+            {
+                return true;
+            }
+
+            if (!EnemyStateRules.TryGetFallback(
+                    installedState,
+                    out EnemyState fallbackState))
+            {
+                return false;
+            }
+
+            installedState = fallbackState;
+        }
+
+        return false;
+    }
+
+    private void ChangeState(EnemyState requestedState)
+    {
+        // Resolved BEFORE the already-there check rather than after.
+        //
+        // An enemy with no investigating gets a suspicious position, asks for
+        // Investigate, and lands on Patrol. If the comparison ran on the
+        // request instead, Investigate would never equal Patrol, and she would
+        // leave and re-enter Patrol on every frame that perception found
+        // something - restarting the route, every frame, forever.
+        if (!TryResolveInstalledState(requestedState, out EnemyState nextState))
+        {
+            Debug.LogError(
+                $"{nameof(EnemyServerBrain)} has no handler for state " +
+                $"{requestedState} and no installed state to fall back to.");
+
+            return;
+        }
+
         if (currentHandler != null && currentState == nextState)
         {
             return;
         }
 
-        if (!stateHandlers.TryGetValue(nextState, out IEnemyStateHandler nextHandler))
-        {
-            Debug.LogError($"{nameof(EnemyServerBrain)} has no handler for state {nextState}.");
-            return;
-        }
+        IEnemyStateHandler nextHandler = stateHandlers[nextState];
 
 #if UNITY_EDITOR
         // Kept rather than deleted. Three separate misbehaviours in this state
