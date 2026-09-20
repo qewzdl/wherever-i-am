@@ -20,4 +20,3 @@ MonoBehaviour:
   targetRefreshInterval: 0.18
   visualTargetMemoryDuration: 4.5
   stealthVisibilityRefreshInterval: 0.1
-  visualMemoryTracksLiveTarget: 1

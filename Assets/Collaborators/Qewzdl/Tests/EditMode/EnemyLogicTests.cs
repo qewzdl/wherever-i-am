@@ -416,6 +416,11 @@ public sealed class EnemyLogicTests
 
             EnemyPerceptionMemory memory = new();
 
+            // Installed, because following the live target is a behaviour now
+            // rather than the default. The assertions below are about what the
+            // behaviour does, so they have to be made of an enemy that has it.
+            memory.InstallLiveTargetTracking();
+
             Assert.That(memory.TryStartVisualMemoryGracePeriod(target, 2f), Is.True);
             Assert.That(memory.IsUsingVisualMemory, Is.True);
             Assert.That(memory.VisualMemoryTimeRemaining, Is.EqualTo(2f));
@@ -461,11 +466,11 @@ public sealed class EnemyLogicTests
 
             EnemyPerceptionMemory memory = new();
 
+            // Nothing installed, which is now what "does not follow you
+            // through walls" is made of. It used to be an argument to this
+            // call; it is a behaviour the enemy either has or has not.
             Assert.That(
-                memory.TryStartVisualMemoryGracePeriod(
-                    target,
-                    2f,
-                    trackLiveTargetPosition: false),
+                memory.TryStartVisualMemoryGracePeriod(target, 2f),
                 Is.True);
 
             player.transform.position = new Vector3(9f, 0f, 5f);

@@ -153,8 +153,6 @@ public class EnemyConfig : ScriptableObject
         chaseWithoutStalkingDistance + 1f
     );
 
-    public bool visualMemoryTracksLiveTarget =>
-        visionProfile.visualMemoryTracksLiveTarget;
 
     public float stalkNoticedDuration => StealthTactics.stalkNoticedDuration;
 

@@ -301,8 +301,7 @@ public sealed class EnemyPerceptionRuntime
         {
             perceptionMemory.TryStartVisualMemoryGracePeriod(
                 targetMemory.CurrentTarget,
-                config.visualTargetMemoryDuration,
-                config.visualMemoryTracksLiveTarget
+                config.visualTargetMemoryDuration
             );
 
             return EnemyPerceptionDecision.None;
@@ -374,8 +373,7 @@ public sealed class EnemyPerceptionRuntime
             {
                 perceptionMemory.TryStartVisualMemoryGracePeriod(
                     targetMemory.CurrentTarget,
-                    config.visualTargetMemoryDuration,
-                    config.visualMemoryTracksLiveTarget
+                    config.visualTargetMemoryDuration
                 );
             }
 

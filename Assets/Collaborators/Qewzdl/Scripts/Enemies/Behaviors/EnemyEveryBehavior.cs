@@ -25,6 +25,7 @@ public static class EnemyEveryBehavior
     {
         Install<EnemySightModule>(installer);
         Install<EnemyHearingModule>(installer);
+        Install<EnemyLiveTargetTrackingModule>(installer);
         Install<EnemyChaseBehaviorModule>(installer);
         Install<EnemyAttackBehaviorModule>(installer);
         Install<EnemyPatrolBehaviorModule>(installer);

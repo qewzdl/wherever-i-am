@@ -28,7 +28,6 @@ public class EnemyVisionConfig : ScriptableObject
              "for the memory duration and cannot be shaken off within it - " +
              "the behaviour the chase is balanced around. Off, it holds the " +
              "point where sight broke, so stepping aside behind cover works.")]
-    public bool visualMemoryTracksLiveTarget = true;
 
     // How the enemy sneaks - distances, timeouts, patience - used to sit here
     // too. It describes a decision, not an eye, and it lives in

@@ -4,7 +4,11 @@ public sealed class EnemyPerceptionMemory
 {
     private EnemyTarget visualMemoryTarget;
     private Vector3 visualMemoryFrozenPosition;
-    private bool visualMemoryTracksLiveTarget = true;
+    // Off until a behaviour module installs it. Off rather than on because a
+    // module that failed to install should produce the plainer enemy - one that
+    // goes where it last SAW you - rather than the one that walks through a
+    // wall on an interception course and looks like a bug.
+    private bool visualMemoryTracksLiveTarget;
 
     public EnemyPerceptionStimulus CurrentStimulus { get; private set; } = EnemyPerceptionStimulus.None;
 
@@ -40,21 +44,19 @@ public sealed class EnemyPerceptionMemory
         CurrentStimulus = EnemyPerceptionStimulus.None;
     }
 
-    // trackLiveTargetPosition decides what the grace period is worth: following
-    // the target through walls, or holding the spot where it was last seen.
-    // See GetTargetPosition for which one the game is built around.
+    // What the grace period is worth - following the target through walls, or
+    // holding the spot where sight broke - is no longer decided here. It is a
+    // behaviour installed on this memory, because it is a property of the enemy
+    // rather than of the moment sight was lost. See GetTargetPosition.
     public bool TryStartVisualMemoryGracePeriod(
         EnemyTarget target,
-        float duration,
-        bool trackLiveTargetPosition = true
+        float duration
     )
     {
         if (target == null || duration <= 0f)
         {
             return false;
         }
-
-        visualMemoryTracksLiveTarget = trackLiveTargetPosition;
 
         if (IsUsingVisualMemory && visualMemoryTarget == target)
         {
@@ -147,9 +149,19 @@ public sealed class EnemyPerceptionMemory
     // the window in which the enemy cannot be shaken off - and it is still the
     // default, so turning it off changes how hard the enemy is to lose.
     //
-    // visualMemoryTracksLiveTarget on EnemyVisionConfig switches to the honest
+    // Without the live-tracking behaviour installed she takes the honest
     // reading: hold the point where sight broke and let the player leave it.
     // The length of either behaviour is visualTargetMemoryDuration.
+    public void InstallLiveTargetTracking()
+    {
+        visualMemoryTracksLiveTarget = true;
+    }
+
+    public void ForgetInstalledLiveTargetTracking()
+    {
+        visualMemoryTracksLiveTarget = false;
+    }
+
     private Vector3 GetTargetPosition(EnemyTarget target)
     {
         if (target == null)

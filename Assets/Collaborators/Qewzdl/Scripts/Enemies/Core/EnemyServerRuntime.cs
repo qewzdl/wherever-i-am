@@ -81,6 +81,7 @@ public class EnemyServerRuntime : MonoBehaviour
         // patrol controller is built fresh a few lines below, so it has nothing
         // to forget.
         postureController?.ForgetInstalledCrawling();
+        blackboard.PerceptionMemory.ForgetInstalledLiveTargetTracking();
 
         CreateBrainServer();
 

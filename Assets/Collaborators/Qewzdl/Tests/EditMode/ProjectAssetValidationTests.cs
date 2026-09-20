@@ -239,11 +239,6 @@ public sealed class ProjectAssetValidationTests
         // Anatomy and wiring, not difficulty.
         "EnemyVisionConfig.targetHeightOffset",
 
-        // The chase is balanced around following a target through walls for
-        // the memory duration; turning it off for one difficulty would be a
-        // different game, not an easier one.
-        "EnemyVisionConfig.visualMemoryTracksLiveTarget",
-
         // A floor for inaudible sources. hearingSensitivity is the lever.
         "EnemyHearingConfig.minimumNoiseLoudness",
 
@@ -496,6 +491,50 @@ public sealed class ProjectAssetValidationTests
                 problems.Add(
                     $"{path} lists only capabilities, so the enemy has " +
                     "nothing to do with any of them");
+            }
+
+            // Read off the list by type rather than installed, unlike
+            // everything above it.
+            //
+            // The senses install themselves into EnemyTargetDetector, a
+            // component on the prefab, and this test has no enemy to hang one
+            // on - so installing them here would prove nothing either way. The
+            // question is worth asking anyway, because the failure it catches
+            // is completely silent: an enemy with neither sense never acquires
+            // a target, so chasing, attacking and every stealth phase are
+            // installed and permanently unreachable. She patrols forever and
+            // looks like she is working.
+            //
+            // A PatrolOnly enemy is meant to be exactly that, and its detector
+            // is switched off wholesale, so it is not asked.
+            bool hasASense = modules.Any(
+                module => module is EnemySightModule or EnemyHearingModule);
+
+            if (config.RequiresTargetDetector && !hasASense)
+            {
+                problems.Add(
+                    $"{path} gives the enemy neither sight nor hearing, so it " +
+                    "can never acquire a target and everything it would do " +
+                    "with one is unreachable");
+            }
+
+            // Dragging the same asset into the list twice is silent: the second
+            // install of a state module replaces the first with an identical
+            // handler, and the second install of a capability replaces it in a
+            // registry keyed by type. Nothing misbehaves, and the list says
+            // something its author did not mean.
+            List<string> duplicates = modules
+                .Where(module => module != null)
+                .GroupBy(module => module.GetType().Name)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .ToList();
+
+            if (duplicates.Count > 0)
+            {
+                problems.Add(
+                    $"{path} lists {string.Join(" and ", duplicates)} more " +
+                    "than once");
             }
         }
 
