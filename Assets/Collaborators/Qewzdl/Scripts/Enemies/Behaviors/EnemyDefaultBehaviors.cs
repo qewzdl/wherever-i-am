@@ -28,6 +28,12 @@ public static class EnemyDefaultBehaviors
         Install<EnemyInvestigationBehaviorModule>(installer);
         Install<EnemyStealthManeuverBehaviorModule>(installer);
         Install<EnemyHidingPlaceCheckModule>(installer);
+
+        // Doors and barricades, for the same reason and with the same trap: the
+        // navigator built both of them in Awake until they became modules, so
+        // every enemy in the game has always had them.
+        Install<EnemyDoorTraversalModule>(installer);
+        Install<EnemyItemPushingModule>(installer);
     }
 
     // Written as module instances rather than as another copy of what each one

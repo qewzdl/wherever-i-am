@@ -30,6 +30,12 @@ public class EnemyNavigator : MonoBehaviour
     private Vector3 requestedNavigationDestination;
     private float requestedNavigationSpeed;
     private bool requestedAllowPushThrough;
+
+    // Both off until a behaviour module says otherwise. Off rather than on, so
+    // that a module which failed to install is an enemy that visibly stops at a
+    // door - rather than an enemy that behaves exactly as before and a list
+    // entry nobody can tell is doing anything.
+    private bool canPushPastItems;
     private bool hasDeferredRepath;
     private float forcefulPushStopUntil = -1f;
 
@@ -107,7 +113,6 @@ public class EnemyNavigator : MonoBehaviour
         recoveryController = new EnemyNavigationRecoveryController(
             repathScheduler.Invalidate,
             queryTelemetry.RecordStuckRecovery);
-        doorTraversal = new EnemyDoorTraversalHandler(doorInteractor);
         postureTraversal = new EnemyPostureTraversalPlanner(
             transform,
             agent,
@@ -124,6 +129,31 @@ public class EnemyNavigator : MonoBehaviour
         tacticalPath = new NavMeshPath();
     }
 
+    // Opening doors and getting through them, installed by a behaviour module.
+    //
+    // Everything downstream was already written for this being absent -
+    // doorTraversal is null-checked in eight places - because a navigator with
+    // no door interactor component has always been a legitimate thing. All the
+    // module does is decide, rather than the presence of a serialized field.
+    public void InstallDoorTraversal()
+    {
+        doorTraversal ??= new EnemyDoorTraversalHandler(doorInteractor);
+    }
+
+    // Getting past furniture a player dragged into the way: lifting the
+    // carving on blocking items so a route exists at all, and occasionally
+    // shoving one bodily aside.
+    //
+    // Both halves ride on the same flag because the shove only ever happens
+    // while requesting push-through. Without it, a barricade across the only
+    // route stops her - which is the point. An enemy you can actually barricade
+    // out is a design lever, and it is worth knowing that switching this off
+    // hands the player one.
+    public void InstallItemPushing()
+    {
+        canPushPastItems = true;
+    }
+
     public void Configure(EnemyConfig config)
     {
         this.config = config;
@@ -136,6 +166,13 @@ public class EnemyNavigator : MonoBehaviour
         recoveryController?.Configure(config);
         queryTelemetry?.Reset();
         doorTraversal?.Cancel();
+
+        // Cleared here because Configure runs once per initialisation and the
+        // modules install immediately afterwards. A body reused for an enemy
+        // built from a different config would otherwise keep whatever the last
+        // one was given.
+        doorTraversal = null;
+        canPushPastItems = false;
 
         if (config == null)
         {
@@ -769,7 +806,10 @@ public class EnemyNavigator : MonoBehaviour
     {
         requestedNavigationDestination = destination;
         requestedNavigationSpeed = speed;
-        requestedAllowPushThrough = allowPushThrough;
+        // The caller asks; the enemy's behaviours decide whether it can. Gated
+        // here because this is the only place the flag is written, and every
+        // barricade path downstream reads it.
+        requestedAllowPushThrough = allowPushThrough && canPushPastItems;
         hasRequestedNavigation = true;
     }
 

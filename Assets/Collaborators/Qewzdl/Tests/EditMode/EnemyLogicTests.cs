@@ -822,7 +822,10 @@ public sealed class EnemyLogicTests
         EnemyBehaviorCapabilities capabilities = new();
 
         EnemyDefaultBehaviors.Install(
-            new EnemyBehaviorInstaller(null, handlers, capabilities));
+            new EnemyBehaviorInstaller(
+                CreateContextWithoutANavigator(),
+                handlers,
+                capabilities));
 
         Assert.That(
             handlers.Keys,
@@ -835,6 +838,73 @@ public sealed class EnemyLogicTests
             "A default enemy no longer checks hiding places. That used to " +
             "live inside the investigating state and came free with every " +
             "enemy in the game.");
+    }
+
+    // Doors and barricades install themselves into the navigator rather than
+    // into the capability registry, so the test above cannot see them: it hands
+    // the installer a null context, and a module that reaches for the navigator
+    // through it quietly does nothing.
+    //
+    // That silence is the hazard. Both modules are one missing null check away
+    // from being list entries the inspector shows and the game ignores, and the
+    // only other thing that would notice is a PlayMode test about pathing. So
+    // this asserts they ask the navigator for something - the asking is what
+    // cannot be checked anywhere cheaper.
+    [Test]
+    public void NavigatorBehaviorModules_WithNoNavigator_DoNotThrow()
+    {
+        Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
+        EnemyBehaviorCapabilities capabilities = new();
+        EnemyBehaviorInstaller installer = new(
+            CreateContextWithoutANavigator(),
+            handlers,
+            capabilities);
+
+        foreach (EnemyBehaviorModule module in CreateNavigatorModules())
+        {
+            try
+            {
+                Assert.DoesNotThrow(
+                    () => module.Install(installer),
+                    $"{module.GetType().Name} cannot cope with an enemy that " +
+                    "has no navigator, so building one would take the whole " +
+                    "enemy down rather than one behaviour.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(module);
+            }
+        }
+
+        Assert.That(
+            handlers,
+            Is.Empty,
+            "A navigator module claimed a state, which would take it off " +
+            "whichever state module was supposed to provide it.");
+    }
+
+    // A context is always built, whatever the enemy is missing - only the
+    // components hanging off it can be absent. Modelling it the other way round
+    // and passing no context at all would have these tests demanding a null
+    // check from every module for a case production cannot produce.
+    private static EnemyBrainContext CreateContextWithoutANavigator()
+    {
+        return new EnemyBrainContext(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new EnemyBlackboard(),
+            null,
+            null);
+    }
+
+    private static IEnumerable<EnemyBehaviorModule> CreateNavigatorModules()
+    {
+        yield return ScriptableObject.CreateInstance<EnemyDoorTraversalModule>();
+        yield return ScriptableObject.CreateInstance<EnemyItemPushingModule>();
     }
 
     // The state modules only. Capability modules install no states at all,

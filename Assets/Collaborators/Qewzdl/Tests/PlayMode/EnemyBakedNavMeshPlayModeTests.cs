@@ -512,6 +512,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Test navigator could not be placed on the baked surface.");
         navigator.Configure(config);
+        InstallDefaultBehaviorsOn(navigator, config);
 
         Vector3 destination = new Vector3(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -581,6 +582,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Halted navigation enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
+        InstallDefaultBehaviorsOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -647,6 +649,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Item avoidance enemy could not be placed on NavMesh.");
         navigator.Configure(enemyConfig);
+        InstallDefaultBehaviorsOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -723,6 +726,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Hiding avoidance enemy could not be placed on NavMesh.");
         navigator.Configure(enemyConfig);
+        InstallDefaultBehaviorsOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -1837,6 +1841,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Item pushing enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
+        InstallDefaultBehaviorsOn(navigator, enemyConfig);
 
         Vector3 destination = new(0f, 0f, 5f);
         Assert.That(navigator.TryMoveTo(destination, 3f), Is.True);
@@ -1959,6 +1964,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Dragged-item route enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
+        InstallDefaultBehaviorsOn(navigator, enemyConfig);
         Vector3 destination = new(0f, 0f, 4f);
 
         Assert.That(
@@ -2036,6 +2042,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Barricaded room enemy could not be placed on NavMesh.");
 
         navigator.Configure(enemyConfig);
+        InstallDefaultBehaviorsOn(navigator, enemyConfig);
 
         // The player barricades the doorway, then is spotted over a low wall:
         // the straight line to them never touches the crates.
@@ -2064,6 +2071,116 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             secondNavigation.IsBlockingNavigation,
             Is.False,
             "Second crate kept carving the barricaded doorway.");
+    }
+
+    // The mirror of the test above, with one module left out.
+    //
+    // Same baked room, same two crates sealing the same doorway, same request
+    // for push-through from the caller - and she stays put, because asking is
+    // not the same as being able. The crates go on carving, which is the part
+    // that matters: without the behaviour there is no route through them at
+    // all, rather than a route she politely declines to take.
+    //
+    // Worth having as a behaviour test rather than a flag test, because this is
+    // the module with real consequences for play. The states that ask for
+    // push-through are chasing and attacking, so leaving this off is what makes
+    // a barricade able to end a pursuit - a lever somebody should be able to
+    // pull on purpose and be sure of.
+    [UnityTest]
+    public IEnumerator Navigator_WithoutTheItemPushingModule_StopsAtTheBarricade()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeBarricadedRoom(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkItemTestDraggable firstCrate =
+            CreateSpawnedNavigationItem(new Vector3(2f, 0f, 0f));
+        NetworkItemTestDraggable secondCrate =
+            CreateSpawnedNavigationItem(new Vector3(4f, 0f, 0f));
+        ItemNavigationObstacle firstNavigation =
+            firstCrate.GetComponent<ItemNavigationObstacle>();
+        ItemNavigationObstacle secondNavigation =
+            secondCrate.GetComponent<ItemNavigationObstacle>();
+
+        yield return WaitForCondition(
+            () =>
+                firstNavigation.IsBlockingNavigation &&
+                secondNavigation.IsBlockingNavigation,
+            "Crates did not barricade the only doorway.");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        GameObject actor = Track(new GameObject("Barricaded room enemy"));
+        actor.SetActive(false);
+        actor.layer = 6;
+        actor.transform.position = new Vector3(-3f, 0f, -4f);
+
+        NetworkObject networkObject = actor.AddComponent<NetworkObject>();
+        CapsuleCollider bodyCollider = actor.AddComponent<CapsuleCollider>();
+        bodyCollider.radius = 0.5f;
+        bodyCollider.height = 2f;
+        bodyCollider.center = Vector3.up;
+
+        NavMeshAgent agent = actor.AddComponent<NavMeshAgent>();
+        agent.agentTypeID = standingAgentTypeId;
+        agent.radius = 0.5f;
+        agent.speed = 4f;
+        agent.acceleration = 30f;
+
+        actor.AddComponent<EnemyItemPusher>();
+        EnemyNavigator navigator = actor.AddComponent<EnemyNavigator>();
+        actor.SetActive(true);
+
+        PlayModeTestReflection.SetField(
+            networkObject,
+            "NetworkManagerOwner",
+            manager);
+        networkObject.Spawn();
+
+        Assert.That(
+            TryPlaceAgent(agent, actor.transform.position),
+            Is.True,
+            "Barricaded room enemy could not be placed on NavMesh.");
+
+        Vector3 startPosition = actor.transform.position;
+
+        // Configure, and then deliberately NOT the default set: doors only, so
+        // that what is missing is one behaviour rather than all of them.
+        navigator.Configure(enemyConfig);
+        navigator.InstallDoorTraversal();
+
+        Vector3 destination = new(-3f, 0f, 4f);
+
+        float watchUntil = Time.realtimeSinceStartup + 5f;
+
+        while (Time.realtimeSinceStartup < watchUntil)
+        {
+            navigator.TryMoveTo(destination, 4f, allowPushThrough: true);
+
+            Assert.That(
+                actor.transform.position.z,
+                Is.LessThan(1f),
+                "An enemy with no item pushing module got through the " +
+                "barricade anyway, so the behaviour is not in the module.");
+
+            yield return null;
+        }
+
+        Assert.That(
+            firstNavigation.IsBlockingNavigation && secondNavigation.IsBlockingNavigation,
+            Is.True,
+            "The crates stopped carving for an enemy that cannot push past " +
+            "them, which would let the NEXT enemy through a barricade this " +
+            "one never touched.");
+
+        // She tried: a blocked route is not the same as never setting off.
+        Assert.That(
+            Vector3.Distance(actor.transform.position, startPosition),
+            Is.LessThan(2f),
+            "Enemy wandered far from where the barricade stopped her.");
     }
 
     [UnityTest]
@@ -2217,6 +2334,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Patrol test actor could not be placed on the baked surface.");
         navigator.Configure(config);
+        InstallDefaultBehaviorsOn(navigator, config);
 
         EnemyBlackboard blackboard = new();
         EnemyPatrolController controller = new(
@@ -2309,6 +2427,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "Turning patrol test actor could not be placed on the baked surface.");
         navigator.Configure(config);
+        InstallDefaultBehaviorsOn(navigator, config);
 
         EnemyPatrolController controller = new(
             route,
@@ -3008,6 +3127,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 Is.True,
                 $"Query budget enemy {i} could not be placed on NavMesh.");
             navigator.Configure(config);
+            InstallDefaultBehaviorsOn(navigator, config);
             navigators.Add(navigator);
         }
 
@@ -3381,6 +3501,40 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         Assert.That(service.Construct(manager), Is.True);
         return service;
+    }
+
+    // What a default enemy's navigator can do, run through the real default
+    // set rather than a list copied out of it.
+    //
+    // Doors and barricades stopped being things the navigator built for itself
+    // in Awake and became behaviour modules, so a navigator put together by
+    // hand now starts unable to do either. These tests are about pathing rather
+    // than about which behaviours an enemy was configured with, and a navigator
+    // that silently stopped opening doors would fail them in a way that says
+    // nothing about pathing.
+    //
+    // Calling EnemyDefaultBehaviors rather than the two Install methods
+    // directly, so a behaviour added to the default set arrives here too. The
+    // states and capabilities it also installs are thrown away; only what it
+    // does to the navigator matters here.
+    private static void InstallDefaultBehaviorsOn(
+        EnemyNavigator navigator,
+        EnemyConfig config)
+    {
+        EnemyDefaultBehaviors.Install(
+            new EnemyBehaviorInstaller(
+                new EnemyBrainContext(
+                    config,
+                    navigator,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new EnemyBlackboard(),
+                    null,
+                    null),
+                new Dictionary<EnemyState, IEnemyStateHandler>(),
+                new EnemyBehaviorCapabilities()));
     }
 
     private NetworkEnemyController CreateSpawnedProductionEnemy(
@@ -3797,6 +3951,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         EnemyConfig config = CloneNavigationConfig(enemyConfig);
         navigator.Configure(config);
+        InstallDefaultBehaviorsOn(navigator, config);
 
         EnemyBlackboard createdBlackboard = new();
         List<EnemyState> observedStateChanges = new();
@@ -4918,6 +5073,7 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             postureController.TryInitializeServer(config, networkState),
             Is.True);
         navigator.Configure(config);
+        InstallDefaultBehaviorsOn(navigator, config);
 
         return navigator;
     }
