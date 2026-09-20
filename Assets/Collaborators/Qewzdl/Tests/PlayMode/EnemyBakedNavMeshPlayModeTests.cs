@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.AI.Navigation;
@@ -980,6 +981,109 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
             yield return null;
         }
+    }
+
+    // The capability switched off, on a production enemy, with everything else
+    // left alone.
+    //
+    // This is the test the module system is for, and the only kind that can
+    // show a behaviour is genuinely separable: same prefab, same nine states,
+    // same config in every other respect - one asset dragged out of one list,
+    // and an enemy who watches you climb into a box and then searches the room
+    // around it. Without this, "the hiding check is a module now" is a claim
+    // about where the code lives rather than about what the game does.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_WithoutTheHidingCheckModule_LeavesTheBoxAlone()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        NetworkEnemyController prefabController =
+            enemyPrefab.GetComponent<NetworkEnemyController>();
+
+        // A copy, so that dropping a module cannot follow the test out and
+        // change the shipped asset for everybody.
+        EnemyConfig strippedConfig =
+            Track(UnityEngine.Object.Instantiate(prefabController.Config));
+
+        List<EnemyBehaviorModule> withoutTheCheck = strippedConfig
+            .BehaviorModules
+            .Where(module => module is not EnemyHidingPlaceCheckModule)
+            .ToList();
+
+        Assert.That(
+            withoutTheCheck.Count,
+            Is.EqualTo(strippedConfig.BehaviorModules.Count - 1),
+            "The shipped config does not carry the hiding check module, so " +
+            "removing it proves nothing.");
+
+        PlayModeTestReflection.SetField(
+            strippedConfig,
+            "behaviorModules",
+            withoutTheCheck);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -8f),
+            strippedConfig);
+
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        yield return WaitForCondition(
+            () => enemy.HasTarget &&
+                  (enemy.CurrentState == EnemyState.Chase ||
+                   enemy.CurrentState == EnemyState.Attack),
+            "Production enemy never saw the player standing in the open.");
+
+        Assert.That(hidingPlace.TryRequestEnter(occupant), Is.True);
+        Assert.That(
+            hidingPlace.State,
+            Is.EqualTo(HidingTransitionState.Occupied));
+
+        // Long enough that the enemy with the module has opened it several
+        // times over in the tests above.
+        float watchUntil = Time.realtimeSinceStartup + 12f;
+        bool everInvestigated = false;
+
+        while (Time.realtimeSinceStartup < watchUntil)
+        {
+            everInvestigated |= enemy.CurrentState == EnemyState.Investigate;
+
+            Assert.That(
+                hidingPlace.State,
+                Is.EqualTo(HidingTransitionState.Occupied),
+                "An enemy with no hiding check module opened the box anyway, " +
+                "so the behaviour is not actually in the module.");
+
+            yield return null;
+        }
+
+        // She still came looking - losing a target is still worth searching
+        // for. What she cannot do is know the box had anything to do with it.
+        Assert.That(
+            everInvestigated,
+            Is.True,
+            "Removing the hiding check module stopped the enemy " +
+            "investigating at all, which is more than it was meant to remove.");
+
+        Assert.That(occupant.IsInHidingSequence, Is.True);
     }
 
     // Whichever way the open is refused, the place has to be able to say which
@@ -3282,7 +3386,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
     private NetworkEnemyController CreateSpawnedProductionEnemy(
         GameObject enemyPrefab,
         GameplayNoiseWorldService noiseWorld,
-        Vector3 position)
+        Vector3 position,
+        EnemyConfig configOverride = null)
     {
         GameObject instance = Track(
             UnityEngine.Object.Instantiate(
@@ -3290,6 +3395,16 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 position,
                 Quaternion.identity));
         instance.name = "Production baked NavMesh enemy";
+
+        // Before the spawn, because the brain and everything it installs are
+        // built out of the config the moment the object spawns.
+        if (configOverride != null)
+        {
+            PlayModeTestReflection.SetField(
+                instance.GetComponent<NetworkEnemyController>(),
+                "config",
+                configOverride);
+        }
 
         EnemyTargetDetector detector =
             instance.GetComponent<EnemyTargetDetector>();
@@ -3701,6 +3816,13 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             createdBlackboard,
             observedStateChanges.Add,
             null);
+
+        // The capabilities a default enemy is built with. These tests construct
+        // the state directly rather than through a brain, so nothing installs
+        // modules for them, and a bare context would quietly be an enemy with
+        // the hiding check switched off - which is a different enemy from the
+        // one every test here means to be exercising.
+        context.Capabilities.Add(new EnemyHidingPlaceCheck(context));
 
         return new EnemyInvestigateState(context);
     }

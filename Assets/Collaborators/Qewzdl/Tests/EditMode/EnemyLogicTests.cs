@@ -746,7 +746,7 @@ public sealed class EnemyLogicTests
 
         int claimed = 0;
 
-        foreach (EnemyBehaviorModule module in CreateShippedModules())
+        foreach (EnemyBehaviorModule module in CreateShippedStateModules())
         {
             try
             {
@@ -802,7 +802,46 @@ public sealed class EnemyLogicTests
         Assert.That(found, Is.SameAs(installed));
     }
 
-    private static IEnumerable<EnemyBehaviorModule> CreateShippedModules()
+    // An enemy nobody configured has to be the enemy this game shipped with.
+    //
+    // An empty behaviour list is legal and means the default set, so every
+    // config in the project that has not been filled in yet depends entirely on
+    // this staying complete. A behaviour missing from it is missing from all of
+    // them, and the symptom is an enemy that still walks, still searches, and
+    // quietly stopped doing one thing.
+    //
+    // The hiding place check was missing from this set for exactly one commit,
+    // and the only tests that caught it were two that built the state by hand.
+    // Those now install the capability themselves - correctly, since they are
+    // testing the state rather than the wiring - which left nothing at all
+    // watching this. Hence a test that asks the question directly.
+    [Test]
+    public void DefaultBehaviors_AreEverythingAnEnemyHadBeforeTheListExisted()
+    {
+        Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
+        EnemyBehaviorCapabilities capabilities = new();
+
+        EnemyDefaultBehaviors.Install(
+            new EnemyBehaviorInstaller(null, handlers, capabilities));
+
+        Assert.That(
+            handlers.Keys,
+            Is.EquivalentTo(AllStates),
+            "A default enemy cannot reach every state it used to.");
+
+        Assert.That(
+            capabilities.Has<EnemyHidingPlaceCheck>(),
+            Is.True,
+            "A default enemy no longer checks hiding places. That used to " +
+            "live inside the investigating state and came free with every " +
+            "enemy in the game.");
+    }
+
+    // The state modules only. Capability modules install no states at all,
+    // which is the whole of what makes them a different kind of module, so
+    // holding them to "installed something" would be holding them to the one
+    // rule they exist to break.
+    private static IEnumerable<EnemyBehaviorModule> CreateShippedStateModules()
     {
         yield return ScriptableObject.CreateInstance<EnemyCoreBehaviorModule>();
         yield return ScriptableObject.CreateInstance<EnemyPatrolBehaviorModule>();
@@ -810,5 +849,44 @@ public sealed class EnemyLogicTests
             .CreateInstance<EnemyInvestigationBehaviorModule>();
         yield return ScriptableObject
             .CreateInstance<EnemyStealthManeuverBehaviorModule>();
+    }
+
+    // A capability module adds something the states can look up and claims no
+    // state of its own.
+    //
+    // Both halves matter. One that installed a state would be a state module
+    // wearing the wrong name, and one that installed nothing at all would be a
+    // module the enemy config lists, the inspector shows, and the game ignores
+    // - which is the failure a reader has no way to see.
+    [Test]
+    public void HidingPlaceCheckModule_InstallsACapabilityAndNoState()
+    {
+        Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
+        EnemyBehaviorCapabilities capabilities = new();
+        EnemyBehaviorInstaller installer = new(null, handlers, capabilities);
+
+        EnemyHidingPlaceCheckModule module =
+            ScriptableObject.CreateInstance<EnemyHidingPlaceCheckModule>();
+
+        try
+        {
+            module.Install(installer);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(module);
+        }
+
+        Assert.That(
+            handlers,
+            Is.Empty,
+            "A capability module claimed a state, which would take it off " +
+            "whichever state module was supposed to provide it.");
+
+        Assert.That(
+            capabilities.Has<EnemyHidingPlaceCheck>(),
+            Is.True,
+            "The hiding check module installed nothing, so an enemy listing " +
+            "it gains nothing and no test but this one would notice.");
     }
 }

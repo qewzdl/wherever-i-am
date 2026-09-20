@@ -203,7 +203,7 @@ public sealed class EnemyServerBrain
 
         if (modules == null || modules.Count == 0)
         {
-            InstallDefaultBehaviors(installer);
+            EnemyDefaultBehaviors.Install(installer);
             return;
         }
 
@@ -224,60 +224,8 @@ public sealed class EnemyServerBrain
 
         if (!installedAnything)
         {
-            InstallDefaultBehaviors(installer);
+            EnemyDefaultBehaviors.Install(installer);
         }
-    }
-
-    // What every enemy did before modules existed, for configs that have not
-    // been given a list yet. Written as module instances rather than as another
-    // copy of the nine constructor calls, so that there is exactly one
-    // description of what each behaviour installs and this cannot drift away
-    // from the assets.
-    private static void InstallDefaultBehaviors(EnemyBehaviorInstaller installer)
-    {
-        Install<EnemyCoreBehaviorModule>(installer);
-        Install<EnemyPatrolBehaviorModule>(installer);
-        Install<EnemyInvestigationBehaviorModule>(installer);
-        Install<EnemyStealthManeuverBehaviorModule>(installer);
-    }
-
-    private static void Install<T>(EnemyBehaviorInstaller installer)
-        where T : EnemyBehaviorModule
-    {
-        T module = ScriptableObject.CreateInstance<T>();
-
-        try
-        {
-            module.Install(installer);
-        }
-        finally
-        {
-            // The handlers it made outlive it; the module itself was only ever
-            // a factory, and a ScriptableObject nobody destroys is a leak per
-            // enemy per match.
-            //
-            // Both spellings, because this runs in edit mode too - the EditMode
-            // tests build brains - and Destroy throws there while
-            // DestroyImmediate is refused during play.
-            if (Application.isPlaying)
-            {
-                UnityEngine.Object.Destroy(module);
-            }
-            else
-            {
-                UnityEngine.Object.DestroyImmediate(module);
-            }
-        }
-    }
-
-    private void Register(IEnemyStateHandler handler)
-    {
-        if (handler == null)
-        {
-            return;
-        }
-
-        stateHandlers[handler.State] = handler;
     }
 
     // The nearest thing to what was asked for that this enemy actually has.
