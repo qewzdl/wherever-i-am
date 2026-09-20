@@ -77,6 +77,11 @@ public class EnemyServerRuntime : MonoBehaviour
         // different config would otherwise keep the senses the last one had.
         targetDetector?.ForgetInstalledSenses();
 
+        // The posture controller is a component and outlives the brain; the
+        // patrol controller is built fresh a few lines below, so it has nothing
+        // to forget.
+        postureController?.ForgetInstalledCrawling();
+
         CreateBrainServer();
 
         initializedServer = true;
@@ -190,16 +195,6 @@ public class EnemyServerRuntime : MonoBehaviour
         if (navMeshStartupGate == null)
         {
             Debug.LogError($"{nameof(EnemyServerRuntime)} requires {nameof(EnemyNavMeshStartupGate)}.", this);
-            return false;
-        }
-
-        if (config.crawlingEnabled && postureController == null)
-        {
-            Debug.LogError(
-                $"{nameof(EnemyServerRuntime)} requires {nameof(EnemyPostureController)} when crawling is enabled.",
-                this
-            );
-
             return false;
         }
 

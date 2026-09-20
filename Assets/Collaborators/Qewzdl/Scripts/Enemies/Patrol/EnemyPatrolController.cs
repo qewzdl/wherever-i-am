@@ -212,6 +212,21 @@ public sealed class EnemyPatrolController
     // somebody doubling back actually does - and is why it wants to stay
     // rare. At a half chance she would spend the match pacing between two
     // points, which is not unpredictable, only broken.
+    // Its own copy, because this is the one consumer of crawling that holds no
+    // posture controller to ask. Installed by the same module as the other
+    // half, so the two cannot disagree about what the enemy can do.
+    private bool canCrawl;
+
+    public void InstallCrawling()
+    {
+        canCrawl = true;
+    }
+
+    public void ForgetInstalledCrawling()
+    {
+        canCrawl = false;
+    }
+
     private void AdvanceRouteIndex()
     {
         if (config != null && Random.value < config.patrolReverseChance)
@@ -271,7 +286,7 @@ public sealed class EnemyPatrolController
             return;
         }
 
-        if (config.crawlingEnabled &&
+        if (canCrawl &&
             TryBuildPlannedRouteForPosture(
                 destination,
                 EnemyPosture.Crawling,

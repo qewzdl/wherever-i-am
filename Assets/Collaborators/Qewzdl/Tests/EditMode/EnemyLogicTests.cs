@@ -921,6 +921,7 @@ public sealed class EnemyLogicTests
         yield return ScriptableObject.CreateInstance<EnemyItemPushingModule>();
         yield return ScriptableObject.CreateInstance<EnemySightModule>();
         yield return ScriptableObject.CreateInstance<EnemyHearingModule>();
+        yield return ScriptableObject.CreateInstance<EnemyCrawlingModule>();
     }
 
     // The state modules only. Capability modules install no states at all,

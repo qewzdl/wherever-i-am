@@ -214,7 +214,14 @@ public class EnemyClientPresentation : MonoBehaviour, IEnemyClientPresentation
             EnemyValidationLogger.AppendMissingDependency(builder, nameof(localNavigationAgent));
         }
 
-        if (config != null && config.crawlingEnabled && bodyCollider == null)
+        // Asked of every enemy now rather than only of the ones that crawl.
+        // Crawling became a behaviour module, and modules are installed on the
+        // server brain - a client has no way to find out whether this enemy was
+        // given it. Demanding the collider from everybody is the honest way to
+        // ask a question the client cannot scope: a body without one animates
+        // the crawl and keeps standing-height collision, which is worth
+        // complaining about whether or not it ever crawls.
+        if (bodyCollider == null)
         {
             EnemyValidationLogger.AppendMissingDependency(builder, nameof(bodyCollider));
         }

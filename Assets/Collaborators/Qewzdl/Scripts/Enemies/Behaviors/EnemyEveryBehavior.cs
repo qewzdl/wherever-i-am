@@ -36,6 +36,7 @@ public static class EnemyEveryBehavior
         Install<EnemyHidingPlaceCheckModule>(installer);
         Install<EnemyDoorTraversalModule>(installer);
         Install<EnemyItemPushingModule>(installer);
+        Install<EnemyCrawlingModule>(installer);
     }
 
     // Written as module instances rather than as another copy of what each one

@@ -346,8 +346,8 @@ internal sealed class EnemyPostureTraversalPlanner : IEnemyTraversalHandler
         }
 
         if (firstPosture == EnemyPosture.Crawling ||
-            config == null ||
-            !config.crawlingEnabled)
+            postureController == null ||
+            !postureController.CanCrawl)
         {
             waypointSearch = default;
             return EnemyPostureTraversalPlanResult.NotFound;

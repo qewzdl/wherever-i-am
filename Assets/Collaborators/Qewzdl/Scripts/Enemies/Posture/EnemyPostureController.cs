@@ -112,6 +112,25 @@ public class EnemyPostureController : MonoBehaviour
         ClearPostureTransition();
     }
 
+    // Whether this enemy crawls at all, installed by a behaviour module.
+    //
+    // Lives here rather than on the config because it is a capability rather
+    // than a number: how low the gap has to be and how long the transition
+    // takes are settings, and whether she will get down on her hands and knees
+    // at all is a behaviour. The navigator and the traversal planner both read
+    // it through the posture controller they already hold.
+    public bool CanCrawl { get; private set; }
+
+    public void InstallCrawling()
+    {
+        CanCrawl = true;
+    }
+
+    public void ForgetInstalledCrawling()
+    {
+        CanCrawl = false;
+    }
+
     public void Configure(EnemyConfig enemyConfig)
     {
         config = enemyConfig;

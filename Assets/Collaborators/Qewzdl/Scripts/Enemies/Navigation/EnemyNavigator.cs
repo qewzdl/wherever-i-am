@@ -409,7 +409,7 @@ public class EnemyNavigator : MonoBehaviour
             ReleaseAllPushThroughHolds();
         }
 
-        if (config != null && config.crawlingEnabled && postureController != null)
+        if (postureController != null && postureController.CanCrawl)
         {
             bool moved = TryMoveWithPosturePriority(destination, speed);
 
@@ -694,9 +694,7 @@ public class EnemyNavigator : MonoBehaviour
     // that judged only whether the enemy could physically stand still had it
     // planning standing routes through the second or so a crawl is held for.
     private EnemyPosture FirstTacticalPosture =>
-        postureController == null ||
-        config == null ||
-        !config.crawlingEnabled
+        postureController == null || !postureController.CanCrawl
             ? EnemyPosture.Standing
             : postureController.GetPreferredPlanningPosture();
 
@@ -723,8 +721,8 @@ public class EnemyNavigator : MonoBehaviour
 
         // Same two postures the route planning takes, and no more: a spot that
         // exists only where the move will not go is not a spot to go to.
-        return config != null &&
-               config.crawlingEnabled &&
+        return postureController != null &&
+               postureController.CanCrawl &&
                posture == EnemyPosture.Standing &&
                TrySampleTacticalPointForPosture(
                    EnemyPosture.Crawling,
@@ -778,9 +776,8 @@ public class EnemyNavigator : MonoBehaviour
     }
 
     private bool UsesPostureNavigation =>
-        config != null &&
-        config.crawlingEnabled &&
         postureController != null &&
+        postureController.CanCrawl &&
         postureTraversal != null;
 
     // The posture the enemy is in right now, as opposed to the one a route
@@ -842,8 +839,8 @@ public class EnemyNavigator : MonoBehaviour
         {
             NavMeshPath posturePath = postureTraversal?.LastPlannedPath;
 
-            if (config != null &&
-                config.crawlingEnabled &&
+            if (postureController != null &&
+                postureController.CanCrawl &&
                 posturePath != null &&
                 posturePath.status != NavMeshPathStatus.PathInvalid)
             {

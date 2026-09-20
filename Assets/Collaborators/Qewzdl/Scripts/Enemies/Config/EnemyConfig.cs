@@ -246,7 +246,6 @@ public class EnemyConfig : ScriptableObject
     public int patrolStopWanderSampleAttempts => patrolProfile.patrolStopWanderSampleAttempts;
     public float patrolStopWanderMinDistanceFromEnemy => patrolProfile.patrolStopWanderMinDistanceFromEnemy;
 
-    public bool crawlingEnabled => postureProfile.crawlingEnabled;
 
     public float standingToCrawlingTransitionDuration =>
         postureProfile.standingToCrawlingTransitionDuration;

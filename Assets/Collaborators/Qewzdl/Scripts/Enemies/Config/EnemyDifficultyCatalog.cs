@@ -140,8 +140,7 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
 
     private static bool HasSameBodyShape(EnemyConfig left, EnemyConfig right)
     {
-        return left.crawlingEnabled == right.crawlingEnabled &&
-               Mathf.Approximately(left.standingBodyColliderHeight, right.standingBodyColliderHeight) &&
+        return Mathf.Approximately(left.standingBodyColliderHeight, right.standingBodyColliderHeight) &&
                Mathf.Approximately(left.standingBodyColliderRadius, right.standingBodyColliderRadius) &&
                left.standingBodyColliderCenter == right.standingBodyColliderCenter &&
                Mathf.Approximately(left.crawlingBodyColliderHeight, right.crawlingBodyColliderHeight) &&

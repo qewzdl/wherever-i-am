@@ -3521,15 +3521,20 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         EnemyNavigator navigator,
         EnemyConfig config)
     {
+        // Handed whatever the test actually bolted onto the actor, rather than
+        // nulls. A module reaches for the component it configures, so a context
+        // that claims the enemy has no posture controller installs no crawling
+        // - and four crawling tests failed on exactly that before this looked
+        // the components up.
         EnemyEveryBehavior.Install(
             new EnemyBehaviorInstaller(
                 new EnemyBrainContext(
                     config,
                     navigator,
+                    navigator.GetComponent<EnemyTargetDetector>(),
                     null,
                     null,
-                    null,
-                    null,
+                    navigator.GetComponent<EnemyPostureController>(),
                     new EnemyBlackboard(),
                     null,
                     null),

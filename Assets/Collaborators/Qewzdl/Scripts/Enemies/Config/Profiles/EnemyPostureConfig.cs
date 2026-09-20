@@ -6,7 +6,6 @@ using UnityEngine;
 )]
 public class EnemyPostureConfig : ScriptableObject
 {
-    public bool crawlingEnabled = true;
 
     [Header("Transitions")]
     [Min(0f)] public float standingToCrawlingTransitionDuration = 0.35f;
