@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   clip: {fileID: 32900000, guid: 304cd2b5df9620242af8690289b75cb2, type: 3}
   volume: 1
-  playInEditor: 1
+  playInEditor: 0
   prepareTimeoutSeconds: 5
   playbackSlackSeconds: 3
   fadeSeconds: 0.26
