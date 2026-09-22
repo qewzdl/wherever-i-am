@@ -164,6 +164,113 @@ public sealed class ProjectAssetValidationTests
         }
     }
 
+    // One route per enemy, enforced where every spawn point on a map can be
+    // seen at once.
+    //
+    // Nothing in the code stops two spawn points pointing at the same
+    // EnemyPatrolRoute, and nothing goes wrong in an obvious way if they do:
+    // both enemies walk the same loop, each starting from whichever point is
+    // nearest, and they bunch up or trail each other depending on where they
+    // spawned. It looks like a pathing bug and it is a wiring one.
+    //
+    // A rule rather than a runtime refusal on purpose. Refusing to hand out a
+    // route twice would leave the second enemy standing still for the match,
+    // which is a worse thing to ship than two enemies sharing a circuit. This
+    // fails before anybody plays instead.
+    //
+    // If two enemies patrolling one circuit is ever wanted - a pair of guards
+    // on the same corridor is a real design - this assertion is the thing to
+    // relax, and it should be relaxed deliberately rather than by somebody
+    // dragging the same object into two slots.
+    [Test]
+    public void MapSpawnPoints_EachPatrolADifferentRoute()
+    {
+        GameMapCatalog catalog =
+            LoadRequiredAsset<GameMapCatalog>(GameMapCatalogPath);
+
+        List<string> problems = new();
+
+        // Counted as well as checked. With one spawn point on one map this
+        // assertion is vacuous, and a version of it that found no spawn points
+        // at all - a renamed component, a map whose scene stopped opening, a
+        // catalog entry with an empty path - would be vacuous for ever and look
+        // exactly the same from the outside. The count is what says the test is
+        // still looking at something.
+        int routedSpawnPoints = 0;
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            GameMapDefinition map = catalog.GetMapAt(i);
+
+            if (map == null || string.IsNullOrWhiteSpace(map.ScenePath))
+            {
+                continue;
+            }
+
+            Scene existingScene = SceneManager.GetSceneByPath(map.ScenePath);
+            bool openedByTest = !existingScene.IsValid() || !existingScene.isLoaded;
+            Scene scene = openedByTest
+                ? EditorSceneManager.OpenScene(map.ScenePath, OpenSceneMode.Additive)
+                : existingScene;
+
+            try
+            {
+                List<EnemySpawnPoint> spawnPoints = new();
+
+                foreach (GameObject root in scene.GetRootGameObjects())
+                {
+                    spawnPoints.AddRange(
+                        root.GetComponentsInChildren<EnemySpawnPoint>(true));
+                }
+
+                Dictionary<EnemyPatrolRoute, int> routeUses = new();
+
+                foreach (EnemySpawnPoint spawnPoint in spawnPoints)
+                {
+                    EnemyPatrolRoute route = spawnPoint.PatrolRoute;
+
+                    // An enemy with no route stands where it was put until
+                    // something happens, which is a legitimate way to place a
+                    // sentry. Sharing is the mistake, not going without.
+                    if (route == null)
+                    {
+                        continue;
+                    }
+
+                    routedSpawnPoints++;
+                    routeUses.TryGetValue(route, out int uses);
+                    routeUses[route] = uses + 1;
+                }
+
+                foreach (KeyValuePair<EnemyPatrolRoute, int> entry in routeUses)
+                {
+                    if (entry.Value > 1)
+                    {
+                        problems.Add(
+                            $"{map.ScenePath}: {entry.Value} spawn points share " +
+                            $"the patrol route '{entry.Key.name}'");
+                    }
+                }
+            }
+            finally
+            {
+                if (openedByTest && scene.IsValid())
+                {
+                    EditorSceneManager.CloseScene(scene, true);
+                }
+            }
+        }
+
+        Assert.That(problems, Is.Empty, string.Join("; ", problems));
+
+        Assert.That(
+            routedSpawnPoints,
+            Is.GreaterThan(0),
+            "No enemy spawn point on any map has a patrol route, so this test " +
+            "is checking nothing and would go on passing however the routes " +
+            "were wired.");
+    }
+
     [Test]
     public void GameMapCatalog_IsValidAndEveryMapSceneExists()
     {

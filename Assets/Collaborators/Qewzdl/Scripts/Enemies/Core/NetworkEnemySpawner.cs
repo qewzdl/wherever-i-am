@@ -155,8 +155,32 @@ public sealed class NetworkEnemySpawner : NetworkBehaviour
         IReadOnlyList<EnemySpawnPoint> points = mapRoot.EnemySpawnPoints;
         int spawned = 0;
 
+        // One route per enemy. ProjectAssetValidationTests is where this is
+        // actually enforced, before anybody plays; this says it out loud in a
+        // build, where that test is not around and the symptom - two enemies
+        // walking the same loop, bunched or trailing - reads as a pathing fault
+        // rather than as two slots pointing at one object.
+        //
+        // Said rather than refused. Withholding the route would leave the
+        // second enemy standing still for the whole match, which is a worse
+        // thing to ship than a shared circuit.
+        HashSet<EnemyPatrolRoute> claimedRoutes = new();
+
         for (int i = 0; i < points.Count; i++)
         {
+            EnemyPatrolRoute route = points[i] != null
+                ? points[i].PatrolRoute
+                : null;
+
+            if (route != null && !claimedRoutes.Add(route))
+            {
+                Debug.LogWarning(
+                    $"{nameof(NetworkEnemySpawner)} is giving patrol route " +
+                    $"'{route.name}' to more than one enemy. They will walk " +
+                    "the same loop.",
+                    route);
+            }
+
             if (TrySpawnServerOnly(points[i], out _))
             {
                 spawned++;
