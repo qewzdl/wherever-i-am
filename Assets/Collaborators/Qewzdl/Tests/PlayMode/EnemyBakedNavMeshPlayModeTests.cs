@@ -1833,6 +1833,92 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "Opened hiding place did not release its occupant.");
     }
 
+    // How a check that opened the box reports itself.
+    //
+    // Built on the hand-made state rather than a production enemy on purpose:
+    // there is no perception here, so she cannot see the person who falls out,
+    // and she is certain to still be checking on the frame the box goes empty -
+    // which is the frame that writes the report. A production enemy in the open
+    // arena sees the occupant land in front of her, goes straight for them, and
+    // abandons the check before it says anything. That is right, and it is why
+    // a production enemy cannot test this.
+    //
+    // It is also exactly the situation of the first real report of this bug:
+    // she reached the report, so she was still checking, so she had not seen
+    // whoever she turned out. And the report read "found Available rather than
+    // occupied" - the line for a box that was already empty when she got there
+    // - so it could not say whether she had opened the box or given up on it.
+    [UnityTest]
+    public IEnumerator InvestigateState_OpeningTheBox_ReportsAnOpenRatherThanAnEmptyBox()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        HidingPlaceInteractable hidingPlace =
+            CreateSpawnedHidingPlace(Vector3.zero);
+        PlayerHidingController occupant =
+            CreateSpawnedHidingPlayer(new Vector3(0.8f, 0f, -1.2f));
+        yield return OccupyHidingPlace(hidingPlace, occupant);
+
+        EnemyInvestigateState state = CreateInvestigateState(
+            new Vector3(0f, 0f, -6f),
+            standingAgentTypeId,
+            out GameObject _,
+            out EnemyBlackboard blackboard,
+            out List<EnemyState> _);
+
+        blackboard.InvestigationMemory.RememberObservedHidingPlace(hidingPlace);
+        blackboard.InvestigationMemory.RememberLastKnownTargetPosition(
+            occupant.transform.position);
+
+        bool reportedOpened = false;
+        bool reportedFoundEmpty = false;
+
+        void ListenForTheReport(string message, string stackTrace, LogType type)
+        {
+            reportedOpened |= message.Contains(
+                "Hiding place opened and its occupant turned out");
+            reportedFoundEmpty |= message.Contains("rather than occupied");
+        }
+
+        Application.logMessageReceived += ListenForTheReport;
+
+        try
+        {
+            state.Enter();
+
+            yield return TickInvestigationUntil(
+                state,
+                () => reportedOpened || reportedFoundEmpty,
+                "The hiding place check never reported how it ended.");
+
+            Assert.That(
+                hidingPlace.State,
+                Is.Not.EqualTo(HidingTransitionState.Occupied),
+                "Nothing was opened, so the report below proves nothing.");
+
+            Assert.That(
+                reportedOpened,
+                Is.True,
+                "She opened the box, and the check did not say so.");
+
+            Assert.That(
+                reportedFoundEmpty,
+                Is.False,
+                "She opened the box and the check reported it as empty on " +
+                "arrival - the report for a box she never opened.");
+        }
+        finally
+        {
+            Application.logMessageReceived -= ListenForTheReport;
+        }
+    }
+
     [UnityTest]
     public IEnumerator InvestigateState_StimulusAtHidingPlace_StillOpensIt()
     {

@@ -35,6 +35,16 @@ public sealed class EnemyHidingPlaceCheck
     private HidingPlaceInteractable checkedHidingPlace;
     private float checkTimer;
 
+    // Whether the box went empty because she emptied it.
+    //
+    // Without this the two outcomes of a check read identically. A successful
+    // open does not finish the check - it waits out the exit transition - and
+    // the shipped exit takes no time at all, so the very next frame finds the
+    // box Available and used to report it as though she had walked up to an
+    // empty box. The first real report of this bug came back as exactly that
+    // line, and it could not say whether the fix had worked or failed.
+    private bool openedByHer;
+
     public EnemyHidingPlaceCheck(EnemyBrainContext context)
     {
         this.context = context;
@@ -100,6 +110,7 @@ public sealed class EnemyHidingPlaceCheck
         HidingPlaceData settings = hidingPlace.Configuration;
 
         checkedHidingPlace = hidingPlace;
+        openedByHer = false;
 
         // The budget has to pay for the walk as well as for the transition,
         // because the clock starts here and the destination is somewhere she
@@ -195,13 +206,26 @@ public sealed class EnemyHidingPlaceCheck
             return EnemyHidingPlaceCheckStatus.Checking;
         }
 
-        // Genuinely nothing in it: available, or emptied by somebody else while
-        // she walked over. Worth saying out loud while this is being chased - a
-        // box that reports itself free with a player inside it is a different
-        // fault from the one above, in a different file.
+        // She opened it and the occupant is out. The check did its job.
+        if (openedByHer)
+        {
+            RuntimeLog.Info(
+                "Hiding place opened and its occupant turned out " +
+                $"({checkedHidingPlace.LastInvestigationDistance:F2}m from " +
+                "the anchor when it opened).");
+
+            Finish();
+            return EnemyHidingPlaceCheckStatus.Finished;
+        }
+
+        // Nothing in it by the time she got there: emptied by somebody else,
+        // or the occupant left on their own while she walked over. Worth saying
+        // out loud - a box that reports itself free with a player still inside
+        // is a different fault from the one above, in a different file.
         RuntimeLog.Info(
             "Hiding place checked and found " +
-            $"{checkedHidingPlace.State} rather than occupied.");
+            $"{checkedHidingPlace.State} rather than occupied, without her " +
+            "having opened it.");
 
         Finish();
         return EnemyHidingPlaceCheckStatus.Finished;
@@ -211,6 +235,7 @@ public sealed class EnemyHidingPlaceCheck
     {
         checkedHidingPlace = null;
         checkTimer = 0f;
+        openedByHer = false;
     }
 
     // A spot beside the anchor, on the side she is coming from, close enough
@@ -263,6 +288,7 @@ public sealed class EnemyHidingPlaceCheck
         }
 
         context.InvestigationMemory.ClearObservedHidingPlace();
+        openedByHer = true;
         return true;
     }
 
