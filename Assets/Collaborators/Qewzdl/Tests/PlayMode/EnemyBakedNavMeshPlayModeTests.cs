@@ -1061,14 +1061,40 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             hidingPlace.State,
             Is.EqualTo(HidingTransitionState.Occupied));
 
-        // Long enough that the enemy with the module has opened it several
-        // times over in the tests above.
-        float watchUntil = Time.realtimeSinceStartup + 12f;
-        bool everInvestigated = false;
+        // Watched until she is past the moment the module would have mattered,
+        // rather than for a fixed number of seconds.
+        //
+        // This used to be twelve seconds of wall clock, which was five times
+        // longer than the enemy WITH the module takes to open the box, and
+        // still not a proof: on a machine slow enough, twelve seconds might
+        // not have reached the moment she would have opened it, and the test
+        // would have passed having watched nothing.
+        //
+        // The moment is the end of the walk to the box. An enemy with the
+        // module opens it there, before she does anything else; one without
+        // it moves on to searching the room, and planning that search is the
+        // first thing she does once the box is behind her. So a planned search
+        // route means the chance has come and gone, however long it took to
+        // arrive. Leaving the investigation altogether counts too, for an
+        // enemy configured without a search route.
+        EnemyBlackboard enemyBlackboard =
+            PlayModeTestReflection.GetField<EnemyBlackboard>(
+                runtime,
+                "blackboard");
 
-        while (Time.realtimeSinceStartup < watchUntil)
+        bool everInvestigated = false;
+        bool pastTheBox = false;
+
+        // A ceiling, not a window: it only runs out if she never gets there.
+        float ceiling = Time.realtimeSinceStartup + TimeoutSeconds * 2f;
+
+        while (!pastTheBox && Time.realtimeSinceStartup < ceiling)
         {
             everInvestigated |= enemy.CurrentState == EnemyState.Investigate;
+
+            pastTheBox = everInvestigated &&
+                         (enemyBlackboard.CurrentInvestigationRoute.Count > 0 ||
+                          enemy.CurrentState != EnemyState.Investigate);
 
             Assert.That(
                 hidingPlace.State,
@@ -1078,6 +1104,12 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
             yield return null;
         }
+
+        Assert.That(
+            pastTheBox,
+            Is.True,
+            "The enemy never got past the point where the module would have " +
+            "opened the box, so the box staying shut proves nothing.");
 
         // She still came looking - losing a target is still worth searching
         // for. What she cannot do is know the box had anything to do with it.
@@ -2343,11 +2375,37 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
         Vector3 destination = new(-3f, 0f, 4f);
 
-        float watchUntil = Time.realtimeSinceStartup + 5f;
+        // Watched until the navigator has genuinely reconsidered the sealed
+        // doorway a few times, rather than for five seconds of wall clock.
+        //
+        // Measured before this was written, on the same fixture: WITH the
+        // module the whole question is settled in the first call - the normal
+        // route fails, push-through asks both crates to stop carving and
+        // finds a way through, two path queries in all - and the next call
+        // applies it. WITHOUT the module the first call spends one query,
+        // finds the doorway sealed, and stops; the navigator then retries on
+        // its own repath interval, one query each time, and nothing about the
+        // answer ever changes.
+        //
+        // So the counter is the clock. Three real evaluations is past the two
+        // the module needs, and a deferred attempt - one the shared path budget
+        // put off - does not move the counter, so a busy frame cannot make the
+        // test think she had a chance she did not get. The five seconds this
+        // replaces were twice the time the positive case takes end to end,
+        // and on a slow enough machine would have run out before the first
+        // query did.
+        int queriesAtStart = navigator.QueryTelemetry.PathQueries;
+        int realEvaluations = 0;
 
-        while (Time.realtimeSinceStartup < watchUntil)
+        // A ceiling, not a window: it only runs out if the navigator never
+        // looks at the route at all.
+        float ceiling = Time.realtimeSinceStartup + TimeoutSeconds;
+
+        while (realEvaluations < 3 && Time.realtimeSinceStartup < ceiling)
         {
             navigator.TryMoveTo(destination, 4f, allowPushThrough: true);
+            realEvaluations =
+                navigator.QueryTelemetry.PathQueries - queriesAtStart;
 
             Assert.That(
                 actor.transform.position.z,
@@ -2357,6 +2415,12 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 
             yield return null;
         }
+
+        Assert.That(
+            realEvaluations,
+            Is.GreaterThanOrEqualTo(3),
+            "The navigator never evaluated the route, so the barricade " +
+            "holding proves nothing.");
 
         Assert.That(
             firstNavigation.IsBlockingNavigation && secondNavigation.IsBlockingNavigation,
