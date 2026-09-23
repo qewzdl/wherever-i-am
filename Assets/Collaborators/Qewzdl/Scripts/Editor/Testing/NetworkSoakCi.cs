@@ -668,6 +668,11 @@ public static class NetworkSoakCi
         internal Process Process { get; }
     }
 
+    // Filled by JsonUtility.FromJson from the role's result file and by
+    // nothing else, which the compiler cannot see - so every field reads to
+    // it as never assigned. Silenced here rather than project-wide, so the
+    // warning still means something everywhere it is not a false alarm.
+#pragma warning disable 0649
     [Serializable]
     private sealed class RoleResultData
     {
@@ -684,6 +689,7 @@ public static class NetworkSoakCi
         public int maxSceneScopes;
         public string[] faults;
     }
+#pragma warning restore 0649
 
     [Serializable]
     private sealed class RunSummaryData
