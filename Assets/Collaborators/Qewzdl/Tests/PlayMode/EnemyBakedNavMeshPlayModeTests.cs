@@ -4839,7 +4839,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
             enemyPrefab,
             noiseWorld,
-            new Vector3(0f, 0f, -6f));
+            new Vector3(0f, 0f, -6f),
+            CreateQuickToGiveUpConfig());
         EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
 
         yield return WaitForCondition(
@@ -4902,6 +4903,65 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             Is.True,
             "The enemy never picked up the player standing in plain sight, " +
             "so the refusal above proved nothing.");
+    }
+
+    // The shipped enemy with shorter patience, for the despawn tests only.
+    //
+    // Those tests are about what happens once a phase ENDS - that the lock on
+    // the departed target is released and the person standing in plain sight
+    // is picked up. They were spending most of their time waiting for the end
+    // on combat timers tuned for play: measured, the phase outlived its target
+    // by 8.0s in ambush, 8.7s in flank and 9.8s in retreat, against drives into
+    // the phase of 4.9s, 1.8s and 0.5s. Nothing they assert depends on how long
+    // the wait is, only on it finishing.
+    //
+    // Only the two timers that were actually ending the phases are shortened,
+    // and that restriction was learned the hard way. Measured, ambush ends on
+    // ambushPatience, and flank and retreat end on observationMaxAge - the
+    // sighting the manoeuvre runs on is taken when it BEGINS and ages from
+    // there, and it runs out before either phase reaches its own timeout.
+    //
+    // The first version also cut retreatTimeout and flankTimeout, and made the
+    // retreat test slower, not faster: 10.5s to 14.3s. Timed transition by
+    // transition, the retreat went on into a flank after 1.3s - its sight of
+    // the departed target broken, exactly as with the shipped timings - and
+    // then the flank ran out on the shortened flankTimeout at 5.8s, 1.3 plus
+    // 4.5. Shipped, that flank ends on the aging sighting instead and goes on
+    // into an investigation from where the other player is in view; ending on
+    // its own timeout sent her into a chase, then an investigation from
+    // somewhere else, and nine seconds passed before she found them.
+    //
+    // The test relies on the manoeuvre ending the way it ends anyway, only
+    // sooner. Cutting a timer that was not the one ending it adds a way out
+    // that play never takes, and moves where she is when it happens. So those
+    // two stay as shipped.
+    //
+    // observationMaxAge has a floor of its own. The drive into ambush goes
+    // through the flank and takes nearly five seconds on that same aging
+    // sighting, so anything below that ends the manoeuvre before it reaches
+    // the phase under test. DespawnDuringPhase refuses to continue if the
+    // manoeuvre did not settle on the phase, so a value cut too far fails
+    // loudly rather than quietly testing a different one.
+    private EnemyConfig CreateQuickToGiveUpConfig()
+    {
+        NetworkEnemyController prefabController =
+            enemyPrefab.GetComponent<NetworkEnemyController>();
+
+        EnemyConfig config =
+            Track(UnityEngine.Object.Instantiate(prefabController.Config));
+        EnemyStealthTacticsConfig tactics = Track(
+            UnityEngine.Object.Instantiate(config.StealthTactics));
+
+        // Over the 4.9s drive into ambush, which runs on the same sighting.
+        tactics.observationMaxAge = 6.5f;
+        tactics.ambushPatience = 1.5f;
+
+        PlayModeTestReflection.SetField(
+            config,
+            "stealthTacticsProfile",
+            tactics);
+
+        return config;
     }
 
     // Stalk needs the target seen from a distance; the rest need it looking at
