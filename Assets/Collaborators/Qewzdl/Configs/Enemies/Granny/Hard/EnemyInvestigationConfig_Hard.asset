@@ -19,6 +19,7 @@ MonoBehaviour:
   investigationLeafRadius: 2
   investigationLeafPointCountPerBranch: 4
   investigationSearchSpeed: 2.1
+  urgentNoiseScore: 0.32
   investigationPointDwellDuration: 1.5
   investigationLookAroundAngle: 65
   investigationLookAroundSpeed: 175

@@ -271,6 +271,44 @@ public sealed class ProjectAssetValidationTests
             "were wired.");
     }
 
+    // The promise that makes the approach speed worth having: moving quietly
+    // never makes her run at you, on the difficulty most people play.
+    //
+    // A heard noise's strength at her is its loudness scaled down by distance,
+    // so the most it can ever be is its own loudness, heard from where it was
+    // made. Checked at that worst case, against the shipped presets and the
+    // shipped threshold, because the failure is silent from both ends: nudge
+    // the walking step up a little, or the threshold down a little, and quiet
+    // play quietly stops being rewarded with nothing to say so.
+    [Test]
+    public void QuietMovement_NeverMakesTheEnemyRun_OnTheDefaultDifficulty()
+    {
+        EnemyInvestigationConfig normal = LoadRequiredAsset<EnemyInvestigationConfig>(
+            "Assets/Collaborators/Qewzdl/Configs/Enemies/Granny/Profiles/" +
+            "EnemyInvestigationConfig.asset");
+
+        string[] quietPresets = { "Noise_FootstepWalking", "Noise_Breath" };
+
+        foreach (string presetName in quietPresets)
+        {
+            string[] guids = AssetDatabase.FindAssets(
+                $"{presetName} t:{nameof(GameplayNoisePreset)}");
+
+            Assert.That(guids, Is.Not.Empty, $"No preset called {presetName}.");
+
+            GameplayNoisePreset preset =
+                AssetDatabase.LoadAssetAtPath<GameplayNoisePreset>(
+                    AssetDatabase.GUIDToAssetPath(guids[0]));
+
+            Assert.That(
+                preset.Loudness,
+                Is.LessThan(normal.urgentNoiseScore),
+                $"{presetName} heard from where it was made reaches " +
+                $"{preset.Loudness:F2}, at or over the {normal.urgentNoiseScore:F2} " +
+                "at which she runs - so moving quietly can make her run at you.");
+        }
+    }
+
     [Test]
     public void GameMapCatalog_IsValidAndEveryMapSceneExists()
     {

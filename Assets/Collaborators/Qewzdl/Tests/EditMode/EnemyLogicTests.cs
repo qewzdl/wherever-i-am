@@ -997,4 +997,43 @@ public sealed class EnemyLogicTests
             "The hiding check module installed nothing, so an enemy listing " +
             "it gains nothing and no test but this one would notice.");
     }
+
+    // What sends her to an investigation decides how fast she goes: a heard
+    // noise is weighed, anything else is a chase that lost its target.
+    [Test]
+    public void ApproachSpeed_RunsAtLoudNoisesAndWalksAtQuietOnes()
+    {
+        const float threshold = 0.4f;
+        const float chase = 2.8f;
+        const float cautious = 1.7f;
+
+        float Speed(EnemyPerceptionStimulus stimulus) =>
+            EnemyInvestigateState.ChooseApproachSpeed(
+                stimulus, threshold, chase, cautious);
+
+        EnemyPerceptionStimulus Heard(float score) =>
+            EnemyPerceptionStimulus.ForSuspiciousPosition(
+                Vector3.zero, score, EnemyPerceptionSource.Hearing);
+
+        Assert.That(Speed(Heard(0.2f)), Is.EqualTo(cautious),
+            "A faint noise sent her running.");
+        Assert.That(Speed(Heard(0.8f)), Is.EqualTo(chase),
+            "A loud noise close by did not.");
+
+        // At the threshold rather than past it: the tooltip promises the
+        // number is where running starts.
+        Assert.That(Speed(Heard(threshold)), Is.EqualTo(chase));
+
+        // No stimulus is what an investigation looks like when it started
+        // because she lost sight of somebody. Walking there would hand them
+        // the escape.
+        Assert.That(Speed(EnemyPerceptionStimulus.None), Is.EqualTo(chase),
+            "Losing sight of somebody stopped being answered at a run.");
+
+        Assert.That(
+            Speed(EnemyPerceptionStimulus.ForSuspiciousPosition(
+                Vector3.zero, 0.05f, EnemyPerceptionSource.Vision)),
+            Is.EqualTo(chase),
+            "Something seen was weighed like a noise.");
+    }
 }

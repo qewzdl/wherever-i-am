@@ -1951,6 +1951,96 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         }
     }
 
+    // How fast the investigation actually sets off, rather than what
+    // ChooseApproachSpeed returns when asked.
+    //
+    // The choice is tested on its own in EditMode. What that cannot see is
+    // whether the state uses it: put chaseSpeed back into the call that starts
+    // the walk and the choice would still be made, still be correct, and
+    // still change nothing. This reads the speed the agent was given.
+    [UnityTest]
+    public IEnumerator InvestigateState_WalksToAFaintNoiseAndRunsToALoudOne()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        // The speeds the state actually runs on. CreateInvestigateState hands
+        // it a clone of the shipped config with chaseSpeed raised to 4, so the
+        // shipped 2.8 is not the number to expect - the first version of this
+        // test expected it, and failed on a run that was perfectly correct.
+        EnemyConfig harnessConfig = CloneNavigationConfig(enemyConfig);
+        float run = harnessConfig.chaseSpeed;
+        float walk = harnessConfig.investigationSearchSpeed;
+        float threshold = harnessConfig.urgentNoiseScore;
+
+        Assert.That(
+            walk,
+            Is.LessThan(run),
+            "The two speeds are the same, so which one she used proves nothing.");
+
+        Vector3 noise = new(0f, 0f, 4f);
+
+        float faint = threshold * 0.5f;
+        float loud = Mathf.Min(1f, threshold + 0.3f);
+
+        foreach ((float score, float expected, string label) in new[]
+                 {
+                     (faint, walk, "faint"),
+                     (loud, run, "loud"),
+                 })
+        {
+            EnemyInvestigateState state = CreateInvestigateState(
+                new Vector3(0f, 0f, -6f),
+                standingAgentTypeId,
+                out GameObject actor,
+                out EnemyBlackboard blackboard,
+                out List<EnemyState> _);
+
+            // Exactly what perception leaves behind when a noise sends her:
+            // the noise as the current stimulus, its position to go to.
+            blackboard.SetCurrentStimulus(
+                EnemyPerceptionStimulus.ForSuspiciousPosition(
+                    noise,
+                    score,
+                    EnemyPerceptionSource.Hearing),
+                Time.time);
+            blackboard.InvestigationMemory.RememberLastKnownTargetPosition(noise);
+
+            NavMeshAgent agent = actor.GetComponent<NavMeshAgent>();
+
+            // Zeroed, because the fixture starts every agent at 4 - the same
+            // number as the chase speed it configures. A speed the state never
+            // applied would otherwise read as a correct run, and the loud case
+            // would pass with the wiring cut. At zero, an unapplied speed
+            // passes for neither.
+            agent.speed = 0f;
+
+            state.Enter();
+
+            // Read once she has actually set off: the shared path budget may
+            // put the first request off to a later frame, and until a path is
+            // applied the speed is still the zero set above.
+            yield return TickInvestigationUntil(
+                state,
+                () => agent.hasPath,
+                $"She never set off towards the {label} noise.");
+
+            Assert.That(
+                agent.speed,
+                Is.EqualTo(expected).Within(0.001f),
+                $"A {label} noise (score {score:F2}, runs from " +
+                $"{threshold:F2}) set her off at the wrong speed.");
+
+            UnityEngine.Object.Destroy(actor);
+            yield return null;
+        }
+    }
+
     [UnityTest]
     public IEnumerator InvestigateState_StimulusAtHidingPlace_StillOpensIt()
     {

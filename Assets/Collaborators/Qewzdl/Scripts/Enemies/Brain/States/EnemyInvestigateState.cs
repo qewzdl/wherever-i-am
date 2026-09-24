@@ -20,6 +20,11 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
     private float repathTimer;
 
+    // How fast she goes to the place she is investigating, chosen once when
+    // the investigation starts from whatever started it. See
+    // ChooseApproachSpeed.
+    private float approachSpeed;
+
     private bool hasDestination;
 
     // Resolved on every Enter rather than in the constructor: the states are
@@ -45,6 +50,17 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         context.Capabilities.TryGet(out lookAround);
         context.Capabilities.TryGet(out searchRoute);
 
+        // Read here and nowhere later: perception rewrites the current
+        // stimulus every tick, and by the time she is halfway there it
+        // describes whatever she is hearing now rather than what sent her.
+        // A newer noise worth restarting for comes back through Enter and is
+        // weighed afresh.
+        approachSpeed = ChooseApproachSpeed(
+            context.PerceptionMemory.CurrentStimulus,
+            context.Config.urgentNoiseScore,
+            context.Config.chaseSpeed,
+            context.Config.investigationSearchSpeed);
+
         if (!TryResolveInvestigationOrigin(out investigationOrigin))
         {
             FinishInvestigation();
@@ -57,7 +73,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
         phase = InvestigationPhase.MovingToLastKnownPosition;
 
-        if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
+        if (!TrySetDestination(investigationOrigin, approachSpeed))
         {
             TryMoveToSecondaryOrFinish();
         }
@@ -114,7 +130,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
 
         if (!hasDestination)
         {
-            if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
+            if (!TrySetDestination(investigationOrigin, approachSpeed))
             {
                 TryMoveToSecondaryOrFinish();
             }
@@ -122,7 +138,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
             return;
         }
 
-        RepathToCurrentDestination(context.Config.chaseSpeed);
+        RepathToCurrentDestination(approachSpeed);
 
         if (!context.Navigator.HasReached(context.Config.investigationReachDistance))
         {
@@ -155,6 +171,39 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
         }
 
         StartHierarchicalSearch();
+    }
+
+    // Run at a noise worth running at; walk at one that is not.
+    //
+    // Every investigation used to go to its origin at chase speed, whatever
+    // started it, so a creaking floorboard at the edge of her hearing and a
+    // box dropped beside her got the same sprint. That made quiet play
+    // pointless in exactly the way the footstep, stamina and breathing work
+    // was meant to reward: the noise that gave you away was answered at full
+    // speed however little of it she heard.
+    //
+    // Heard noises are weighed by their score, which is already the right
+    // quantity - the noise's loudness scaled down by how far it had to travel
+    // and how old it is - so "loud or close" rather than just "loud". Anything
+    // that is not a heard noise keeps the sprint: an investigation with no
+    // stimulus behind it is one that started because she lost sight of
+    // somebody she was chasing, and slowing down there would hand them the
+    // escape for nothing.
+    public static float ChooseApproachSpeed(
+        EnemyPerceptionStimulus stimulus,
+        float urgentNoiseScore,
+        float chaseSpeed,
+        float cautiousSpeed)
+    {
+        if (!stimulus.HasStimulus ||
+            stimulus.Source != EnemyPerceptionSource.Hearing)
+        {
+            return chaseSpeed;
+        }
+
+        return stimulus.Score >= urgentNoiseScore
+            ? chaseSpeed
+            : cautiousSpeed;
     }
 
     // A stimulus that lands while the enemy is already investigating updates
@@ -351,7 +400,7 @@ public sealed class EnemyInvestigateState : IEnemyStateHandler
                 // stimulus is a fresh fact, and a fact does not want leading.
                 searchRoute?.Plan(investigationOrigin, GetNavigationQueryFilter());
 
-                if (!TrySetDestination(investigationOrigin, context.Config.chaseSpeed))
+                if (!TrySetDestination(investigationOrigin, approachSpeed))
                 {
                     FinishInvestigation();
                 }
