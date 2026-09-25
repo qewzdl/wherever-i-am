@@ -540,6 +540,71 @@ public sealed class EnemySetupWindowTests
         }
     }
 
+    // A difficulty the game offers and the enemy lacks - here Hard, taken out
+    // as if the game had just gained it - gets a config copied from the
+    // nearest one. What every difficulty shared stays shared; what the
+    // nearest one had to itself is copied, so tuning the new one leaves the
+    // old one alone; and it lands in the layout.
+    [Test]
+    public void AddMissingDifficulties_CopiesTheNearestDifficultyIntoTheLayout()
+    {
+        const string root = "Assets/__EnemyMissingTest";
+        NetworkPrefabsList registered = Make<NetworkPrefabsList>();
+        const int hard = 2;
+
+        AssetDatabase.DeleteAsset(root);
+        AssetDatabase.CreateFolder("Assets", "__EnemyMissingTest");
+
+        try
+        {
+            EnemyFactory.Result made = EnemyFactory.CreateFrom(SourceEnemy(), "Crow", root, root, registered);
+            NetworkEnemyController crow = made.Prefab.GetComponent<NetworkEnemyController>();
+
+            // The game "gains" Hard: the enemy's Hard config and everything
+            // only it used go, and its entry with them.
+            SerializedObject catalog = new(made.Catalog);
+            SerializedProperty list = catalog.FindProperty("difficulties");
+
+            for (int i = list.arraySize - 1; i >= 0; i--)
+            {
+                if (list.GetArrayElementAtIndex(i).FindPropertyRelative("difficultyId").intValue == hard)
+                {
+                    list.DeleteArrayElementAtIndex(i);
+                }
+            }
+
+            catalog.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.DeleteAsset(root + "/Crow/Hard");
+
+            Assert.That(made.Catalog.TryGetConfig(hard, out _), Is.False);
+
+            List<string> added = EnemyFactory.AddMissingDifficulties(crow, root);
+
+            Assert.That(added, Is.EqualTo(new[] { "Hard" }));
+            Assert.That(made.Catalog.CoversEvery(EnemyFactory.GameDifficulties, out string missing), Is.True,
+                "Still missing " + missing);
+
+            made.Catalog.TryGetConfig(hard, out EnemyConfig newHard);
+            made.Catalog.TryGetConfig(hard - 1, out EnemyConfig normal);
+
+            Assert.That(newHard, Is.Not.SameAs(normal));
+            Assert.That(AssetDatabase.GetAssetPath(newHard), Is.EqualTo(root + "/Crow/Hard/CrowConfig_Hard.asset"));
+
+            // Normal's own vision was copied; the navigation everyone shares was not.
+            Assert.That(newHard.VisionProfile, Is.Not.SameAs(normal.VisionProfile));
+            Assert.That(newHard.detectionRadius, Is.EqualTo(normal.detectionRadius));
+            Assert.That(newHard.NavigationProfile, Is.SameAs(normal.NavigationProfile));
+
+            Assert.That(EnemyFactory.PlanTidy(crow, root), Is.Empty);
+            Assert.That(EnemyFactory.AddMissingDifficulties(crow, root), Is.Empty,
+                "Asked again, it added a difficulty that was no longer missing.");
+        }
+        finally
+        {
+            AssetDatabase.DeleteAsset(root);
+        }
+    }
+
     // From nothing: a variant of the base with one config per difficulty the
     // game offers, sharing one set of fresh profiles, a presentation profile
     // of its own, and no behaviours - which the rules then point out.
@@ -883,6 +948,42 @@ public sealed class EnemySetupWindowTests
             Draws++;
             Draw?.Invoke();
         }
+    }
+
+    // A list holding a test prefab and a game one loses the test one only.
+    [Test]
+    public void RemoveTestPrefabs_TakesOutOnlyWhatLivesUnderTests()
+    {
+        NetworkPrefabsList list = Make<NetworkPrefabsList>();
+        GameObject game = EnemyFactory.BasePrefab;
+        GameObject test = SourceEnemy().gameObject;
+
+        list.Add(new NetworkPrefab { Prefab = game });
+        list.Add(new NetworkPrefab { Prefab = test });
+
+        Assert.That(TestPrefabsOutOfNetworkList.RemoveTestPrefabs(list), Is.EqualTo(1));
+        Assert.That(list.PrefabList.Select(entry => entry.Prefab), Is.EqualTo(new[] { game }));
+    }
+
+    // Reimporting the tests' enemy is when Netcode adds it to the project's
+    // network prefab list - checked, or this would prove nothing. Whatever
+    // else happens to it in the editor, it is out before a build reads the
+    // list. (The editor also cleans it once the import is over, but when
+    // that runs is the editor's business and not something to wait on.)
+    [Test]
+    public void BeforeABuild_TheTestEnemyIsTakenBackOutOfTheNetworkList()
+    {
+        GameObject test = SourceEnemy().gameObject;
+
+        AssetDatabase.ImportAsset(AssetDatabase.GetAssetPath(test), ImportAssetOptions.ForceUpdate);
+
+        Assert.That(projectList.PrefabList.Any(entry => entry.Prefab == test), Is.True,
+            "Netcode no longer adds a reimported prefab to the list, so this proves nothing.");
+
+        new TestPrefabsOutOfNetworkList().OnPreprocessBuild(null);
+
+        Assert.That(projectList.PrefabList.Any(entry => entry.Prefab == test), Is.False,
+            "The test enemy would ship with the game.");
     }
 
     // An entry whose prefab was deleted is found, and removing the empty

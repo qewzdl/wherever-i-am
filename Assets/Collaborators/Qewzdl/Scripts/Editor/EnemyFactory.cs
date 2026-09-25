@@ -690,6 +690,102 @@ public static class EnemyFactory
         }
     }
 
+    // Gives an enemy a config for every difficulty the game offers that it has
+    // none for - which is what happens to every enemy the moment the game
+    // gains a difficulty. Returns the difficulties it added.
+    //
+    // Each new config starts as a copy of the enemy's nearest difficulty by
+    // id, so a difficulty slotted between Hard and Extreme starts as one of
+    // them rather than as defaults. What every existing difficulty shares
+    // stays shared; what the nearest one had to itself is copied, so the new
+    // difficulty can be tuned without moving the one it came from. The
+    // folder is tidied afterwards, so the copies land in its own folder.
+    public static List<string> AddMissingDifficulties(NetworkEnemyController enemy, string configRoot)
+    {
+        List<string> added = new();
+        EnemyDifficultyCatalog catalog = enemy != null ? enemy.DifficultyCatalog : null;
+        GameDifficultyCatalog game = GameDifficulties;
+
+        if (catalog == null || game == null)
+        {
+            return added;
+        }
+
+        List<EnemyDifficultyCatalog.EnemyDifficultyEntry> entries = new();
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            if (catalog.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry) &&
+                entry.Config != null)
+            {
+                entries.Add(entry);
+            }
+        }
+
+        if (entries.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"{enemy.name} has no config for any difficulty to start the missing ones from.");
+        }
+
+        HashSet<Object> everywhere = new(ProfilesOf(entries[0].Config));
+
+        foreach (EnemyDifficultyCatalog.EnemyDifficultyEntry entry in entries.Skip(1))
+        {
+            everywhere.IntersectWith(ProfilesOf(entry.Config));
+        }
+
+        string folder = $"{configRoot}/{enemy.name}";
+        SerializedObject serialized = new(catalog);
+        SerializedProperty list = serialized.FindProperty("difficulties");
+
+        for (int i = 0; i < game.Count; i++)
+        {
+            if (!game.TryGetAt(i, out GameDifficultyCatalog.Difficulty difficulty) ||
+                catalog.TryGetConfig(difficulty.DifficultyId, out _))
+            {
+                continue;
+            }
+
+            EnemyDifficultyCatalog.EnemyDifficultyEntry nearest = entries
+                .OrderBy(entry => Math.Abs(entry.DifficultyId - difficulty.DifficultyId))
+                .ThenBy(entry => entry.DifficultyId)
+                .First();
+
+            Dictionary<Object, Object> copies = new();
+
+            foreach (Object profile in ProfilesOf(nearest.Config).Distinct())
+            {
+                if (!everywhere.Contains(profile))
+                {
+                    copies[profile] = Copy(profile, folder, $"__new_{difficulty.DisplayName}_{profile.name}");
+                }
+            }
+
+            Object config = Copy(nearest.Config, folder, $"__new_{difficulty.DisplayName}_{nearest.Config.name}");
+            Retarget(config, copies);
+
+            list.arraySize++;
+            SerializedProperty element = list.GetArrayElementAtIndex(list.arraySize - 1);
+            element.FindPropertyRelative("difficultyId").intValue = difficulty.DifficultyId;
+            element.FindPropertyRelative("config").objectReferenceValue = config;
+
+            added.Add(difficulty.DisplayName);
+        }
+
+        if (added.Count == 0)
+        {
+            return added;
+        }
+
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(catalog);
+        AssetDatabase.SaveAssets();
+
+        Tidy(enemy, configRoot);
+        return added;
+    }
+
     // Where every file an enemy owns belongs. One layout for every enemy,
     // whether it was made here, copied, or set up by hand and tidied:
     //

@@ -920,6 +920,8 @@ public sealed class EnemySetupWindow : EditorWindow
                     MessageType.Warning);
             }
 
+            List<string> missing = new();
+
             foreach (Difficulty difficulty in difficulties)
             {
                 if (difficulty.Config == null)
@@ -927,6 +929,7 @@ public sealed class EnemySetupWindow : EditorWindow
                     if (catalog != null)
                     {
                         clean = false;
+                        missing.Add(difficulty.Name);
                         EditorGUILayout.HelpBox(
                             difficulty.Name + ": " + catalog.name + " has no config " +
                             "for it, so " + selected.name + " plays its prefab's " +
@@ -953,6 +956,26 @@ public sealed class EnemySetupWindow : EditorWindow
                         difficulty.Name + " " + problem + ".",
                         MessageType.Warning);
                 }
+            }
+
+            // Only for an enemy whose files are its own: the new configs go in
+            // its folder.
+            if (missing.Count > 0 &&
+                EnemyFactory.OwnershipProblem(selected, EnemyFactory.ConfigRoot) == null &&
+                GUILayout.Button("Add a config for " + string.Join(", ", missing) +
+                                 ", copied from the nearest difficulty"))
+            {
+                try
+                {
+                    EnemyFactory.AddMissingDifficulties(selected, EnemyFactory.ConfigRoot);
+                }
+                catch (Exception exception)
+                {
+                    EditorUtility.DisplayDialog("Could not add the configs", exception.Message, "OK");
+                }
+
+                Reload();
+                GUIUtility.ExitGUI();
             }
 
             if (clean)

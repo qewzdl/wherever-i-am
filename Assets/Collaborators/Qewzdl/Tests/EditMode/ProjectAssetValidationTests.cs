@@ -360,6 +360,24 @@ public sealed class ProjectAssetValidationTests
         Assert.That(problems, Is.Empty, string.Join("; ", problems));
     }
 
+    // Whatever is in the network prefab list goes into the build, and Netcode
+    // adds every NetworkObject prefab it sees - the tests' own enemy included.
+    [Test]
+    public void NetworkPrefabList_ShipsNothingFromTheTests()
+    {
+        NetworkPrefabsList networkPrefabs =
+            LoadRequiredAsset<NetworkPrefabsList>(EnemyFactory.NetworkPrefabsPath);
+
+        string[] tests = networkPrefabs.PrefabList
+            .Where(entry => entry?.Prefab != null)
+            .Select(entry => AssetDatabase.GetAssetPath(entry.Prefab))
+            .Where(TestPrefabsOutOfNetworkList.IsTestPath)
+            .ToArray();
+
+        Assert.That(tests, Is.Empty,
+            "These test prefabs would ship with the game: " + string.Join(", ", tests));
+    }
+
     // No enemy is load-bearing. The one thing allowed to depend on an enemy is
     // a map that places it; anything else that refers to its files - the base
     // prefab, the lobby, another enemy, a shared gizmo - would mean deleting
