@@ -117,6 +117,10 @@ public sealed class EnemySetupWindow : EditorWindow
     // selected enemy. Worked out on reload: it reads every map file.
     private readonly List<(string ScenePath, int SpawnPoints)> placements = new();
 
+    // Network prefab entries left pointing at nothing - see
+    // EnemyFactory.EmptyEntries for how they come about.
+    private int emptyNetworkEntries;
+
     private readonly List<Difficulty> difficulties = new();
     private readonly List<ProfileSlot> slots = new();
     private readonly List<EnemyBehaviorModule> modules = new();
@@ -152,6 +156,7 @@ public sealed class EnemySetupWindow : EditorWindow
 
         enemies.Clear();
         enemies.AddRange(EnemyFactory.FindEnemies(networkPrefabs));
+        emptyNetworkEntries = EnemyFactory.EmptyEntries(networkPrefabs).Count;
         selected = ResolveSelectedEnemy();
 
         usesLobbyCatalog = selected == null || selected.DifficultyCatalog == null;
@@ -810,6 +815,23 @@ public sealed class EnemySetupWindow : EditorWindow
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
             bool clean = true;
+
+            if (emptyNetworkEntries > 0)
+            {
+                clean = false;
+                EditorGUILayout.HelpBox(
+                    EnemyFactory.NetworkPrefabsPath + " has " + emptyNetworkEntries +
+                    (emptyNetworkEntries == 1 ? " entry" : " entries") + " pointing at " +
+                    "a prefab that no longer exists.",
+                    MessageType.Error);
+
+                if (GUILayout.Button("Remove the empty entries"))
+                {
+                    EnemyFactory.RemoveEmptyEntries(networkPrefabs);
+                    Reload();
+                    GUIUtility.ExitGUI();
+                }
+            }
 
             if (selected != null &&
                 placements.Count > 0 &&

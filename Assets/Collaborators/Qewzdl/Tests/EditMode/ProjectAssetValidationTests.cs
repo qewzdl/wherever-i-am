@@ -822,7 +822,14 @@ public sealed class ProjectAssetValidationTests
             NetworkPrefab entry = prefabs.PrefabList[i];
 
             Assert.That(entry, Is.Not.Null, $"Null network prefab entry at index {i}.");
-            Assert.That(entry.Validate(i), Is.True, $"Invalid network prefab at index {i}.");
+            Assert.That(
+                entry.Validate(i),
+                Is.True,
+                $"Invalid network prefab at index {i}." +
+                (entry.Prefab == null
+                    ? " Its prefab no longer exists; Enemy Setup offers to remove " +
+                      "the entry."
+                    : string.Empty));
 
             uint hash = entry.SourcePrefabGlobalObjectIdHash;
             Assert.That(hash, Is.Not.EqualTo(0), $"Network prefab index {i} has zero hash.");

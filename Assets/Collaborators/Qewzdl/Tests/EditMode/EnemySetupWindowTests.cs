@@ -15,6 +15,23 @@ public sealed class EnemySetupWindowTests
 {
     private readonly List<Object> created = new();
 
+    // The project's own network prefab list, as it was before the test.
+    //
+    // Netcode registers every new prefab with a NetworkObject in that list by
+    // itself, so the enemies these tests make in a scratch folder land in it
+    // whatever list the test hands the factory. Deleting the folder takes the
+    // entry out of the list in memory without saving it, which left an entry
+    // pointing at nothing on disk after every run.
+    private NetworkPrefabsList projectList;
+    private HashSet<NetworkPrefab> projectEntries;
+
+    [SetUp]
+    public void SetUp()
+    {
+        projectList = AssetDatabase.LoadAssetAtPath<NetworkPrefabsList>(EnemyFactory.NetworkPrefabsPath);
+        projectEntries = new HashSet<NetworkPrefab>(projectList.PrefabList);
+    }
+
     [TearDown]
     public void TearDown()
     {
@@ -27,6 +44,16 @@ public sealed class EnemySetupWindowTests
         }
 
         created.Clear();
+
+        foreach (NetworkPrefab entry in projectList.PrefabList.Where(e => !projectEntries.Contains(e)).ToList())
+        {
+            projectList.Remove(entry);
+        }
+
+        // Saved whether or not anything was removed here: the stale entry may
+        // be only on disk, already gone from the list in memory.
+        EditorUtility.SetDirty(projectList);
+        AssetDatabase.SaveAssetIfDirty(projectList);
     }
 
     private T Make<T>() where T : ScriptableObject
@@ -693,6 +720,23 @@ public sealed class EnemySetupWindowTests
             Draws++;
             Draw?.Invoke();
         }
+    }
+
+    // An entry whose prefab was deleted is found, and removing the empty
+    // entries takes out that one and nothing else.
+    [Test]
+    public void EmptyEntries_FindsAndRemovesOnlyEntriesWhosePrefabIsGone()
+    {
+        NetworkPrefabsList list = Make<NetworkPrefabsList>();
+        GameObject enemy = ShippedEnemy().gameObject;
+
+        list.Add(new NetworkPrefab { Prefab = enemy });
+        list.Add(new NetworkPrefab { Prefab = null });
+
+        Assert.That(EnemyFactory.EmptyEntries(list), Has.Count.EqualTo(1));
+        Assert.That(EnemyFactory.RemoveEmptyEntries(list), Is.EqualTo(1));
+        Assert.That(list.PrefabList.Select(entry => entry.Prefab), Is.EqualTo(new[] { enemy }));
+        Assert.That(EnemyFactory.EmptyEntries(list), Is.Empty);
     }
 
     private static NetworkEnemyController ShippedEnemy()

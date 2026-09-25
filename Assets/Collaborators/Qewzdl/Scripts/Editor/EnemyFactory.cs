@@ -557,20 +557,9 @@ public static class EnemyFactory
 
         if (networkPrefabs != null && plan.Prefab != null)
         {
-            List<NetworkPrefab> entries = networkPrefabs.PrefabList
-                .Where(entry => entry.Prefab == plan.Prefab)
-                .ToList();
-
-            foreach (NetworkPrefab entry in entries)
-            {
-                networkPrefabs.Remove(entry);
-            }
-
-            if (entries.Count > 0 && EditorUtility.IsPersistent(networkPrefabs))
-            {
-                EditorUtility.SetDirty(networkPrefabs);
-                AssetDatabase.SaveAssetIfDirty(networkPrefabs);
-            }
+            RemoveEntries(
+                networkPrefabs,
+                networkPrefabs.PrefabList.Where(entry => entry.Prefab == plan.Prefab).ToList());
         }
 
         foreach (string path in plan.Paths)
@@ -586,6 +575,46 @@ public static class EnemyFactory
         }
 
         AssetDatabase.SaveAssets();
+    }
+
+    // Entries in the network prefab list whose prefab is gone. Netcode adds
+    // every new NetworkObject prefab to the list by itself, and when one is
+    // deleted it drops the entry from the list in memory without saving it -
+    // so the file keeps an entry pointing at nothing, and the next time the
+    // list is loaded the hole is back.
+    public static List<NetworkPrefab> EmptyEntries(NetworkPrefabsList networkPrefabs)
+    {
+        if (networkPrefabs == null)
+        {
+            return new List<NetworkPrefab>();
+        }
+
+        return networkPrefabs.PrefabList
+            .Where(entry => entry != null &&
+                            entry.Override == NetworkPrefabOverride.None &&
+                            entry.Prefab == null)
+            .ToList();
+    }
+
+    public static int RemoveEmptyEntries(NetworkPrefabsList networkPrefabs)
+    {
+        List<NetworkPrefab> empty = EmptyEntries(networkPrefabs);
+        RemoveEntries(networkPrefabs, empty);
+        return empty.Count;
+    }
+
+    private static void RemoveEntries(NetworkPrefabsList networkPrefabs, List<NetworkPrefab> entries)
+    {
+        foreach (NetworkPrefab entry in entries)
+        {
+            networkPrefabs.Remove(entry);
+        }
+
+        if (entries.Count > 0 && EditorUtility.IsPersistent(networkPrefabs))
+        {
+            EditorUtility.SetDirty(networkPrefabs);
+            AssetDatabase.SaveAssetIfDirty(networkPrefabs);
+        }
     }
 
     // Binary assets cannot hold a text GUID and are skipped rather than read.
