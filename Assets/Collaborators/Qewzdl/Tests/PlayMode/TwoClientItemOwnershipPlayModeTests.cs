@@ -181,6 +181,14 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         // returns, so this reads where the server put the item rather than
         // where it had got to by the time the wait noticed.
         //
+        // And read off the Rigidbody, which is what the server moves. Its
+        // transform only catches up on the next physics step, so a frame with
+        // no fixed step in it still showed the item where it had been carried
+        // - the player, two metres off. Which frames get a fixed step is down
+        // to load, which is why this failed only in the full run; with
+        // fixedDeltaTime raised to half a second it failed every time. The
+        // transform is still checked, once physics has had a step.
+        //
         // What moved it was a carried item being hidden by teleporting the
         // body a thousand metres down, on every instance, including the ones
         // that do not own the position. These items sync through a
@@ -202,7 +210,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 if (released && !hasRestoredPosition)
                 {
                     hasRestoredPosition = true;
-                    restoredPosition = serverItem.transform.position;
+                    restoredPosition = serverItem.GetComponent<Rigidbody>().position;
                 }
 
                 return released;
@@ -211,7 +219,12 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
         Assert.That(
             Vector3.Distance(restoredPosition, spawnPosition),
-            Is.LessThan(0.05f));
+            Is.LessThan(0.05f),
+            "The server did not put the item back where it spawned.");
+
+        yield return WaitForCondition(
+            () => Vector3.Distance(serverItem.transform.position, spawnPosition) < 0.05f,
+            "The item's transform never followed its body back to where it spawned.");
         Assert.That(serverItem.GetComponent<Rigidbody>().isKinematic, Is.False);
         Assert.That(serverItem.GetComponent<Rigidbody>().useGravity, Is.True);
         Assert.That(
