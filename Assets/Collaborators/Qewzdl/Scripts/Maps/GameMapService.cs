@@ -550,11 +550,16 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         if (selectedMap == null && catalog != null)
             catalog.TryGetMap(catalog.DefaultMapId, out selectedMap);
 
-        if (selectedEnemyConfig == null && difficultyCatalog != null)
-        {
+        // The id with the config: an enemy with a catalog of its own looks the
+        // difficulty up by id, and a defaulted config with no id sends it back
+        // to the lobby's config - another enemy's tuning.
+        if (selectedEnemyConfig == null &&
+            difficultyCatalog != null &&
             difficultyCatalog.TryGetConfig(
                 difficultyCatalog.DefaultDifficultyId,
-                out selectedEnemyConfig);
+                out selectedEnemyConfig))
+        {
+            selectedDifficultyId = difficultyCatalog.DefaultDifficultyId;
         }
     }
 

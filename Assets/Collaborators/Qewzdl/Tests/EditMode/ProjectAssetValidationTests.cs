@@ -309,6 +309,62 @@ public sealed class ProjectAssetValidationTests
         }
     }
 
+    // Every kind of enemy has to be able to play every difficulty the lobby
+    // offers, from its own catalog.
+    //
+    // An enemy whose catalog is missing a difficulty does not fail when that
+    // difficulty is picked. It falls back to the config the lobby resolved,
+    // which is the lobby catalog's enemy - so on that one difficulty the new
+    // enemy quietly plays as the old one, and nothing anywhere says so. The
+    // catalog's own validity is asked too: it is what keeps every difficulty
+    // of one enemy describing the same body, which the clients build their
+    // collider from.
+    [Test]
+    public void EveryEnemy_PlaysEveryDifficultyTheLobbyOffers()
+    {
+        LobbyConfig lobby = LoadRequiredAsset<LobbyConfig>(LobbyConfigPath);
+        EnemyDifficultyCatalog offered = lobby.DifficultyCatalog;
+
+        Assert.That(offered, Is.Not.Null, "The lobby offers no difficulties.");
+
+        NetworkPrefabsList networkPrefabs =
+            LoadRequiredAsset<NetworkPrefabsList>(EnemyFactory.NetworkPrefabsPath);
+
+        List<NetworkEnemyController> enemies = EnemyFactory.FindEnemies(networkPrefabs);
+
+        Assert.That(enemies, Is.Not.Empty, "No enemy is registered to spawn.");
+
+        List<string> problems = new();
+
+        foreach (NetworkEnemyController enemy in enemies)
+        {
+            EnemyDifficultyCatalog own = enemy.DifficultyCatalog;
+
+            if (own == null)
+            {
+                continue;
+            }
+
+            if (!own.IsValid(out string error))
+            {
+                problems.Add($"{enemy.name}: {error}");
+            }
+
+            for (int i = 0; i < offered.Count; i++)
+            {
+                if (offered.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry) &&
+                    !own.TryGetConfig(entry.DifficultyId, out _))
+                {
+                    problems.Add(
+                        $"{enemy.name} has no config for {entry.DisplayName}, so " +
+                        "on that difficulty it would play as the lobby's enemy");
+                }
+            }
+        }
+
+        Assert.That(problems, Is.Empty, string.Join("; ", problems));
+    }
+
     [Test]
     public void GameMapCatalog_IsValidAndEveryMapSceneExists()
     {
@@ -588,98 +644,12 @@ public sealed class ProjectAssetValidationTests
                 continue;
             }
 
-            IReadOnlyList<EnemyBehaviorModule> modules = config.BehaviorModules;
-
-            if (modules == null || modules.Count == 0)
+            // The rules live in EnemyBehaviorListRules, shared with the enemy
+            // setup window, so the build and the window cannot disagree about
+            // what a sensible list is.
+            foreach (string problem in EnemyBehaviorListRules.ProblemsWith(config))
             {
-                problems.Add(
-                    $"{path} lists no behaviours, so it builds an enemy that " +
-                    "stands still for the whole match");
-
-                continue;
-            }
-
-            if (modules.Any(module => module == null))
-            {
-                problems.Add($"{path} has an empty slot in its behaviour list");
-            }
-
-            // Installed rather than inspected, because what a module
-            // contributes is code rather than a field, and a list of nothing
-            // but capability modules reads as a full list right up until the
-            // enemy has nothing to do with them.
-            Dictionary<EnemyState, IEnemyStateHandler> handlers = new();
-            EnemyBehaviorInstaller installer = new(
-                new EnemyBrainContext(
-                    config,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    new EnemyBlackboard(),
-                    null,
-                    null),
-                handlers,
-                new EnemyBehaviorCapabilities());
-
-            foreach (EnemyBehaviorModule module in modules)
-            {
-                if (module != null)
-                {
-                    module.Install(installer);
-                }
-            }
-
-            if (handlers.Count == 0)
-            {
-                problems.Add(
-                    $"{path} lists only capabilities, so the enemy has " +
-                    "nothing to do with any of them");
-            }
-
-            // Read off the list by type rather than installed, unlike
-            // everything above it.
-            //
-            // The senses install themselves into EnemyTargetDetector, a
-            // component on the prefab, and this test has no enemy to hang one
-            // on - so installing them here would prove nothing either way. The
-            // question is worth asking anyway, because the failure it catches
-            // is completely silent: an enemy with neither sense never acquires
-            // a target, so chasing, attacking and every stealth phase are
-            // installed and permanently unreachable. She patrols forever and
-            // looks like she is working.
-            //
-            // A PatrolOnly enemy is meant to be exactly that, and its detector
-            // is switched off wholesale, so it is not asked.
-            bool hasASense = modules.Any(
-                module => module is EnemySightModule or EnemyHearingModule);
-
-            if (config.RequiresTargetDetector && !hasASense)
-            {
-                problems.Add(
-                    $"{path} gives the enemy neither sight nor hearing, so it " +
-                    "can never acquire a target and everything it would do " +
-                    "with one is unreachable");
-            }
-
-            // Dragging the same asset into the list twice is silent: the second
-            // install of a state module replaces the first with an identical
-            // handler, and the second install of a capability replaces it in a
-            // registry keyed by type. Nothing misbehaves, and the list says
-            // something its author did not mean.
-            List<string> duplicates = modules
-                .Where(module => module != null)
-                .GroupBy(module => module.GetType().Name)
-                .Where(group => group.Count() > 1)
-                .Select(group => group.Key)
-                .ToList();
-
-            if (duplicates.Count > 0)
-            {
-                problems.Add(
-                    $"{path} lists {string.Join(" and ", duplicates)} more " +
-                    "than once");
+                problems.Add($"{path} {problem}");
             }
         }
 

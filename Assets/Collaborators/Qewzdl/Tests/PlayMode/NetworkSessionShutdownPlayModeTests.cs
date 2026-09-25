@@ -889,6 +889,76 @@ public sealed class NetworkSessionShutdownPlayModeTests
         yield return null;
     }
 
+    // The whole road from the lobby's Start button to an enemy standing on
+    // the map: the enemy has to arrive playing the difficulty the host picked,
+    // looked up in its own catalog.
+    //
+    // ChooseDifficultyConfig is tested on its own, but nothing there proves
+    // an enemy ever calls it. Take the call out and every enemy quietly plays
+    // its prefab's config - Normal - whatever was picked; send it the lobby's
+    // config first and every kind of enemy plays as the lobby's enemy. Hard is
+    // picked because it is not the prefab's config, and the lobby's resolved
+    // config is swapped for a copy nobody's catalog holds, so each of those
+    // two mistakes lands on a config the assertion can tell apart.
+    [UnityTest]
+    public IEnumerator StartedMatch_EnemyPlaysThePickedDifficultyFromItsOwnCatalog()
+    {
+        const int HardDifficultyId = 2;
+
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+
+        Task hostStart = runtimeContext.SessionOrchestrator.HostLanAsync();
+        yield return WaitForTask(hostStart, "Host startup did not complete.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Lobby &&
+                  runtimeContext.SessionOrchestrator.SessionServices != null,
+            "Host did not reach the Lobby.");
+
+        GameMapService mapService = (GameMapService)runtimeContext.SessionOrchestrator
+            .SessionServices.Resolve<IGameMapSessionService>();
+        int mapId = G.Resolve<IGameMapCatalog>().DefaultMapId;
+
+        runtimeContext.SessionOrchestrator.StartGame(mapId, HardDifficultyId);
+
+        Assert.That(mapService.SelectedDifficultyId, Is.EqualTo(HardDifficultyId));
+
+        EnemyConfig decoy = UnityEngine.Object.Instantiate(mapService.SelectedEnemyConfig);
+        decoy.name = "Lobby decoy";
+        PlayModeTestReflection.SetField(mapService, "selectedEnemyConfig", decoy);
+
+        NetworkEnemyController enemy = null;
+
+        yield return WaitForCondition(
+            () =>
+            {
+                enemy = Array.Find(
+                    UnityEngine.Object.FindObjectsByType<NetworkEnemyController>(
+                        FindObjectsSortMode.None),
+                    candidate => candidate.IsSpawned);
+                return enemy != null;
+            },
+            "No enemy spawned on the default map after the match started.");
+
+        Assert.That(
+            enemy.DifficultyCatalog,
+            Is.Not.Null,
+            $"{enemy.name} has no catalog of its own, so this proves nothing.");
+        Assert.That(
+            enemy.DifficultyCatalog.TryGetConfig(HardDifficultyId, out EnemyConfig own),
+            Is.True);
+        Assert.That(
+            enemy.Config,
+            Is.SameAs(own),
+            $"{enemy.name} spawned playing {(enemy.Config != null ? enemy.Config.name : "nothing")} " +
+            $"rather than its own Hard config, {own.name}.");
+
+        UnityEngine.Object.Destroy(decoy);
+    }
+
     private IEnumerator StartBootstrapAndWaitUntilReady()
     {
         AsyncOperation loadOperation = SceneManager.LoadSceneAsync(

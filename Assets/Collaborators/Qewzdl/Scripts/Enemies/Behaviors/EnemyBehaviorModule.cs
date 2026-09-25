@@ -111,6 +111,8 @@ public sealed class EnemyBehaviorCapabilities
 {
     private readonly Dictionary<Type, object> capabilities = new();
 
+    public int Count => capabilities.Count;
+
     public void Add(object capability)
     {
         if (capability == null)
