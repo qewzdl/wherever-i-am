@@ -5762,9 +5762,6 @@ MonoBehaviour:
   points:
   - {fileID: 244437620}
   - {fileID: 1265238771}
-  previewConfig: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
-  drawStopRadius: 1
-  fallbackStopRadius: 2
 --- !u!4 &1602318127
 Transform:
   m_ObjectHideFlags: 0
@@ -6144,7 +6141,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 943eca0f2adadca48a686a01c62baa12, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  enemyPrefab: {fileID: 3244720467120631997, guid: 3b060264512f0394696262ecb7e63a6f, type: 3}
+  enemyPrefab: {fileID: 3673548690689902450, guid: 3dcecf7702f23c2469ced0b25297e833, type: 3}
   patrolRoute: {fileID: 1602318126}
 --- !u!1 &1760612839
 GameObject:

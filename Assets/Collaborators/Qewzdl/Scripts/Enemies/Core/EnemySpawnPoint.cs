@@ -57,6 +57,27 @@ public sealed class EnemySpawnPoint : MonoBehaviour
 
         Gizmos.color = new Color(0.8f, 0.5f, 0.2f, 0.5f);
         Gizmos.DrawLine(position, firstPoint.position);
+
+        // How far the enemy placed here wanders at each stop of its route -
+        // drawn here because this is where the enemy and the route meet.
+        EnemyConfig config = enemyPrefab != null ? enemyPrefab.Config : null;
+
+        if (config == null || config.PatrolProfile == null || config.patrolStopWanderRadius <= 0f)
+        {
+            return;
+        }
+
+        Gizmos.color = new Color(1f, 0.85f, 0.1f, 0.35f);
+
+        for (int i = 0; i < patrolRoute.Count; i++)
+        {
+            Transform point = patrolRoute.GetPoint(i);
+
+            if (point != null)
+            {
+                Gizmos.DrawWireSphere(point.position, config.patrolStopWanderRadius);
+            }
+        }
     }
 #endif
 }

@@ -12,10 +12,9 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     [Header("References")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameMapCatalog catalog;
-    [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
+    [SerializeField] private GameDifficultyCatalog difficultyCatalog;
 
     private IProjectSceneRegistry sceneRegistry;
-    private EnemyConfig selectedEnemyConfig;
     private int selectedDifficultyId = NoDifficultySelected;
     private GameMapDefinition selectedMap;
     private GameMapDefinition activeMap;
@@ -34,7 +33,6 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
     public GameMapDefinition SelectedMap => selectedMap;
     public GameMapDefinition ActiveMap => activeMap;
     public GameMapRoot ActiveMapRoot => activeMapRoot;
-    public EnemyConfig SelectedEnemyConfig => selectedEnemyConfig;
     public int SelectedDifficultyId => selectedDifficultyId;
     public bool IsReadyForMatch => readyForMatch;
     internal bool HasPendingOperation => pendingCompletion != null ||
@@ -95,28 +93,27 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         return true;
     }
 
-    // Server only: enemies read the resolved config when they spawn. Leaving
-    // the catalog unassigned is a valid setup - enemies then keep the config
-    // on their own prefab.
+    // Server only: enemies read the id when they spawn and look it up in
+    // their own catalogs. Leaving the catalog unassigned is a valid setup -
+    // enemies then keep the config on their own prefab.
     public bool SelectDifficulty(int difficultyId)
     {
         if (difficultyCatalog == null)
         {
             Debug.LogError(
                 $"{nameof(GameMapService)} cannot select a difficulty without " +
-                $"{nameof(EnemyDifficultyCatalog)}.",
+                $"{nameof(GameDifficultyCatalog)}.",
                 this);
 
             return false;
         }
 
-        if (!difficultyCatalog.TryGetConfig(difficultyId, out EnemyConfig config))
+        if (!difficultyCatalog.IsValidDifficultyId(difficultyId))
         {
-            Debug.LogError($"Cannot select unknown enemy difficulty id {difficultyId}.", this);
+            Debug.LogError($"Cannot select unknown difficulty id {difficultyId}.", this);
             return false;
         }
 
-        selectedEnemyConfig = config;
         selectedDifficultyId = difficultyId;
         return true;
     }
@@ -550,14 +547,9 @@ public sealed class GameMapService : MonoBehaviour, IGameMapSessionService, IPro
         if (selectedMap == null && catalog != null)
             catalog.TryGetMap(catalog.DefaultMapId, out selectedMap);
 
-        // The id with the config: an enemy with a catalog of its own looks the
-        // difficulty up by id, and a defaulted config with no id sends it back
-        // to the lobby's config - another enemy's tuning.
-        if (selectedEnemyConfig == null &&
+        if (selectedDifficultyId == NoDifficultySelected &&
             difficultyCatalog != null &&
-            difficultyCatalog.TryGetConfig(
-                difficultyCatalog.DefaultDifficultyId,
-                out selectedEnemyConfig))
+            difficultyCatalog.IsValidDifficultyId(difficultyCatalog.DefaultDifficultyId))
         {
             selectedDifficultyId = difficultyCatalog.DefaultDifficultyId;
         }

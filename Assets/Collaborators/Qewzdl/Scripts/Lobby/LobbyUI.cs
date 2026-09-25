@@ -27,7 +27,7 @@ public class LobbyUI : MonoBehaviour
     [Header("References")]
     [SerializeField] private UIDocument document;
     [SerializeField] private UiDocumentSounds sounds;
-    [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
+    [SerializeField] private GameDifficultyCatalog difficultyCatalog;
     [SerializeField] private LobbyConfig lobbyConfig;
     [SerializeField] private Texture2D copyAddressIcon;
     [SerializeField] private Texture2D copiedAddressIcon;
@@ -1208,9 +1208,7 @@ public class LobbyUI : MonoBehaviour
 
         for (int i = 0; i < count; i++)
         {
-            if (!difficultyCatalog.TryGetEntryAt(
-                    i,
-                    out EnemyDifficultyCatalog.EnemyDifficultyEntry entry))
+            if (!difficultyCatalog.TryGetAt(i, out GameDifficultyCatalog.Difficulty entry))
             {
                 continue;
             }

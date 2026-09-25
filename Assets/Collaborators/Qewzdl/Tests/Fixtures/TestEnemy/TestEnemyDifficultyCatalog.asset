@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aef02a5065741244598b0d076db9ca66, type: 3}
+  m_Name: TestEnemyDifficultyCatalog
+  m_EditorClassIdentifier: 
+  difficulties:
+  - difficultyId: 0
+    config: {fileID: 11400000, guid: 826150cb2ec435543971642bc43db9ea, type: 2}
+  - difficultyId: 1
+    config: {fileID: 11400000, guid: 1bd0a66d6da7ec446aba86f9fc8b3c86, type: 2}
+  - difficultyId: 2
+    config: {fileID: 11400000, guid: 98a63d02ec12a724eadd58d652c3e460, type: 2}
+  - difficultyId: 3
+    config: {fileID: 11400000, guid: 77a8dd31291e2cf4face3fe23653b65b, type: 2}

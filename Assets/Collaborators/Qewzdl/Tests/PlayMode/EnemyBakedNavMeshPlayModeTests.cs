@@ -63,7 +63,6 @@ internal sealed class SpawnerMapSessionStub : IGameMapSessionService
     public GameMapDefinition ActiveMap => null;
     public GameMapRoot ActiveMapRoot => mapRoot;
     public bool IsReadyForMatch => true;
-    public EnemyConfig SelectedEnemyConfig => null;
     public int SelectedDifficultyId => GameMapService.NoDifficultySelected;
 
     public event Action MapReady

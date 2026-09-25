@@ -4,13 +4,6 @@ public class EnemyPatrolRoute : MonoBehaviour
 {
     [SerializeField] private Transform[] points;
 
-#if UNITY_EDITOR
-    [Header("Gizmos")]
-    [SerializeField] private EnemyConfig previewConfig;
-    [SerializeField] private bool drawStopRadius = true;
-    [SerializeField] private float fallbackStopRadius = 2f;
-#endif
-
     public int Count => points == null ? 0 : points.Length;
 
     public bool HasPoints => Count > 0;
@@ -87,10 +80,9 @@ public class EnemyPatrolRoute : MonoBehaviour
             return;
         }
 
-        float stopRadius = previewConfig != null
-            ? previewConfig.patrolStopWanderRadius
-            : fallbackStopRadius;
-
+        // How far an enemy wanders at each stop is drawn by the spawn point
+        // that sends one here: a route does not know which enemy walks it,
+        // and holding one enemy's config to find out tied the map to her.
         for (int i = 0; i < points.Length; i++)
         {
             if (points[i] == null)
@@ -101,12 +93,6 @@ public class EnemyPatrolRoute : MonoBehaviour
             Gizmos.color = Color.yellow;
             Gizmos.DrawSphere(points[i].position, 0.2f);
 
-            if (drawStopRadius && stopRadius > 0f)
-            {
-                Gizmos.color = new Color(1f, 0.85f, 0.1f, 0.35f);
-                Gizmos.DrawWireSphere(points[i].position, stopRadius);
-            }
-
             Transform nextPoint = points[(i + 1) % points.Length];
 
             if (nextPoint != null)
@@ -115,11 +101,6 @@ public class EnemyPatrolRoute : MonoBehaviour
                 Gizmos.DrawLine(points[i].position, nextPoint.position);
             }
         }
-    }
-
-    private void OnValidate()
-    {
-        fallbackStopRadius = Mathf.Max(0f, fallbackStopRadius);
     }
 #endif
 }

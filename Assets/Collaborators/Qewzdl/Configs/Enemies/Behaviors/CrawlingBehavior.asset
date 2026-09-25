@@ -1,0 +1,15 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20fd6b5003de4f1aa7a05e985f37b3f4, type: 3}
+  m_Name: CrawlingBehavior
+  m_EditorClassIdentifier: 
+  notes: Crawls through low gaps. Without it the space under the stairs is a way out rather than a shortcut.

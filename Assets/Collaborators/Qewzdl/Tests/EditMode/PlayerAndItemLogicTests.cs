@@ -53,7 +53,7 @@ public sealed class PlayerAndItemLogicTests
     private const string ProductionPlayerPrefabPath =
         "Assets/Collaborators/6aTowKa/Prefabs/Player.prefab";
     private const string ProductionEnemyPrefabPath =
-        "Assets/Collaborators/Qewzdl/Prefabs/Entities/Enemy.prefab";
+        "Assets/Collaborators/Qewzdl/Prefabs/Entities/EnemyBase.prefab";
     private const string ProductionHidingPlacePrefabPath =
         "Assets/Collaborators/Qewzdl/Prefabs/Hiding Objects/Test Hiding Box.prefab";
     private const string ProductionHidingPlaceDataPath =

@@ -23,8 +23,6 @@ public sealed class ProjectAssetValidationTests
         "Assets/Collaborators/Qewzdl/Configs/Maps/GameMapCatalog.asset";
     private const string LobbyConfigPath =
         "Assets/Collaborators/Qewzdl/Configs/Lobby/LobbyConfig.asset";
-    private const string EnemyDifficultyCatalogPath =
-        "Assets/Collaborators/Qewzdl/Configs/Enemies/EnemyDifficultyCatalog.asset";
     private const string SceneAudioRegistryPath =
         "Assets/Collaborators/Qewzdl/Audio/Scenes/SceneAudioRegistry.asset";
     private const string UiSoundThemePath =
@@ -272,76 +270,79 @@ public sealed class ProjectAssetValidationTests
     }
 
     // The promise that makes the approach speed worth having: moving quietly
-    // never makes her run at you, on the difficulty most people play.
+    // never makes an enemy run at you, on the difficulty most people play.
     //
     // A heard noise's strength at her is its loudness scaled down by distance,
     // so the most it can ever be is its own loudness, heard from where it was
-    // made. Checked at that worst case, against the shipped presets and the
-    // shipped threshold, because the failure is silent from both ends: nudge
-    // the walking step up a little, or the threshold down a little, and quiet
-    // play quietly stops being rewarded with nothing to say so.
+    // made. Checked at that worst case, against the shipped presets and every
+    // enemy's own threshold, because the failure is silent from both ends:
+    // nudge the walking step up a little, or a threshold down a little, and
+    // quiet play quietly stops being rewarded with nothing to say so.
     [Test]
-    public void QuietMovement_NeverMakesTheEnemyRun_OnTheDefaultDifficulty()
+    public void QuietMovement_NeverMakesAnEnemyRun_OnTheDefaultDifficulty()
     {
-        EnemyInvestigationConfig normal = LoadRequiredAsset<EnemyInvestigationConfig>(
-            "Assets/Collaborators/Qewzdl/Configs/Enemies/Granny/Profiles/" +
-            "EnemyInvestigationConfig.asset");
-
+        GameDifficultyCatalog game = EnemyFactory.GameDifficulties;
         string[] quietPresets = { "Noise_FootstepWalking", "Noise_Breath" };
+        List<string> problems = new();
 
-        foreach (string presetName in quietPresets)
+        foreach (NetworkEnemyController enemy in Enemies())
         {
-            string[] guids = AssetDatabase.FindAssets(
-                $"{presetName} t:{nameof(GameplayNoisePreset)}");
+            EnemyConfig played = NetworkEnemyController.ChooseDifficultyConfig(
+                enemy.DifficultyCatalog,
+                game.DefaultDifficultyId,
+                enemy.Config);
 
-            Assert.That(guids, Is.Not.Empty, $"No preset called {presetName}.");
+            if (played == null || played.InvestigationProfile == null)
+            {
+                continue;
+            }
 
-            GameplayNoisePreset preset =
-                AssetDatabase.LoadAssetAtPath<GameplayNoisePreset>(
-                    AssetDatabase.GUIDToAssetPath(guids[0]));
+            foreach (string presetName in quietPresets)
+            {
+                string[] guids = AssetDatabase.FindAssets(
+                    $"{presetName} t:{nameof(GameplayNoisePreset)}");
 
-            Assert.That(
-                preset.Loudness,
-                Is.LessThan(normal.urgentNoiseScore),
-                $"{presetName} heard from where it was made reaches " +
-                $"{preset.Loudness:F2}, at or over the {normal.urgentNoiseScore:F2} " +
-                "at which she runs - so moving quietly can make her run at you.");
+                Assert.That(guids, Is.Not.Empty, $"No preset called {presetName}.");
+
+                GameplayNoisePreset preset =
+                    AssetDatabase.LoadAssetAtPath<GameplayNoisePreset>(
+                        AssetDatabase.GUIDToAssetPath(guids[0]));
+
+                if (preset.Loudness >= played.urgentNoiseScore)
+                {
+                    problems.Add(
+                        $"{enemy.name}: {presetName} heard from where it was made reaches " +
+                        $"{preset.Loudness:F2}, at or over the {played.urgentNoiseScore:F2} " +
+                        "at which it runs - so moving quietly can make it run at you");
+                }
+            }
         }
+
+        Assert.That(problems, Is.Empty, string.Join("; ", problems));
     }
 
-    // Every kind of enemy has to be able to play every difficulty the lobby
+    // Every kind of enemy has to be able to play every difficulty the game
     // offers, from its own catalog.
     //
     // An enemy whose catalog is missing a difficulty does not fail when that
-    // difficulty is picked. It falls back to the config the lobby resolved,
-    // which is the lobby catalog's enemy - so on that one difficulty the new
-    // enemy quietly plays as the old one, and nothing anywhere says so. The
-    // catalog's own validity is asked too: it is what keeps every difficulty
-    // of one enemy describing the same body, which the clients build their
-    // collider from.
+    // difficulty is picked. It falls back to its prefab's config - so on that
+    // difficulty it quietly plays another one, and nothing anywhere says so.
+    // The catalog's own validity is asked too: it is what keeps every
+    // difficulty of one enemy describing the same body, which the clients
+    // build their collider from.
     [Test]
-    public void EveryEnemy_PlaysEveryDifficultyTheLobbyOffers()
+    public void EveryEnemy_PlaysEveryDifficultyTheGameOffers()
     {
-        LobbyConfig lobby = LoadRequiredAsset<LobbyConfig>(LobbyConfigPath);
-        EnemyDifficultyCatalog offered = lobby.DifficultyCatalog;
-
-        Assert.That(offered, Is.Not.Null, "The lobby offers no difficulties.");
-
-        NetworkPrefabsList networkPrefabs =
-            LoadRequiredAsset<NetworkPrefabsList>(EnemyFactory.NetworkPrefabsPath);
-
-        List<NetworkEnemyController> enemies = EnemyFactory.FindEnemies(networkPrefabs);
-
-        Assert.That(enemies, Is.Not.Empty, "No enemy is registered to spawn.");
-
+        GameDifficultyCatalog game = EnemyFactory.GameDifficulties;
         List<string> problems = new();
 
-        foreach (NetworkEnemyController enemy in enemies)
+        foreach (NetworkEnemyController enemy in Enemies())
         {
             EnemyDifficultyCatalog own = enemy.DifficultyCatalog;
 
             if (own == null)
             {
+                problems.Add($"{enemy.name} has no difficulty catalog of its own");
                 continue;
             }
 
@@ -350,19 +351,96 @@ public sealed class ProjectAssetValidationTests
                 problems.Add($"{enemy.name}: {error}");
             }
 
-            for (int i = 0; i < offered.Count; i++)
+            if (!own.CoversEvery(game, out string missing))
             {
-                if (offered.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry) &&
-                    !own.TryGetConfig(entry.DifficultyId, out _))
-                {
-                    problems.Add(
-                        $"{enemy.name} has no config for {entry.DisplayName}, so " +
-                        "on that difficulty it would play as the lobby's enemy");
-                }
+                problems.Add($"{enemy.name} has no config for {missing}");
             }
         }
 
         Assert.That(problems, Is.Empty, string.Join("; ", problems));
+    }
+
+    // No enemy is load-bearing. The one thing allowed to depend on an enemy is
+    // a map that places it; anything else that refers to its files - the base
+    // prefab, the lobby, another enemy, a shared gizmo - would mean deleting
+    // that enemy breaks something that is not about it. That is how the first
+    // enemy ended up holding the game's difficulties, and it was found by
+    // trying to delete her.
+    //
+    // Asked through the same plan the setup window's Delete uses, so what
+    // this passes is exactly what the window would let go.
+    [Test]
+    public void EveryEnemy_CouldBeDeleted_ButForTheMapsThatPlaceIt()
+    {
+        List<string> problems = new();
+
+        foreach (NetworkEnemyController enemy in Enemies())
+        {
+            EnemyFactory.DeletionPlan plan = EnemyFactory.PlanDeletion(
+                enemy,
+                EnemyFactory.ConfigRoot,
+                EnemyFactory.NetworkPrefabsPath);
+
+            problems.AddRange(plan.Blockers
+                .Where(reason => !reason.StartsWith(EnemyFactory.MapsFolder + "/", StringComparison.Ordinal))
+                .Select(reason => $"{enemy.name}: {reason}"));
+        }
+
+        Assert.That(problems, Is.Empty, string.Join("\n", problems));
+    }
+
+    // One folder layout for every enemy, so any two enemies can be read the
+    // same way. The setup window offers to tidy a folder that has drifted.
+    [Test]
+    public void EveryEnemy_KeepsItsFilesInTheOneFolderLayout()
+    {
+        List<string> problems = new();
+
+        foreach (NetworkEnemyController enemy in Enemies())
+        {
+            problems.AddRange(EnemyFactory.PlanTidy(enemy, EnemyFactory.ConfigRoot)
+                .Select(move => $"{move.From} belongs at {move.To}"));
+        }
+
+        Assert.That(problems, Is.Empty,
+            "Open Enemy Setup and tidy these enemies' folders: " + string.Join("; ", problems));
+    }
+
+    // Every enemy the game can spawn. The project may have none - a legitimate
+    // state between deleting one enemy and making the next - so the checks
+    // that walk these are about each enemy, not about there being one.
+    private static List<NetworkEnemyController> Enemies()
+    {
+        return EnemyFactory.FindEnemies(
+            LoadRequiredAsset<NetworkPrefabsList>(EnemyFactory.NetworkPrefabsPath));
+    }
+
+    // An enemy's configs, one per difficulty it has, easiest first by id and
+    // named after the game's difficulty.
+    private static List<(string Name, EnemyConfig Config)> DifficultyConfigsOf(
+        NetworkEnemyController enemy)
+    {
+        GameDifficultyCatalog game = EnemyFactory.GameDifficulties;
+        List<(int Id, string Name, EnemyConfig Config)> configs = new();
+        EnemyDifficultyCatalog own = enemy.DifficultyCatalog;
+
+        for (int i = 0; own != null && i < own.Count; i++)
+        {
+            if (own.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry) &&
+                entry.Config != null)
+            {
+                string name = game.TryGet(entry.DifficultyId, out GameDifficultyCatalog.Difficulty difficulty)
+                    ? difficulty.DisplayName
+                    : $"difficulty {entry.DifficultyId}";
+
+                configs.Add((entry.DifficultyId, $"{enemy.name} {name}", entry.Config));
+            }
+        }
+
+        return configs
+            .OrderBy(config => config.Id)
+            .Select(config => (config.Name, config.Config))
+            .ToList();
     }
 
     [Test]
@@ -399,14 +477,12 @@ public sealed class ProjectAssetValidationTests
     }
 
     [Test]
-    public void EnemyDifficultyCatalog_IsValidAndEveryDifficultyIsSelectable()
+    public void GameDifficultyCatalog_IsValidAndEveryDifficultyIsSelectable()
     {
-        EnemyDifficultyCatalog catalog =
-            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+        GameDifficultyCatalog catalog = EnemyFactory.GameDifficulties;
 
+        Assert.That(catalog, Is.Not.Null, $"No game difficulty catalog at {EnemyFactory.GameDifficultiesPath}.");
         Assert.That(catalog.IsValid(out string catalogError), Is.True, catalogError);
-        Assert.That(catalog.Count, Is.GreaterThan(0));
-        Assert.That(catalog.IsValidDifficultyId(catalog.DefaultDifficultyId), Is.True);
 
         LobbyConfig lobbyConfig = LoadRequiredAsset<LobbyConfig>(LobbyConfigPath);
 
@@ -418,15 +494,15 @@ public sealed class ProjectAssetValidationTests
         for (int i = 0; i < catalog.Count; i++)
         {
             Assert.That(
-                catalog.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry),
+                catalog.TryGetAt(i, out GameDifficultyCatalog.Difficulty difficulty),
                 Is.True,
-                $"Missing difficulty entry at index {i}.");
+                $"Missing difficulty at index {i}.");
 
             // A difficulty the lobby refuses is one nobody can ever pick.
             Assert.That(
-                lobbyConfig.IsValidDifficultyId(entry.DifficultyId),
+                lobbyConfig.IsValidDifficultyId(difficulty.DifficultyId),
                 Is.True,
-                $"Difficulty '{entry.DisplayName}' is not selectable in the lobby.");
+                $"Difficulty '{difficulty.DisplayName}' is not selectable in the lobby.");
         }
     }
 
@@ -472,21 +548,32 @@ public sealed class ProjectAssetValidationTests
     [Test]
     public void EnemyDifficultyProfiles_HaveNoFieldThatNeverMoves()
     {
-        EnemyDifficultyCatalog catalog =
-            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
+        List<string> deadFields = new();
 
-        List<EnemyConfig> configs = new();
-
-        for (int i = 0; i < catalog.Count; i++)
+        foreach (NetworkEnemyController enemy in Enemies())
         {
-            Assert.That(catalog.TryGetEntryAt(i, out var entry), Is.True);
-            Assert.That(entry.Config, Is.Not.Null, $"Difficulty '{entry.DisplayName}' has no config.");
-            configs.Add(entry.Config);
+            deadFields.AddRange(
+                DeadFieldsOf(DifficultyConfigsOf(enemy).Select(config => config.Config).ToList())
+                    .Select(field => $"{enemy.name}: {field}"));
         }
 
-        Assert.That(configs.Count, Is.GreaterThan(1), "One difficulty cannot have levers.");
+        Assert.That(
+            deadFields,
+            Is.Empty,
+            "These look tuned per difficulty but never change, so they are not levers. " +
+            "Give them different values or add them to " +
+            $"{nameof(SharedDifficultyFields)} with a reason:\n  " +
+            string.Join("\n  ", deadFields));
+    }
 
+    private static List<string> DeadFieldsOf(List<EnemyConfig> configs)
+    {
         List<string> deadFields = new();
+
+        if (configs.Count < 2)
+        {
+            return deadFields;
+        }
 
         foreach (FieldInfo profileField in ProfileFields())
         {
@@ -529,13 +616,7 @@ public sealed class ProjectAssetValidationTests
             }
         }
 
-        Assert.That(
-            deadFields,
-            Is.Empty,
-            "These look tuned per difficulty but never change, so they are not levers. " +
-            "Give them different values or add them to " +
-            $"{nameof(SharedDifficultyFields)} with a reason:\n  " +
-            string.Join("\n  ", deadFields));
+        return deadFields;
     }
 
     private static IEnumerable<FieldInfo> ProfileFields()
@@ -550,22 +631,13 @@ public sealed class ProjectAssetValidationTests
     // The bug this guards: hearing radius is capped by how far each noise
     // carries, so raising it past the loudest noise in the project changed
     // nothing and three of the four difficulties heard identically.
+    //
+    // Per enemy. An enemy whose difficulties all share one hearing profile has
+    // decided hearing is not its lever, and is only held to never hearing
+    // less as the difficulty rises.
     [Test]
     public void EnemyDifficulties_HearNoLessAsTheyGetHarder()
     {
-        EnemyDifficultyCatalog catalog =
-            LoadRequiredAsset<EnemyDifficultyCatalog>(EnemyDifficultyCatalogPath);
-
-        List<EnemyDifficultyCatalog.EnemyDifficultyEntry> entries = new();
-
-        for (int i = 0; i < catalog.Count; i++)
-        {
-            Assert.That(catalog.TryGetEntryAt(i, out var entry), Is.True);
-            entries.Add(entry);
-        }
-
-        entries.Sort((left, right) => left.DifficultyId.CompareTo(right.DifficultyId));
-
         float[] noiseRadii = AssetDatabase.FindAssets("t:GameplayNoisePreset")
             .Select(AssetDatabase.GUIDToAssetPath)
             .Select(AssetDatabase.LoadAssetAtPath<GameplayNoisePreset>)
@@ -575,37 +647,55 @@ public sealed class ProjectAssetValidationTests
 
         Assert.That(noiseRadii, Is.Not.Empty, "No noise presets to measure hearing against.");
 
-        bool anyDifference = false;
+        List<string> problems = new();
 
-        foreach (float noiseRadius in noiseRadii)
+        foreach (NetworkEnemyController enemy in Enemies())
         {
-            for (int i = 1; i < entries.Count; i++)
+            List<(string Name, EnemyConfig Config)> configs = DifficultyConfigsOf(enemy)
+                .Where(config => config.Config.HearingProfile != null)
+                .ToList();
+
+            if (configs.Count < 2)
             {
-                float previous = EffectiveHearing(entries[i - 1], noiseRadius);
-                float current = EffectiveHearing(entries[i], noiseRadius);
+                continue;
+            }
 
-                Assert.That(
-                    current,
-                    Is.GreaterThanOrEqualTo(previous),
-                    $"'{entries[i].DisplayName}' hears a noise of radius {noiseRadius} " +
-                    $"from {current}, less than '{entries[i - 1].DisplayName}' at {previous}.");
+            bool anyDifference = false;
 
-                anyDifference |= !Mathf.Approximately(current, previous);
+            foreach (float noiseRadius in noiseRadii)
+            {
+                for (int i = 1; i < configs.Count; i++)
+                {
+                    float previous = EffectiveHearing(configs[i - 1].Config, noiseRadius);
+                    float current = EffectiveHearing(configs[i].Config, noiseRadius);
+
+                    if (current < previous && !Mathf.Approximately(current, previous))
+                    {
+                        problems.Add(
+                            $"'{configs[i].Name}' hears a noise of radius {noiseRadius} from " +
+                            $"{current}, less than '{configs[i - 1].Name}' at {previous}");
+                    }
+
+                    anyDifference |= !Mathf.Approximately(current, previous);
+                }
+            }
+
+            bool sharesOneHearingProfile =
+                configs.Select(config => config.Config.HearingProfile).Distinct().Count() == 1;
+
+            if (!anyDifference && !sharesOneHearingProfile)
+            {
+                problems.Add(
+                    $"{enemy.name} has a hearing profile per difficulty, but every difficulty " +
+                    "hears every noise from the same distance, so hearing is not a lever at all");
             }
         }
 
-        Assert.That(
-            anyDifference,
-            Is.True,
-            "Every difficulty hears every noise from the same distance, so hearing is not a difficulty lever at all.");
+        Assert.That(problems, Is.Empty, string.Join("; ", problems));
     }
 
-    private static float EffectiveHearing(
-        EnemyDifficultyCatalog.EnemyDifficultyEntry entry,
-        float noiseRadius)
+    private static float EffectiveHearing(EnemyConfig config, float noiseRadius)
     {
-        EnemyConfig config = entry.Config;
-
         return GameplayNoiseWorldService.ResolveEffectiveRadius(
             config.hearingRadius,
             config.hearingSensitivity,

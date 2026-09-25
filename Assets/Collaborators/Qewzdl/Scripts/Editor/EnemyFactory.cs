@@ -2,17 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Unity.Netcode;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-// Makes a new kind of enemy out of an existing one - its own configs for every
-// difficulty, its own copies of the profiles those configs point at, its own
-// difficulty catalog, and a prefab of its own that knows about all of them -
-// renames one, finds the maps that place one, and takes one away again when
-// nothing else depends on it.
+// Makes a new kind of enemy - from nothing, or out of an existing one - with
+// its own configs for every difficulty, its own profiles, its own difficulty
+// catalog and presentation profile, and a prefab of its own that knows about
+// all of them; renames one, finds the maps that place one, and takes one away
+// again when nothing else depends on it.
+//
+// No enemy is special. Every one is a variant of EnemyBase - the body and the
+// components every enemy has - with its own assets in a folder named after it,
+// so any of them, the first included, can be copied, renamed or deleted
+// without the others noticing.
 //
 // Copied rather than referenced wherever a value is something you would tune,
 // so the new enemy can be pulled away from the one it started as without
@@ -26,15 +32,25 @@ using Object = UnityEngine.Object;
 // drift - the setup window draws a shared profile once and a per-difficulty one
 // as columns, and the new enemy should come out the same way.
 //
-// The prefab is a variant of the source's, so the body, the components and the
-// presentation are inherited and a change to the original body still reaches
-// it. Its config and catalog are overridden to its own.
+// The prefab is a variant of the base rather than of the enemy it was copied
+// from, so deleting that one never takes the copy's body with it.
+// ponytail: a copy carries its source's assets but not changes the source made
+// to the body itself - there are none while every enemy shares the base's
+// body. Carry prefab overrides across when enemies get bodies of their own.
 public static class EnemyFactory
 {
     public const string ConfigRoot = "Assets/Collaborators/Qewzdl/Configs/Enemies";
     public const string PrefabRoot = "Assets/Collaborators/Qewzdl/Prefabs/Entities";
+    public const string BasePrefabPath = PrefabRoot + "/EnemyBase.prefab";
     public const string NetworkPrefabsPath = "Assets/DefaultNetworkPrefabs.asset";
     public const string MapsFolder = GameMapEditorUtility.MapsFolder;
+    public const string GameDifficultiesPath =
+        "Assets/Collaborators/Qewzdl/Configs/Lobby/GameDifficultyCatalog.asset";
+
+    // The difficulties the game offers - what every enemy needs a config for,
+    // and what their configs are named after.
+    public static GameDifficultyCatalog GameDifficulties =>
+        AssetDatabase.LoadAssetAtPath<GameDifficultyCatalog>(GameDifficultiesPath);
 
     public sealed class Result
     {
@@ -120,6 +136,7 @@ public static class EnemyFactory
             // copy called Spider_GrannyEnemyConfig_Easy says the wrong thing
             // about which enemy it belongs to.
             List<(EnemyConfig Config, string Difficulty)> sourceConfigs = new();
+            GameDifficultyCatalog difficulties = GameDifficulties;
 
             for (int i = 0; i < sourceCatalog.Count; i++)
             {
@@ -127,7 +144,7 @@ public static class EnemyFactory
                     entry.Config != null &&
                     sourceConfigs.All(known => known.Config != entry.Config))
                 {
-                    sourceConfigs.Add((entry.Config, entry.DisplayName));
+                    sourceConfigs.Add((entry.Config, DifficultyName(difficulties, entry.DifficultyId)));
                 }
             }
 
@@ -153,21 +170,28 @@ public static class EnemyFactory
             Object catalogCopy = Copy(sourceCatalog, folder, $"{name}DifficultyCatalog");
             Retarget(catalogCopy, copies);
 
+            Object presentation = PresentationProfileOf(source);
+            Object presentationCopy = presentation != null
+                ? Copy(presentation, folder, $"{name}EnemyPresentationProfile")
+                : null;
+
             EnemyConfig defaultConfig = source.Config != null &&
                                         copies.TryGetValue(source.Config, out Object mapped)
                 ? (EnemyConfig)mapped
-                : ((EnemyDifficultyCatalog)catalogCopy).TryGetConfig(
-                    sourceCatalog.DefaultDifficultyId,
-                    out EnemyConfig fallback)
+                : difficulties != null &&
+                  ((EnemyDifficultyCatalog)catalogCopy).TryGetConfig(
+                      difficulties.DefaultDifficultyId,
+                      out EnemyConfig fallback)
                     ? fallback
                     : null;
 
             GameObject prefab = SaveVariant(
-                source,
                 prefabPath,
                 defaultConfig,
-                (EnemyDifficultyCatalog)catalogCopy);
+                (EnemyDifficultyCatalog)catalogCopy,
+                (EnemyPresentationProfile)presentationCopy);
 
+            Tidy(prefab.GetComponent<NetworkEnemyController>(), configRoot);
             Register(prefab, networkPrefabs);
 
             AssetDatabase.SaveAssets();
@@ -185,6 +209,157 @@ public static class EnemyFactory
             AssetDatabase.DeleteAsset(folder);
             throw;
         }
+    }
+
+    // A new kind of enemy from nothing: one of every profile at its code
+    // defaults, a config per difficulty the game offers, a catalog, a blank
+    // presentation profile and a variant of the base.
+    //
+    // The profiles are shared by every difficulty. A new enemy has no levers
+    // yet, the window draws a shared profile once, and pulling one difficulty
+    // apart later is a matter of giving it its own copy. No behaviours are
+    // listed: what the enemy does is the first decision made about it, not a
+    // default it inherits - the window's Problems section says so until then.
+    public static Result CreateBlank(
+        string name,
+        string configRoot,
+        string prefabRoot,
+        NetworkPrefabsList networkPrefabs)
+    {
+        string problem = ProblemWithName(name, configRoot, prefabRoot);
+
+        if (problem != null)
+        {
+            throw new ArgumentException(problem, nameof(name));
+        }
+
+        GameDifficultyCatalog difficulties = GameDifficulties;
+
+        if (difficulties == null || difficulties.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"The game offers no difficulties to make configs for ({GameDifficultiesPath}).");
+        }
+
+        string folder = $"{configRoot}/{name}";
+        string prefabPath = $"{prefabRoot}/{name}.prefab";
+
+        try
+        {
+            AssetDatabase.CreateFolder(configRoot, name);
+
+            Dictionary<string, Object> profiles = new();
+
+            foreach (FieldInfo field in ConfigProfileFields())
+            {
+                profiles[field.Name] = Create(
+                    ScriptableObject.CreateInstance(field.FieldType),
+                    folder,
+                    $"{name}_{field.FieldType.Name}");
+            }
+
+            EnemyDifficultyCatalog catalog = ScriptableObject.CreateInstance<EnemyDifficultyCatalog>();
+            List<EnemyDifficultyCatalog.EnemyDifficultyEntry> entries = new();
+            EnemyConfig defaultConfig = null;
+
+            for (int i = 0; i < difficulties.Count; i++)
+            {
+                if (!difficulties.TryGetAt(i, out GameDifficultyCatalog.Difficulty difficulty))
+                {
+                    continue;
+                }
+
+                EnemyConfig config = ScriptableObject.CreateInstance<EnemyConfig>();
+                SerializedObject serialized = new(config);
+
+                foreach (KeyValuePair<string, Object> profile in profiles)
+                {
+                    serialized.FindProperty(profile.Key).objectReferenceValue = profile.Value;
+                }
+
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                Create(config, folder, $"{name}EnemyConfig_{difficulty.DisplayName}");
+                entries.Add(new EnemyDifficultyCatalog.EnemyDifficultyEntry(difficulty.DifficultyId, config));
+
+                if (difficulty.DifficultyId == difficulties.DefaultDifficultyId)
+                {
+                    defaultConfig = config;
+                }
+            }
+
+            SerializedObject catalogSerialized = new(catalog);
+            SerializedProperty list = catalogSerialized.FindProperty("difficulties");
+            list.arraySize = entries.Count;
+
+            for (int i = 0; i < entries.Count; i++)
+            {
+                SerializedProperty entry = list.GetArrayElementAtIndex(i);
+                entry.FindPropertyRelative("difficultyId").intValue = entries[i].DifficultyId;
+                entry.FindPropertyRelative("config").objectReferenceValue = entries[i].Config;
+            }
+
+            catalogSerialized.ApplyModifiedPropertiesWithoutUndo();
+            Create(catalog, folder, $"{name}DifficultyCatalog");
+
+            EnemyPresentationProfile presentation = (EnemyPresentationProfile)Create(
+                ScriptableObject.CreateInstance<EnemyPresentationProfile>(),
+                folder,
+                $"{name}EnemyPresentationProfile");
+
+            GameObject prefab = SaveVariant(prefabPath, defaultConfig ?? entries[0].Config, catalog, presentation);
+
+            Tidy(prefab.GetComponent<NetworkEnemyController>(), configRoot);
+            Register(prefab, networkPrefabs);
+            AssetDatabase.SaveAssets();
+
+            return new Result { Prefab = prefab, Catalog = catalog, Folder = folder };
+        }
+        catch
+        {
+            AssetDatabase.DeleteAsset(prefabPath);
+            AssetDatabase.DeleteAsset(folder);
+            throw;
+        }
+    }
+
+    // The profile slots on EnemyConfig, found by type rather than listed, so a
+    // slot added later gets a profile without anybody telling this.
+    private static IEnumerable<FieldInfo> ConfigProfileFields()
+    {
+        return typeof(EnemyConfig)
+            .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Where(field =>
+                field.IsDefined(typeof(SerializeField), inherit: false) &&
+                typeof(ScriptableObject).IsAssignableFrom(field.FieldType));
+    }
+
+    private static Object Create(Object asset, string folder, string name)
+    {
+        string path = $"{folder}/{name}.asset";
+        AssetDatabase.CreateAsset(asset, path);
+        return asset;
+    }
+
+    private static EnemyPresentationProfile PresentationProfileOf(NetworkEnemyController enemy)
+    {
+        EnemyPresentationController presentation =
+            enemy.GetComponentInChildren<EnemyPresentationController>(true);
+
+        return presentation != null
+            ? new SerializedObject(presentation).FindProperty("profile").objectReferenceValue
+                as EnemyPresentationProfile
+            : null;
+    }
+
+    public static GameObject BasePrefab =>
+        AssetDatabase.LoadAssetAtPath<GameObject>(BasePrefabPath);
+
+    private static string DifficultyName(GameDifficultyCatalog difficulties, int difficultyId)
+    {
+        return difficulties != null &&
+               difficulties.TryGet(difficultyId, out GameDifficultyCatalog.Difficulty difficulty)
+            ? difficulty.DisplayName
+            : "Difficulty" + difficultyId;
     }
 
     // Every profile a config points at: the ScriptableObjects it references
@@ -243,13 +418,20 @@ public static class EnemyFactory
         EditorUtility.SetDirty(copy);
     }
 
-    private static GameObject SaveVariant(
-        NetworkEnemyController source,
+    public static GameObject SaveVariant(
         string path,
         EnemyConfig config,
-        EnemyDifficultyCatalog catalog)
+        EnemyDifficultyCatalog catalog,
+        EnemyPresentationProfile presentationProfile)
     {
-        GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(source.gameObject);
+        GameObject basePrefab = BasePrefab;
+
+        if (basePrefab == null)
+        {
+            throw new InvalidOperationException($"There is no enemy base prefab at {BasePrefabPath}.");
+        }
+
+        GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(basePrefab);
 
         try
         {
@@ -260,8 +442,18 @@ public static class EnemyFactory
             controller.FindProperty("difficultyCatalog").objectReferenceValue = catalog;
             controller.ApplyModifiedPropertiesWithoutUndo();
 
+            EnemyPresentationController presentation =
+                instance.GetComponentInChildren<EnemyPresentationController>(true);
+
+            if (presentation != null)
+            {
+                SerializedObject serialized = new(presentation);
+                serialized.FindProperty("profile").objectReferenceValue = presentationProfile;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            }
+
             // Saving an instance of a prefab as a new asset makes a variant of
-            // it, which is the point: the new enemy's body stays the old one's
+            // it, which is the point: the new enemy's body stays the base's
             // until somebody deliberately changes it.
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(instance, path, out bool saved);
 
@@ -312,8 +504,8 @@ public static class EnemyFactory
     // and catalog are all in one folder named after it, so what belongs to it
     // is known rather than guessed. An enemy set up by hand has its assets
     // wherever somebody put them, and a delete that had to guess would
-    // eventually guess wrong. The shipped enemy is one of those - its catalog
-    // is the lobby's own - so it cannot be deleted from here at all.
+    // eventually guess wrong. The base is not an enemy at all and has no
+    // folder, so it cannot be deleted from here either.
     //
     // Then one rule, which covers every way deleting could break something
     // else: nothing outside the enemy may refer to anything being removed. A
@@ -399,9 +591,9 @@ public static class EnemyFactory
 
     // Why what belongs to an enemy cannot be known for sure, or null when it
     // can: an enemy this factory made keeps its configs, profiles and catalog
-    // in one folder named after it. Anything else - the shipped enemy, whose
-    // catalog is the lobby's own, or one set up by hand - is refused by delete
-    // and rename alike rather than guessed at.
+    // in one folder named after it. Anything else - the base, or an enemy set
+    // up by hand - is refused by delete and rename alike rather than guessed
+    // at.
     public static string OwnershipProblem(NetworkEnemyController enemy, string configRoot)
     {
         string folder = $"{configRoot}/{enemy.name}";
@@ -496,6 +688,181 @@ public static class EnemyFactory
         {
             throw new IOException($"Could not rename {path} to {newName}: {error}");
         }
+    }
+
+    // Where every file an enemy owns belongs. One layout for every enemy,
+    // whether it was made here, copied, or set up by hand and tidied:
+    //
+    //   <Name>/<Name>DifficultyCatalog, <Name>Presentation
+    //   <Name>/<Difficulty>/<Name>Config_<Difficulty>, and every profile only
+    //       that difficulty uses: <Name>Vision_<Difficulty>
+    //   <Name>/Shared/ every profile all difficulties use: <Name>Navigation;
+    //       one some of them share is named after those: <Name>Vision_Easy-Normal
+    //
+    // So the folder answers the question the setup window's columns answer -
+    // which numbers are one difficulty's and which are everyone's - and every
+    // file starts with the enemy's name, which is what Rename relies on.
+    //
+    // Only files already in the enemy's folder are placed; anything it uses
+    // from elsewhere, a behaviour module or an attack effect, is shared and
+    // stays where it is.
+    public static List<(string From, string To)> PlanTidy(
+        NetworkEnemyController enemy,
+        string configRoot)
+    {
+        List<(string From, string To)> moves = new();
+        EnemyDifficultyCatalog catalog = enemy != null ? enemy.DifficultyCatalog : null;
+
+        if (catalog == null)
+        {
+            return moves;
+        }
+
+        string name = enemy.name;
+        string folder = $"{configRoot}/{name}";
+        GameDifficultyCatalog difficulties = GameDifficulties;
+
+        // Which difficulties use each asset, in the game's order.
+        Dictionary<Object, List<string>> users = new();
+        List<string> all = new();
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            if (!catalog.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry) ||
+                entry.Config == null)
+            {
+                continue;
+            }
+
+            string difficulty = DifficultyName(difficulties, entry.DifficultyId);
+            all.Add(difficulty);
+
+            foreach (Object asset in ProfilesOf(entry.Config).Prepend(entry.Config))
+            {
+                if (!users.TryGetValue(asset, out List<string> list))
+                {
+                    users[asset] = list = new List<string>();
+                }
+
+                if (!list.Contains(difficulty))
+                {
+                    list.Add(difficulty);
+                }
+            }
+        }
+
+        void Place(Object asset, string target)
+        {
+            string from = AssetDatabase.GetAssetPath(asset);
+
+            if (from.StartsWith(folder + "/", StringComparison.Ordinal) && from != target)
+            {
+                moves.Add((from, target));
+            }
+        }
+
+        foreach (KeyValuePair<Object, List<string>> use in users)
+        {
+            string kind = use.Key is EnemyConfig ? "Config" : KindOf(use.Key);
+            List<string> by = use.Value;
+
+            Place(use.Key, by.Count == 1
+                ? $"{folder}/{by[0]}/{name}{kind}_{by[0]}.asset"
+                : by.Count == all.Count
+                    ? $"{folder}/Shared/{name}{kind}.asset"
+                    : $"{folder}/Shared/{name}{kind}_{string.Join("-", by)}.asset");
+        }
+
+        Place(catalog, $"{folder}/{name}DifficultyCatalog.asset");
+
+        EnemyPresentationProfile presentation = PresentationProfileOf(enemy);
+
+        if (presentation != null)
+        {
+            Place(presentation, $"{folder}/{name}Presentation.asset");
+        }
+
+        return moves;
+    }
+
+    // Moves an enemy's files into the layout above. GUIDs survive a move, so
+    // nothing that refers to them notices. Everything goes through a
+    // temporary name first, so a file whose new name is another's old one
+    // never collides with it; folders left empty are removed.
+    public static void Tidy(NetworkEnemyController enemy, string configRoot)
+    {
+        List<(string From, string To)> moves = PlanTidy(enemy, configRoot);
+
+        if (moves.Count == 0)
+        {
+            return;
+        }
+
+        string folder = $"{configRoot}/{enemy.name}";
+        List<(string Temporary, string To)> staged = new();
+
+        foreach ((string from, string to) in moves)
+        {
+            string temporary = $"{folder}/__tidy_{AssetDatabase.AssetPathToGUID(from)}.asset";
+            MoveOrThrow(from, temporary);
+            staged.Add((temporary, to));
+        }
+
+        foreach ((string temporary, string to) in staged)
+        {
+            EnsureFolder(Path.GetDirectoryName(to)?.Replace('\\', '/'));
+            MoveOrThrow(temporary, to);
+        }
+
+        foreach (string sub in AssetDatabase.GetSubFolders(folder))
+        {
+            if (AssetDatabase.FindAssets(string.Empty, new[] { sub }).Length == 0)
+            {
+                AssetDatabase.DeleteAsset(sub);
+            }
+        }
+
+        AssetDatabase.SaveAssets();
+    }
+
+    // EnemyVisionConfig is a Vision, EnemyAttackTimingConfig an AttackTiming.
+    private static string KindOf(Object profile)
+    {
+        string type = profile.GetType().Name;
+
+        if (type.StartsWith("Enemy", StringComparison.Ordinal))
+        {
+            type = type.Substring("Enemy".Length);
+        }
+
+        if (type.EndsWith("Config", StringComparison.Ordinal))
+        {
+            type = type.Substring(0, type.Length - "Config".Length);
+        }
+
+        return type;
+    }
+
+    private static void MoveOrThrow(string from, string to)
+    {
+        string error = AssetDatabase.MoveAsset(from, to);
+
+        if (!string.IsNullOrEmpty(error))
+        {
+            throw new IOException($"Could not move {from} to {to}: {error}");
+        }
+    }
+
+    private static void EnsureFolder(string path)
+    {
+        if (string.IsNullOrEmpty(path) || AssetDatabase.IsValidFolder(path))
+        {
+            return;
+        }
+
+        string parent = Path.GetDirectoryName(path)?.Replace('\\', '/');
+        EnsureFolder(parent);
+        AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
     }
 
     // Every map scene, with how many of its spawn points place this enemy -
@@ -648,9 +1015,17 @@ public static class EnemyFactory
             return new List<NetworkEnemyController>();
         }
 
+        // Netcode registers every NetworkObject prefab it sees, so the list also
+        // holds the base - which is every enemy's body, not an enemy - and the
+        // enemies the tests keep for themselves.
         return networkPrefabs.PrefabList
             .Select(entry => entry.Prefab)
             .Where(prefab => prefab != null)
+            .Where(prefab =>
+            {
+                string path = AssetDatabase.GetAssetPath(prefab);
+                return path != BasePrefabPath && !path.Contains("/Tests/");
+            })
             .Select(prefab => prefab.GetComponent<NetworkEnemyController>())
             .Where(controller => controller != null)
             .Distinct()

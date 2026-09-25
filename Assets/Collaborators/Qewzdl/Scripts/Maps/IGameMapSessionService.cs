@@ -9,16 +9,13 @@ public interface IGameMapSessionService
     GameMapRoot ActiveMapRoot { get; }
     bool IsReadyForMatch { get; }
 
-    // What the host picked in the lobby, resolved on the server before the map
-    // loads. Null until a difficulty is selected or defaulted.
+    // The difficulty the host picked in the lobby, as the id every enemy looks
+    // its own config up by; -1 until something is chosen or defaulted. Kept
+    // here because the lobby has to ask for it back: its own copy dies with
+    // the Lobby scene when a match loads, and this outlives the round trip.
     // ponytail: the match setup the lobby sends lives next to the map because
     // it arrives in the same StartGame call. A third setting earns its own
     // session contract.
-    EnemyConfig SelectedEnemyConfig { get; }
-
-    // The same choice as the id the lobby speaks in, kept because the lobby has
-    // to ask for it back. Its own copy dies with the Lobby scene when a match
-    // loads, and this outlives the round trip; -1 until something is chosen.
     int SelectedDifficultyId { get; }
 
     event Action MapReady;

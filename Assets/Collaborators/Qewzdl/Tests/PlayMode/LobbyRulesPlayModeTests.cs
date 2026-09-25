@@ -312,10 +312,8 @@ public sealed class LobbyRulesPlayModeTests
         LobbyConfig config = ScriptableObject.CreateInstance<LobbyConfig>();
         GameMapCatalog catalog = ScriptableObject.CreateInstance<GameMapCatalog>();
         GameMapDefinition map = ScriptableObject.CreateInstance<GameMapDefinition>();
-        EnemyDifficultyCatalog difficulties =
-            ScriptableObject.CreateInstance<EnemyDifficultyCatalog>();
-        EnemyConfig easyEnemy = ScriptableObject.CreateInstance<EnemyConfig>();
-        EnemyConfig hardEnemy = ScriptableObject.CreateInstance<EnemyConfig>();
+        GameDifficultyCatalog difficulties =
+            ScriptableObject.CreateInstance<GameDifficultyCatalog>();
 
         try
         {
@@ -341,8 +339,8 @@ public sealed class LobbyRulesPlayModeTests
                 "difficulties",
                 new[]
                 {
-                    new EnemyDifficultyCatalog.EnemyDifficultyEntry(0, "Test easy", easyEnemy),
-                    new EnemyDifficultyCatalog.EnemyDifficultyEntry(4, "Test hard", hardEnemy)
+                    new GameDifficultyCatalog.Difficulty(0, "Test easy"),
+                    new GameDifficultyCatalog.Difficulty(4, "Test hard")
                 });
             PlayModeTestReflection.SetField(difficulties, "defaultDifficultyId", 4);
             PlayModeTestReflection.SetField(config, "difficultyCatalog", difficulties);
@@ -364,9 +362,6 @@ public sealed class LobbyRulesPlayModeTests
 
             settings.SetDifficulty(0);
             Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(0));
-
-            Assert.That(difficulties.TryGetConfig(0, out EnemyConfig selected), Is.True);
-            Assert.That(selected, Is.SameAs(easyEnemy));
 
             LogAssert.Expect(
                 LogType.Warning,
@@ -424,8 +419,6 @@ public sealed class LobbyRulesPlayModeTests
             Object.Destroy(catalog);
             Object.Destroy(map);
             Object.Destroy(difficulties);
-            Object.Destroy(easyEnemy);
-            Object.Destroy(hardEnemy);
         }
     }
 

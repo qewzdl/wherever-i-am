@@ -15,11 +15,9 @@ public class NetworkEnemyController : NetworkBehaviour
     [SerializeField] private EnemyConfig config;
 
     [Tooltip(
-        "This enemy's own config for each difficulty. When set, the difficulty " +
-        "the host picked is looked up here, so every kind of enemy brings its " +
-        "own tuning. Left empty, the enemy takes whatever config the lobby's " +
-        "catalog resolved - which is only right while there is one kind of " +
-        "enemy in the game.")]
+        "This enemy's own config for each difficulty the game offers. The " +
+        "difficulty the host picked is looked up here by id. Left empty, or " +
+        "missing the picked difficulty, the enemy plays the config above.")]
     [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
 
     [SerializeField] private EnemyPatrolRoute patrolRoute;
@@ -123,13 +121,9 @@ public class NetworkEnemyController : NetworkBehaviour
     // makes sure every difficulty describes the same body, so the collider
     // they build from it stays right.
     //
-    // Looked up in this enemy's own catalog by the difficulty's id, rather than
-    // taken ready-made from the session, whenever the enemy has one. The session
-    // resolves a single config from a single catalog, which was every enemy's
-    // config while there was only one kind of enemy - and would quietly turn a
-    // second kind into a copy of the first the moment it spawned, whatever it
-    // had been tuned to be. The id is the part of the choice that is the same
-    // for every enemy; what it means is each enemy's own business.
+    // The session carries only the difficulty's id. What that difficulty
+    // means is each enemy's own business, looked up in its own catalog, so no
+    // enemy's tuning ever stands in for another's.
     private void ApplyLobbyDifficultyServerOnly()
     {
         if (!IsServer)
@@ -147,32 +141,20 @@ public class NetworkEnemyController : NetworkBehaviour
         config = ChooseDifficultyConfig(
             difficultyCatalog,
             mapSession.SelectedDifficultyId,
-            mapSession.SelectedEnemyConfig,
             config);
     }
 
-    // Which config an enemy plays a match with, given the difficulty the host
-    // picked. Its own catalog's entry for that difficulty when it has one; the
-    // config the lobby resolved when it does not; the prefab's own config when
-    // there is neither.
-    //
-    // The order is the whole point. The lobby's config comes from the lobby's
-    // catalog, which is one enemy's tuning - so preferring it over the enemy's
-    // own would make every other kind of enemy play as that one, the moment it
-    // spawned, whatever it had been set up to be.
+    // Which config an enemy plays a match with: its own catalog's entry for
+    // the picked difficulty, or its prefab's config when it has none.
     public static EnemyConfig ChooseDifficultyConfig(
         EnemyDifficultyCatalog ownCatalog,
         int selectedDifficultyId,
-        EnemyConfig lobbyConfig,
         EnemyConfig prefabConfig)
     {
-        if (ownCatalog != null &&
-            ownCatalog.TryGetConfig(selectedDifficultyId, out EnemyConfig ownConfig))
-        {
-            return ownConfig;
-        }
-
-        return lobbyConfig != null ? lobbyConfig : prefabConfig;
+        return ownCatalog != null &&
+               ownCatalog.TryGetConfig(selectedDifficultyId, out EnemyConfig ownConfig)
+            ? ownConfig
+            : prefabConfig;
     }
 
     public override void OnNetworkDespawn()

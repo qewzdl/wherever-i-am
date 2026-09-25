@@ -25,11 +25,26 @@ public sealed class EnemySetupWindowTests
     private NetworkPrefabsList projectList;
     private HashSet<NetworkPrefab> projectEntries;
 
+    // What the project's own enemy folders held before the test. These tests
+    // make enemies - several of them called Spider - and must only ever do it
+    // in their own scratch folders; an enemy left in the real ones would turn
+    // up in the setup window looking like somebody's work.
+    private string[] projectEnemyFiles;
+
     [SetUp]
     public void SetUp()
     {
         projectList = AssetDatabase.LoadAssetAtPath<NetworkPrefabsList>(EnemyFactory.NetworkPrefabsPath);
         projectEntries = new HashSet<NetworkPrefab>(projectList.PrefabList);
+        projectEnemyFiles = ProjectEnemyFiles();
+    }
+
+    private static string[] ProjectEnemyFiles()
+    {
+        return System.IO.Directory.GetFileSystemEntries(EnemyFactory.ConfigRoot)
+            .Concat(System.IO.Directory.GetFileSystemEntries(EnemyFactory.PrefabRoot))
+            .OrderBy(path => path, System.StringComparer.Ordinal)
+            .ToArray();
     }
 
     [TearDown]
@@ -54,6 +69,11 @@ public sealed class EnemySetupWindowTests
         // be only on disk, already gone from the list in memory.
         EditorUtility.SetDirty(projectList);
         AssetDatabase.SaveAssetIfDirty(projectList);
+
+        Assert.That(
+            ProjectEnemyFiles(),
+            Is.EqualTo(projectEnemyFiles),
+            "The test left something in, or took something out of, the project's own enemy folders.");
     }
 
     private T Make<T>() where T : ScriptableObject
@@ -189,39 +209,34 @@ public sealed class EnemySetupWindowTests
         }
     }
 
-    // The rule that makes a second kind of enemy possible at all: an enemy with
-    // its own catalog plays the difficulty from it, not the lobby's config.
-    // Before this the lobby's config - one enemy's tuning - went to every enemy
-    // that spawned, and a new enemy would have played as the old one.
+    // Every enemy plays the picked difficulty from its own catalog, and its
+    // prefab's config wherever its catalog has nothing to say - never another
+    // enemy's tuning, since the session carries only the difficulty's id.
     [Test]
-    public void ChooseDifficultyConfig_PrefersTheEnemysOwnCatalogOverTheLobbys()
+    public void ChooseDifficultyConfig_TakesTheEnemysOwnCatalogElseItsPrefabConfig()
     {
         EnemyConfig ownEasy = Make<EnemyConfig>();
         EnemyConfig ownHard = Make<EnemyConfig>();
-        EnemyConfig lobby = Make<EnemyConfig>();
         EnemyConfig prefab = Make<EnemyConfig>();
 
-        EnemyDifficultyCatalog own = MakeCatalog((0, "Easy", ownEasy), (2, "Hard", ownHard));
+        EnemyDifficultyCatalog own = MakeCatalog((0, ownEasy), (2, ownHard));
 
         Assert.That(
-            NetworkEnemyController.ChooseDifficultyConfig(own, 2, lobby, prefab),
-            Is.SameAs(ownHard),
-            "An enemy with its own catalog played the lobby's config instead.");
+            NetworkEnemyController.ChooseDifficultyConfig(own, 2, prefab),
+            Is.SameAs(ownHard));
 
         Assert.That(
-            NetworkEnemyController.ChooseDifficultyConfig(own, 1, lobby, prefab),
-            Is.SameAs(lobby),
-            "A difficulty the enemy's catalog does not have should fall back " +
-            "to the lobby's config.");
+            NetworkEnemyController.ChooseDifficultyConfig(own, 1, prefab),
+            Is.SameAs(prefab),
+            "A difficulty the enemy's catalog does not have should play the prefab's config.");
 
         Assert.That(
-            NetworkEnemyController.ChooseDifficultyConfig(null, 2, lobby, prefab),
-            Is.SameAs(lobby),
-            "An enemy with no catalog should take the lobby's config, as " +
-            "every enemy did before catalogs were per enemy.");
+            NetworkEnemyController.ChooseDifficultyConfig(null, 2, prefab),
+            Is.SameAs(prefab),
+            "An enemy with no catalog should keep its prefab's config.");
 
         Assert.That(
-            NetworkEnemyController.ChooseDifficultyConfig(null, 2, null, prefab),
+            NetworkEnemyController.ChooseDifficultyConfig(own, GameMapService.NoDifficultySelected, prefab),
             Is.SameAs(prefab),
             "With nothing chosen, an enemy should keep its prefab's config.");
     }
@@ -236,9 +251,9 @@ public sealed class EnemySetupWindowTests
         Assert.That(EnemyFactory.ProblemWithName(" Spider", configRoot, prefabRoot), Is.Not.Null);
         Assert.That(EnemyFactory.ProblemWithName("Spi:der", configRoot, prefabRoot), Is.Not.Null);
 
-        // Taken already: the shipped enemy's config folder.
+        // Taken already: the shared behaviour library's folder.
         Assert.That(
-            EnemyFactory.ProblemWithName("Granny", configRoot, prefabRoot),
+            EnemyFactory.ProblemWithName("Behaviors", configRoot, prefabRoot),
             Is.Not.Null,
             "A name whose folder already exists was allowed, so creating it " +
             "would copy into another enemy's configs.");
@@ -262,12 +277,10 @@ public sealed class EnemySetupWindowTests
     {
         const string root = "Assets/__EnemyFactoryTest";
 
-        NetworkEnemyController source = AssetDatabase
-            .LoadAssetAtPath<GameObject>(EnemyFactory.PrefabRoot + "/Enemy.prefab")
-            .GetComponent<NetworkEnemyController>();
+        NetworkEnemyController source = SourceEnemy();
 
         Assert.That(source.DifficultyCatalog, Is.Not.Null,
-            "The shipped enemy has no catalog of its own to copy.");
+            "The test enemy has no catalog of its own to copy.");
 
         NetworkPrefabsList registered = Make<NetworkPrefabsList>();
 
@@ -286,6 +299,16 @@ public sealed class EnemySetupWindowTests
                 PrefabUtility.GetPrefabAssetType(result.Prefab),
                 Is.EqualTo(PrefabAssetType.Variant),
                 "The new enemy is not a variant, so it no longer inherits the body.");
+            Assert.That(
+                PrefabUtility.GetCorrespondingObjectFromSource(result.Prefab),
+                Is.SameAs(EnemyFactory.BasePrefab),
+                "The copy is built on the enemy it was copied from, so deleting " +
+                "that one would take the copy's body with it.");
+
+            Object presentation = PresentationProfileOf(made);
+            Assert.That(presentation, Is.Not.Null);
+            Assert.That(AssetDatabase.GetAssetPath(presentation), Does.StartWith(root),
+                "The copy still shares its source's presentation profile.");
 
             Assert.That(made.DifficultyCatalog, Is.SameAs(result.Catalog));
             Assert.That(made.DifficultyCatalog, Is.Not.SameAs(source.DifficultyCatalog));
@@ -355,7 +378,7 @@ public sealed class EnemySetupWindowTests
         try
         {
             EnemyFactory.Result made = EnemyFactory.CreateFrom(
-                ShippedEnemy(), "Spider", root, root, registered);
+                SourceEnemy(), "Spider", root, root, registered);
 
             EnemyFactory.DeletionPlan plan = EnemyFactory.PlanDeletion(
                 made.Prefab.GetComponent<NetworkEnemyController>(),
@@ -383,65 +406,195 @@ public sealed class EnemySetupWindowTests
         }
     }
 
-    // The shipped enemy was set up by hand, and its catalog is the lobby's
-    // own. Deleting it from here would take the lobby's difficulties with it.
+    // The base is every enemy's body. It has no folder of its own and cannot
+    // be deleted from here.
     [Test]
-    public void PlanDeletion_RefusesTheShippedEnemy()
+    public void PlanDeletion_RefusesTheBase()
     {
         EnemyFactory.DeletionPlan plan = EnemyFactory.PlanDeletion(
-            ShippedEnemy(),
+            BaseEnemy(),
             EnemyFactory.ConfigRoot,
             EnemyFactory.NetworkPrefabsPath);
 
-        Assert.That(plan.CanDelete, Is.False,
-            "The shipped enemy could be deleted, and the lobby's catalog with it.");
-        Assert.That(plan.Paths, Is.Empty,
-            "A refused plan still listed things to delete.");
+        Assert.That(plan.CanDelete, Is.False, "The base every enemy is built on could be deleted.");
+        Assert.That(plan.Paths, Is.Empty, "A refused plan still listed things to delete.");
     }
 
-    // An enemy made from another is a variant of its prefab. Deleting the one
-    // underneath would leave the variant with no body, so it is refused until
-    // the variant goes first - and then allowed.
+    // No enemy is special: the one a copy was made from can be deleted, and
+    // the copy comes through whole - its own configs, its own catalog, and a
+    // body that was never borrowed from the one that went. What does stop a
+    // delete is a map that still places the enemy.
     [Test]
-    public void PlanDeletion_RefusesAnEnemyAnotherIsBuiltOn()
+    public void Delete_TheEnemyACopyWasMadeFrom_LeavesTheCopyWhole_ButNotWhileAMapPlacesIt()
     {
-        const string root = "Assets/__EnemyVariantDeleteTest";
+        const string root = "Assets/__EnemyChainDeleteTest";
         NetworkPrefabsList registered = Make<NetworkPrefabsList>();
 
         AssetDatabase.DeleteAsset(root);
-        AssetDatabase.CreateFolder("Assets", "__EnemyVariantDeleteTest");
+        AssetDatabase.CreateFolder("Assets", "__EnemyChainDeleteTest");
 
         try
         {
             EnemyFactory.Result alpha = EnemyFactory.CreateFrom(
-                ShippedEnemy(), "Alpha", root, root, registered);
+                SourceEnemy(), "Alpha", root, root, registered);
             EnemyFactory.Result beta = EnemyFactory.CreateFrom(
                 alpha.Prefab.GetComponent<NetworkEnemyController>(),
                 "Beta", root, root, registered);
 
             NetworkEnemyController alphaEnemy = alpha.Prefab.GetComponent<NetworkEnemyController>();
 
+            // A map that places Alpha, as far as the delete can tell: a scene
+            // file whose spawn point names Alpha's prefab. Written to disk
+            // rather than built as a scene, which a batch run cannot do beside
+            // the untitled scene the tests run in; the delete reads files.
+            string scenePath = root + "/Map.unity";
+            System.IO.File.WriteAllText(
+                scenePath,
+                "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!114 &1\nMonoBehaviour:\n" +
+                "  enemyPrefab: {fileID: 0, guid: " +
+                AssetDatabase.AssetPathToGUID(root + "/Alpha.prefab") + ", type: 3}\n");
+
             EnemyFactory.DeletionPlan blocked = EnemyFactory.PlanDeletion(
                 alphaEnemy, root, EnemyFactory.NetworkPrefabsPath);
 
-            Assert.That(blocked.CanDelete, Is.False,
-                "Alpha could be deleted while Beta is a variant of it.");
-            Assert.That(blocked.Blockers.Any(reason => reason.Contains("Beta")), Is.True,
-                "The refusal did not name the enemy built on it: " +
-                string.Join("; ", blocked.Blockers));
+            Assert.That(blocked.CanDelete, Is.False, "Alpha could be deleted while a map places it.");
+            Assert.That(blocked.Blockers.Any(reason => reason.Contains("Map.unity")), Is.True,
+                "The refusal did not name the map: " + string.Join("; ", blocked.Blockers));
 
-            EnemyFactory.Delete(
-                EnemyFactory.PlanDeletion(
-                    beta.Prefab.GetComponent<NetworkEnemyController>(),
-                    root,
-                    EnemyFactory.NetworkPrefabsPath),
-                registered,
-                toTrash: false);
+            System.IO.File.Delete(scenePath);
+
+            EnemyFactory.DeletionPlan plan = EnemyFactory.PlanDeletion(
+                alphaEnemy, root, EnemyFactory.NetworkPrefabsPath);
+
+            Assert.That(plan.CanDelete, Is.True,
+                "Alpha was refused although only a copy made from it remains: " +
+                string.Join("; ", plan.Blockers));
+
+            EnemyFactory.Delete(plan, registered, toTrash: false);
+
+            NetworkEnemyController survivor = AssetDatabase
+                .LoadAssetAtPath<GameObject>(root + "/Beta.prefab")
+                .GetComponent<NetworkEnemyController>();
+
+            Assert.That(survivor.DifficultyCatalog, Is.SameAs(beta.Catalog));
+            Assert.That(survivor.Config, Is.Not.Null);
+            Assert.That(PresentationProfileOf(survivor), Is.Not.Null);
+            Assert.That(
+                PrefabUtility.GetCorrespondingObjectFromSource(survivor.gameObject),
+                Is.SameAs(EnemyFactory.BasePrefab));
+        }
+        finally
+        {
+            AssetDatabase.DeleteAsset(root);
+        }
+    }
+
+    // Every enemy comes out in the one layout: a folder per difficulty with its
+    // config and whatever only it uses, Shared for what every difficulty
+    // uses, catalog and presentation at the top. A copy of an enemy that
+    // shares some profiles and not others lands each where its use says.
+    [Test]
+    public void CreatedEnemies_ComeOutInTheOneFolderLayout()
+    {
+        const string root = "Assets/__EnemyLayoutTest";
+        NetworkPrefabsList registered = Make<NetworkPrefabsList>();
+
+        AssetDatabase.DeleteAsset(root);
+        AssetDatabase.CreateFolder("Assets", "__EnemyLayoutTest");
+
+        try
+        {
+            EnemyFactory.Result copy = EnemyFactory.CreateFrom(SourceEnemy(), "Crow", root, root, registered);
+            EnemyFactory.Result blank = EnemyFactory.CreateBlank("Moth", root, root, registered);
+
+            foreach (EnemyFactory.Result made in new[] { copy, blank })
+            {
+                NetworkEnemyController enemy = made.Prefab.GetComponent<NetworkEnemyController>();
+
+                Assert.That(EnemyFactory.PlanTidy(enemy, root), Is.Empty,
+                    $"{enemy.name} did not come out tidy.");
+                Assert.That(AssetDatabase.GetAssetPath(made.Catalog),
+                    Is.EqualTo($"{root}/{enemy.name}/{enemy.name}DifficultyCatalog.asset"));
+                Assert.That(AssetDatabase.GetAssetPath(PresentationProfileOf(enemy)),
+                    Is.EqualTo($"{root}/{enemy.name}/{enemy.name}Presentation.asset"));
+                Assert.That(made.Catalog.TryGetConfig(EnemyFactory.GameDifficulties.DefaultDifficultyId, out EnemyConfig normal));
+                Assert.That(AssetDatabase.GetAssetPath(normal),
+                    Is.EqualTo($"{root}/{enemy.name}/Normal/{enemy.name}Config_Normal.asset"));
+            }
+
+            // The blank enemy shares every profile; the copy keeps the test
+            // enemy's per-difficulty vision and shared navigation.
+            EnemyConfig moth = ConfigsOf(blank.Catalog)[0];
+            Assert.That(AssetDatabase.GetAssetPath(moth.VisionProfile),
+                Is.EqualTo($"{root}/Moth/Shared/MothVision.asset"));
+
+            copy.Catalog.TryGetConfig(0, out EnemyConfig crowEasy);
+            Assert.That(AssetDatabase.GetAssetPath(crowEasy.VisionProfile),
+                Is.EqualTo($"{root}/Crow/Easy/CrowVision_Easy.asset"));
+            Assert.That(AssetDatabase.GetAssetPath(crowEasy.NavigationProfile),
+                Is.EqualTo($"{root}/Crow/Shared/CrowNavigation.asset"));
+        }
+        finally
+        {
+            AssetDatabase.DeleteAsset(root);
+        }
+    }
+
+    // From nothing: a variant of the base with one config per difficulty the
+    // game offers, sharing one set of fresh profiles, a presentation profile
+    // of its own, and no behaviours - which the rules then point out.
+    [Test]
+    public void CreateBlank_MakesAnEnemyFromNothingForEveryDifficultyTheGameOffers()
+    {
+        const string root = "Assets/__EnemyBlankTest";
+        NetworkPrefabsList registered = Make<NetworkPrefabsList>();
+        GameDifficultyCatalog game = EnemyFactory.GameDifficulties;
+
+        AssetDatabase.DeleteAsset(root);
+        AssetDatabase.CreateFolder("Assets", "__EnemyBlankTest");
+
+        try
+        {
+            EnemyFactory.Result result = EnemyFactory.CreateBlank("Moth", root, root, registered);
+            NetworkEnemyController made = result.Prefab.GetComponent<NetworkEnemyController>();
 
             Assert.That(
-                EnemyFactory.PlanDeletion(alphaEnemy, root, EnemyFactory.NetworkPrefabsPath).CanDelete,
-                Is.True,
-                "Alpha was still refused once nothing was built on it.");
+                PrefabUtility.GetCorrespondingObjectFromSource(result.Prefab),
+                Is.SameAs(EnemyFactory.BasePrefab));
+            Assert.That(made.DifficultyCatalog, Is.SameAs(result.Catalog));
+            Assert.That(result.Catalog.IsValid(out string error), Is.True, error);
+            Assert.That(result.Catalog.CoversEvery(game, out string missing), Is.True,
+                "No config for " + missing);
+
+            Assert.That(result.Catalog.TryGetConfig(game.DefaultDifficultyId, out EnemyConfig normal), Is.True);
+            Assert.That(made.Config, Is.SameAs(normal),
+                "The prefab's own config is not the default difficulty's.");
+
+            EnemyConfig[] configs = ConfigsOf(result.Catalog);
+
+            Assert.That(configs, Has.Length.EqualTo(game.Count));
+
+            foreach (string path in ProfilePaths(configs[0]))
+            {
+                Object[] profiles = configs.Select(c => Profile(c, path)).Distinct().ToArray();
+
+                Assert.That(profiles, Has.Length.EqualTo(1),
+                    $"{path} is not one profile shared by every difficulty.");
+                Assert.That(AssetDatabase.GetAssetPath(profiles[0]), Does.StartWith(root + "/Moth/"));
+            }
+
+            Assert.That(configs.All(config => config.HasRequiredProfiles), Is.True);
+            Assert.That(configs.All(config => config.BehaviorModules.Count == 0), Is.True,
+                "A blank enemy came with behaviours it never chose.");
+            Assert.That(EnemyBehaviorListRules.ProblemsWith(configs[0]), Is.Not.Empty,
+                "An enemy with no behaviours was not called out.");
+
+            Object presentation = PresentationProfileOf(made);
+            Assert.That(AssetDatabase.GetAssetPath(presentation), Does.StartWith(root + "/Moth/"));
+
+            Assert.That(registered.Contains(result.Prefab), Is.True);
+            Assert.That(EnemyFactory.OwnershipProblem(made, root), Is.Null,
+                "A blank enemy cannot be renamed or deleted from the window.");
         }
         finally
         {
@@ -474,19 +627,21 @@ public sealed class EnemySetupWindowTests
         Assert.That(EnemyFactory.CountSpawnPoints(scene, string.Empty), Is.Zero);
     }
 
-    // Against the real files, so a change in how Unity writes the reference
-    // shows up as the shipped map no longer placing the shipped enemy.
+    // Against a real scene file Unity wrote, so a change in how it writes the
+    // reference shows up as the tests' own scene no longer placing the tests'
+    // own enemy.
     [Test]
-    public void FindPlacements_SeesTheShippedEnemyOnTheShippedMap()
+    public void FindPlacements_SeesAnEnemyInASceneUnityWrote()
     {
-        List<(string ScenePath, int SpawnPoints)> placements =
-            EnemyFactory.FindPlacements(ShippedEnemy(), EnemyFactory.MapsFolder);
+        List<(string ScenePath, int SpawnPoints)> placements = EnemyFactory.FindPlacements(
+            SourceEnemy(),
+            "Assets/Collaborators/Qewzdl/Tests/PlayMode/Scenarios");
 
-        Assert.That(placements, Is.Not.Empty, "No map scenes were found at all.");
+        Assert.That(placements, Is.Not.Empty, "No scenes were found at all.");
         Assert.That(
             placements.Sum(placement => placement.SpawnPoints),
             Is.GreaterThan(0),
-            "No map places the shipped enemy: " +
+            "No scene places the test enemy: " +
             string.Join(", ", placements.Select(p => p.ScenePath + "=" + p.SpawnPoints)));
     }
 
@@ -499,9 +654,9 @@ public sealed class EnemySetupWindowTests
         {
             EnemySpawnPoint point = pointObject.AddComponent<EnemySpawnPoint>();
 
-            EnemySetupWindow.SetSpawnPointEnemy(point, ShippedEnemy());
+            EnemySetupWindow.SetSpawnPointEnemy(point, SourceEnemy());
 
-            Assert.That(point.EnemyPrefab, Is.SameAs(ShippedEnemy()));
+            Assert.That(point.EnemyPrefab, Is.SameAs(SourceEnemy()));
         }
         finally
         {
@@ -524,7 +679,7 @@ public sealed class EnemySetupWindowTests
         try
         {
             EnemyFactory.Result made = EnemyFactory.CreateFrom(
-                ShippedEnemy(), "Spider", root, root, registered);
+                SourceEnemy(), "Spider", root, root, registered);
 
             string prefabGuid = AssetDatabase.AssetPathToGUID(root + "/Spider.prefab");
             string catalogGuid = AssetDatabase.AssetPathToGUID(
@@ -545,6 +700,7 @@ public sealed class EnemySetupWindowTests
 
             string[] leftovers = AssetDatabase.FindAssets(string.Empty, new[] { root + "/Wolf" })
                 .Select(AssetDatabase.GUIDToAssetPath)
+                .Where(path => !AssetDatabase.IsValidFolder(path))
                 .Where(path => !System.IO.Path.GetFileName(path).StartsWith("Wolf"))
                 .ToArray();
 
@@ -564,38 +720,36 @@ public sealed class EnemySetupWindowTests
         }
     }
 
-    // The shipped enemy's files are not all in a folder of its own, so a
-    // rename could not know which ones are its to rename.
+    // The base has no folder of its own, so a rename could not know which
+    // files are its to rename - and it is not an enemy to begin with.
     [Test]
-    public void ProblemWithRename_RefusesTheShippedEnemy()
+    public void ProblemWithRename_RefusesTheBase()
     {
         Assert.That(
             EnemyFactory.ProblemWithRename(
-                ShippedEnemy(),
+                BaseEnemy(),
                 "Wolf",
                 EnemyFactory.ConfigRoot,
                 EnemyFactory.PrefabRoot),
             Is.Not.Null);
     }
 
-    // A match started without a difficulty gets the catalog's default - and
-    // the default's id with it. With the config alone, an enemy with a
-    // catalog of its own finds no id to look up and plays the lobby's enemy.
+    // A match started without a difficulty plays the game's default one. With
+    // no id at all, every enemy would find nothing in its catalog and play its
+    // prefab's config whatever the default was meant to be.
     [Test]
-    public void MapService_DefaultingTheDifficulty_AlsoSetsItsId()
+    public void MapService_WithNothingPicked_SelectsTheDefaultDifficulty()
     {
         GameObject serviceObject = new("Map service");
 
         try
         {
             GameMapService service = serviceObject.AddComponent<GameMapService>();
-            EnemyDifficultyCatalog catalog = AssetDatabase.LoadAssetAtPath<EnemyDifficultyCatalog>(
-                "Assets/Collaborators/Qewzdl/Configs/Enemies/EnemyDifficultyCatalog.asset");
+            GameDifficultyCatalog catalog = EnemyFactory.GameDifficulties;
 
             TestReflection.SetField(service, "difficultyCatalog", catalog);
             TestReflection.Invoke(service, "ResolveDefaultSelection");
 
-            Assert.That(service.SelectedEnemyConfig, Is.Not.Null);
             Assert.That(service.SelectedDifficultyId, Is.EqualTo(catalog.DefaultDifficultyId));
         }
         finally
@@ -634,10 +788,10 @@ public sealed class EnemySetupWindowTests
             key => EditorPrefs.HasKey(prefix + key) ? EditorPrefs.GetBool(prefix + key) : (bool?)null);
         string savedSelection = EditorPrefs.GetString(prefix + "SelectedEnemy", string.Empty);
 
+        // Possibly none: the project may be between enemies, and the window has
+        // to draw that too.
         List<NetworkEnemyController> enemies = EnemyFactory.FindEnemies(
             AssetDatabase.LoadAssetAtPath<NetworkPrefabsList>(EnemyFactory.NetworkPrefabsPath));
-
-        Assert.That(enemies, Is.Not.Empty);
 
         DrawProbe probe = EditorWindow.GetWindow<DrawProbe>();
         EnemySetupWindow window = EditorWindow.GetWindow<EnemySetupWindow>();
@@ -661,6 +815,15 @@ public sealed class EnemySetupWindowTests
                 GenericMenu menu = (GenericMenu)TestReflection.Invoke(window, "BuildEnemyMenu");
                 Assert.That(menu.GetItemCount(), Is.GreaterThan(0));
             }
+
+            if (enemies.Count == 0)
+            {
+                TestReflection.Invoke(window, "Reload");
+                DrawNow(window);
+            }
+
+            GenericMenu newMenu = (GenericMenu)TestReflection.Invoke(window, "BuildNewMenu");
+            Assert.That(newMenu.GetItemCount(), Is.GreaterThan(0));
 
             foreach (string name in new[] { "Wolf", string.Empty })
             {
@@ -728,7 +891,7 @@ public sealed class EnemySetupWindowTests
     public void EmptyEntries_FindsAndRemovesOnlyEntriesWhosePrefabIsGone()
     {
         NetworkPrefabsList list = Make<NetworkPrefabsList>();
-        GameObject enemy = ShippedEnemy().gameObject;
+        GameObject enemy = SourceEnemy().gameObject;
 
         list.Add(new NetworkPrefab { Prefab = enemy });
         list.Add(new NetworkPrefab { Prefab = null });
@@ -739,14 +902,27 @@ public sealed class EnemySetupWindowTests
         Assert.That(EnemyFactory.EmptyEntries(list), Is.Empty);
     }
 
-    private static NetworkEnemyController ShippedEnemy()
+    // The tests' own enemy - a copy of the shipped one as it was, kept with the
+    // tests so that no test depends on which enemies the game has.
+    private static NetworkEnemyController SourceEnemy()
     {
         return AssetDatabase
-            .LoadAssetAtPath<GameObject>(EnemyFactory.PrefabRoot + "/Enemy.prefab")
+            .LoadAssetAtPath<GameObject>("Assets/Collaborators/Qewzdl/Tests/Fixtures/TestEnemy.prefab")
             .GetComponent<NetworkEnemyController>();
     }
 
-    private EnemyDifficultyCatalog MakeCatalog(params (int Id, string Name, EnemyConfig Config)[] entries)
+    private static NetworkEnemyController BaseEnemy()
+    {
+        return EnemyFactory.BasePrefab.GetComponent<NetworkEnemyController>();
+    }
+
+    private static Object PresentationProfileOf(NetworkEnemyController enemy)
+    {
+        return new SerializedObject(enemy.GetComponentInChildren<EnemyPresentationController>(true))
+            .FindProperty("profile").objectReferenceValue;
+    }
+
+    private EnemyDifficultyCatalog MakeCatalog(params (int Id, EnemyConfig Config)[] entries)
     {
         EnemyDifficultyCatalog catalog = Make<EnemyDifficultyCatalog>();
         SerializedObject serialized = new(catalog);
@@ -758,7 +934,6 @@ public sealed class EnemySetupWindowTests
         {
             SerializedProperty entry = list.GetArrayElementAtIndex(i);
             entry.FindPropertyRelative("difficultyId").intValue = entries[i].Id;
-            entry.FindPropertyRelative("displayName").stringValue = entries[i].Name;
             entry.FindPropertyRelative("config").objectReferenceValue = entries[i].Config;
         }
 

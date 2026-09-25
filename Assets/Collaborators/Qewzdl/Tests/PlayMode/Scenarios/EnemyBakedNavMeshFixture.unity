@@ -44,8 +44,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14961b0c241c491eb545c6ffa75cb901, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  enemyPrefab: {fileID: 5706861626712077370, guid: 3b060264512f0394696262ecb7e63a6f, type: 3}
-  enemyConfig: {fileID: 11400000, guid: b761f25b30c760f4fbdc03fcca735ce9, type: 2}
+  enemyPrefab: {fileID: 1048005718637081737, guid: fa3036d28af37a640b9f17f28cabd191, type: 3}
+  enemyConfig: {fileID: 11400000, guid: 1bd0a66d6da7ec446aba86f9fc8b3c86, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

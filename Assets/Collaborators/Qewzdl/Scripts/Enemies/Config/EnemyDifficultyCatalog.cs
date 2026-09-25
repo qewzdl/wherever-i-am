@@ -1,13 +1,12 @@
 using System;
 using UnityEngine;
 
-// A difficulty is nothing but the EnemyConfig the server hands the enemy, so
-// one asset carries the whole list: the lobby validates ids against it, the
-// lobby dropdown reads its names, and the session resolves the config.
+// One enemy's tuning for each difficulty the game offers: a difficulty id from
+// the GameDifficultyCatalog, and the config this enemy plays it with.
 //
-// Only the server ever swaps the config. Clients keep using the one on the
-// prefab, which is why every entry has to describe the same body - see
-// HasSameBodyShape.
+// Names, descriptions and which difficulty is the default belong to the game,
+// not to an enemy, and live there. Every enemy has one of these and none of
+// them is special.
 [CreateAssetMenu(
     fileName = "EnemyDifficultyCatalog",
     menuName = "Wherever I Am/Enemies/Enemy Difficulty Catalog")]
@@ -17,28 +16,20 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
     public struct EnemyDifficultyEntry
     {
         [SerializeField] [Min(0)] private int difficultyId;
-        [SerializeField] private string displayName;
-        [SerializeField] [TextArea(2, 4)] private string description;
         [SerializeField] private EnemyConfig config;
 
-        public EnemyDifficultyEntry(int difficultyId, string displayName, EnemyConfig config)
+        public EnemyDifficultyEntry(int difficultyId, EnemyConfig config)
         {
             this.difficultyId = Mathf.Max(0, difficultyId);
-            this.displayName = displayName;
             this.config = config;
-            description = string.Empty;
         }
 
         public int DifficultyId => difficultyId;
-        public string DisplayName => displayName;
-        public string Description => description;
         public EnemyConfig Config => config;
     }
 
-    [SerializeField] [Min(0)] private int defaultDifficultyId;
     [SerializeField] private EnemyDifficultyEntry[] difficulties;
 
-    public int DefaultDifficultyId => defaultDifficultyId;
     public int Count => difficulties == null ? 0 : difficulties.Length;
 
     public bool TryGetEntryAt(int index, out EnemyDifficultyEntry entry)
@@ -51,11 +42,6 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
 
         entry = difficulties[index];
         return true;
-    }
-
-    public bool IsValidDifficultyId(int difficultyId)
-    {
-        return TryGetConfig(difficultyId, out _);
     }
 
     public bool TryGetConfig(int difficultyId, out EnemyConfig config)
@@ -97,12 +83,6 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(entry.DisplayName))
-            {
-                error = $"{nameof(EnemyDifficultyCatalog)} '{name}' has no display name at index {i}.";
-                return false;
-            }
-
             if (entry.Config.TryGetValidationError(out string configError))
             {
                 error = $"{nameof(EnemyDifficultyCatalog)} '{name}' has an invalid config at index {i}: {configError}";
@@ -112,9 +92,9 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
             if (!HasSameBodyShape(reference, entry.Config))
             {
                 error =
-                    $"{nameof(EnemyDifficultyCatalog)} '{name}' entry '{entry.DisplayName}' describes a " +
-                    $"different body than '{difficulties[0].DisplayName}'. Clients keep the collider from " +
-                    "the prefab config, so every difficulty must share the posture collider values.";
+                    $"{nameof(EnemyDifficultyCatalog)} '{name}' difficulty {entry.DifficultyId} describes a " +
+                    $"different body than difficulty {difficulties[0].DifficultyId}. Clients keep the collider " +
+                    "from the prefab config, so every difficulty must share the posture collider values.";
                 return false;
             }
 
@@ -128,14 +108,32 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
             }
         }
 
-        if (!IsValidDifficultyId(defaultDifficultyId))
-        {
-            error = $"{nameof(EnemyDifficultyCatalog)} '{name}' has no difficulty for default id {defaultDifficultyId}.";
-            return false;
-        }
-
         error = string.Empty;
         return true;
+    }
+
+    // Every difficulty the game offers that this enemy has no config for. On
+    // such a difficulty it falls back to its prefab's config, so it plays the
+    // same on two difficulties and nothing says so.
+    public bool CoversEvery(GameDifficultyCatalog game, out string missing)
+    {
+        missing = string.Empty;
+
+        if (game == null)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < game.Count; i++)
+        {
+            if (game.TryGetAt(i, out GameDifficultyCatalog.Difficulty difficulty) &&
+                !TryGetConfig(difficulty.DifficultyId, out _))
+            {
+                missing += (missing.Length > 0 ? ", " : string.Empty) + difficulty.DisplayName;
+            }
+        }
+
+        return missing.Length == 0;
     }
 
     private static bool HasSameBodyShape(EnemyConfig left, EnemyConfig right)
@@ -146,10 +144,5 @@ public sealed class EnemyDifficultyCatalog : ScriptableObject
                Mathf.Approximately(left.crawlingBodyColliderHeight, right.crawlingBodyColliderHeight) &&
                Mathf.Approximately(left.crawlingBodyColliderRadius, right.crawlingBodyColliderRadius) &&
                left.crawlingBodyColliderCenter == right.crawlingBodyColliderCenter;
-    }
-
-    private void OnValidate()
-    {
-        defaultDifficultyId = Mathf.Max(0, defaultDifficultyId);
     }
 }

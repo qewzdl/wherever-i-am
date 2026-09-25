@@ -11,7 +11,7 @@ public class LobbyConfig : ScriptableObject
     [Header("Allowed Selections")]
     [SerializeField] private int[] gameModeIds = { 0 };
     [SerializeField] private GameMapCatalog mapCatalog;
-    [SerializeField] private EnemyDifficultyCatalog difficultyCatalog;
+    [SerializeField] private GameDifficultyCatalog difficultyCatalog;
 
     public int MinPlayersToStart => minPlayersToStart;
     public int MaxPlayers => maxPlayers;
@@ -20,7 +20,7 @@ public class LobbyConfig : ScriptableObject
     public int DefaultGameModeId => GetFirstOrDefault(gameModeIds);
     public int DefaultMapId => mapCatalog != null ? mapCatalog.DefaultMapId : 0;
 
-    public EnemyDifficultyCatalog DifficultyCatalog => difficultyCatalog;
+    public GameDifficultyCatalog DifficultyCatalog => difficultyCatalog;
 
     public int DefaultDifficultyId =>
         difficultyCatalog != null ? difficultyCatalog.DefaultDifficultyId : 0;

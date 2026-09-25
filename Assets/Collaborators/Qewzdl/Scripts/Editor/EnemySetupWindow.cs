@@ -46,11 +46,6 @@ using Object = UnityEngine.Object;
 // so the window cannot tell you a list is fine that the build then rejects.
 public sealed class EnemySetupWindow : EditorWindow
 {
-    // The lobby's catalog: which difficulties exist, and the config an enemy
-    // with no catalog of its own falls back to.
-    private const string CatalogPath =
-        "Assets/Collaborators/Qewzdl/Configs/Enemies/EnemyDifficultyCatalog.asset";
-
     private const string FoldoutPrefix = "WhereverIAm.EnemySetup.";
     private const string SelectedEnemyKey = FoldoutPrefix + "SelectedEnemy";
     private const string ModulesProperty = "behaviorModules";
@@ -98,20 +93,25 @@ public sealed class EnemySetupWindow : EditorWindow
     }
 
     private Vector2 scroll;
+
+    // Which difficulties exist - the columns - and the selected enemy's own
+    // config for each of them.
+    private GameDifficultyCatalog gameDifficulties;
     private EnemyDifficultyCatalog catalog;
 
     private NetworkPrefabsList networkPrefabs;
     private readonly List<NetworkEnemyController> enemies = new();
     private NetworkEnemyController selected;
 
-    // True when the selected enemy has no catalog of its own and the lobby's is
-    // being shown in its place - which is also what it gets in a match.
-    private bool usesLobbyCatalog;
-
     // Where the toolbar menu was last drawn, so the rename prompt it opens can
     // hang off it.
     private Rect enemyMenuRect;
     private const string RenameCommand = "EnemySetupRename";
+    private const string NewBlankCommand = "EnemySetupNewBlank";
+    private const string NewCopyCommand = "EnemySetupNewCopy";
+
+    // Where the New button was last drawn, for the name prompt its menu opens.
+    private Rect newButtonRect;
 
     // The saved map scenes and how many of their spawn points place the
     // selected enemy. Worked out on reload: it reads every map file.
@@ -120,6 +120,10 @@ public sealed class EnemySetupWindow : EditorWindow
     // Network prefab entries left pointing at nothing - see
     // EnemyFactory.EmptyEntries for how they come about.
     private int emptyNetworkEntries;
+
+    // How many of the selected enemy's files are not where the one folder
+    // layout every enemy shares puts them - see EnemyFactory.PlanTidy.
+    private int untidyFiles;
 
     private readonly List<Difficulty> difficulties = new();
     private readonly List<ProfileSlot> slots = new();
@@ -159,10 +163,8 @@ public sealed class EnemySetupWindow : EditorWindow
         emptyNetworkEntries = EnemyFactory.EmptyEntries(networkPrefabs).Count;
         selected = ResolveSelectedEnemy();
 
-        usesLobbyCatalog = selected == null || selected.DifficultyCatalog == null;
-        catalog = usesLobbyCatalog
-            ? AssetDatabase.LoadAssetAtPath<EnemyDifficultyCatalog>(CatalogPath)
-            : selected.DifficultyCatalog;
+        gameDifficulties = EnemyFactory.GameDifficulties;
+        catalog = selected != null ? selected.DifficultyCatalog : null;
 
         difficulties.Clear();
         slots.Clear();
@@ -170,27 +172,31 @@ public sealed class EnemySetupWindow : EditorWindow
         kinds.Clear();
         placements.Clear();
 
+        untidyFiles = 0;
+
         if (selected != null)
         {
             placements.AddRange(EnemyFactory.FindPlacements(selected, EnemyFactory.MapsFolder));
+            untidyFiles = EnemyFactory.PlanTidy(selected, EnemyFactory.ConfigRoot).Count;
         }
 
-        if (catalog != null)
+        if (gameDifficulties != null)
         {
-            for (int i = 0; i < catalog.Count; i++)
+            for (int i = 0; i < gameDifficulties.Count; i++)
             {
-                if (!catalog.TryGetEntryAt(i, out EnemyDifficultyCatalog.EnemyDifficultyEntry entry))
+                if (!gameDifficulties.TryGetAt(i, out GameDifficultyCatalog.Difficulty difficulty))
                 {
                     continue;
                 }
 
+                EnemyConfig config = null;
+                catalog?.TryGetConfig(difficulty.DifficultyId, out config);
+
                 difficulties.Add(new Difficulty
                 {
-                    Name = entry.DisplayName,
-                    Config = entry.Config,
-                    Serialized = entry.Config != null
-                        ? new SerializedObject(entry.Config)
-                        : null,
+                    Name = difficulty.DisplayName,
+                    Config = config,
+                    Serialized = config != null ? new SerializedObject(config) : null,
                 });
             }
         }
@@ -321,11 +327,23 @@ public sealed class EnemySetupWindow : EditorWindow
         // A menu item runs after the menu closes, outside any drawing, where a
         // popup has nothing to hang off. It sends a command instead, and the
         // prompt opens here, at the top of a real pass.
-        if (Event.current.type == EventType.ExecuteCommand &&
-            Event.current.commandName == RenameCommand)
+        if (Event.current.type == EventType.ExecuteCommand)
         {
-            Event.current.Use();
-            ShowRenamePrompt();
+            switch (Event.current.commandName)
+            {
+                case RenameCommand:
+                    Event.current.Use();
+                    ShowRenamePrompt();
+                    break;
+                case NewBlankCommand:
+                    Event.current.Use();
+                    PopupWindow.Show(newButtonRect, NewEnemyPrompt(source: null));
+                    break;
+                case NewCopyCommand when selected != null:
+                    Event.current.Use();
+                    PopupWindow.Show(newButtonRect, NewEnemyPrompt(selected));
+                    break;
+            }
         }
 
         DrawToolbar();
@@ -335,21 +353,19 @@ public sealed class EnemySetupWindow : EditorWindow
         if (enemies.Count == 0)
         {
             EditorGUILayout.HelpBox(
-                "No enemy prefab is registered in " + EnemyFactory.NetworkPrefabsPath +
-                ". An enemy has to be there to spawn, so that is where this " +
-                "window looks for them.",
-                MessageType.Warning);
+                "There are no enemies yet. Make one with + New.",
+                MessageType.Info);
         }
-        else if (catalog == null)
+        else if (gameDifficulties == null)
         {
             EditorGUILayout.HelpBox(
-                "No enemy difficulty catalog at " + CatalogPath + ".",
+                "No game difficulty catalog at " + EnemyFactory.GameDifficultiesPath + ".",
                 MessageType.Error);
         }
         else if (difficulties.Count == 0)
         {
             EditorGUILayout.HelpBox(
-                "The difficulty catalog lists no difficulties.",
+                "The game offers no difficulties.",
                 MessageType.Warning);
         }
         else
@@ -391,23 +407,17 @@ public sealed class EnemySetupWindow : EditorWindow
                 }
             }
 
-            string cannotCopy = selected == null
-                ? "Pick an enemy to start from."
-                : selected.DifficultyCatalog == null
-                    ? selected.name + " has no difficulty catalog of its own to copy."
-                    : null;
-
-            GUIContent newContent = new(
-                "+ New...",
-                cannotCopy ?? "A new kind of enemy, starting as a copy of " + selected.name + ".");
+            GUIContent newContent = new("+ New...", "A new kind of enemy, from nothing or as a copy.");
             Rect newRect = GUILayoutUtility.GetRect(newContent, EditorStyles.toolbarButton);
 
-            using (new EditorGUI.DisabledScope(cannotCopy != null))
+            if (Event.current.type == EventType.Repaint)
             {
-                if (GUI.Button(newRect, newContent, EditorStyles.toolbarButton))
-                {
-                    PopupWindow.Show(newRect, NewEnemyPrompt());
-                }
+                newButtonRect = newRect;
+            }
+
+            if (GUI.Button(newRect, newContent, EditorStyles.toolbarButton))
+            {
+                BuildNewMenu().DropDown(newRect);
             }
 
             GUILayout.FlexibleSpace();
@@ -439,6 +449,34 @@ public sealed class EnemySetupWindow : EditorWindow
                 }
             }
         }
+    }
+
+    // From nothing is always there - it is how the first enemy gets made. A
+    // copy needs an enemy with configs of its own to copy.
+    private GenericMenu BuildNewMenu()
+    {
+        GenericMenu menu = new();
+
+        menu.AddItem(new GUIContent("Blank Enemy..."), false, () =>
+            SendEvent(EditorGUIUtility.CommandEvent(NewBlankCommand)));
+
+        if (selected == null)
+        {
+            return menu;
+        }
+
+        if (selected.DifficultyCatalog != null)
+        {
+            menu.AddItem(new GUIContent("Copy of " + selected.name + "..."), false, () =>
+                SendEvent(EditorGUIUtility.CommandEvent(NewCopyCommand)));
+        }
+        else
+        {
+            menu.AddDisabledItem(new GUIContent(
+                "Copy of " + selected.name + " (it has no difficulty catalog to copy)"));
+        }
+
+        return menu;
     }
 
     // Finding the enemy's assets, then the two things that change what the
@@ -639,14 +677,17 @@ public sealed class EnemySetupWindow : EditorWindow
     // and profiles into a folder of its own, gives it a catalog and a prefab
     // variant, and registers it to spawn - see EnemyFactory for what is copied
     // and what is shared.
-    private NamePrompt NewEnemyPrompt()
+    // A copy of the source when there is one, a blank enemy when there is not.
+    private NamePrompt NewEnemyPrompt(NetworkEnemyController source)
     {
-        NetworkEnemyController source = selected;
-
         return new NamePrompt(
-            "New enemy from " + source.name,
-            "Copies every config and profile, so it can be tuned without " +
-            "touching " + source.name + ". Behaviours and the body stay shared.",
+            source != null ? "Copy of " + source.name : "Blank enemy",
+            source != null
+                ? "Copies every config, profile and the presentation profile, so " +
+                  "it can be tuned without touching " + source.name + ". " +
+                  "Behaviour modules stay shared."
+                : "Default profiles and a config for every difficulty, and no " +
+                  "behaviours yet - tick them under Behaviours.",
             "Create",
             string.Empty,
             name => EnemyFactory.ProblemWithName(
@@ -660,12 +701,18 @@ public sealed class EnemySetupWindow : EditorWindow
     {
         try
         {
-            EnemyFactory.Result result = EnemyFactory.CreateFrom(
-                source,
-                name,
-                EnemyFactory.ConfigRoot,
-                EnemyFactory.PrefabRoot,
-                networkPrefabs);
+            EnemyFactory.Result result = source != null
+                ? EnemyFactory.CreateFrom(
+                    source,
+                    name,
+                    EnemyFactory.ConfigRoot,
+                    EnemyFactory.PrefabRoot,
+                    networkPrefabs)
+                : EnemyFactory.CreateBlank(
+                    name,
+                    EnemyFactory.ConfigRoot,
+                    EnemyFactory.PrefabRoot,
+                    networkPrefabs);
 
             Select(result.Prefab);
             EditorGUIUtility.PingObject(result.Prefab);
@@ -844,15 +891,32 @@ public sealed class EnemySetupWindow : EditorWindow
                     MessageType.Warning);
             }
 
-            if (usesLobbyCatalog && selected != null)
+            if (selected != null && untidyFiles > 0)
+            {
+                clean = false;
+                EditorGUILayout.HelpBox(
+                    untidyFiles + (untidyFiles == 1 ? " file" : " files") + " in " +
+                    selected.name + "'s folder " + (untidyFiles == 1 ? "is" : "are") +
+                    " not where every enemy keeps them: a folder per difficulty, " +
+                    "Shared for what every difficulty uses. Moving them keeps " +
+                    "every reference.",
+                    MessageType.Info);
+
+                if (GUILayout.Button("Tidy " + selected.name + "'s folder"))
+                {
+                    EnemyFactory.Tidy(selected, EnemyFactory.ConfigRoot);
+                    Reload();
+                    GUIUtility.ExitGUI();
+                }
+            }
+
+            if (selected != null && catalog == null)
             {
                 clean = false;
                 EditorGUILayout.HelpBox(
                     selected.name + " has no difficulty catalog of its own, so " +
-                    "it plays with whatever config the lobby's catalog resolves " +
-                    "- the numbers below are the lobby's. That is right while " +
-                    "it is the only kind of enemy; with two, both would play as " +
-                    "the same one. Give it a catalog on its prefab.",
+                    "it plays its prefab's config on every difficulty. Give it " +
+                    "one on its prefab.",
                     MessageType.Warning);
             }
 
@@ -860,10 +924,16 @@ public sealed class EnemySetupWindow : EditorWindow
             {
                 if (difficulty.Config == null)
                 {
-                    clean = false;
-                    EditorGUILayout.HelpBox(
-                        difficulty.Name + ": no enemy config assigned in the catalog.",
-                        MessageType.Error);
+                    if (catalog != null)
+                    {
+                        clean = false;
+                        EditorGUILayout.HelpBox(
+                            difficulty.Name + ": " + catalog.name + " has no config " +
+                            "for it, so " + selected.name + " plays its prefab's " +
+                            "config on this difficulty.",
+                            MessageType.Warning);
+                    }
+
                     continue;
                 }
 
