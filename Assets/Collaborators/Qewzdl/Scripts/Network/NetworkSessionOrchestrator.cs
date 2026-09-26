@@ -30,6 +30,14 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         return sessionFlowService.HostLanAsync();
     }
 
+    public Task HostSingleplayerAsync()
+    {
+        if (!HasRequiredReferences())
+            return Task.CompletedTask;
+
+        return sessionFlowService.HostSingleplayerAsync();
+    }
+
     public Task JoinLanAsync(string ip)
     {
         if (!HasRequiredReferences())

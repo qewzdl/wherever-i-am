@@ -10,7 +10,10 @@ internal interface INetworkConnectionService
     bool IsRunning { get; }
     bool IsConnectionReady { get; }
 
-    Task<ConnectionResult> StartHostAsync();
+    // localOnly: listen on this machine alone, on whatever port is free - a
+    // singleplayer game, which nobody else should be able to reach and which
+    // must not clash with a lobby another copy of the game is hosting.
+    Task<ConnectionResult> StartHostAsync(bool localOnly = false);
     Task<ConnectionResult> StartClientAsync(string ip);
     Task<ConnectionResult> StartConnectionAsync(ConnectionConfig config);
     Task ShutdownAndWaitAsync(NetworkShutdownMode mode = NetworkShutdownMode.Graceful);

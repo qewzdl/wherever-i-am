@@ -8,6 +8,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UIElements;
 
 public sealed class ObjectiveRuntimePlayModeTests
 {
@@ -137,6 +138,27 @@ public sealed class ObjectiveRuntimePlayModeTests
             gameFlow.CurrentResult.Reason.ToString(),
             Is.EqualTo("Objective timer ran out"));
         Assert.That(objectiveFlow.IsServerReady, Is.True);
+
+        // One player hosted this match, so the screen that ends it has nobody
+        // else to talk about: no "everyone", and no lobby full of people.
+        MatchResultUi resultUi = UnityEngine.Object.FindFirstObjectByType<MatchResultUi>();
+        Assert.That(resultUi, Is.Not.Null);
+
+        VisualElement resultRoot = PlayModeTestReflection
+            .GetField<UIDocument>(resultUi, "document")
+            .rootVisualElement;
+        Label note = resultRoot.Q<Label>("Note");
+
+        // Lost to the objective, not to the enemy: nobody was caught.
+        Assert.That(
+            resultRoot.Q<Label>("Outcome").text,
+            Is.EqualTo(UiLocalization.Text("You did not get out")),
+            "A match lost to its objective says somebody was caught.");
+
+        Assert.That(
+            note.text,
+            Is.EqualTo(UiLocalization.Text("Getting ready for the next match.")),
+            "A match played alone ends by telling everyone to go back to the lobby.");
     }
 
     // A finished match used to leave everyone standing in the game scene with

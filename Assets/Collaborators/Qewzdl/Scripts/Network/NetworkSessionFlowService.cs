@@ -51,7 +51,17 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         UnsubscribeFromSceneFlowService();
     }
 
-    public async Task HostLanAsync()
+    public Task HostLanAsync()
+    {
+        return HostAsync(SessionMode.Multiplayer);
+    }
+
+    public Task HostSingleplayerAsync()
+    {
+        return HostAsync(SessionMode.Singleplayer);
+    }
+
+    private async Task HostAsync(SessionMode mode)
     {
         if (!HasRequiredReferences())
             return;
@@ -64,13 +74,14 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
-        if (!TryBeginSession(NetworkSessionState.StartingHost, "Host LAN requested."))
+        if (!TryBeginSession(NetworkSessionState.StartingHost, $"Host {mode} requested.", mode))
             return;
 
         stateMachine.ChangeState(GameState.Connecting);
         disconnectHandler.StartListening();
 
-        ConnectionResult result = await connectionService.StartHostAsync();
+        ConnectionResult result = await connectionService.StartHostAsync(
+            localOnly: mode == SessionMode.Singleplayer);
 
         if (!result.Success)
         {
@@ -113,7 +124,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return;
         }
 
-        if (!TryBeginSession(NetworkSessionState.StartingClient, "Join LAN requested."))
+        if (!TryBeginSession(NetworkSessionState.StartingClient, "Join LAN requested.", SessionMode.Multiplayer))
             return;
 
         lastJoinAddress = ip;
@@ -585,7 +596,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             true);
     }
 
-    private bool TryBeginSession(NetworkSessionState startingState, string reason)
+    private bool TryBeginSession(NetworkSessionState startingState, string reason, SessionMode mode)
     {
         if (!sessionStateMachine.CanStartConnection)
         {
@@ -596,7 +607,7 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
             return false;
         }
 
-        if (!shutdownCoordinator.TryOpenSessionScope())
+        if (!shutdownCoordinator.TryOpenSessionScope(mode))
             return false;
 
         if (sessionStateMachine.TryChangeState(startingState, reason))

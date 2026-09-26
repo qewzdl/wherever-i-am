@@ -1,14 +1,17 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <!-- multiplayer-only: taken out of the tree in a singleplayer game by
+         LobbyUI - the roster, the door, Ready, the room's size and who owns
+         it are all about other people. -->
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
     <ui:VisualElement name="Screen" class="screen screen--left screen--curtained">
         <ui:VisualElement name="Panel" class="panel panel--rail">
             <ui:Label text="Lobby" name="Title" class="title enter" />
             <ui:VisualElement name="MatchSetup" class="setup enter enter--2">
                 <ui:Label name="SetupDifficulty" class="setup__line" />
-                <ui:Label name="SetupOwner" class="setup__note" />
+                <ui:Label name="SetupOwner" class="setup__note multiplayer-only" />
                 <ui:Label name="SetupNotice" class="setup__notice" />
             </ui:VisualElement>
-            <ui:ScrollView name="LobbyContent" class="scroll lobby__content enter enter--3">
+            <ui:ScrollView name="LobbyContent" class="scroll lobby__content enter enter--3 multiplayer-only">
                 <ui:VisualElement class="roster__header">
                     <ui:Label text="Players" class="section section--flush" />
                     <ui:VisualElement class="roster__summary">
@@ -18,7 +21,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement name="Roster" class="roster" />
             </ui:ScrollView>
-            <ui:VisualElement name="Door" class="door rail__gap enter enter--4">
+            <ui:VisualElement name="Door" class="door rail__gap enter enter--4 multiplayer-only">
                 <ui:VisualElement class="door__state">
                     <ui:Label name="DoorStatus" class="door__status" />
                     <ui:Toggle name="Visibility" class="toggle door__switch" />
@@ -35,7 +38,7 @@
             <ui:VisualElement class="stack enter enter--5">
                 <ui:Label name="StartHint" class="hint" />
                 <ui:Button text="Start" name="StartButton" class="button" />
-                <ui:Button text="Ready" name="ReadyButton" class="button" />
+                <ui:Button text="Ready" name="ReadyButton" class="button multiplayer-only" />
                 <ui:Button text="Room settings" name="RoomSettingsButton" class="button" />
                 <!-- The game's own settings, not the room's. Above Leave for
                      the same reason the main menu and the pause menu put it
@@ -47,18 +50,18 @@
         </ui:VisualElement>
         <ui:VisualElement name="RoomSettingsPanel" class="overlay">
             <ui:VisualElement class="panel panel--wide">
-                <ui:Label text="Room settings" class="title" />
-                <ui:VisualElement class="field">
+                <ui:Label text="Room settings" name="RoomSettingsTitle" class="title" />
+                <ui:VisualElement class="field multiplayer-only">
                     <ui:Label text="Players" class="field__label" />
                     <ui:DropdownField name="MaxPlayers" class="field__control" />
                 </ui:VisualElement>
-                <ui:Label name="MaxPlayersNote" class="hint hint--field" />
+                <ui:Label name="MaxPlayersNote" class="hint hint--field multiplayer-only" />
                 <ui:VisualElement class="field">
                     <ui:Label text="Difficulty" class="field__label" />
                     <ui:DropdownField name="Difficulty" class="field__control" />
                 </ui:VisualElement>
                 <ui:Label name="DifficultyDescription" class="hint hint--field" />
-                <ui:Label name="DifficultyOwnerNote" class="hint hint--field" />
+                <ui:Label name="DifficultyOwnerNote" class="hint hint--field multiplayer-only" />
                 <ui:VisualElement class="footer">
                     <ui:Button text="Done" name="RoomSettingsCloseButton" class="button button--cancel" />
                 </ui:VisualElement>

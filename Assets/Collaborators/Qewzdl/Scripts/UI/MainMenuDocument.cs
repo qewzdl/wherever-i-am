@@ -35,6 +35,12 @@ public sealed class MainMenuDocument : MonoBehaviour
     [SerializeField] private string cancellingMessage = "Cancelling connection...";
     [SerializeField] private string hostingDetail =
         "This device will host the LAN session.";
+
+    // A singleplayer game is a host too, but nobody asked for a LAN session
+    // or a lobby, and the wait should not say it is making one.
+    [SerializeField] private string singleplayerStartingMessage = "Starting the game...";
+    [SerializeField] private string singleplayerStartingDetail = "Nobody else can join this game.";
+    [SerializeField] private string singleplayerLoadingMessage = "Loading...";
     [SerializeField] private string joiningDetailFormat = "Host {0}";
     [SerializeField] private string cancellingDetail =
         "Stopping network services safely.";
@@ -94,6 +100,15 @@ public sealed class MainMenuDocument : MonoBehaviour
     private string chosenAddress = string.Empty;
     private string chosenName = string.Empty;
     private Button hostButton;
+    private Button singleplayerButton;
+    private Button multiplayerButton;
+    private Button backButton;
+    private VisualElement mainButtons;
+    private VisualElement multiplayerButtons;
+
+    // Whether the request in flight is a singleplayer game, for what the wait
+    // says while it lasts.
+    private bool requestIsSingleplayer;
     private Button joinButton;
     private Button settingsButton;
     private Button quitButton;
@@ -217,7 +232,50 @@ public sealed class MainMenuDocument : MonoBehaviour
         {
             HideJoinPrompt();
             evt.StopPropagation();
+            return;
         }
+
+        if (IsMultiplayerOpen)
+        {
+            CloseMultiplayer();
+            evt.StopPropagation();
+        }
+    }
+
+    private bool IsMultiplayerOpen =>
+        multiplayerButtons != null &&
+        multiplayerButtons.resolvedStyle.display != DisplayStyle.None &&
+        multiplayerButtons.style.display != DisplayStyle.None;
+
+    // One list or the other, never both: Multiplayer is a step down into
+    // Create and Join, and Back is the step up again.
+    private void OpenMultiplayer()
+    {
+        if (isRequestInFlight)
+            return;
+
+        SetMultiplayerOpen(true, moveFocus: true);
+        sounds?.Play(UiSoundType.Open);
+    }
+
+    private void CloseMultiplayer()
+    {
+        SetMultiplayerOpen(false, moveFocus: true);
+    }
+
+    private void SetMultiplayerOpen(bool open, bool moveFocus)
+    {
+        if (mainButtons != null)
+            mainButtons.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+
+        if (multiplayerButtons != null)
+            multiplayerButtons.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
+
+        if (!moveFocus)
+            return;
+
+        Button target = open ? hostButton : multiplayerButton;
+        screen?.schedule.Execute(() => target?.Focus());
     }
 
     // The clock runs from the moment the request started, not from the last
@@ -304,6 +362,11 @@ public sealed class MainMenuDocument : MonoBehaviour
         UiTextInput.Guard(playerName);
         UiTextInput.Guard(address);
         hostButton = root.Q<Button>("HostButton");
+        singleplayerButton = root.Q<Button>("SingleplayerButton");
+        multiplayerButton = root.Q<Button>("MultiplayerButton");
+        backButton = root.Q<Button>("BackButton");
+        mainButtons = root.Q<VisualElement>("MainButtons");
+        multiplayerButtons = root.Q<VisualElement>("MultiplayerButtons");
         joinButton = root.Q<Button>("JoinButton");
         settingsButton = root.Q<Button>("SettingsButton");
         quitButton = root.Q<Button>("QuitButton");
@@ -339,6 +402,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         Subscribe();
         SetDisplayed(joinPanel, false);
+        SetMultiplayerOpen(false, moveFocus: false);
         SetBusy(false, string.Empty, string.Empty, string.Empty);
 
         if (playerName != null)
@@ -357,6 +421,15 @@ public sealed class MainMenuDocument : MonoBehaviour
     {
         if (hostButton != null)
             hostButton.clicked += Host;
+
+        if (singleplayerButton != null)
+            singleplayerButton.clicked += Singleplayer;
+
+        if (multiplayerButton != null)
+            multiplayerButton.clicked += OpenMultiplayer;
+
+        if (backButton != null)
+            backButton.clicked += CloseMultiplayer;
 
         if (joinButton != null)
             joinButton.clicked += ShowJoinPrompt;
@@ -393,6 +466,15 @@ public sealed class MainMenuDocument : MonoBehaviour
     {
         if (hostButton != null)
             hostButton.clicked -= Host;
+
+        if (singleplayerButton != null)
+            singleplayerButton.clicked -= Singleplayer;
+
+        if (multiplayerButton != null)
+            multiplayerButton.clicked -= OpenMultiplayer;
+
+        if (backButton != null)
+            backButton.clicked -= CloseMultiplayer;
 
         if (joinButton != null)
             joinButton.clicked -= ShowJoinPrompt;
@@ -731,6 +813,30 @@ public sealed class MainMenuDocument : MonoBehaviour
     // Public because these two are what the menu does, and a test that asks
     // whether a second click is ignored should not have to build a panel to
     // ask it.
+    // A game for one. Still a host underneath - see SessionMode - but one
+    // nobody else can reach or find.
+    public async void Singleplayer()
+    {
+        SavePlayerName();
+
+        if (!TryBeginRequest(UiLocalization.Text(singleplayerStartingDetail)))
+            return;
+
+        requestIsSingleplayer = true;
+
+        try
+        {
+            if (!HasSessionService())
+                return;
+
+            await sessionService.HostSingleplayerAsync();
+        }
+        finally
+        {
+            CompleteRequestInvocation();
+        }
+    }
+
     public async void Host()
     {
         SavePlayerName();
@@ -879,6 +985,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     private void EndRequest()
     {
         isRequestInFlight = false;
+        requestIsSingleplayer = false;
         requestDetail = string.Empty;
         SetBusy(false, string.Empty, string.Empty, string.Empty);
     }
@@ -951,7 +1058,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.StartingHost:
                 SetBusy(
                     true,
-                    UiLocalization.Text(hostingMessage),
+                    UiLocalization.Text(requestIsSingleplayer ? singleplayerStartingMessage : hostingMessage),
                     FormatStep(1, 2),
                     requestDetail);
                 break;
@@ -967,7 +1074,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.LoadingLobby:
                 SetBusy(
                     true,
-                    UiLocalization.Text(loadingLobbyMessage),
+                    UiLocalization.Text(requestIsSingleplayer ? singleplayerLoadingMessage : loadingLobbyMessage),
                     FormatStep(2, 2),
                     requestDetail);
                 break;
@@ -975,7 +1082,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             case NetworkSessionState.Lobby:
                 SetBusy(
                     true,
-                    UiLocalization.Text(openingLobbyMessage),
+                    UiLocalization.Text(requestIsSingleplayer ? singleplayerLoadingMessage : openingLobbyMessage),
                     FormatStep(2, 2),
                     requestDetail);
                 break;

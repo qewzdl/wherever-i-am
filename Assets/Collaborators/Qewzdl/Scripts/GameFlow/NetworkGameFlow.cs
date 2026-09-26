@@ -18,6 +18,8 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
     [Header("Result announcement")]
     [SerializeField] private string victoryMessage = "The match is over - you got out.";
     [SerializeField] private string defeatMessage = "The match is over - everyone was caught.";
+    [SerializeField] private string aloneDefeatMessage = "The match is over - you were caught.";
+    [SerializeField] private string notOutDefeatMessage = "The match is over - you did not get out.";
     [SerializeField] private string drawMessage = "The match is over.";
 
     private readonly NetworkVariable<GamePhase> phase = new NetworkVariable<GamePhase>(
@@ -235,7 +237,11 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
         string message = matchResult.ResultType switch
         {
             GameResultType.Victory => victoryMessage,
-            GameResultType.Defeat => defeatMessage,
+            GameResultType.Defeat => matchResult.Source != MatchResultSource.PlayerCaught
+                ? notOutDefeatMessage
+                : PlayerEnemyAttackReceiver.PlayedAlone(PlayerEnemyAttackReceiver.All)
+                    ? aloneDefeatMessage
+                    : defeatMessage,
             _ => drawMessage
         };
 

@@ -103,6 +103,25 @@ public static class UiLocalization
     }
 
     /// <summary>
+    /// Changes what a markup element says, given in English, and shows it in
+    /// the current language.
+    /// </summary>
+    /// <remarks>
+    /// For an element whose words are decided after its tree was translated.
+    /// Writing its text directly would last until the language changed: the
+    /// tree is translated again from the English each element was first seen
+    /// saying, which would put the old words back.
+    /// </remarks>
+    public static void SetText(TextElement element, string english)
+    {
+        if (element == null)
+            return;
+
+        sources[element] = english;
+        element.text = Text(english);
+    }
+
+    /// <summary>
     /// One sentence, in the form that agrees with a count. Safe before
     /// anything is composed.
     /// </summary>

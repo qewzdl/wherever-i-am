@@ -6,9 +6,11 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using Unity.Netcode;
+using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UIElements;
 
 internal sealed class ShutdownReplicatedPlayerService : IReplicatedPlayerStateService
 {
@@ -959,6 +961,70 @@ public sealed class NetworkSessionShutdownPlayModeTests
             Is.SameAs(own),
             $"{enemy.name} spawned playing {(enemy.Config != null ? enemy.Config.name : "nothing")} " +
             $"rather than its own Hard config, {own.name}.");
+    }
+
+    // Singleplayer, from the menu's button to the lobby, through everything
+    // that makes it singleplayer rather than a lobby that happens to be empty:
+    // the session knows its mode, it listens on this machine alone, its door
+    // is shut on a room for one, it is not announced on the network, it can
+    // start without anybody pressing Ready, and the screen has nothing on it
+    // about other people.
+    [UnityTest]
+    public IEnumerator Singleplayer_HostsARoomForOneThatNobodyElseCanFindOrJoin()
+    {
+        yield return StartBootstrapAndWaitUntilReady();
+
+        NetworkSessionStateMachine sessionStateMachine =
+            GetSinglePersistentComponent<NetworkSessionStateMachine>();
+        IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
+
+        Task start = runtimeContext.SessionOrchestrator.HostSingleplayerAsync();
+        yield return WaitForTask(start, "Singleplayer startup did not complete.");
+        yield return WaitForCondition(
+            () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
+                  runtimeContext.GetActiveSceneKind() == ProjectSceneKind.Lobby &&
+                  !sceneFlow.HasPendingOperation,
+            "Singleplayer did not reach its lobby.");
+
+        Assert.That(
+            runtimeContext.SessionOrchestrator.SessionServices.Resolve<INetworkSessionInfo>().Mode,
+            Is.EqualTo(SessionMode.Singleplayer),
+            "The session does not know it is a singleplayer game.");
+
+        UnityTransport transport =
+            (UnityTransport)runtimeContext.NetworkManager.NetworkConfig.NetworkTransport;
+        Assert.That(transport.ConnectionData.ServerListenAddress, Is.EqualTo("127.0.0.1"),
+            "A singleplayer game is listening where the rest of the network can reach it.");
+
+        INetworkSessionAdmissionService admission = runtimeContext.SessionOrchestrator
+            .SessionServices.Resolve<INetworkSessionAdmissionService>();
+        Assert.That(admission.IsAcceptingNewPlayers, Is.False, "The door of a singleplayer game is open.");
+        Assert.That(admission.MaxPlayers, Is.EqualTo(1));
+
+        LobbySceneFeature feature = UnityEngine.Object.FindFirstObjectByType<LobbySceneFeature>();
+        Assert.That(feature, Is.Not.Null);
+        Assert.That(PlayModeTestReflection.GetField<LanLobbyBeacon>(feature, "beacon"), Is.Null,
+            "A singleplayer game is being announced on the network.");
+
+        LobbyState lobbyState = UnityEngine.Object.FindFirstObjectByType<LobbyState>();
+        yield return WaitForCondition(
+            () => lobbyState.Players.Count == 1,
+            "The singleplayer lobby never listed its one player.");
+        Assert.That(lobbyState.Players[0].IsReady, Is.False);
+        Assert.That(lobbyState.CanStartGame.Value, Is.True,
+            "A singleplayer game will not start until its one player says they are ready.");
+
+        VisualElement root = UnityEngine.Object.FindFirstObjectByType<LobbyUI>()
+            .GetComponent<UIDocument>().rootVisualElement;
+
+        foreach (string multiplayerOnly in new[] { "ReadyButton", "Door", "LobbyContent", "SetupOwner", "MaxPlayers" })
+        {
+            Assert.That(root.Q(multiplayerOnly), Is.Null,
+                $"The singleplayer lobby still shows {multiplayerOnly}.");
+        }
+
+        Assert.That(root.Q<Button>("StartButton"), Is.Not.Null);
+        Assert.That(root.Q<Label>("Title").text, Is.EqualTo(UiLocalization.Text("Singleplayer")));
     }
 
     private IEnumerator StartBootstrapAndWaitUntilReady()

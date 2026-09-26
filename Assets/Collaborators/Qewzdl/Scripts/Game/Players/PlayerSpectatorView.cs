@@ -95,7 +95,8 @@ public sealed class PlayerSpectatorView : MonoBehaviour
             return;
         }
 
-        StopPlaying();
+        // The player's own controls were let go of by the receiver when they
+        // were caught; this only decides whose eyes to watch through.
         Current = this;
     }
 
@@ -278,34 +279,5 @@ public sealed class PlayerSpectatorView : MonoBehaviour
 
         Camera camera = player.GetComponentInChildren<Camera>(true);
         return camera != null ? camera.transform : null;
-    }
-
-    // Everything that let this player act on the world. The body itself is
-    // taken out of play by whoever eliminated it.
-    private void StopPlaying()
-    {
-        DisableIfPresent<CameraLook>();
-        DisableIfPresent<PlayerController>();
-        DisableIfPresent<PlayerInteraction>();
-        DisableIfPresent<PlayerInputHandler>();
-        DisableIfPresent<PlayerPostureController>();
-        DisableIfPresent<PlayerUI>();
-        DisableIfPresent<PlayerInput>();
-
-        // CameraLook hands the cursor back when it is switched off, which is
-        // right for a menu and wrong here: watching is still playing, and the
-        // pause menu takes the cursor back on its own when it needs it.
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-    }
-
-    private void DisableIfPresent<T>() where T : Behaviour
-    {
-        T[] behaviours = GetComponentsInChildren<T>(true);
-
-        for (int i = 0; i < behaviours.Length; i++)
-        {
-            behaviours[i].enabled = false;
-        }
     }
 }

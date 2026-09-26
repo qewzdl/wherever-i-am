@@ -140,6 +140,7 @@ public sealed class ChildServiceContractPolicyTests
             typeof(IPlayerScopeRegistry),
             typeof(IGameMapSessionService),
             typeof(IGameplayNoiseService),
+            typeof(INetworkSessionInfo),
             typeof(IChatReadService),
             typeof(IChatCommandService),
             typeof(ISessionPhaseService),

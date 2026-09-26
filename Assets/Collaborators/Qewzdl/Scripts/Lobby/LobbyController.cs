@@ -9,6 +9,7 @@ public class LobbyController : NetworkBehaviour
     private INetworkSessionService sessionService;
     private INetworkSessionAdmissionService admissionService;
     private IGameMapSessionService mapService;
+    private SessionMode mode;
 
     private LobbyOwnershipService ownershipService;
     private LobbyPlayerRegistry playerRegistry;
@@ -47,7 +48,8 @@ public class LobbyController : NetworkBehaviour
     public bool Construct(
         INetworkSessionService sessionService,
         INetworkSessionAdmissionService admissionService,
-        IGameMapSessionService mapService = null)
+        IGameMapSessionService mapService = null,
+        SessionMode mode = SessionMode.Multiplayer)
     {
         if (!ValidateConfiguration())
             return false;
@@ -67,6 +69,7 @@ public class LobbyController : NetworkBehaviour
         if (this.sessionService == sessionService &&
             this.admissionService == admissionService &&
             this.mapService == mapService &&
+            this.mode == mode &&
             IsConstructed(false))
         {
             return true;
@@ -75,6 +78,7 @@ public class LobbyController : NetworkBehaviour
         this.sessionService = sessionService;
         this.admissionService = admissionService;
         this.mapService = mapService;
+        this.mode = mode;
         CreateServices();
 
         if (IsSpawned && IsServer)
@@ -131,7 +135,8 @@ public class LobbyController : NetworkBehaviour
             lobbyState,
             lobbyConfig,
             mapService,
-            admissionService);
+            admissionService,
+            mode);
         startService = new LobbyStartService(lobbyState, startRules, sessionService);
     }
 

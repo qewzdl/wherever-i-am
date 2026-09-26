@@ -21,12 +21,25 @@ public sealed class MatchResultUi : SceneRuntimeFeature
     [Header("Text")]
     [SerializeField] private string victoryText = "You got out";
     [SerializeField] private string defeatText = "Everyone was caught";
+
+    // Alone, "everyone" is one person.
+    [SerializeField] private string aloneDefeatText = "You were caught";
+
+    // Lost without anybody being caught - the way out stayed shut. Saying
+    // somebody was caught would be describing a different match.
+    [SerializeField] private string notOutDefeatText = "You did not get out";
     [SerializeField] private string drawText = "The match is over";
+
+    // What happens next, under the outcome. "Everyone" and "the lobby" are
+    // both about other people; alone there is only the next match.
+    [SerializeField] private string groupNoteText = "Everyone is going back to the lobby.";
+    [SerializeField] private string aloneNoteText = "Getting ready for the next match.";
 
     private ISessionServiceRegistry serviceRegistry;
     private IMatchCompletionService matchService;
     private VisualElement screen;
     private Label outcome;
+    private Label note;
 
     protected override bool ValidateFeature(SceneFeatureContext context)
     {
@@ -76,6 +89,7 @@ public sealed class MatchResultUi : SceneRuntimeFeature
 
         screen = root.Q<VisualElement>("Screen");
         outcome = root.Q<Label>("Outcome");
+        note = root.Q<Label>("Note");
 
         if (screen != null && outcome != null)
             return true;
@@ -117,12 +131,18 @@ public sealed class MatchResultUi : SceneRuntimeFeature
 
     private void HandleMatchResolved(GameResultData matchResult)
     {
+        bool alone = PlayerEnemyAttackReceiver.PlayedAlone(PlayerEnemyAttackReceiver.All);
+
         outcome.text = UiLocalization.Text(matchResult.ResultType switch
         {
             GameResultType.Victory => victoryText,
-            GameResultType.Defeat => defeatText,
+            GameResultType.Defeat => matchResult.Source != MatchResultSource.PlayerCaught
+                ? notOutDefeatText
+                : alone ? aloneDefeatText : defeatText,
             _ => drawText
         });
+
+        UiLocalization.SetText(note, alone ? aloneNoteText : groupNoteText);
 
         // Only the loss is coloured. Rust is the one place this palette raises
         // its voice, and everybody being caught is the one thing in a match

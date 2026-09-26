@@ -375,7 +375,6 @@ MonoBehaviour:
   addressCopyTooltip: Copy invite address
   addressCopiedText: Address copied
   doorFullFormat: Open, but the room is full at {0}. Nobody else can get in.
-  readyToStartText: Everyone is ready - start the match
   waitingForHostText: Waiting for the host to start
   preparingMatchStageText: PREPARING
   loadingMatchStageText: LOADING SCENE
@@ -395,10 +394,6 @@ MonoBehaviour:
   kickActionText: Remove
   localPlayerSuffix: '  (you)'
   leaveActionText: Leave
-  closeLobbyActionText: Close lobby
-  closeLobbyConfirmText: Close the lobby? Everybody else in it goes back to the menu.
-  closeLobbyConfirmAloneText: Close the lobby and go back to the menu?
-  closeLobbyActionConfirmText: Close
   emptyRosterText: Waiting for the room...
 
 --- !u!114 &896598421

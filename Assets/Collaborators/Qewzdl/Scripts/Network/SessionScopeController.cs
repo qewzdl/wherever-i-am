@@ -34,7 +34,8 @@ internal sealed class SessionScopeController : IDisposable
         return scope != null;
     }
 
-    internal bool TryOpen(out Exception failure)
+    // A session is multiplayer unless whoever opens it says otherwise.
+    internal bool TryOpen(out Exception failure, SessionMode mode = SessionMode.Multiplayer)
     {
         failure = null;
 
@@ -71,6 +72,7 @@ internal sealed class SessionScopeController : IDisposable
                 ServiceRegistrationOwnership.ScopeOwned);
             candidateScope.Register<IGameMapSessionService>(gameMapService);
             candidateScope.Register<IGameplayNoiseService>(gameplayNoiseService);
+            candidateScope.Register<INetworkSessionInfo>(new NetworkSessionInfo(mode));
             transaction.Commit();
 
             sessionScope = candidateScope;

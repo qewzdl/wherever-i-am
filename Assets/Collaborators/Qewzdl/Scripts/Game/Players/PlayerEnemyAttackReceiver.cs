@@ -220,7 +220,61 @@ public sealed class PlayerEnemyAttackReceiver :
 
         if (IsOwner)
         {
+            LeavePlayLocally(RegisteredPlayers);
+        }
+    }
+
+    // What being caught means on the caught player's own machine: their
+    // hands come off the controls - no looking round, moving, reaching or
+    // posture - always. Then, if anybody is still playing, somebody else's
+    // eyes to watch through. Asked of the players rather than of the kind of
+    // session: a multiplayer lobby started alone has nobody to watch either.
+    //
+    // The two used to be one thing. Letting go of the controls lived inside
+    // the spectator view, so a caught player who was given no spectator view
+    // kept turning the camera of a body that was no longer there.
+    internal void LeavePlayLocally(IReadOnlyList<PlayerEnemyAttackReceiver> players)
+    {
+        StopPlaying();
+
+        if (PlayerSpectatorView.NextTarget(players, this, null) != null)
+        {
             PlayerSpectatorView.AttachTo(gameObject);
+        }
+    }
+
+    // Whether the match was one person's. What the end of it says is worded
+    // for one or for many by this, rather than by the kind of session.
+    internal static bool PlayedAlone(IReadOnlyList<PlayerEnemyAttackReceiver> players)
+    {
+        return players == null || players.Count <= 1;
+    }
+
+    private void StopPlaying()
+    {
+        DisableIfPresent<CameraLook>();
+        DisableIfPresent<PlayerController>();
+        DisableIfPresent<PlayerInteraction>();
+        DisableIfPresent<PlayerInputHandler>();
+        DisableIfPresent<PlayerPostureController>();
+        DisableIfPresent<PlayerUI>();
+        DisableIfPresent<UnityEngine.InputSystem.PlayerInput>();
+
+        // CameraLook hands the cursor back when it is switched off, which is
+        // right for a menu and wrong here: watching is still playing, the end
+        // of the match is still on screen, and the pause menu takes the cursor
+        // back on its own when it needs it.
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    private void DisableIfPresent<T>() where T : Behaviour
+    {
+        T[] behaviours = GetComponentsInChildren<T>(true);
+
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            behaviours[i].enabled = false;
         }
     }
 

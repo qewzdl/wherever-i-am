@@ -17,6 +17,11 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
         return Task.CompletedTask;
     }
 
+    public Task HostSingleplayerAsync()
+    {
+        return Task.CompletedTask;
+    }
+
     public Task JoinLanAsync(string ip)
     {
         return Task.CompletedTask;
@@ -444,6 +449,43 @@ public sealed class LobbyRulesPlayModeTests
 
         Assert.That(state.Phase.Value, Is.EqualTo(LobbyPhase.Open));
         Assert.That(state.CanStartGame.Value, Is.True);
+    }
+
+    // A singleplayer room is set up for one with its door shut, whatever the
+    // lobby config says, and neither can be changed afterwards - the controls
+    // are gone from the screen, and a command that arrived anyway is refused.
+    [UnityTest]
+    public IEnumerator SingleplayerSettings_AreForOneWithTheDoorShutAndStayThatWay()
+    {
+        LobbyState state = CreateLobbyState();
+        LobbyConfig config = ScriptableObject.CreateInstance<LobbyConfig>();
+
+        try
+        {
+            PlayModeTestReflection.SetField(config, "maxPlayers", 4);
+            PlayModeTestReflection.SetField(config, "requireAllPlayersReady", true);
+
+            yield return null;
+
+            LobbySettingsService settings = new(state, config, mode: SessionMode.Singleplayer);
+            settings.Initialize();
+
+            LobbySettingsData data = state.Settings.Value;
+            Assert.That(data.IsPublic, Is.False);
+            Assert.That(data.MaxPlayers, Is.EqualTo(1));
+            Assert.That(data.MinPlayersToStart, Is.EqualTo(1));
+            Assert.That(data.RequireAllPlayersReady, Is.False);
+
+            settings.SetLobbyPublic(true);
+            Assert.That(state.Settings.Value.IsPublic, Is.False, "A singleplayer room was opened to the network.");
+
+            Assert.That(settings.SetMaxPlayers(3), Is.False);
+            Assert.That(state.Settings.Value.MaxPlayers, Is.EqualTo(1));
+        }
+        finally
+        {
+            Object.Destroy(config);
+        }
     }
 
     private LobbyState CreateLobbyState()

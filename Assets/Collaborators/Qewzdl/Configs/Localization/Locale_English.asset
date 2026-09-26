@@ -420,3 +420,31 @@ MonoBehaviour:
     Translation: '{0} lost connection.'
   - English: '{0} came back.'
     Translation: '{0} came back.'
+  - English: Singleplayer
+    Translation: Singleplayer
+  - English: Multiplayer
+    Translation: Multiplayer
+  - English: Back
+    Translation: Back
+  - English: Match settings
+    Translation: Match settings
+  - English: Leave for the main menu?
+    Translation: Leave for the main menu?
+  - English: Start whenever you are ready
+    Translation: Start whenever you are ready
+  - English: Starting the game...
+    Translation: Starting the game...
+  - English: Nobody else can join this game.
+    Translation: Nobody else can join this game.
+  - English: Loading...
+    Translation: Loading...
+  - English: You were caught
+    Translation: You were caught
+  - English: The match is over - you were caught.
+    Translation: The match is over - you were caught.
+  - English: Getting ready for the next match.
+    Translation: Getting ready for the next match.
+  - English: You did not get out
+    Translation: You did not get out
+  - English: The match is over - you did not get out.
+    Translation: The match is over - you did not get out.

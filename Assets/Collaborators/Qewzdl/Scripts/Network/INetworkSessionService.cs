@@ -3,6 +3,9 @@ using System.Threading.Tasks;
 public interface INetworkSessionService
 {
     Task HostLanAsync();
+
+    // A host nobody else can join - see SessionMode.
+    Task HostSingleplayerAsync();
     Task JoinLanAsync(string ip);
 
     void StartGame(int mapId);

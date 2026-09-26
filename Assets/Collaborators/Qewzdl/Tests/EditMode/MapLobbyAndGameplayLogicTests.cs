@@ -17,12 +17,19 @@ internal sealed class PendingSessionServiceStub : INetworkSessionService
     private readonly TaskCompletionSource<NetworkShutdownResult> pendingShutdown = new();
 
     public int HostCallCount { get; private set; }
+    public int SingleplayerCallCount { get; private set; }
     public int JoinCallCount { get; private set; }
     public int ShutdownCallCount { get; private set; }
 
     public Task HostLanAsync()
     {
         HostCallCount++;
+        return pending.Task;
+    }
+
+    public Task HostSingleplayerAsync()
+    {
+        SingleplayerCallCount++;
         return pending.Task;
     }
 
@@ -654,6 +661,40 @@ public sealed class MapLobbyAndGameplayLogicTests
                 session.ShutdownCallCount,
                 Is.EqualTo(1),
                 "The second cancel started another shutdown.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(menuObject);
+        }
+    }
+
+    // Singleplayer asks for a singleplayer session - not a LAN host that
+    // happens to have one player in it - and, like Create, only once however
+    // often it is pressed while the first is still going.
+    [Test]
+    public void MainMenu_Singleplayer_AsksForASingleplayerSessionOnce()
+    {
+        GameObject menuObject = new(nameof(MainMenuDocument));
+
+        try
+        {
+            MainMenuDocument menu = menuObject.AddComponent<MainMenuDocument>();
+            NetworkSessionStateMachine state =
+                menuObject.AddComponent<NetworkSessionStateMachine>();
+            PendingSessionServiceStub session = new();
+
+            menu.Construct(
+                session,
+                errorService: null,
+                settingsScreen: null,
+                sessionReadService: state);
+
+            menu.Singleplayer();
+            menu.Singleplayer();
+
+            Assert.That(session.SingleplayerCallCount, Is.EqualTo(1));
+            Assert.That(session.HostCallCount, Is.Zero, "Singleplayer started a LAN host.");
+            Assert.That(menu.IsRequestInFlight, Is.True);
         }
         finally
         {

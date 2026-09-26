@@ -11,13 +11,19 @@ public class LobbySettingsService
         LobbyState lobbyState,
         LobbyConfig lobbyConfig,
         IGameMapSessionService mapService = null,
-        INetworkSessionAdmissionService admissionService = null)
+        INetworkSessionAdmissionService admissionService = null,
+        SessionMode mode = SessionMode.Multiplayer)
     {
         this.lobbyState = lobbyState;
         this.lobbyConfig = lobbyConfig;
         this.mapService = mapService;
         this.admissionService = admissionService;
+        this.mode = mode;
     }
+
+    private readonly SessionMode mode;
+
+    private bool IsSingleplayer => mode == SessionMode.Singleplayer;
 
     // The room as the host last left it, falling back to the config for a room
     // nobody has set up yet.
@@ -65,6 +71,17 @@ public class LobbySettingsService
             // nobody is a worse answer than the config's.
             if (admissionService.MaxPlayers > 0)
                 settings.MaxPlayers = admissionService.MaxPlayers;
+        }
+
+        // A room for one, with its door shut: nobody to wait for, nobody to
+        // let in. Said here rather than left to the UI hiding the controls,
+        // because these are what the start rules and the door itself read.
+        if (IsSingleplayer)
+        {
+            settings.IsPublic = false;
+            settings.MaxPlayers = 1;
+            settings.MinPlayersToStart = 1;
+            settings.RequireAllPlayersReady = false;
         }
 
         lobbyState.Settings.Value = settings;
@@ -122,7 +139,7 @@ public class LobbySettingsService
     // nobody to choose who should not have been let in.
     public bool SetMaxPlayers(int maxPlayers)
     {
-        if (!CanChangeSettings())
+        if (!CanChangeSettings() || IsSingleplayer)
             return false;
 
         LobbySettingsData settings = lobbyState.Settings.Value;
@@ -155,7 +172,7 @@ public class LobbySettingsService
 
     public void SetLobbyPublic(bool isPublic)
     {
-        if (!CanChangeSettings())
+        if (!CanChangeSettings() || IsSingleplayer)
             return;
 
         LobbySettingsData settings = lobbyState.Settings.Value;

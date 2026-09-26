@@ -203,6 +203,25 @@ public sealed class SessionScopeControllerTests
         Assert.That(globalScope.ChildScopeCount, Is.EqualTo(1));
     }
 
+    // The kind of session lives and dies with the session: whoever opens it
+    // says which, and a session nobody said anything about is multiplayer.
+    [TestCase(SessionMode.Singleplayer)]
+    [TestCase(SessionMode.Multiplayer)]
+    public void OpenedSession_KnowsWhatKindItIs(SessionMode mode)
+    {
+        using ServiceScope globalScope = new("Global");
+        using SessionScopeController controller = CreateController(globalScope);
+
+        Assert.That(controller.TryOpen(out _, mode), Is.True);
+        Assert.That(controller.Services.Resolve<INetworkSessionInfo>().Mode, Is.EqualTo(mode));
+
+        controller.Close();
+
+        Assert.That(controller.TryOpen(out _), Is.True);
+        Assert.That(controller.Services.Resolve<INetworkSessionInfo>().Mode, Is.EqualTo(SessionMode.Multiplayer),
+            "A session opened without saying what kind it is took the last one's.");
+    }
+
     [Test]
     public void DynamicRegistration_CommitsBatchAndUnregistersHandlesInOneChange()
     {

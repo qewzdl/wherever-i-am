@@ -7,11 +7,19 @@
         <ui:VisualElement name="Panel" class="menu">
             <ui:Label text="Name" class="hint enter enter--2" />
             <ui:TextField name="PlayerName" max-length="16" class="input enter enter--3" />
-            <ui:VisualElement class="stack enter enter--4">
-                <ui:Button text="Create lobby" name="HostButton" class="button button--confirm" />
-                <ui:Button text="Join lobby" name="JoinButton" class="button" />
+            <ui:VisualElement name="MainButtons" class="stack enter enter--4">
+                <ui:Button text="Singleplayer" name="SingleplayerButton" class="button button--confirm" />
+                <ui:Button text="Multiplayer" name="MultiplayerButton" class="button" />
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Quit" name="QuitButton" class="button" />
+            </ui:VisualElement>
+            <!-- In place of the buttons above while it is open, rather than
+                 over them: it is the next step down the same list, and Back
+                 or Escape returns to it. -->
+            <ui:VisualElement name="MultiplayerButtons" class="stack">
+                <ui:Button text="Create lobby" name="HostButton" class="button button--confirm" />
+                <ui:Button text="Join lobby" name="JoinButton" class="button" />
+                <ui:Button text="Back" name="BackButton" class="button button--cancel" />
             </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead enter">

@@ -82,9 +82,9 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
         networkManager.OnServerStopped -= HandleServerStopped;
     }
 
-    public Task<ConnectionResult> StartHostAsync()
+    public Task<ConnectionResult> StartHostAsync(bool localOnly = false)
     {
-        if (!TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error))
+        if (!TryCreateHostConnectionConfig(localOnly, out ConnectionConfig config, out ConnectionResult error))
             return Task.FromResult(error);
 
         return StartConnectionAsync(config);
@@ -467,7 +467,10 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
                 !manager.ShutdownInProgress);
     }
 
-    private bool TryCreateHostConnectionConfig(out ConnectionConfig config, out ConnectionResult error)
+    private bool TryCreateHostConnectionConfig(
+        bool localOnly,
+        out ConnectionConfig config,
+        out ConnectionResult error)
     {
         config = null;
         error = null;
@@ -484,17 +487,26 @@ public class NetworkConnectionService : MonoBehaviour, INetworkConnectionService
             return false;
         }
 
-        config = new ConnectionConfig(
-            ConnectionMode.Lan,
-            ConnectionRole.Host,
-            connectionConfig.HostAddress,
-            connectionConfig.Port,
-            connectionConfig.ListenAddress,
-            connectionConfig.ClientConnectionTimeoutSeconds
-        );
+        config = localOnly
+            ? new ConnectionConfig(
+                ConnectionMode.Lan,
+                ConnectionRole.Host,
+                LoopbackAddress,
+                0,
+                LoopbackAddress,
+                connectionConfig.ClientConnectionTimeoutSeconds)
+            : new ConnectionConfig(
+                ConnectionMode.Lan,
+                ConnectionRole.Host,
+                connectionConfig.HostAddress,
+                connectionConfig.Port,
+                connectionConfig.ListenAddress,
+                connectionConfig.ClientConnectionTimeoutSeconds);
 
         return true;
     }
+
+    private const string LoopbackAddress = "127.0.0.1";
 
     private bool TryCreateClientConnectionConfig(string ip, out ConnectionConfig config, out ConnectionResult error)
     {

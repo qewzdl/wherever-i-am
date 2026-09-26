@@ -101,7 +101,6 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string addressCopiedText = "Address copied";
     [SerializeField] private string doorFullFormat =
         "Open, but the room is full at {0}. Nobody else can get in.";
-    [SerializeField] private string readyToStartText = "Everyone is ready - start the match";
     [SerializeField] private string waitingForHostText = "Waiting for the host to start";
 
     [Header("Match transition")]
@@ -131,12 +130,46 @@ public class LobbyUI : MonoBehaviour
     // Leaving means two different things depending on who presses it, and the
     // button used to say the smaller one to both.
     [SerializeField] private string leaveActionText = "Leave";
-    [SerializeField] private string closeLobbyActionText = "Close lobby";
-    [SerializeField] private string closeLobbyConfirmText =
-        "Close the lobby? Everybody else in it goes back to the menu.";
-    [SerializeField] private string closeLobbyConfirmAloneText =
-        "Close the lobby and go back to the menu?";
-    [SerializeField] private string closeLobbyActionConfirmText = "Close";
+
+    // Everything this screen says that depends on the kind of session, one set
+    // per kind, chosen once. A third kind of session is a third set here, not
+    // a third branch at every place the screen speaks.
+    [Serializable]
+    private sealed class Wording
+    {
+        public string title;
+        public string settings;
+        public string closeAction;
+        public string closeConfirm;
+        public string closeConfirmAlone;
+        public string closeConfirmAction;
+        public string readyToStart;
+    }
+
+    [Header("Wording")]
+    [SerializeField] private Wording multiplayerWording = new()
+    {
+        title = "Lobby",
+        settings = "Room settings",
+        closeAction = "Close lobby",
+        closeConfirm = "Close the lobby? Everybody else in it goes back to the menu.",
+        closeConfirmAlone = "Close the lobby and go back to the menu?",
+        closeConfirmAction = "Close",
+        readyToStart = "Everyone is ready - start the match",
+    };
+
+    // A room for one with the door shut: nothing here talks about a room or
+    // the people in it.
+    [SerializeField] private Wording singleplayerWording = new()
+    {
+        title = "Singleplayer",
+        settings = "Match settings",
+        closeAction = "Main menu",
+        closeConfirm = "Leave for the main menu?",
+        closeConfirmAlone = "Leave for the main menu?",
+        closeConfirmAction = "Leave",
+        readyToStart = "Start whenever you are ready",
+    };
     [SerializeField] private string emptyRosterText = "Waiting for the room...";
 
     // Ready, the door and the difficulty are all asked of the server and none
@@ -158,6 +191,9 @@ public class LobbyUI : MonoBehaviour
     private string[] difficultyDescriptions = Array.Empty<string>();
 
     private VisualElement boundRoot;
+
+    private const string SingleplayerClass = "lobby--singleplayer";
+    private const string MultiplayerOnlyClass = "multiplayer-only";
     private VisualElement screen;
     private VisualElement panel;
     private VisualElement roster;
@@ -340,7 +376,8 @@ public class LobbyUI : MonoBehaviour
     public void Construct(
         ILobbyReadService readService,
         INetworkSessionReadService sessionReadService = null,
-        ISettingsScreen settingsScreen = null)
+        ISettingsScreen settingsScreen = null,
+        SessionMode mode = SessionMode.Multiplayer)
     {
         if (this.readService != null)
             this.readService.LobbyChanged -= Refresh;
@@ -350,6 +387,7 @@ public class LobbyUI : MonoBehaviour
         this.readService = readService;
         this.sessionReadService = sessionReadService;
         this.settingsScreen = settingsScreen;
+        this.mode = mode;
 
         if (this.readService != null)
             this.readService.LobbyChanged += Refresh;
@@ -367,6 +405,13 @@ public class LobbyUI : MonoBehaviour
         HideSetupNotice(++setupNoticeVersion);
 
         Show(complainIfMissing: false);
+
+        // Here rather than while binding: the document binds when it is
+        // enabled, which is before anybody has said what kind of session this
+        // screen belongs to.
+        if (boundRoot != null)
+            ApplySessionMode(boundRoot);
+
         Refresh();
     }
 
@@ -611,6 +656,32 @@ public class LobbyUI : MonoBehaviour
         return true;
     }
 
+    private SessionMode mode;
+
+    private bool IsSingleplayer => mode == SessionMode.Singleplayer;
+
+    private Wording Words => IsSingleplayer ? singleplayerWording : multiplayerWording;
+
+    // In a singleplayer game everything the document marks multiplayer-only
+    // is taken out of the tree rather than hidden: several of those elements
+    // have their display set from code as the lobby changes, and a stylesheet
+    // rule would lose to that. The code that fills them in carries on; nothing
+    // is left to show what it writes.
+    private void ApplySessionMode(VisualElement root)
+    {
+        root.EnableInClassList(SingleplayerClass, IsSingleplayer);
+
+        UiLocalization.SetText(root.Q<Label>("Title"), Words.title);
+        UiLocalization.SetText(root.Q<Button>("RoomSettingsButton"), Words.settings);
+        UiLocalization.SetText(root.Q<Label>("RoomSettingsTitle"), Words.settings);
+
+        if (!IsSingleplayer)
+            return;
+
+        foreach (VisualElement element in root.Query(className: MultiplayerOnlyClass).ToList())
+            element.RemoveFromHierarchy();
+    }
+
     private void Subscribe()
     {
         if (readyButton != null)
@@ -754,9 +825,9 @@ public class LobbyUI : MonoBehaviour
         AskToConfirm(
             PendingAction.CloseLobby,
             readService.PlayerCount > 1
-                ? UiLocalization.Text(closeLobbyConfirmText)
-                : UiLocalization.Text(closeLobbyConfirmAloneText),
-            UiLocalization.Text(closeLobbyActionConfirmText),
+                ? UiLocalization.Text(Words.closeConfirm)
+                : UiLocalization.Text(Words.closeConfirmAlone),
+            UiLocalization.Text(Words.closeConfirmAction),
             focusTarget);
     }
 
@@ -1598,7 +1669,7 @@ public class LobbyUI : MonoBehaviour
         if (action == PendingAction.Kick)
         {
             PlayerKickRequested?.Invoke(clientId);
-            screen?.schedule.Execute(() => readyButton?.Focus());
+            screen?.schedule.Execute(() => (readyButton?.panel != null ? readyButton : startButton)?.Focus());
         }
         else if (action == PendingAction.CloseLobby)
             LeaveLobbyClicked?.Invoke();
@@ -1645,7 +1716,9 @@ public class LobbyUI : MonoBehaviour
         {
             Button target = focusTarget != null && focusTarget.panel != null
                 ? focusTarget
-                : readyButton;
+                : readyButton != null && readyButton.panel != null
+                    ? readyButton
+                    : startButton;
 
             target?.Focus();
         });
@@ -1788,12 +1861,17 @@ public class LobbyUI : MonoBehaviour
         // for them the column simply goes quiet once they are ready, which is
         // true - what happens next is not theirs to do.
         readyButton?.EnableInClassList(ConfirmToneClass, !isLocalPlayerReady);
-        startButton?.EnableInClassList(ConfirmToneClass, isLocalPlayerReady);
+
+        // With nobody to be ready for - a room that does not ask, however many
+        // are in it - Start is the next thing to do from the moment it opens.
+        startButton?.EnableInClassList(
+            ConfirmToneClass,
+            isLocalPlayerReady || !readService.Settings.RequireAllPlayersReady);
 
         if (leaveButton != null)
         {
             leaveButton.text = readService.IsLocalPlayerRoomOwner
-                ? UiLocalization.Text(closeLobbyActionText)
+                ? UiLocalization.Text(Words.closeAction)
                 : UiLocalization.Text(leaveActionText);
         }
 
@@ -2015,7 +2093,7 @@ public class LobbyUI : MonoBehaviour
                     waiting);
 
             case StartHint.EveryoneReady:
-                return UiLocalization.Text(readyToStartText);
+                return UiLocalization.Text(Words.readyToStart);
 
             default:
                 return UiLocalization.Text(waitingForHostText);

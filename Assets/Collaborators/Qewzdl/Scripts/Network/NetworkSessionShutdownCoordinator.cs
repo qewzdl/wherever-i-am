@@ -62,7 +62,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
         readinessMonitor.ValidateNow();
     }
 
-    public bool TryOpenSessionScope()
+    public bool TryOpenSessionScope(SessionMode mode)
     {
         if (!HasRequiredReferences())
             return false;
@@ -87,7 +87,7 @@ public sealed class NetworkSessionShutdownCoordinator : MonoBehaviour
             return false;
         }
 
-        if (!sessionScopeController.TryOpen(out Exception failure))
+        if (!sessionScopeController.TryOpen(out Exception failure, mode))
         {
             ReportSessionScopeOpenFailure(failure);
             return false;

@@ -45,6 +45,56 @@ public sealed class PlayerEnemyAttackReceiverTests
         createdPlayers.Clear();
     }
 
+    // Caught means hands off the controls, always; somebody to watch is extra,
+    // and only when somebody is still playing - asked of the players, so a
+    // multiplayer lobby started alone behaves like a singleplayer game. Once
+    // the letting go lived inside the watching, and a caught player given
+    // nobody to watch kept turning the camera of a body that was not there.
+    [TestCase(true)]
+    [TestCase(false)]
+    public void CaughtPlayer_LetsGoOfTheControls_AndSpectatesOnlyWhenSomebodyIsStillPlaying(bool alone)
+    {
+        GameObject player = new("Caught player");
+        createdPlayers.Add(player);
+
+        PlayerEnemyAttackReceiver receiver = player.AddComponent<PlayerEnemyAttackReceiver>();
+        CameraLook look = player.AddComponent<CameraLook>();
+        PlayerController controller = player.AddComponent<PlayerController>();
+
+        List<PlayerEnemyAttackReceiver> players = new() { receiver };
+
+        if (!alone)
+        {
+            GameObject other = new("Still playing");
+            createdPlayers.Add(other);
+            players.Add(other.AddComponent<PlayerEnemyAttackReceiver>());
+        }
+
+        receiver.LeavePlayLocally(players);
+
+        Assert.That(look.enabled, Is.False, "A caught player can still look round.");
+        Assert.That(controller.enabled, Is.False, "A caught player can still move.");
+        Assert.That(player.GetComponent<PlayerSpectatorView>() != null, Is.EqualTo(!alone),
+            alone
+                ? "A player caught alone was given somebody to watch."
+                : "A caught player was given nobody to watch while somebody was still playing.");
+    }
+
+    [Test]
+    public void PlayedAlone_IsAboutHowManyWereInTheMatch()
+    {
+        GameObject one = new("One");
+        GameObject two = new("Two");
+        createdPlayers.Add(one);
+        createdPlayers.Add(two);
+
+        PlayerEnemyAttackReceiver first = one.AddComponent<PlayerEnemyAttackReceiver>();
+        PlayerEnemyAttackReceiver second = two.AddComponent<PlayerEnemyAttackReceiver>();
+
+        Assert.That(PlayerEnemyAttackReceiver.PlayedAlone(new[] { first }), Is.True);
+        Assert.That(PlayerEnemyAttackReceiver.PlayedAlone(new[] { first, second }), Is.False);
+    }
+
     // Being caught used to end the match for everyone. It takes one player out
     // now, and only the last one still playing loses it.
     [Test]

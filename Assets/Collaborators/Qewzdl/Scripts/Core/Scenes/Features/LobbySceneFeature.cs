@@ -16,7 +16,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
 
     // Made here rather than placed in the scene: it says this lobby is open
     // for exactly as long as this lobby exists, and it has nothing to
-    // configure.
+    // configure. None at all for a singleplayer game.
     private LanLobbyBeacon beacon;
 
     protected override bool ValidateFeature(SceneFeatureContext context)
@@ -30,6 +30,7 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         valid &= RequireService<INetworkSessionService>(context, out _);
         valid &= RequireService<INetworkSessionReadService>(context, out _);
         valid &= RequireService<INetworkSessionAdmissionService>(context, out _);
+        valid &= RequireService<INetworkSessionInfo>(context, out _);
         valid &= RequireService<ISettingsScreen>(context, out _);
         valid &= RequireService<IGameMapSessionService>(context, out _);
 
@@ -46,11 +47,13 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
             context.Services.Resolve<INetworkSessionReadService>();
         INetworkSessionAdmissionService admissionService =
             context.Services.Resolve<INetworkSessionAdmissionService>();
+        SessionMode mode = context.Services.Resolve<INetworkSessionInfo>().Mode;
 
         if (!lobbyController.Construct(
                 sessionService,
                 admissionService,
-                context.Services.Resolve<IGameMapSessionService>()))
+                context.Services.Resolve<IGameMapSessionService>(),
+                mode))
         {
             return false;
         }
@@ -64,13 +67,17 @@ public sealed class LobbySceneFeature : SceneRuntimeFeature
         lobbyUi.Construct(
             readService,
             sessionReadService,
-            context.Services.Resolve<ISettingsScreen>());
+            context.Services.Resolve<ISettingsScreen>(),
+            mode);
         lobbyCommandPresenter.Construct(lobbyUi, readService, commandService);
 
         if (lobbyStage != null)
             lobbyStage.Construct(readService);
 
-        beacon = LanLobbyBeacon.Announce(readService);
+        // A singleplayer game is nobody else's to find.
+        beacon = mode == SessionMode.Multiplayer
+            ? LanLobbyBeacon.Announce(readService)
+            : null;
 
         return true;
     }
