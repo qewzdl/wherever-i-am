@@ -106,7 +106,13 @@ public sealed class MainMenuDocument : MonoBehaviour
     private Button refreshButton;
 
     private LanLobbyDiscovery discovery;
-    private readonly List<string> shownLobbies = new();
+    // One row per room, by address, kept for as long as the room is listed:
+    // a room that changes is written onto its row rather than drawn again, so
+    // the list only moves where something came or went.
+    private readonly Dictionary<string, Button> lobbyRows = new();
+    private readonly List<string> departedLobbies = new();
+    private VisualElement browserEmpty;
+    private Label browserEmptyLabel;
 
     // The room picked out of the list, held here rather than written into the
     // address field. Nobody needs to read an address to join a room they can
@@ -133,6 +139,9 @@ public sealed class MainMenuDocument : MonoBehaviour
     private const string PageArrivingNextClass = "map-screen__page--arriving-next";
     private const string PageArrivingPreviousClass = "map-screen__page--arriving-previous";
     private const long PageLeaveMilliseconds = 160;
+
+    // ponytail: mirrors --motion-screen (the row's fold in Lobby.uss) by hand.
+    private const long LobbyRowLeaveMilliseconds = 260;
     private const string JoinScreenOpenClass = "join-screen--open";
     private const string MultiplayerScreenOpenClass = "multiplayer-screen--open";
     private const string ChoiceFocusedClass = "multiplayer-screen__choice--focused";
@@ -794,36 +803,144 @@ public sealed class MainMenuDocument : MonoBehaviour
             ForgetChosenLobby();
         }
 
-        IReadOnlyList<LanLobbyDiscovery.Entry> lobbies =
-            discovery != null ? FilterByMap(discovery.Lobbies, browserMapId) : null;
+        ShowLobbies(discovery != null ? FilterByMap(discovery.Lobbies, browserMapId) : null);
+    }
 
-        // Rebuilt only when the rows would actually read differently. The list
-        // is redrawn on every beacon otherwise, which is once a second per
-        // lobby, and a row rebuilt under the pointer is a row that cannot be
-        // clicked.
-        if (!HasBrowserChanged(lobbies))
-        {
-            MarkChosen();
+    // Brings the list in line with the rooms given: keeps, rewrites, adds and
+    // lets go of rows, and says so when there are none.
+    private void ShowLobbies(IReadOnlyList<LanLobbyDiscovery.Entry> lobbies)
+    {
+        if (browser == null)
             return;
-        }
-
-        shownLobbies.Clear();
-        browser.Clear();
 
         if (lobbies == null || lobbies.Count == 0)
         {
-            Label empty = new Label(UiLocalization.Text(
-                browserMapId == AnyMap ? browserEmptyText : browserEmptyOnMapText));
-            empty.AddToClassList("browser__empty");
-            browser.Add(empty);
+            foreach (Button row in lobbyRows.Values)
+                LetLobbyRowGo(row);
+
+            lobbyRows.Clear();
+            ShowEmptyBrowser();
             return;
         }
 
+        HideEmptyBrowser();
+
+        departedLobbies.Clear();
+
+        foreach (string address in lobbyRows.Keys)
+        {
+            if (!Lists(lobbies, address))
+                departedLobbies.Add(address);
+        }
+
+        for (int i = 0; i < departedLobbies.Count; i++)
+        {
+            LetLobbyRowGo(lobbyRows[departedLobbies[i]]);
+            lobbyRows.Remove(departedLobbies[i]);
+        }
+
+        // In the order the rooms were heard, each new one placed after the
+        // room before it - rows on their way out are still standing, and a
+        // new row must not land among them.
+        VisualElement previous = null;
+        bool added = false;
+
         for (int i = 0; i < lobbies.Count; i++)
-            browser.Add(BuildLobbyRow(lobbies[i]));
+        {
+            LanLobbyDiscovery.Entry entry = lobbies[i];
+
+            if (lobbyRows.TryGetValue(entry.Address, out Button row))
+            {
+                FillLobbyRow(row, entry);
+            }
+            else
+            {
+                row = (Button)BuildLobbyRow(entry);
+                lobbyRows[entry.Address] = row;
+
+                int index = previous != null ? browser.contentContainer.IndexOf(previous) + 1 : 0;
+                browser.contentContainer.Insert(index, row);
+                BringLobbyRowIn(row);
+                added = true;
+            }
+
+            previous = row;
+        }
 
         MarkChosen();
-        sounds?.Bind();
+
+        if (added)
+            sounds?.Bind();
+    }
+
+    private static bool Lists(IReadOnlyList<LanLobbyDiscovery.Entry> lobbies, string address)
+    {
+        for (int i = 0; i < lobbies.Count; i++)
+        {
+            if (lobbies[i].Address == address)
+                return true;
+        }
+
+        return false;
+    }
+
+    // Nobody has answered: said with a picture of a shut door and the line
+    // under it, filling the list rather than one sentence in the middle of an
+    // empty box. It fades in, since it usually arrives as the last room goes.
+    private void ShowEmptyBrowser()
+    {
+        if (browserEmpty == null)
+        {
+            browserEmpty = new VisualElement { pickingMode = PickingMode.Ignore };
+            browserEmpty.AddToClassList("browser__empty");
+
+            VisualElement door = new() { pickingMode = PickingMode.Ignore };
+            door.AddToClassList("browser__empty-picture");
+            browserEmpty.Add(door);
+
+            browserEmptyLabel = new Label { pickingMode = PickingMode.Ignore };
+            browserEmptyLabel.AddToClassList("browser__empty-text");
+            browserEmpty.Add(browserEmptyLabel);
+        }
+
+        browserEmptyLabel.text = UiLocalization.Text(
+            browserMapId == AnyMap ? browserEmptyText : browserEmptyOnMapText);
+
+        if (browserEmpty.parent != null)
+            return;
+
+        browser.contentContainer.Add(browserEmpty);
+        Arrive(browserEmpty, "browser__empty--arriving");
+    }
+
+    private void HideEmptyBrowser()
+    {
+        browserEmpty?.RemoveFromHierarchy();
+    }
+
+    // A room that answers grows into the list from nothing, pushing the rows
+    // under it down rather than shoving them.
+    private static void BringLobbyRowIn(VisualElement row)
+    {
+        Arrive(row, "browser__row--arriving");
+    }
+
+    // A room that stops answering folds away: switched off at once, so it
+    // cannot be chosen on its way out, and taken off the list once it has
+    // closed up.
+    private static void LetLobbyRowGo(VisualElement row)
+    {
+        row.SetEnabled(false);
+        row.AddToClassList("browser__row--leaving");
+        row.schedule.Execute(row.RemoveFromHierarchy).StartingIn(LobbyRowLeaveMilliseconds);
+    }
+
+    // Put in its starting state with no transition, then let go of it on the
+    // next frame, so it moves from there to where it rests.
+    private static void Arrive(VisualElement element, string startingClass)
+    {
+        element.AddToClassList(startingClass);
+        element.schedule.Execute(() => element.RemoveFromClassList(startingClass));
     }
 
     // The rooms playing one map, or all of them.
@@ -1229,51 +1346,23 @@ public sealed class MainMenuDocument : MonoBehaviour
         ShowJoinPrompt(AnyMap);
     }
 
-    private bool HasBrowserChanged(IReadOnlyList<LanLobbyDiscovery.Entry> lobbies)
-    {
-        // Nothing drawn yet is a change too: an empty list compared with the
-        // empty list it has not shown yet looked the same, and the line that
-        // says nobody has answered was never written.
-        if (browser.childCount == 0)
-            return true;
-
-        int count = lobbies != null ? lobbies.Count : 0;
-
-        if (count != shownLobbies.Count)
-            return true;
-
-        for (int i = 0; i < count; i++)
-        {
-            if (shownLobbies[i] != DescribeLobby(lobbies[i]))
-                return true;
-        }
-
-        return false;
-    }
-
-    // Everything a row shows, in one string. Comparing what is drawn is the
-    // only comparison that decides whether it has to be drawn again.
-    private string DescribeLobby(LanLobbyDiscovery.Entry entry)
-    {
-        return string.Concat(
-            entry.Address,
-            "|",
-            entry.Advert.name,
-            "|",
-            entry.Advert.players.ToString(),
-            "|",
-            entry.Advert.maxPlayers.ToString());
-    }
-
     private VisualElement BuildLobbyRow(LanLobbyDiscovery.Entry entry)
     {
-        shownLobbies.Add(DescribeLobby(entry));
-
         string lobbyAddress = entry.Address;
-        string lobbyName = entry.Advert.name;
 
         Button row = (Button)UiTemplates.Stamp(lobbyRowTemplate, "a lobby row");
-        row.clicked += () => ChooseLobby(lobbyAddress, lobbyName);
+        Label name = row.Q<Label>("Name");
+
+        // The name is read off the row when it is chosen: a room can rename
+        // itself while it is listed, and the row is kept, not redrawn.
+        row.clicked += () => ChooseLobby(lobbyAddress, name.text);
+
+        FillLobbyRow(row, entry);
+        return row;
+    }
+
+    private void FillLobbyRow(Button row, LanLobbyDiscovery.Entry entry)
+    {
         row.EnableInClassList("browser__row--full", entry.Advert.IsFull);
 
         // Shown, so it is known why nobody is getting in, but not choosable:
@@ -1284,8 +1373,6 @@ public sealed class MainMenuDocument : MonoBehaviour
         row.Q<Label>("Count").text = entry.Advert.IsFull
             ? UiLocalization.Text(browserFullText)
             : string.Format(browserCountFormat, entry.Advert.players, entry.Advert.maxPlayers);
-
-        return row;
     }
 
     // Picking a row marks it and nothing else. It does not connect - a list
@@ -1321,20 +1408,11 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void MarkChosen()
     {
-        if (browser?.contentContainer == null)
-            return;
-
-        for (int i = 0; i < browser.contentContainer.childCount; i++)
+        foreach (KeyValuePair<string, Button> pair in lobbyRows)
         {
-            VisualElement row = browser.contentContainer[i];
-
-            row.EnableInClassList(
+            pair.Value.EnableInClassList(
                 "browser__row--chosen",
-                chosenAddress.Length > 0 &&
-                i < shownLobbies.Count &&
-                shownLobbies[i].StartsWith(
-                    chosenAddress + "|",
-                    System.StringComparison.Ordinal));
+                chosenAddress.Length > 0 && pair.Key == chosenAddress);
         }
     }
 

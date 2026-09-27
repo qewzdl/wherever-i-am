@@ -895,10 +895,82 @@
 .browser__empty {
     flex-grow: 1;
 
+    align-items: center;
+    justify-content: center;
+
     color: var(--text-dim);
     font-size: var(--font-size-s);
 
     -unity-text-align: middle-center;
+
+    transition-property: opacity;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+.browser__empty--arriving {
+    opacity: 0;
+    transition-duration: 0s;
+}
+
+/* A shut door, dimmed well down: it is the backdrop to the sentence, not a
+   picture competing with the rows that will replace it. */
+.browser__empty-picture {
+    width: 200px;
+    height: 200px;
+
+    margin-bottom: var(--space-m);
+
+    background-image: url("../Images/image-door-closed.png");
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: rgb(80, 80, 80);
+}
+
+
+/* --------------------------------------------------------------------------
+   ROOMS COMING AND GOING
+
+   A row grows in from nothing and folds away to nothing, so the rows around
+   it slide rather than jump. The theme's button transitions are listed again
+   here, because naming the row's own replaces them rather than adding to
+   them. The arriving state is put on with no transition and taken off a
+   frame later (MainMenuDocument.Arrive); the leaving one runs and then the
+   row is removed.
+   -------------------------------------------------------------------------- */
+
+.browser__row {
+    transition-property:
+        color,
+        background-color,
+        border-left-color,
+        border-right-color,
+        border-top-color,
+        border-bottom-color,
+        height,
+        opacity;
+
+    transition-duration:
+        var(--motion-normal),
+        var(--motion-normal),
+        var(--motion-normal),
+        var(--motion-normal),
+        var(--motion-normal),
+        var(--motion-normal),
+        var(--motion-screen),
+        var(--motion-screen);
+
+    transition-timing-function: var(--ease-standard);
+}
+
+.browser__row--arriving,
+.browser__row--leaving {
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.browser__row--arriving {
+    transition-duration: 0s;
 }
 
 

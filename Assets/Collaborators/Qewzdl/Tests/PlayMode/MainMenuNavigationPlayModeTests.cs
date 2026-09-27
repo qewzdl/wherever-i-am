@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections;
 using NUnit.Framework;
 using UnityEditor;
@@ -141,5 +142,76 @@ public sealed class MainMenuNavigationPlayModeTests
 
         Assert.That(maps.ClassListContains("map-screen--open"), Is.False, "The maps stayed open.");
         Assert.That(multiplayer.ClassListContains("multiplayer-screen--open"), Is.True, "Back skipped Create and Join.");
+    }
+
+    // The list of rooms is kept, not redrawn: a room that changes is written
+    // onto its own row, a new room is added where it belongs, a room that
+    // went quiet folds away, and an empty list says so with the shut door.
+    [UnityTest]
+    public IEnumerator TheRoomListKeepsItsRowsAndOnlyMovesWhereRoomsComeAndGo()
+    {
+        panel = Object.Instantiate(AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath));
+        host = new GameObject(nameof(MainMenuNavigationPlayModeTests));
+        host.SetActive(false);
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+        document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(MarkupPath);
+        MainMenuDocument menu = host.AddComponent<MainMenuDocument>();
+        PlayModeTestReflection.SetField(
+            menu,
+            "lobbyRowTemplate",
+            AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Collaborators/Qewzdl/UI/Templates/LobbyRow.uxml"));
+        host.SetActive(true);
+
+        menu.Construct(new LobbySessionServiceProbe(), null, null, null, null);
+        yield return null;
+
+        ScrollView list = document.rootVisualElement.Q<ScrollView>("Browser");
+
+        PlayModeTestReflection.Invoke(menu, "ShowLobbies", Rooms(("10.0.0.1", "Alpha", 1), ("10.0.0.2", "Beta", 1)));
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(Rows(list), Has.Count.EqualTo(2));
+        VisualElement alpha = Rows(list)[0];
+        Assert.That(alpha.ClassListContains("browser__row--arriving"), Is.False, "A new row never finished arriving.");
+
+        // Alpha fills up a seat, Beta goes quiet, Gamma answers.
+        PlayModeTestReflection.Invoke(menu, "ShowLobbies", Rooms(("10.0.0.1", "Alpha", 2), ("10.0.0.3", "Gamma", 1)));
+
+        Assert.That(Rows(list)[0], Is.SameAs(alpha), "A room that changed was drawn again instead of rewritten.");
+        Assert.That(alpha.Q<Label>("Count").text, Is.EqualTo("2/4"), "The changed room still shows its old count.");
+
+        yield return new WaitForSecondsRealtime(0.6f);
+
+        List<VisualElement> rows = Rows(list);
+        Assert.That(rows, Has.Count.EqualTo(2), "The quiet room never left.");
+        Assert.That(rows[1].Q<Label>("Name").text, Is.EqualTo("Gamma"));
+
+        PlayModeTestReflection.Invoke(menu, "ShowLobbies", Rooms());
+        yield return new WaitForSecondsRealtime(0.6f);
+
+        Assert.That(Rows(list), Is.Empty, "Rows stayed on an empty list.");
+        Assert.That(list.Q<VisualElement>(className: "browser__empty-picture"), Is.Not.Null, "An empty list shows no door.");
+    }
+
+    private static List<LanLobbyDiscovery.Entry> Rooms(params (string address, string name, int players)[] rooms)
+    {
+        List<LanLobbyDiscovery.Entry> entries = new();
+
+        foreach ((string address, string name, int players) in rooms)
+        {
+            entries.Add(new LanLobbyDiscovery.Entry(
+                new System.Net.IPEndPoint(System.Net.IPAddress.Parse(address), 7777),
+                new LanLobbyAdvert(1, 7777, players, 4, name),
+                0f));
+        }
+
+        return entries;
+    }
+
+    private static List<VisualElement> Rows(ScrollView list)
+    {
+        return list.contentContainer.Query<VisualElement>(className: "browser__row").ToList();
     }
 }
