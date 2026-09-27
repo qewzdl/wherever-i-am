@@ -964,9 +964,11 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         if (mapDescription != null)
         {
-            mapDescription.text = map != null && !string.IsNullOrWhiteSpace(map.Description)
-                ? UiLocalization.Text(map.Description)
-                : string.Empty;
+            // A map with nothing to say leaves no gap where it would have
+            // said it: the hint moves up under the name.
+            bool described = map != null && !string.IsNullOrWhiteSpace(map.Description);
+            mapDescription.text = described ? UiLocalization.Text(map.Description) : string.Empty;
+            mapDescription.style.display = described ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         if (mapPreview != null)

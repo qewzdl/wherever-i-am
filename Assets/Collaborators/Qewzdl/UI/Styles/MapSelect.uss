@@ -104,6 +104,11 @@
 .map-screen__name {
     -unity-text-align: upper-left;
     margin-bottom: var(--space-m);
+
+    /* The line is taller than the letters: pulled up by the difference so
+       the tops of the capitals, not the top of the line, sit level with the
+       top of the picture. */
+    margin-top: -17px;
 }
 
 .map-screen__description {
@@ -111,11 +116,14 @@
     font-size: var(--font-size-m);
     white-space: normal;
     -unity-text-align: upper-left;
+
+    /* The space before the hint belongs to the description, so it goes when
+       the description does. */
+    margin-bottom: var(--space-l);
 }
 
 .map-screen__hint {
     -unity-text-align: upper-left;
-    margin-top: var(--space-l);
 }
 
 
