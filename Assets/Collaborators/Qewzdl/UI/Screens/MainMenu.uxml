@@ -51,9 +51,13 @@
                 <ui:Button name="MapConfirmButton" class="button button--confirm" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement name="JoinPanel" class="overlay">
-            <ui:VisualElement class="panel panel--wide">
-                <ui:Label text="Join a lobby" class="question" />
+        <!-- The rooms to join, as a screen of its own over the same picture,
+             like the map screen before it: the menu and the masthead step
+             aside while it is up, the list takes the height of the frame,
+             and what to do with it sits in the bottom corner. -->
+        <ui:VisualElement name="JoinScreen" class="join-screen">
+            <ui:VisualElement class="join-screen__page">
+                <ui:Label text="Join a lobby" class="title join-screen__title" />
                 <!-- The rooms that have said they are open. A host broadcasts
                      while its door is open, and this asks out loud every couple
                      of seconds as well - because a machine is entitled to drop
@@ -63,23 +67,19 @@
                     <ui:Label name="BrowserStatus" class="browser__status" />
                 </ui:VisualElement>
                 <ui:ScrollView name="Browser" class="scroll browser" />
-                <!-- The other half of the panel, and it gets a heading like the
-                     first half rather than a note dressed as one. It used to
-                     wear the field hint modifier, which indents by a whole
-                     label column so that a note lands under the control it
-                     explains - and there is no label column here, so it landed
-                     under nothing. Why somebody would type an address moved
-                     down to the line under the field, which is where a field
-                     explains itself. -->
+                <!-- The other half of the screen, and it gets a heading like
+                     the first half rather than a note dressed as one. Why
+                     somebody would type an address is on the line under the
+                     field, which is where a field explains itself. -->
                 <ui:Label text="Or by address" class="section" />
                 <ui:TextField name="Address" class="input" />
                 <ui:Label name="AddressHint" class="hint input__hint" />
-                <ui:VisualElement class="footer">
-                    <ui:Button name="BrowserFilterButton" class="button" />
-                    <ui:Button text="Refresh" name="RefreshButton" class="button" />
-                    <ui:Button text="Connect" name="ConnectButton" class="button button--confirm" />
-                    <ui:Button text="Cancel" name="CancelJoinButton" class="button button--cancel" />
-                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="join-screen__footer">
+                <ui:Button name="BrowserFilterButton" class="button" />
+                <ui:Button text="Refresh" name="RefreshButton" class="button" />
+                <ui:Button text="Back" name="CancelJoinButton" class="button button--cancel" />
+                <ui:Button text="Connect" name="ConnectButton" class="button button--confirm" />
             </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="BusyPanel" class="overlay">

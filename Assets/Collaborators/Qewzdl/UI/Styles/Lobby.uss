@@ -895,3 +895,71 @@
 
     -unity-text-align: middle-center;
 }
+
+
+/* ==========================================================================
+   JOIN SCREEN
+
+   The list of rooms as a screen of its own rather than a dialog over the
+   menu, the way the map screen that leads to it is: the menu and the
+   masthead step aside, the list gets the height of the frame instead of a
+   fixed box, and the buttons sit in the bottom corner where the map screen
+   keeps its own.
+   ========================================================================== */
+
+.join-screen {
+    display: none;
+
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    align-items: center;
+
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+.join-screen--open {
+    opacity: 1;
+}
+
+/* One column down the middle, clear of the footer at the bottom. */
+.join-screen__page {
+    width: 800px;
+    max-width: 80%;
+    height: 100%;
+
+    padding-top: 96px;
+    padding-bottom: 128px;
+}
+
+.join-screen__title {
+    -unity-text-align: middle-left;
+}
+
+/* The list takes whatever the column has left over, rather than the fixed
+   height it has in a panel. */
+.join-screen .browser {
+    height: auto;
+    flex-grow: 1;
+}
+
+.join-screen__footer {
+    position: absolute;
+    right: var(--space-xl);
+    bottom: var(--space-xl);
+
+    flex-direction: row;
+    align-items: center;
+}
+
+.join-screen__footer .button {
+    min-width: 160px;
+    margin-left: var(--space-s);
+    -unity-text-align: middle-center;
+}

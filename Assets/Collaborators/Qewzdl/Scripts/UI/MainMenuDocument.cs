@@ -92,7 +92,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     private VisualElement boundRoot;
     private VisualElement screen;
     private VisualElement panel;
-    private VisualElement joinPanel;
+    private VisualElement joinScreen;
     private VisualElement busyPanel;
     private Label busyText;
     private Label busyStep;
@@ -128,6 +128,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private IGameMapCatalog mapCatalog;
     private const string MapScreenOpenClass = "map-screen--open";
+    private const string JoinScreenOpenClass = "join-screen--open";
 
     private VisualElement mapScreen;
     private VisualElement masthead;
@@ -259,7 +260,6 @@ public sealed class MainMenuDocument : MonoBehaviour
     {
         UiLocalization.Changed -= HandleLanguageChanged;
         screen?.UnregisterCallback<NavigationCancelEvent>(HandleCancelPressed);
-        joinPanel?.UnregisterCallback<ClickEvent>(HandleJoinBackdropClicked);
         Unsubscribe();
         Dispose();
     }
@@ -286,9 +286,9 @@ public sealed class MainMenuDocument : MonoBehaviour
             return;
         }
 
-        if (joinPanel != null && joinPanel.style.display == DisplayStyle.Flex)
+        if (IsJoinOpen)
         {
-            HideJoinPrompt();
+            ReturnToMapSelect();
             evt.StopPropagation();
             return;
         }
@@ -402,7 +402,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         UiLocalization.Changed += HandleLanguageChanged;
         screen = root.Q<VisualElement>("Screen");
         panel = root.Q<VisualElement>("Panel");
-        joinPanel = root.Q<VisualElement>("JoinPanel");
+        joinScreen = root.Q<VisualElement>("JoinScreen");
         busyPanel = root.Q<VisualElement>("BusyPanel");
         busyText = root.Q<Label>("BusyText");
         busyStep = root.Q<Label>("BusyStep");
@@ -470,10 +470,11 @@ public sealed class MainMenuDocument : MonoBehaviour
         // screen, which is why every panel below hands focus to something when
         // it opens.
         screen.RegisterCallback<NavigationCancelEvent>(HandleCancelPressed);
-        joinPanel?.RegisterCallback<ClickEvent>(HandleJoinBackdropClicked);
 
         Subscribe();
-        SetDisplayed(joinPanel, false);
+
+        if (joinScreen != null)
+            joinScreen.style.display = DisplayStyle.None;
 
         if (mapScreen != null)
             mapScreen.style.display = DisplayStyle.None;
@@ -540,7 +541,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             connectButton.clicked += Join;
 
         if (cancelJoinButton != null)
-            cancelJoinButton.clicked += HideJoinPrompt;
+            cancelJoinButton.clicked += ReturnToMapSelect;
 
         if (refreshButton != null)
             refreshButton.clicked += RefreshLobbies;
@@ -606,7 +607,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             connectButton.clicked -= Join;
 
         if (cancelJoinButton != null)
-            cancelJoinButton.clicked -= HideJoinPrompt;
+            cancelJoinButton.clicked -= ReturnToMapSelect;
 
         if (refreshButton != null)
             refreshButton.clicked -= RefreshLobbies;
@@ -648,14 +649,6 @@ public sealed class MainMenuDocument : MonoBehaviour
         Join();
     }
 
-    private void HandleJoinBackdropClicked(ClickEvent evt)
-    {
-        if (!ReferenceEquals(evt.target, joinPanel) || isRequestInFlight)
-            return;
-
-        HideJoinPrompt();
-    }
-
     private void SavePlayerName()
     {
         if (playerName != null)
@@ -683,7 +676,7 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         StartListening();
         RefreshAddressValidation();
-        SetDisplayed(joinPanel, true);
+        SetScreenOpen(joinScreen, JoinScreenOpenClass, true);
         sounds?.Play(UiSoundType.Open);
         address?.Focus();
     }
@@ -857,9 +850,15 @@ public sealed class MainMenuDocument : MonoBehaviour
     private bool IsMapSelectOpen =>
         mapScreen != null && mapScreen.ClassListContains(MapScreenOpenClass);
 
-    // A screen of its own: the menu and the masthead step aside while it is
-    // up, and come back when it goes, over the same picture.
-    private void SetMapScreenOpen(bool open)
+    private bool IsJoinOpen =>
+        joinScreen != null && joinScreen.ClassListContains(JoinScreenOpenClass);
+
+    private void SetMapScreenOpen(bool open) => SetScreenOpen(mapScreen, MapScreenOpenClass, open);
+
+    // A screen of its own - the maps, the rooms: the menu and the masthead
+    // step aside while it is up, and come back when it goes, over the same
+    // picture.
+    private void SetScreenOpen(VisualElement layer, string openClass, bool open)
     {
         if (panel != null)
             panel.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
@@ -867,7 +866,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (masthead != null)
             masthead.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
 
-        UiFade.Set(mapScreen, open, MapScreenOpenClass);
+        UiFade.Set(layer, open, openClass);
     }
 
     private void ChooseMapToPlayAlone() => OpenMapSelect(MapIntent.Singleplayer);
@@ -893,7 +892,28 @@ public sealed class MainMenuDocument : MonoBehaviour
         ShowMapPage();
         SetMapScreenOpen(true);
         sounds?.Play(UiSoundType.Open);
+        FocusMapScreen();
+    }
+
+    private void FocusMapScreen()
+    {
         screen?.schedule.Execute(() => (mapConfirmButton.enabledSelf ? mapConfirmButton : mapBackButton)?.Focus());
+    }
+
+    // One step back from the rooms: to the map they were listed for, on the
+    // same page, rather than past it to the menu. Both ways in - a map's own
+    // rooms and every room - start from the map screen.
+    private void ReturnToMapSelect()
+    {
+        if (!IsJoinOpen || isRequestInFlight)
+            return;
+
+        StopListening();
+        SetScreenOpen(joinScreen, JoinScreenOpenClass, false);
+
+        ShowMapPage();
+        SetMapScreenOpen(true);
+        FocusMapScreen();
     }
 
     private void CloseMapSelect()
@@ -1058,6 +1078,12 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private bool HasBrowserChanged(IReadOnlyList<LanLobbyDiscovery.Entry> lobbies)
     {
+        // Nothing drawn yet is a change too: an empty list compared with the
+        // empty list it has not shown yet looked the same, and the line that
+        // says nobody has answered was never written.
+        if (browser.childCount == 0)
+            return true;
+
         int count = lobbies != null ? lobbies.Count : 0;
 
         if (count != shownLobbies.Count)
@@ -1168,11 +1194,12 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void HideJoinPrompt()
     {
-        bool wasOpen = joinPanel != null &&
-                       joinPanel.style.display == DisplayStyle.Flex;
+        bool wasOpen = IsJoinOpen;
 
         StopListening();
-        SetDisplayed(joinPanel, false);
+
+        if (wasOpen)
+            SetScreenOpen(joinScreen, JoinScreenOpenClass, false);
 
         if (wasOpen && !isRequestInFlight && joinButton != null)
             screen?.schedule.Execute(() => joinButton.Focus());
