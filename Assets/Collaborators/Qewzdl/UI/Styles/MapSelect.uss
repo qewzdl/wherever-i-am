@@ -358,16 +358,17 @@
 
 
 /* ==========================================================================
-   MULTIPLAYER SCREEN
+   CHOICE SCREENS
 
-   The step before the map screen: create a lobby or join one. Two large
-   buttons side by side, each a picture of what it does with its name under
-   it, and Back in the bottom corner where the other screens keep theirs.
+   Play opens one - Singleplayer or Multiplayer - and Multiplayer opens the
+   next - create a lobby or join one. Two large buttons side by side, each a
+   picture of what it does with its name under it, and Back in the bottom
+   corner where the other screens keep theirs.
    The pictures are UI/Images/lobby/image-lobby-create.png and
    image-lobby-join.png, square, and fitted rather than cropped.
    ========================================================================== */
 
-.multiplayer-screen {
+.choice-screen {
     display: none;
 
     position: absolute;
@@ -385,20 +386,20 @@
     transition-timing-function: var(--ease-standard);
 }
 
-.multiplayer-screen--open {
+.choice-screen--open {
     opacity: 1;
 }
 
-.multiplayer-screen__choices {
+.choice-screen__choices {
     flex-direction: row;
 }
 
 /* No frame and no fill in any state - the theme's button looks are spelled
    out of every one of them, on .unity-button so they win. */
-.unity-button.multiplayer-screen__choice,
-.unity-button.multiplayer-screen__choice:hover,
-.unity-button.multiplayer-screen__choice:focus,
-.unity-button.multiplayer-screen__choice:active {
+.unity-button.picture-choice,
+.unity-button.picture-choice:hover,
+.unity-button.picture-choice:focus,
+.unity-button.picture-choice:active {
     flex-direction: column;
     align-items: center;
 
@@ -422,13 +423,13 @@
    tokens, so Reduced motion turns it into a plain change of state.
    -------------------------------------------------------------------------- */
 
-.unity-button.multiplayer-screen__choice {
+.unity-button.picture-choice {
     transition-property: translate, scale;
     transition-duration: var(--motion-screen), var(--motion-screen);
     transition-timing-function: var(--ease-standard), var(--ease-standard);
 }
 
-.unity-button.multiplayer-screen__choice:hover {
+.unity-button.picture-choice:hover {
     translate: 0 -8px;
     scale: 1.04 1.04;
 
@@ -436,7 +437,7 @@
     transition-timing-function: var(--ease-entrance), var(--ease-entrance);
 }
 
-.unity-button.multiplayer-screen__choice:hover:active {
+.unity-button.picture-choice:hover:active {
     translate: 0 -3px;
     scale: 1.01 1.01;
 
@@ -447,7 +448,7 @@
 /* The picture is dimmed at rest and comes up to full under the pointer -
    white drawn on black, so this reads as the picture being lit rather than
    a highlight laid over it. */
-.multiplayer-screen__picture {
+.picture-choice__picture {
     width: 360px;
     height: 360px;
 
@@ -455,19 +456,27 @@
     -unity-background-image-tint-color: rgb(190, 190, 190);
 }
 
-.unity-button.multiplayer-screen__choice:hover .multiplayer-screen__picture {
+.unity-button.picture-choice:hover .picture-choice__picture {
     -unity-background-image-tint-color: rgb(255, 255, 255);
 }
 
-.multiplayer-screen__picture--create {
+.picture-choice__picture--create {
     background-image: url("../Images/lobby/image-lobby-create.png");
 }
 
-.multiplayer-screen__picture--join {
+.picture-choice__picture--join {
     background-image: url("../Images/lobby/image-lobby-join.png");
 }
 
-.multiplayer-screen__caption {
+.picture-choice__picture--singleplayer {
+    background-image: url("../Images/image-menu-singleplayer.png");
+}
+
+.picture-choice__picture--multiplayer {
+    background-image: url("../Images/image-menu-multiplayer.png");
+}
+
+.picture-choice__caption {
     margin-top: var(--space-m);
 
     color: var(--text-dim);
@@ -483,8 +492,8 @@
    anything shown for :focus stayed on after the pointer had gone and looked
    like a hover that would not let go. The name, dim at rest, comes up bright
    - under the pointer as well, so the two never disagree. */
-.unity-button.multiplayer-screen__choice:hover .multiplayer-screen__caption,
-.multiplayer-screen__choice--focused .multiplayer-screen__caption {
+.unity-button.picture-choice:hover .picture-choice__caption,
+.picture-choice--focused .picture-choice__caption {
     color: var(--accent);
 }
 
@@ -501,8 +510,20 @@
    there is nothing left to wait for but the beat itself.
    -------------------------------------------------------------------------- */
 
-.multiplayer-screen__picture,
-.multiplayer-screen__caption {
+.picture-choice__picture {
+    transition-property: -unity-background-image-tint-color;
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+.picture-choice__caption {
+    transition-property: color;
+    transition-duration: var(--motion-normal);
+    transition-timing-function: var(--ease-standard);
+}
+
+.choice-screen .picture-choice__picture,
+.choice-screen .picture-choice__caption {
     opacity: 0;
     translate: 0 24px;
 
@@ -511,25 +532,25 @@
     transition-timing-function: var(--ease-standard), var(--ease-entrance), var(--ease-standard), var(--ease-standard);
 }
 
-.multiplayer-screen--open .multiplayer-screen__picture,
-.multiplayer-screen--open .multiplayer-screen__caption {
+.choice-screen--open .picture-choice__picture,
+.choice-screen--open .picture-choice__caption {
     opacity: 1;
     translate: 0 0;
 }
 
-.multiplayer-screen--open .multiplayer-screen__caption {
+.choice-screen--open .picture-choice__caption {
     transition-delay: 0.06s, 0.06s, 0s, 0s;
 }
 
-.multiplayer-screen--open #JoinButton .multiplayer-screen__picture {
+.choice-screen--open .picture-choice--later .picture-choice__picture {
     transition-delay: 0.08s, 0.08s, 0s, 0s;
 }
 
-.multiplayer-screen--open #JoinButton .multiplayer-screen__caption {
+.choice-screen--open .picture-choice--later .picture-choice__caption {
     transition-delay: 0.14s, 0.14s, 0s, 0s;
 }
 
-.multiplayer-screen__footer {
+.choice-screen__footer {
     position: absolute;
     right: var(--space-xl);
     bottom: var(--space-xl);
@@ -537,7 +558,7 @@
     flex-direction: row;
 }
 
-.multiplayer-screen__footer .button {
+.choice-screen__footer .button {
     min-width: 160px;
     -unity-text-align: middle-center;
 }

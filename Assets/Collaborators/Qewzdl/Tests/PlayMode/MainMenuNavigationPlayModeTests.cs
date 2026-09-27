@@ -113,7 +113,7 @@ public sealed class MainMenuNavigationPlayModeTests
 
         PlayModeTestReflection.Invoke(menu, "OpenMultiplayer");
         yield return new WaitForSecondsRealtime(0.3f);
-        Assert.That(multiplayer.ClassListContains("multiplayer-screen--open"), Is.True, "Create and Join did not open.");
+        Assert.That(multiplayer.ClassListContains("choice-screen--open"), Is.True, "Create and Join did not open.");
 
         // Opening hands Create the focus. The lift belongs to the pointer: a
         // choice raised by focus stayed up after a click, and hovering it
@@ -124,24 +124,24 @@ public sealed class MainMenuNavigationPlayModeTests
 
         // Nothing was pressed yet, so this focus is the keyboard's to show;
         // after a click it is not.
-        Assert.That(create.ClassListContains("multiplayer-screen__choice--focused"), Is.True, "Keyboard focus is not shown.");
+        Assert.That(create.ClassListContains("picture-choice--focused"), Is.True, "Keyboard focus is not shown.");
 
         PlayModeTestReflection.SetField(menu, "pointerDriven", true);
         create.Blur();
         create.Focus();
         yield return null;
-        Assert.That(create.ClassListContains("multiplayer-screen__choice--focused"), Is.False, "A click left Create lit.");
+        Assert.That(create.ClassListContains("picture-choice--focused"), Is.False, "A click left Create lit.");
 
         PlayModeTestReflection.Invoke(menu, "ChooseMapToHost");
         yield return new WaitForSecondsRealtime(0.3f);
         Assert.That(maps.ClassListContains("map-screen--open"), Is.True, "The maps did not open.");
-        Assert.That(multiplayer.ClassListContains("multiplayer-screen--open"), Is.False, "Create and Join stayed under the maps.");
+        Assert.That(multiplayer.ClassListContains("choice-screen--open"), Is.False, "Create and Join stayed under the maps.");
 
         PlayModeTestReflection.Invoke(menu, "CloseMapSelect");
         yield return new WaitForSecondsRealtime(0.3f);
 
         Assert.That(maps.ClassListContains("map-screen--open"), Is.False, "The maps stayed open.");
-        Assert.That(multiplayer.ClassListContains("multiplayer-screen--open"), Is.True, "Back skipped Create and Join.");
+        Assert.That(multiplayer.ClassListContains("choice-screen--open"), Is.True, "Back skipped Create and Join.");
     }
 
     // The list of rooms is kept, not redrawn: a room that changes is written
@@ -193,6 +193,61 @@ public sealed class MainMenuNavigationPlayModeTests
 
         Assert.That(Rows(list), Is.Empty, "Rows stayed on an empty list.");
         Assert.That(list.Q<VisualElement>(className: "browser__empty-picture"), Is.Not.Null, "An empty list shows no door.");
+    }
+
+    // Play is a step down from the menu, and every screen past it leads back
+    // to the one before: Create and Join to Play, the maps to Play when the
+    // game is to be alone.
+    [UnityTest]
+    public IEnumerator EveryScreenPastPlayLeadsBackOneStep()
+    {
+        GameMapCatalog catalog = AssetDatabase.LoadAssetAtPath<GameMapCatalog>(CatalogPath);
+
+        panel = Object.Instantiate(AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath));
+        host = new GameObject(nameof(MainMenuNavigationPlayModeTests));
+        host.SetActive(false);
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+        document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(MarkupPath);
+        MainMenuDocument menu = host.AddComponent<MainMenuDocument>();
+        host.SetActive(true);
+
+        menu.Construct(new LobbySessionServiceProbe(), null, null, null, catalog);
+        yield return null;
+
+        VisualElement root = document.rootVisualElement;
+        VisualElement play = root.Q<VisualElement>("PlayScreen");
+        VisualElement multiplayer = root.Q<VisualElement>("MultiplayerScreen");
+        VisualElement maps = root.Q<VisualElement>("MapScreen");
+
+        bool Open(VisualElement layer) => layer.ClassListContains("choice-screen--open") || layer.ClassListContains("map-screen--open");
+
+        PlayModeTestReflection.Invoke(menu, "OpenPlay");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(Open(play), Is.True, "Play did not open.");
+        Assert.That(root.Q<VisualElement>("Panel").resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "The menu stayed under Play.");
+
+        PlayModeTestReflection.Invoke(menu, "ChooseMapToPlayAlone");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(Open(maps) && !Open(play), Is.True, "The maps did not replace Play.");
+
+        PlayModeTestReflection.Invoke(menu, "CloseMapSelect");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(Open(play) && !Open(maps), Is.True, "Back from a game alone did not return to Play.");
+
+        PlayModeTestReflection.Invoke(menu, "OpenMultiplayer");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(Open(multiplayer) && !Open(play), Is.True, "Multiplayer did not replace Play.");
+
+        PlayModeTestReflection.Invoke(menu, "CloseMultiplayer");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(Open(play) && !Open(multiplayer), Is.True, "Back from Create and Join did not return to Play.");
+
+        PlayModeTestReflection.Invoke(menu, "ClosePlay");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(Open(play), Is.False, "Play stayed open.");
+        Assert.That(root.Q<VisualElement>("Panel").resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex), "The menu did not come back.");
     }
 
     private static List<LanLobbyDiscovery.Entry> Rooms(params (string address, string name, int players)[] rooms)

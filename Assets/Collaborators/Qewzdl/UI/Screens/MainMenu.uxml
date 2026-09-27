@@ -9,8 +9,7 @@
             <ui:Label text="Name" class="hint enter enter--2" />
             <ui:TextField name="PlayerName" max-length="16" class="input enter enter--3" />
             <ui:VisualElement name="MainButtons" class="stack enter enter--4">
-                <ui:Button text="Singleplayer" name="SingleplayerButton" class="button button--confirm" />
-                <ui:Button text="Multiplayer" name="MultiplayerButton" class="button" />
+                <ui:Button text="Play" name="PlayButton" class="button button--confirm" />
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Quit" name="QuitButton" class="button" />
             </ui:VisualElement>
@@ -18,23 +17,42 @@
         <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead enter">
             <ui:Label text="Wherever I Am" name="Title" class="title title--display" />
         </ui:VisualElement>
-        <!-- Create or join, as a screen of its own over the same picture: two
-             large buttons, each a picture of what it does with its name under
-             it. The menu and the masthead step aside while it is up; Back or
-             Escape returns to them, and Back from the map screen returns
-             here. -->
-        <ui:VisualElement name="MultiplayerScreen" class="multiplayer-screen">
-            <ui:VisualElement class="multiplayer-screen__choices">
-                <ui:Button name="HostButton" class="multiplayer-screen__choice">
-                    <ui:VisualElement picking-mode="Ignore" class="multiplayer-screen__picture multiplayer-screen__picture--create" />
-                    <ui:Label text="Create lobby" picking-mode="Ignore" class="multiplayer-screen__caption" />
+        <!-- Play: alone or with others, as a screen of its own over the same
+             picture - two large buttons, each a picture of what it does with
+             its name under it. Back or Escape returns to the menu; Back from
+             the maps returns here when the map was for a game alone, and
+             Back from Create and Join always does. -->
+        <ui:VisualElement name="PlayScreen" class="choice-screen">
+            <ui:VisualElement class="choice-screen__choices">
+                <ui:Button name="SingleplayerButton" class="picture-choice">
+                    <ui:VisualElement picking-mode="Ignore" class="picture-choice__picture picture-choice__picture--singleplayer" />
+                    <ui:Label text="Singleplayer" picking-mode="Ignore" class="picture-choice__caption" />
                 </ui:Button>
-                <ui:Button name="JoinButton" class="multiplayer-screen__choice">
-                    <ui:VisualElement picking-mode="Ignore" class="multiplayer-screen__picture multiplayer-screen__picture--join" />
-                    <ui:Label text="Join lobby" picking-mode="Ignore" class="multiplayer-screen__caption" />
+                <ui:Button name="MultiplayerButton" class="picture-choice picture-choice--later">
+                    <ui:VisualElement picking-mode="Ignore" class="picture-choice__picture picture-choice__picture--multiplayer" />
+                    <ui:Label text="Multiplayer" picking-mode="Ignore" class="picture-choice__caption" />
                 </ui:Button>
             </ui:VisualElement>
-            <ui:VisualElement class="multiplayer-screen__footer">
+            <ui:VisualElement class="choice-screen__footer">
+                <ui:Button text="Back" name="PlayBackButton" class="button button--cancel" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <!-- Create or join, as a screen of its own over the same picture: two
+             large buttons, each a picture of what it does with its name under
+             it. Back or Escape returns to Play, and Back from the map screen
+             returns here. -->
+        <ui:VisualElement name="MultiplayerScreen" class="choice-screen">
+            <ui:VisualElement class="choice-screen__choices">
+                <ui:Button name="HostButton" class="picture-choice">
+                    <ui:VisualElement picking-mode="Ignore" class="picture-choice__picture picture-choice__picture--create" />
+                    <ui:Label text="Create lobby" picking-mode="Ignore" class="picture-choice__caption" />
+                </ui:Button>
+                <ui:Button name="JoinButton" class="picture-choice picture-choice--later">
+                    <ui:VisualElement picking-mode="Ignore" class="picture-choice__picture picture-choice__picture--join" />
+                    <ui:Label text="Join lobby" picking-mode="Ignore" class="picture-choice__caption" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="choice-screen__footer">
                 <ui:Button text="Back" name="BackButton" class="button button--cancel" />
             </ui:VisualElement>
         </ui:VisualElement>

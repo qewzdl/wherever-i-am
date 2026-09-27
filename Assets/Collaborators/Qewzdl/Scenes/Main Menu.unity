@@ -631,10 +631,10 @@ MonoBehaviour:
   - className: unity-base-popup-field
     trigger: 2
     sound: 0
-  - className: multiplayer-screen__choice
+  - className: picture-choice
     trigger: 0
     sound: 1
-  - className: multiplayer-screen__choice
+  - className: picture-choice
     trigger: 1
     sound: 0
   valueChangeInterval: 0.05
