@@ -57,6 +57,14 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     private Button tab;
     private Label tabKey;
     private Label tabUnread;
+
+    // The newest line already on screen, and the channel it was on, so that a
+    // rebuild can tell a line that just arrived from one that was already
+    // there - only the new one moves.
+    private uint newestShownMessageId;
+    private ChatChannel shownChannel;
+    private bool hasShownMessages;
+    private int shownUnreadCount;
     private ScrollView messages;
     private TextField input;
 
@@ -568,6 +576,13 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 
         tabUnread.text = unreadCount > 0 ? unreadCount.ToString() : string.Empty;
         tabUnread.style.display = unreadCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+
+        // One more said while the window was shut: the count flares, so it is
+        // noticed out of the corner of the eye rather than looked for.
+        if (unreadCount > shownUnreadCount && shownUnreadCount >= 0)
+            UiMotion.From(tabUnread, "chat__tab__unread--changed");
+
+        shownUnreadCount = unreadCount;
     }
 
     private void HandleUnreadCountChanged(ChatUnreadCountChangedEvent unreadEvent)
@@ -591,6 +606,12 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         {
             ChatChannel currentChannel = readService.CurrentChannel;
 
+            // The whole list is rebuilt, so what moves has to be chosen: lines
+            // newer than the newest one already shown, on the same channel.
+            // Opening the chat or switching channel shows what is there still.
+            bool arriving = hasShownMessages && currentChannel == shownChannel;
+            uint newest = newestShownMessageId;
+
             for (int i = 0; i < readService.MessageCount; i++)
             {
                 ChatMessageData message = readService.GetMessage(i);
@@ -598,9 +619,20 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
                 if (message.Channel != ChatChannel.System && message.Channel != currentChannel)
                     continue;
 
-                messages.Add(BuildMessage(message));
+                VisualElement row = BuildMessage(message);
+                messages.Add(row);
                 shown++;
+
+                if (arriving && message.MessageId > newestShownMessageId)
+                    UiMotion.From(row, "chat__message--arriving");
+
+                if (message.MessageId > newest)
+                    newest = message.MessageId;
             }
+
+            newestShownMessageId = newest;
+            shownChannel = currentChannel;
+            hasShownMessages = true;
         }
 
         // Said inside the list rather than under it, the way the roster says

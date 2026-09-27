@@ -108,4 +108,37 @@ public sealed class SettingRowPlayModeTests
         Assert.That(playersRow.ClassListContains("multiplayer-only"), Is.True, "The players row is not multiplayer-only.");
         Assert.That(difficulty.parent.ClassListContains("multiplayer-only"), Is.False);
     }
+
+    // The chosen tab's mark is one strip that moves to the tab chosen, and
+    // the page chosen is the only one showing - arriving, then at rest.
+    [UnityTest]
+    public IEnumerator TheTabMarkMovesToTheChosenTab()
+    {
+        panel = Object.Instantiate(AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath));
+        host = new GameObject(nameof(SettingRowPlayModeTests));
+        host.SetActive(false);
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+        document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(MarkupPath);
+        SettingsDocument settings = host.AddComponent<SettingsDocument>();
+        host.SetActive(true);
+
+        yield return null;
+        PlayModeTestReflection.Invoke(settings, "SetScreenVisible", true);
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        VisualElement root = document.rootVisualElement;
+        VisualElement strip = root.Q<VisualElement>("TabIndicator");
+        Button audio = root.Q<Button>("AudioTab");
+
+        PlayModeTestReflection.Invoke(settings, "SelectTab", "Audio");
+        yield return new WaitForSecondsRealtime(0.6f);
+
+        Assert.That(strip.layout.x, Is.EqualTo(audio.layout.x).Within(1f), "The strip did not move to the chosen tab.");
+        Assert.That(strip.layout.width, Is.EqualTo(audio.layout.width).Within(1f), "The strip is not the chosen tab's width.");
+        Assert.That(root.Q<VisualElement>("AudioPage").resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+        Assert.That(root.Q<VisualElement>("GraphicsPage").resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        Assert.That(root.Q<VisualElement>("AudioPage").ClassListContains("page--arriving"), Is.False, "The page never finished arriving.");
+    }
 }

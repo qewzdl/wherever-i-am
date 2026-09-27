@@ -13,6 +13,12 @@ internal static class UiFade
     // same millisecond as the fade is a coin toss about which the player sees.
     private const long FadeMilliseconds = 200;
 
+    // What was asked for last. Opening waits a frame to add its class, so an
+    // open and a close in the same frame used to end open: the close found no
+    // class to take off and let its timer go, and then the open's frame came
+    // and put the class on. Both steps now read this instead of guessing.
+    private const string WantedClass = "ui-fade--wanted";
+
     internal static void Set(VisualElement element, bool visible, string openClass)
     {
         if (element == null)
@@ -20,11 +26,17 @@ internal static class UiFade
 
         if (visible)
         {
+            element.AddToClassList(WantedClass);
             element.style.display = DisplayStyle.Flex;
-            element.schedule.Execute(() => element.AddToClassList(openClass));
+            element.schedule.Execute(() =>
+            {
+                if (element.ClassListContains(WantedClass))
+                    element.AddToClassList(openClass);
+            });
             return;
         }
 
+        element.RemoveFromClassList(WantedClass);
         element.RemoveFromClassList(openClass);
 
         // Checked on arrival rather than cancelled on the way in. A panel shown
@@ -33,7 +45,7 @@ internal static class UiFade
         element.schedule
             .Execute(() =>
             {
-                if (element.ClassListContains(openClass))
+                if (element.ClassListContains(WantedClass))
                     return;
 
                 element.style.display = DisplayStyle.None;

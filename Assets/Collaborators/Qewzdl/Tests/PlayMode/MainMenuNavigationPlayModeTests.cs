@@ -250,6 +250,42 @@ public sealed class MainMenuNavigationPlayModeTests
         Assert.That(root.Q<VisualElement>("Panel").resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex), "The menu did not come back.");
     }
 
+    // A screen opened and closed in the same frame - a key pressed twice
+    // faster than a frame - ends closed, not stuck open over the menu.
+    [UnityTest]
+    public IEnumerator AScreenOpenedAndClosedInOneFrameEndsClosed()
+    {
+        panel = Object.Instantiate(AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath));
+        host = new GameObject(nameof(MainMenuNavigationPlayModeTests));
+        host.SetActive(false);
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+        document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(MarkupPath);
+        MainMenuDocument menu = host.AddComponent<MainMenuDocument>();
+        host.SetActive(true);
+
+        menu.Construct(new LobbySessionServiceProbe(), null, null, null, null);
+        yield return null;
+
+        VisualElement play = document.rootVisualElement.Q<VisualElement>("PlayScreen");
+
+        PlayModeTestReflection.Invoke(menu, "OpenPlay");
+        PlayModeTestReflection.Invoke(menu, "ClosePlay");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(play.ClassListContains("choice-screen--open"), Is.False, "Play was left open.");
+        Assert.That(play.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Play was left on screen.");
+
+        // And the other way round: closed then opened in one frame is open.
+        PlayModeTestReflection.Invoke(menu, "ClosePlay");
+        PlayModeTestReflection.Invoke(menu, "OpenPlay");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(play.ClassListContains("choice-screen--open"), Is.True, "Play did not open.");
+        Assert.That(play.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex), "Play is not on screen.");
+    }
+
     private static List<LanLobbyDiscovery.Entry> Rooms(params (string address, string name, int players)[] rooms)
     {
         List<LanLobbyDiscovery.Entry> entries = new();

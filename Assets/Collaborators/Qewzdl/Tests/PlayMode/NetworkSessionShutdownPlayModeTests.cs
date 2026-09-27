@@ -1034,6 +1034,10 @@ public sealed class NetworkSessionShutdownPlayModeTests
             "The lobby is not for the map that was chosen.");
         G.Resolve<IGameMapCatalog>().TryGetMap(ChosenMapId, out GameMapDefinition chosen);
         Assert.That(root.Q<Label>("SetupMap").text, Does.Contain(UiLocalization.Text(chosen.DisplayName)));
+        Assert.That(
+            root.Q<VisualElement>("SetupPreview").resolvedStyle.display,
+            Is.EqualTo(chosen.Preview != null ? DisplayStyle.Flex : DisplayStyle.None),
+            "The lobby's picture of the map does not follow the map.");
         Assert.That(root.Q<Label>("Title").text, Is.EqualTo(UiLocalization.Text("Singleplayer")));
     }
 

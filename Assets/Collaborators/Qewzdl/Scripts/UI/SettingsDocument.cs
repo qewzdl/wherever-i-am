@@ -69,6 +69,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
     private readonly List<string> localeCodes = new();
 
     private string selectedTab = "Graphics";
+    private VisualElement tabIndicator;
     private PendingQuestion question;
     private Button applyButton;
     private bool isOpen;
@@ -347,6 +348,12 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         tabs.Clear();
         pages.Clear();
 
+        tabIndicator = root.Q<VisualElement>("TabIndicator");
+
+        // Laid out again - first shown, text size changed, the row wrapped:
+        // the strip goes straight to where the chosen tab now is.
+        root.Q<VisualElement>("Tabs")?.RegisterCallback<GeometryChangedEvent>(_ => PlaceTabIndicator(instant: true));
+
         AddTab(root, "Graphics");
         AddTab(root, "Audio");
         AddTab(root, "Controls");
@@ -372,6 +379,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         if (!pages.ContainsKey(id))
             return;
 
+        bool changed = selectedTab != id;
         selectedTab = id;
 
         foreach (KeyValuePair<string, VisualElement> page in pages)
@@ -388,6 +396,37 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
             else
                 tab.RemoveFromClassList(ActiveTabClass);
         }
+
+        if (!changed)
+            return;
+
+        PlaceTabIndicator(instant: false);
+        UiMotion.From(pages[id], "page--arriving");
+    }
+
+    // Under the chosen tab, the width of it, at the foot of whichever line of
+    // the row it is on.
+    private void PlaceTabIndicator(bool instant)
+    {
+        if (tabIndicator == null || !tabs.TryGetValue(selectedTab, out Button tab))
+            return;
+
+        Rect box = tab.layout;
+
+        if (float.IsNaN(box.width) || box.width <= 0f)
+            return;
+
+        if (instant)
+            UiMotion.From(tabIndicator, "tabs__indicator--instant");
+
+        float thickness = tabIndicator.resolvedStyle.height;
+
+        if (float.IsNaN(thickness) || thickness <= 0f)
+            thickness = 2f;
+
+        tabIndicator.style.left = box.x;
+        tabIndicator.style.top = box.yMax - thickness;
+        tabIndicator.style.width = box.width;
     }
 
     private void BindGraphics(VisualElement root)

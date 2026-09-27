@@ -9,10 +9,13 @@
         <ui:VisualElement name="Panel" class="panel panel--rail">
             <ui:Label text="Lobby" name="Title" class="title enter" />
             <ui:VisualElement name="MatchSetup" class="setup enter enter--2">
-                <ui:Label name="SetupMap" class="setup__line" />
-                <ui:Label name="SetupDifficulty" class="setup__line" />
-                <ui:Label name="SetupOwner" class="setup__note multiplayer-only" />
-                <ui:Label name="SetupNotice" class="setup__notice" />
+                <ui:VisualElement name="SetupPreview" picking-mode="Ignore" class="setup__preview" />
+                <ui:VisualElement class="setup__lines">
+                    <ui:Label name="SetupMap" class="setup__line" />
+                    <ui:Label name="SetupDifficulty" class="setup__line" />
+                    <ui:Label name="SetupOwner" class="setup__note multiplayer-only" />
+                    <ui:Label name="SetupNotice" class="setup__notice" />
+                </ui:VisualElement>
             </ui:VisualElement>
             <ui:ScrollView name="LobbyContent" class="scroll lobby__content enter enter--3 multiplayer-only">
                 <ui:VisualElement class="roster__header">

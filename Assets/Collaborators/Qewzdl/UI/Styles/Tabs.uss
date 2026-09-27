@@ -95,3 +95,51 @@
 }
 
 
+/* ==========================================================================
+   THE MARK THAT MOVES
+
+   The chosen tab's mark is one strip, drawn under whichever tab is chosen
+   and sliding from the last one to the next, so a change of page is seen
+   as a move rather than one line going out and another coming on. Placed
+   by SettingsDocument from the tab's own box - which also follows the row
+   when it wraps at a large text size - and put there with no transition the
+   first time and whenever the row is laid out again.
+   ========================================================================== */
+
+.tabs__indicator {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: var(--border-strong);
+
+    background-color: var(--accent);
+
+    transition-property: left, top, width;
+    transition-duration: var(--motion-screen), var(--motion-screen), var(--motion-screen);
+    transition-timing-function: var(--ease-standard), var(--ease-standard), var(--ease-standard);
+}
+
+.tabs__indicator--instant {
+    transition-duration: 0s, 0s, 0s;
+}
+
+/* The strip is the mark now; the chosen tab keeps the colour of its name. */
+.tab--active,
+.unity-button.tab--active:focus:enabled,
+.unity-button.tab--active:hover:enabled {
+    border-bottom-color: var(--transparent);
+}
+
+/* A page arrives rather than appears: it fades in, while the strip is still
+   on its way. */
+.page {
+    transition-property: opacity;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+.page--arriving {
+    opacity: 0;
+    transition-duration: 0s;
+}

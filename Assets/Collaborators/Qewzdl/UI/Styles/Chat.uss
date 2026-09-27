@@ -405,3 +405,36 @@
     margin-bottom: 0;
 }
 
+
+/* ==========================================================================
+   SOMETHING NEW
+
+   A line that has just been said comes up out of a little below and fades
+   in, so the eye finds it without reading down the wall; the lines that were
+   there stay still. The unread count on the tab flares when it grows. Both
+   put on with no transition and let go a frame later (UiMotion.From).
+   ========================================================================== */
+
+.chat__message {
+    transition-property: opacity, translate;
+    transition-duration: var(--motion-screen), var(--motion-screen);
+    transition-timing-function: var(--ease-standard), var(--ease-entrance);
+}
+
+.chat__message--arriving {
+    opacity: 0;
+    translate: 0 10px;
+    transition-duration: 0s, 0s;
+}
+
+.chat__tab__unread {
+    transition-property: scale, color;
+    transition-duration: var(--motion-screen), var(--motion-screen);
+    transition-timing-function: var(--ease-standard), var(--ease-standard);
+}
+
+.chat__tab__unread--changed {
+    scale: 1.5 1.5;
+    color: var(--text-display);
+    transition-duration: 0s, 0s;
+}

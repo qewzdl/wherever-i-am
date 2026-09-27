@@ -211,6 +211,7 @@ public class LobbyUI : MonoBehaviour
     private Label doorStatusLabel;
     private Label setupDifficultyLabel;
     private Label setupMapLabel;
+    private VisualElement setupPreview;
     private IGameMapCatalog mapCatalog;
     private Label setupOwnerLabel;
     private Label setupNoticeLabel;
@@ -614,6 +615,7 @@ public class LobbyUI : MonoBehaviour
         doorStatusLabel = root.Q<Label>("DoorStatus");
         setupDifficultyLabel = root.Q<Label>("SetupDifficulty");
         setupMapLabel = root.Q<Label>("SetupMap");
+        setupPreview = root.Q<VisualElement>("SetupPreview");
         setupOwnerLabel = root.Q<Label>("SetupOwner");
         setupNoticeLabel = root.Q<Label>("SetupNotice");
         addressLabel = root.Q<Label>("Address");
@@ -1177,12 +1179,23 @@ public class LobbyUI : MonoBehaviour
         // value - LobbySettingsData already carries its id.
         int difficultyId = readService.Settings.DifficultyId;
 
+        GameMapDefinition map = null;
+        bool knownMap = mapCatalog != null && mapCatalog.TryGetMap(readService.Settings.MapId, out map);
+
         if (setupMapLabel != null)
         {
-            setupMapLabel.text = mapCatalog != null &&
-                                 mapCatalog.TryGetMap(readService.Settings.MapId, out GameMapDefinition map)
+            setupMapLabel.text = knownMap
                 ? string.Format(UiLocalization.Text(matchMapFormat), UiLocalization.Text(map.DisplayName))
                 : string.Empty;
+        }
+
+        if (setupPreview != null)
+        {
+            bool pictured = knownMap && map.Preview != null;
+            setupPreview.style.backgroundImage = pictured
+                ? new StyleBackground(map.Preview)
+                : new StyleBackground(StyleKeyword.None);
+            setupPreview.style.display = pictured ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         if (setupDifficultyLabel != null)

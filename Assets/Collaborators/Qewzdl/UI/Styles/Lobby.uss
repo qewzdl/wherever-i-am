@@ -610,8 +610,31 @@
 
 .setup {
     flex-shrink: 0;
+    flex-direction: row;
+    align-items: flex-start;
 
     margin-bottom: var(--space-m);
+}
+
+/* The map the match is on, as the same tall picture the map screen showed
+   when it was chosen - small, beside the words about it, so the room is
+   recognisably for that map. Not drawn for a map with no picture. */
+.setup__preview {
+    width: 60px;
+    height: 138px;
+    flex-shrink: 0;
+
+    margin-right: var(--space-m);
+
+    border-width: var(--border);
+    border-color: var(--line);
+
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.setup__lines {
+    flex-grow: 1;
+    flex-shrink: 1;
 }
 
 

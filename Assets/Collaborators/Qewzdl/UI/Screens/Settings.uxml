@@ -10,6 +10,7 @@
                 <ui:Button text="Controls" name="ControlsTab" class="button tab" />
                 <ui:Button text="Interface" name="InterfaceTab" class="button tab" />
                 <ui:Button text="Accessibility" name="AccessibilityTab" class="button tab" />
+                <ui:VisualElement name="TabIndicator" picking-mode="Ignore" class="tabs__indicator" />
             </ui:VisualElement>
             <ui:ScrollView name="GraphicsPage" class="scroll page">
                 <SettingRow setting="Resolution" label="Resolution" control="Dropdown" />
