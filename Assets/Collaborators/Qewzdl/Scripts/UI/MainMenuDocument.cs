@@ -910,7 +910,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             return;
 
         browser.contentContainer.Add(browserEmpty);
-        Arrive(browserEmpty, "browser__empty--arriving");
+        UiMotion.From(browserEmpty, "browser__empty--arriving");
     }
 
     private void HideEmptyBrowser()
@@ -919,28 +919,16 @@ public sealed class MainMenuDocument : MonoBehaviour
     }
 
     // A room that answers grows into the list from nothing, pushing the rows
-    // under it down rather than shoving them.
+    // under it down rather than shoving them; one that stops answering folds
+    // away.
     private static void BringLobbyRowIn(VisualElement row)
     {
-        Arrive(row, "browser__row--arriving");
+        UiMotion.From(row, "browser__row--arriving");
     }
 
-    // A room that stops answering folds away: switched off at once, so it
-    // cannot be chosen on its way out, and taken off the list once it has
-    // closed up.
     private static void LetLobbyRowGo(VisualElement row)
     {
-        row.SetEnabled(false);
-        row.AddToClassList("browser__row--leaving");
-        row.schedule.Execute(row.RemoveFromHierarchy).StartingIn(LobbyRowLeaveMilliseconds);
-    }
-
-    // Put in its starting state with no transition, then let go of it on the
-    // next frame, so it moves from there to where it rests.
-    private static void Arrive(VisualElement element, string startingClass)
-    {
-        element.AddToClassList(startingClass);
-        element.schedule.Execute(() => element.RemoveFromClassList(startingClass));
+        UiMotion.Out(row, "browser__row--leaving", LobbyRowLeaveMilliseconds);
     }
 
     // The rooms playing one map, or all of them.

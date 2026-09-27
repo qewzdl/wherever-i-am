@@ -325,7 +325,14 @@ public class LobbyUI : MonoBehaviour
         public Label Role;
         public Label Status;
         public Button Kick;
+
+        // What the status last said, so a change can be marked when it
+        // happens and not every time the row is written.
+        public bool? WasReady;
     }
+
+    // ponytail: mirrors --motion-screen (the row's fold in Lobby.uss) by hand.
+    private const long RosterRowLeaveMilliseconds = 260;
 
     private readonly Dictionary<ulong, RosterRow> rosterRows = new();
     private readonly List<ulong> departedClients = new();
@@ -1453,6 +1460,9 @@ public class LobbyUI : MonoBehaviour
                 row = BuildPlayerRow(player.ClientId);
                 rosterRows[player.ClientId] = row;
                 roster.Add(row.Root);
+
+                // Grows in from nothing, so the rows under it slide down.
+                UiMotion.From(row.Root, "roster__row--arriving");
                 builtAnything = true;
             }
 
@@ -1508,8 +1518,9 @@ public class LobbyUI : MonoBehaviour
 
         for (int i = 0; i < departedClients.Count; i++)
         {
+            // Folds away rather than vanishing, so the rows under it close up.
             if (rosterRows.TryGetValue(departedClients[i], out RosterRow row))
-                row.Root.RemoveFromHierarchy();
+                UiMotion.Out(row.Root, "roster__row--leaving", RosterRowLeaveMilliseconds);
 
             rosterRows.Remove(departedClients[i]);
         }
@@ -1604,6 +1615,14 @@ public class LobbyUI : MonoBehaviour
 
         row.Status.text = player.IsReady ? UiLocalization.Text(readyStatusText) : UiLocalization.Text(notReadyStatusText);
         row.Status.EnableInClassList("roster__status--ready", player.IsReady);
+
+        // Somebody readying up, or taking it back, is the news this list
+        // exists for: the word flares and settles, so it is seen from across
+        // the screen rather than found by reading down the column.
+        if (row.WasReady.HasValue && row.WasReady.Value != player.IsReady)
+            UiMotion.From(row.Status, "roster__status--changed");
+
+        row.WasReady = player.IsReady;
 
         row.Kick.style.display = canKick ? DisplayStyle.Flex : DisplayStyle.None;
     }

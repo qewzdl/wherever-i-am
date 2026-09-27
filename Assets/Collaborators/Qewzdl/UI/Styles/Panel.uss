@@ -76,6 +76,42 @@
 }
 
 
+/* The wait itself, between the sentence and the details: three dots lit in
+   turn by WaitingPulse, each coming up a size and fading back down. */
+
+.waiting-pulse {
+    flex-direction: row;
+    justify-content: center;
+
+    margin-top: var(--space-m);
+}
+
+.waiting-pulse__dot {
+    width: 6px;
+    height: 6px;
+
+    margin-left: 5px;
+    margin-right: 5px;
+
+    border-radius: 3px;
+    background-color: var(--text);
+    opacity: 0.2;
+
+    transition-property: opacity, scale;
+    transition-duration: var(--motion-screen), var(--motion-screen);
+    transition-timing-function: var(--ease-standard), var(--ease-standard);
+}
+
+.waiting-pulse__dot--lit {
+    opacity: 1;
+    scale: 1.4 1.4;
+}
+
+.waiting-pulse--still .waiting-pulse__dot {
+    opacity: 0.6;
+}
+
+
 /* A panel inside an overlay opens with the overlay, not with the screen
    underneath it. Without this it is already at rest by the time anyone asks
    for it - the screen opened minutes ago and the panel finished rising with

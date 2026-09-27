@@ -8,6 +8,7 @@
     <ui:VisualElement class="panel panel--dialog">
         <ui:Label name="Step" class="section connection-status__step" />
         <ui:Label name="Text" class="question" />
+        <WaitingPulse name="Pulse" />
         <ui:Label name="Detail" class="hint connection-status__detail" />
         <ui:Label name="Elapsed" class="hint connection-status__elapsed" />
         <ui:VisualElement class="footer">
