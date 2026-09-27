@@ -1,5 +1,6 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <ui:Template name="ConnectionDialog" src="project://database/Assets/Collaborators/Qewzdl/UI/Templates/ConnectionDialog.uxml?fileID=9197481963319205126&amp;guid=a3ee74ff77b54dd58f40e6840bedaf3c&amp;type=3#ConnectionDialog" />
     <ui:VisualElement name="Screen" class="screen screen--left screen--curtained">
         <ui:VisualElement name="Backdrop" picking-mode="Ignore" class="backdrop">
             <ui:VisualElement picking-mode="Ignore" class="backdrop__shade" />
@@ -82,16 +83,6 @@
                 <ui:Button text="Connect" name="ConnectButton" class="button button--confirm" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement name="BusyPanel" class="overlay">
-            <ui:VisualElement class="panel panel--dialog">
-                <ui:Label name="BusyStep" class="section connection-status__step" />
-                <ui:Label name="BusyText" class="question" />
-                <ui:Label name="BusyDetail" class="hint connection-status__detail" />
-                <ui:Label name="BusyElapsed" class="hint connection-status__elapsed" />
-                <ui:VisualElement class="footer">
-                    <ui:Button text="Cancel" name="CancelRequestButton" class="button button--cancel" />
-                </ui:VisualElement>
-            </ui:VisualElement>
-        </ui:VisualElement>
+        <ui:Instance template="ConnectionDialog" name="BusyPanel" class="overlay" />
     </ui:VisualElement>
 </ui:UXML>

@@ -1,0 +1,16 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- A question with a yes and a no. The question and the yes are written
+         from code, because they depend on what is being asked; the no says
+         "Cancel" unless the screen overrides it. Placed on a screen as an
+         overlay: <ui:Instance template="ConfirmDialog" name="..." class="overlay" />.
+         A yes that destroys something (removing a player) is marked
+         as the danger button from code: an instance cannot override a class. -->
+    <ui:VisualElement class="panel panel--dialog">
+        <ui:Label name="Text" class="question" />
+        <ui:VisualElement class="footer">
+            <ui:Button name="ConfirmButton" class="button" />
+            <ui:Button text="Cancel" name="CancelButton" class="button button--cancel" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

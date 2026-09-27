@@ -1,0 +1,17 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- Something is being waited on - a connection, a match being loaded -
+         and this says which step it is on, what it is doing, how long it has
+         been at it, and offers the way out. Placed on a screen as an overlay:
+         <ui:Instance template="ConnectionDialog" name="..." class="overlay" />.
+         The way out says "Cancel" unless the screen overrides it. -->
+    <ui:VisualElement class="panel panel--dialog">
+        <ui:Label name="Step" class="section connection-status__step" />
+        <ui:Label name="Text" class="question" />
+        <ui:Label name="Detail" class="hint connection-status__detail" />
+        <ui:Label name="Elapsed" class="hint connection-status__elapsed" />
+        <ui:VisualElement class="footer">
+            <ui:Button text="Cancel" name="CancelButton" class="button button--cancel" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

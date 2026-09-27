@@ -405,10 +405,10 @@ public sealed class MainMenuDocument : MonoBehaviour
         panel = root.Q<VisualElement>("Panel");
         joinScreen = root.Q<VisualElement>("JoinScreen");
         busyPanel = root.Q<VisualElement>("BusyPanel");
-        busyText = root.Q<Label>("BusyText");
-        busyStep = root.Q<Label>("BusyStep");
-        busyDetail = root.Q<Label>("BusyDetail");
-        busyElapsed = root.Q<Label>("BusyElapsed");
+        busyText = busyPanel?.Q<Label>("Text");
+        busyStep = busyPanel?.Q<Label>("Step");
+        busyDetail = busyPanel?.Q<Label>("Detail");
+        busyElapsed = busyPanel?.Q<Label>("Elapsed");
         addressHint = root.Q<Label>("AddressHint");
         playerName = root.Q<TextField>("PlayerName");
         address = root.Q<TextField>("Address");
@@ -431,7 +431,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         quitButton = root.Q<Button>("QuitButton");
         connectButton = root.Q<Button>("ConnectButton");
         cancelJoinButton = root.Q<Button>("CancelJoinButton");
-        cancelRequestButton = root.Q<Button>("CancelRequestButton");
+        cancelRequestButton = busyPanel?.Q<Button>("CancelButton");
         mapScreen = root.Q<VisualElement>("MapScreen");
         masthead = root.Q<VisualElement>("Masthead");
         mapPreview = root.Q<VisualElement>("MapPreview");

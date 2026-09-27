@@ -324,7 +324,7 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         UiLocalization.Changed += RelabelForLanguage;
         screen = root.Q<VisualElement>("Screen");
         confirmPanel = root.Q<VisualElement>("ConfirmPanel");
-        confirmText = root.Q<Label>("ConfirmText");
+        confirmText = confirmPanel?.Q<Label>("Text");
 
         if (screen == null)
         {
@@ -608,8 +608,9 @@ public sealed class SettingsDocument : MonoBehaviour, ISettingsServiceConsumer, 
         Button apply = root.Q<Button>("ApplyButton");
         Button defaults = root.Q<Button>("DefaultsButton");
         Button close = root.Q<Button>("CloseButton");
-        Button confirm = root.Q<Button>("ConfirmButton");
-        Button revert = root.Q<Button>("RevertButton");
+        VisualElement question = root.Q<VisualElement>("ConfirmPanel");
+        Button confirm = question?.Q<Button>("ConfirmButton");
+        Button revert = question?.Q<Button>("CancelButton");
 
         applyButton = apply;
 

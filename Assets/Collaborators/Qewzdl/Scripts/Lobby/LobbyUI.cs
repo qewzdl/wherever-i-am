@@ -614,11 +614,11 @@ public class LobbyUI : MonoBehaviour
         addressCopyIcon = root.Q<Image>("AddressCopyIcon");
         addressField = root.Q<VisualElement>("AddressField");
         startHintLabel = root.Q<Label>("StartHint");
-        confirmTextLabel = root.Q<Label>("ConfirmText");
-        matchTransitionStageLabel = root.Q<Label>("MatchTransitionStage");
-        matchTransitionTextLabel = root.Q<Label>("MatchTransitionText");
-        matchTransitionDetailLabel = root.Q<Label>("MatchTransitionDetail");
-        matchTransitionElapsedLabel = root.Q<Label>("MatchTransitionElapsed");
+        confirmTextLabel = confirmPanel?.Q<Label>("Text");
+        matchTransitionStageLabel = matchTransitionPanel?.Q<Label>("Step");
+        matchTransitionTextLabel = matchTransitionPanel?.Q<Label>("Text");
+        matchTransitionDetailLabel = matchTransitionPanel?.Q<Label>("Detail");
+        matchTransitionElapsedLabel = matchTransitionPanel?.Q<Label>("Elapsed");
         difficultyField = root.Q<DropdownField>("Difficulty");
         maxPlayersField = root.Q<DropdownField>("MaxPlayers");
         maxPlayersNoteLabel = root.Q<Label>("MaxPlayersNote");
@@ -627,9 +627,14 @@ public class LobbyUI : MonoBehaviour
         readyButton = root.Q<Button>("ReadyButton");
         startButton = root.Q<Button>("StartButton");
         leaveButton = root.Q<Button>("LeaveButton");
-        confirmButton = root.Q<Button>("ConfirmButton");
-        confirmCancelButton = root.Q<Button>("ConfirmCancelButton");
-        transitionLeaveButton = root.Q<Button>("TransitionLeaveButton");
+        confirmButton = confirmPanel?.Q<Button>("ConfirmButton");
+        confirmCancelButton = confirmPanel?.Q<Button>("CancelButton");
+        transitionLeaveButton = matchTransitionPanel?.Q<Button>("CancelButton");
+
+        // Everything this room asks to confirm takes something away - a
+        // player removed, the room left - so its yes is the danger button.
+        // Said here because the shared dialog cannot be told so in markup.
+        confirmButton?.AddToClassList("button--danger");
         roomSettingsButton = root.Q<Button>("RoomSettingsButton");
         roomSettingsCloseButton = root.Q<Button>("RoomSettingsCloseButton");
         settingsButton = root.Q<Button>("SettingsButton");
