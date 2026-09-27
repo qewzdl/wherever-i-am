@@ -14,17 +14,29 @@
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Quit" name="QuitButton" class="button" />
             </ui:VisualElement>
-            <!-- In place of the buttons above while it is open, rather than
-                 over them: it is the next step down the same list, and Back
-                 or Escape returns to it. -->
-            <ui:VisualElement name="MultiplayerButtons" class="stack">
-                <ui:Button text="Create lobby" name="HostButton" class="button button--confirm" />
-                <ui:Button text="Join lobby" name="JoinButton" class="button" />
-                <ui:Button text="Back" name="BackButton" class="button button--cancel" />
-            </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead enter">
             <ui:Label text="Wherever I Am" name="Title" class="title title--display" />
+        </ui:VisualElement>
+        <!-- Create or join, as a screen of its own over the same picture: two
+             large buttons, each a picture of what it does with its name under
+             it. The menu and the masthead step aside while it is up; Back or
+             Escape returns to them, and Back from the map screen returns
+             here. -->
+        <ui:VisualElement name="MultiplayerScreen" class="multiplayer-screen">
+            <ui:VisualElement class="multiplayer-screen__choices">
+                <ui:Button name="HostButton" class="multiplayer-screen__choice">
+                    <ui:VisualElement picking-mode="Ignore" class="multiplayer-screen__picture multiplayer-screen__picture--create" />
+                    <ui:Label text="Create lobby" picking-mode="Ignore" class="multiplayer-screen__caption" />
+                </ui:Button>
+                <ui:Button name="JoinButton" class="multiplayer-screen__choice">
+                    <ui:VisualElement picking-mode="Ignore" class="multiplayer-screen__picture multiplayer-screen__picture--join" />
+                    <ui:Label text="Join lobby" picking-mode="Ignore" class="multiplayer-screen__caption" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="multiplayer-screen__footer">
+                <ui:Button text="Back" name="BackButton" class="button button--cancel" />
+            </ui:VisualElement>
         </ui:VisualElement>
         <!-- Which map, before anything else: a host opens a room for one, and
              somebody looking to join looks for rooms playing one. A screen of

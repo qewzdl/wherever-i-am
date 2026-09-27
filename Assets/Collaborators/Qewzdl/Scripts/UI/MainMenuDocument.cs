@@ -130,6 +130,8 @@ public sealed class MainMenuDocument : MonoBehaviour
     private IGameMapCatalog mapCatalog;
     private const string MapScreenOpenClass = "map-screen--open";
     private const string JoinScreenOpenClass = "join-screen--open";
+    private const string MultiplayerScreenOpenClass = "multiplayer-screen--open";
+    private const string ChoiceFocusedClass = "multiplayer-screen__choice--focused";
 
     private VisualElement mapScreen;
     private VisualElement masthead;
@@ -154,8 +156,11 @@ public sealed class MainMenuDocument : MonoBehaviour
     private Button singleplayerButton;
     private Button multiplayerButton;
     private Button backButton;
-    private VisualElement mainButtons;
-    private VisualElement multiplayerButtons;
+    private VisualElement multiplayerScreen;
+
+    // Whether the last thing the player did was with the pointer. Focus is
+    // shown on Create and Join only when it was not - see HandleChoiceFocusIn.
+    private bool pointerDriven;
 
     // Whether the request in flight is a singleplayer game, for what the wait
     // says while it lasts.
@@ -302,12 +307,10 @@ public sealed class MainMenuDocument : MonoBehaviour
     }
 
     private bool IsMultiplayerOpen =>
-        multiplayerButtons != null &&
-        multiplayerButtons.resolvedStyle.display != DisplayStyle.None &&
-        multiplayerButtons.style.display != DisplayStyle.None;
+        multiplayerScreen != null && multiplayerScreen.ClassListContains(MultiplayerScreenOpenClass);
 
-    // One list or the other, never both: Multiplayer is a step down into
-    // Create and Join, and Back is the step up again.
+    // Multiplayer is a step down into Create and Join, on a screen of its own,
+    // and Back is the step up again.
     private void OpenMultiplayer()
     {
         if (isRequestInFlight)
@@ -322,13 +325,33 @@ public sealed class MainMenuDocument : MonoBehaviour
         SetMultiplayerOpen(false, moveFocus: true);
     }
 
+    private void HandlePointerDown(PointerDownEvent evt) => pointerDriven = true;
+
+    private void HandleKeyDown(KeyDownEvent evt) => pointerDriven = false;
+
+    private void HandleNavigationMove(NavigationMoveEvent evt) => pointerDriven = false;
+
+    // Create and Join show focus by their name, and only focus the keyboard or
+    // a pad put there. A click focuses the button it lands on, and Back from
+    // the maps hands focus to the choice that led there; shown for those, the
+    // name stayed lit after the pointer had gone, looking like a hover that
+    // would not let go. What the browser calls :focus-visible, which USS does
+    // not have.
+    private void HandleChoiceFocusIn(FocusInEvent evt)
+    {
+        if (evt.currentTarget is VisualElement choice)
+            choice.EnableInClassList(ChoiceFocusedClass, !pointerDriven);
+    }
+
+    private void HandleChoiceFocusOut(FocusOutEvent evt)
+    {
+        if (evt.currentTarget is VisualElement choice)
+            choice.RemoveFromClassList(ChoiceFocusedClass);
+    }
+
     private void SetMultiplayerOpen(bool open, bool moveFocus)
     {
-        if (mainButtons != null)
-            mainButtons.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
-
-        if (multiplayerButtons != null)
-            multiplayerButtons.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
+        SetScreenOpen(multiplayerScreen, MultiplayerScreenOpenClass, open);
 
         if (!moveFocus)
             return;
@@ -424,8 +447,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         singleplayerButton = root.Q<Button>("SingleplayerButton");
         multiplayerButton = root.Q<Button>("MultiplayerButton");
         backButton = root.Q<Button>("BackButton");
-        mainButtons = root.Q<VisualElement>("MainButtons");
-        multiplayerButtons = root.Q<VisualElement>("MultiplayerButtons");
+        multiplayerScreen = root.Q<VisualElement>("MultiplayerScreen");
         joinButton = root.Q<Button>("JoinButton");
         settingsButton = root.Q<Button>("SettingsButton");
         quitButton = root.Q<Button>("QuitButton");
@@ -479,7 +501,8 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         if (mapScreen != null)
             mapScreen.style.display = DisplayStyle.None;
-        SetMultiplayerOpen(false, moveFocus: false);
+        if (multiplayerScreen != null)
+            multiplayerScreen.style.display = DisplayStyle.None;
         SetBusy(false, string.Empty, string.Empty, string.Empty);
 
         if (playerName != null)
@@ -496,6 +519,14 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void Subscribe()
     {
+        screen?.RegisterCallback<PointerDownEvent>(HandlePointerDown, TrickleDown.TrickleDown);
+        screen?.RegisterCallback<KeyDownEvent>(HandleKeyDown, TrickleDown.TrickleDown);
+        screen?.RegisterCallback<NavigationMoveEvent>(HandleNavigationMove, TrickleDown.TrickleDown);
+        hostButton?.RegisterCallback<FocusInEvent>(HandleChoiceFocusIn);
+        hostButton?.RegisterCallback<FocusOutEvent>(HandleChoiceFocusOut);
+        joinButton?.RegisterCallback<FocusInEvent>(HandleChoiceFocusIn);
+        joinButton?.RegisterCallback<FocusOutEvent>(HandleChoiceFocusOut);
+
         if (hostButton != null)
             hostButton.clicked += ChooseMapToHost;
 
@@ -562,6 +593,14 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private void Unsubscribe()
     {
+        screen?.UnregisterCallback<PointerDownEvent>(HandlePointerDown, TrickleDown.TrickleDown);
+        screen?.UnregisterCallback<KeyDownEvent>(HandleKeyDown, TrickleDown.TrickleDown);
+        screen?.UnregisterCallback<NavigationMoveEvent>(HandleNavigationMove, TrickleDown.TrickleDown);
+        hostButton?.UnregisterCallback<FocusInEvent>(HandleChoiceFocusIn);
+        hostButton?.UnregisterCallback<FocusOutEvent>(HandleChoiceFocusOut);
+        joinButton?.UnregisterCallback<FocusInEvent>(HandleChoiceFocusIn);
+        joinButton?.UnregisterCallback<FocusOutEvent>(HandleChoiceFocusOut);
+
         if (hostButton != null)
             hostButton.clicked -= ChooseMapToHost;
 
@@ -891,6 +930,10 @@ public sealed class MainMenuDocument : MonoBehaviour
         mapIntent = intent;
         mapIndex = 0;
         ShowMapPage();
+
+        if (IsMultiplayerOpen)
+            SetMultiplayerOpen(false, moveFocus: false);
+
         SetMapScreenOpen(true);
         sounds?.Play(UiSoundType.Open);
         FocusMapScreen();
@@ -923,6 +966,11 @@ public sealed class MainMenuDocument : MonoBehaviour
             return;
 
         SetMapScreenOpen(false);
+
+        // One step back: to Create and Join if that is where the map was
+        // chosen from, to the menu if it was chosen for a game alone.
+        if (mapIntent != MapIntent.Singleplayer)
+            SetMultiplayerOpen(true, moveFocus: false);
 
         Button opener = mapIntent == MapIntent.Singleplayer
             ? singleplayerButton

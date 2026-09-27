@@ -201,3 +201,117 @@
     font-size: var(--font-size-s);
     margin-right: var(--space-l);
 }
+
+
+/* ==========================================================================
+   MULTIPLAYER SCREEN
+
+   The step before the map screen: create a lobby or join one. Two large
+   buttons side by side, each a picture of what it does with its name under
+   it, and Back in the bottom corner where the other screens keep theirs.
+   The pictures are UI/Images/lobby/image-lobby-create.png and
+   image-lobby-join.png, square, and fitted rather than cropped.
+   ========================================================================== */
+
+.multiplayer-screen {
+    display: none;
+
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    align-items: center;
+    justify-content: center;
+
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+.multiplayer-screen--open {
+    opacity: 1;
+}
+
+.multiplayer-screen__choices {
+    flex-direction: row;
+}
+
+/* No frame and no fill in any state - the theme's button looks are spelled
+   out of every one of them, on .unity-button so they win. What answers the
+   pointer is the whole choice rising a little and growing a little towards
+   it. */
+.unity-button.multiplayer-screen__choice,
+.unity-button.multiplayer-screen__choice:hover,
+.unity-button.multiplayer-screen__choice:focus,
+.unity-button.multiplayer-screen__choice:active {
+    flex-direction: column;
+    align-items: center;
+
+    margin-left: var(--space-l);
+    margin-right: var(--space-l);
+    padding: 0;
+
+    border-width: 0;
+    background-color: var(--transparent);
+
+    transition-property: translate, scale;
+    transition-duration: var(--motion-normal), var(--motion-normal);
+    transition-timing-function: var(--ease-standard), var(--ease-standard);
+}
+
+.unity-button.multiplayer-screen__choice:hover {
+    translate: 0 -8px;
+    scale: 1.04 1.04;
+}
+
+/* Focus is said by the name, not by the lift, and only focus the keyboard or
+   a pad put there (--focused, set from code). A click focuses the button it
+   lands on, and coming back from the maps focuses the one that led there, so
+   anything shown for :focus stayed on after the pointer had gone and looked
+   like a hover that would not let go. The name, dim at rest, comes up bright
+   - under the pointer as well, so the two never disagree. */
+.unity-button.multiplayer-screen__choice:hover .multiplayer-screen__caption,
+.multiplayer-screen__choice--focused .multiplayer-screen__caption {
+    color: var(--accent);
+}
+
+.multiplayer-screen__picture {
+    width: 360px;
+    height: 360px;
+
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.multiplayer-screen__picture--create {
+    background-image: url("../Images/lobby/image-lobby-create.png");
+}
+
+.multiplayer-screen__picture--join {
+    background-image: url("../Images/lobby/image-lobby-join.png");
+}
+
+.multiplayer-screen__caption {
+    margin-top: var(--space-m);
+
+    color: var(--text-dim);
+    font-size: var(--font-size-m);
+    letter-spacing: var(--tracking-wide);
+
+    -unity-text-align: middle-center;
+}
+
+.multiplayer-screen__footer {
+    position: absolute;
+    right: var(--space-xl);
+    bottom: var(--space-xl);
+
+    flex-direction: row;
+}
+
+.multiplayer-screen__footer .button {
+    min-width: 160px;
+    -unity-text-align: middle-center;
+}

@@ -631,6 +631,12 @@ MonoBehaviour:
   - className: unity-base-popup-field
     trigger: 2
     sound: 0
+  - className: multiplayer-screen__choice
+    trigger: 0
+    sound: 1
+  - className: multiplayer-screen__choice
+    trigger: 1
+    sound: 0
   valueChangeInterval: 0.05
 --- !u!114 &771010504
 MonoBehaviour:

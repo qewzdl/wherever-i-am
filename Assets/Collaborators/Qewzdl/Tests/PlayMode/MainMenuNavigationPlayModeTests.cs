@@ -73,4 +73,61 @@ public sealed class MainMenuNavigationPlayModeTests
         Assert.That(mapScreen.ClassListContains("map-screen--open"), Is.True, "Back skipped the map screen.");
         Assert.That(mapName.text, Is.EqualTo(secondMap), "Back returned to a different map.");
     }
+
+    // Create and Join is the step before the maps, so leaving the maps for a
+    // lobby lands back on it - not on the menu underneath.
+    [UnityTest]
+    public IEnumerator BackFromTheMapsReturnsToCreateOrJoin()
+    {
+        GameMapCatalog catalog = AssetDatabase.LoadAssetAtPath<GameMapCatalog>(CatalogPath);
+
+        panel = Object.Instantiate(AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath));
+        host = new GameObject(nameof(MainMenuNavigationPlayModeTests));
+        host.SetActive(false);
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+        document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(MarkupPath);
+        MainMenuDocument menu = host.AddComponent<MainMenuDocument>();
+        host.SetActive(true);
+
+        menu.Construct(new LobbySessionServiceProbe(), null, null, null, catalog);
+        yield return null;
+
+        VisualElement root = document.rootVisualElement;
+        VisualElement multiplayer = root.Q<VisualElement>("MultiplayerScreen");
+        VisualElement maps = root.Q<VisualElement>("MapScreen");
+
+        PlayModeTestReflection.Invoke(menu, "OpenMultiplayer");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(multiplayer.ClassListContains("multiplayer-screen--open"), Is.True, "Create and Join did not open.");
+
+        // Opening hands Create the focus. The lift belongs to the pointer: a
+        // choice raised by focus stayed up after a click, and hovering it
+        // again showed nothing.
+        Button create = root.Q<Button>("HostButton");
+        Assert.That(create.focusController.focusedElement, Is.EqualTo(create), "Create was not focused.");
+        Assert.That(create.resolvedStyle.scale.value.x, Is.EqualTo(1f), "Focus raised Create as if hovered.");
+
+        // Nothing was pressed yet, so this focus is the keyboard's to show;
+        // after a click it is not.
+        Assert.That(create.ClassListContains("multiplayer-screen__choice--focused"), Is.True, "Keyboard focus is not shown.");
+
+        PlayModeTestReflection.SetField(menu, "pointerDriven", true);
+        create.Blur();
+        create.Focus();
+        yield return null;
+        Assert.That(create.ClassListContains("multiplayer-screen__choice--focused"), Is.False, "A click left Create lit.");
+
+        PlayModeTestReflection.Invoke(menu, "ChooseMapToHost");
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.That(maps.ClassListContains("map-screen--open"), Is.True, "The maps did not open.");
+        Assert.That(multiplayer.ClassListContains("multiplayer-screen--open"), Is.False, "Create and Join stayed under the maps.");
+
+        PlayModeTestReflection.Invoke(menu, "CloseMapSelect");
+        yield return new WaitForSecondsRealtime(0.3f);
+
+        Assert.That(maps.ClassListContains("map-screen--open"), Is.False, "The maps stayed open.");
+        Assert.That(multiplayer.ClassListContains("multiplayer-screen--open"), Is.True, "Back skipped Create and Join.");
+    }
 }
