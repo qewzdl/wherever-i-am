@@ -56,7 +56,19 @@ public sealed class MainMenuNavigationPlayModeTests
         PlayModeTestReflection.Invoke(menu, "ChooseMapToJoin");
         yield return new WaitForSecondsRealtime(0.3f);
         PlayModeTestReflection.Invoke(menu, "ShowNextMap");
+
+        // The page turns before the next map is written on it.
+        yield return new WaitForSecondsRealtime(0.6f);
         string secondMap = mapName.text;
+
+        VisualElement sheet = root.Q<VisualElement>("MapSheet");
+        Assert.That(secondMap, Is.EqualTo(catalog.GetMapAt(1).DisplayName), "The page never turned to the second map.");
+        Assert.That(sheet.GetClasses(), Has.None.Contains("--leaving"), "The page was left mid-turn.");
+        Assert.That(sheet.GetClasses(), Has.None.Contains("--arriving"), "The page was left mid-turn.");
+
+        VisualElement dots = root.Q<VisualElement>("MapDots");
+        Assert.That(dots.childCount, Is.EqualTo(catalog.Count), "Not one dot a map.");
+        Assert.That(dots[1].ClassListContains("map-screen__dot--current"), Is.True, "The dots do not follow the page.");
 
         PlayModeTestReflection.Invoke(menu, "ConfirmMap");
         yield return new WaitForSecondsRealtime(0.3f);

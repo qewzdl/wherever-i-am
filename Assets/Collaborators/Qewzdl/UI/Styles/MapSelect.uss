@@ -164,6 +164,13 @@
     background-repeat: no-repeat;
     background-position-x: center;
     background-position-y: center;
+
+    /* Dimmed at rest; lit and leaning the way it turns under the pointer. */
+    -unity-background-image-tint-color: rgb(150, 150, 150);
+
+    transition-property: translate, -unity-background-image-tint-color;
+    transition-duration: var(--motion-normal), var(--motion-normal);
+    transition-timing-function: var(--ease-standard), var(--ease-standard);
 }
 
 .map-screen__arrow--previous {
@@ -174,6 +181,159 @@
 .map-screen__arrow--next {
     right: 0;
     background-image: url("../Images/Icons/icon-arrow-right.png");
+}
+
+.unity-button.map-screen__arrow:hover {
+    -unity-background-image-tint-color: rgb(255, 255, 255);
+}
+
+.unity-button.map-screen__arrow--previous:hover {
+    translate: -6px 0;
+}
+
+.unity-button.map-screen__arrow--next:hover {
+    translate: 6px 0;
+}
+
+.unity-button.map-screen__arrow--previous:hover:active {
+    translate: -12px 0;
+}
+
+.unity-button.map-screen__arrow--next:hover:active {
+    translate: 12px 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   THE PAGE TURNING
+
+   The page leaves the way the arrow points and fades as it goes; the next
+   one is put on the far side with no transition at all and slides in from
+   there (MainMenuDocument.TurnMapPage adds and takes away these). Leaving is
+   quick and accelerates, arriving settles - the page is out of the way
+   before the new one is looked at. Motion tokens throughout, and with
+   Reduced motion the code swaps the page without any of it.
+   -------------------------------------------------------------------------- */
+
+.map-screen__page {
+    transition-property: translate, opacity;
+    transition-duration: var(--motion-screen), var(--motion-screen);
+    transition-timing-function: var(--ease-standard), var(--ease-standard);
+}
+
+.map-screen__page--leaving-next,
+.map-screen__page--leaving-previous {
+    opacity: 0;
+
+    transition-duration: var(--motion-normal), var(--motion-normal);
+    transition-timing-function: ease-in-cubic, ease-in-cubic;
+}
+
+.map-screen__page--leaving-next {
+    translate: -48px 0;
+}
+
+.map-screen__page--leaving-previous {
+    translate: 48px 0;
+}
+
+.map-screen__page--arriving-next,
+.map-screen__page--arriving-previous {
+    opacity: 0;
+    transition-duration: 0s, 0s;
+}
+
+.map-screen__page--arriving-next {
+    translate: 48px 0;
+}
+
+.map-screen__page--arriving-previous {
+    translate: -48px 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   WHERE YOU ARE
+
+   One dot a map, in the order they are played, under the page: the one on
+   screen drawn long and bright, a map not yet opened drawn as a ring. It
+   stays still while the page turns, so it is the thing that says which way
+   you went.
+   -------------------------------------------------------------------------- */
+
+.map-screen__dots {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+
+    margin-top: var(--space-xl);
+}
+
+.map-screen__dot {
+    width: 8px;
+    height: 8px;
+
+    margin-left: 4px;
+    margin-right: 4px;
+
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: var(--text-dim);
+    background-color: var(--text-dim);
+
+    transition-property: width, background-color, border-color;
+    transition-duration: var(--motion-screen), var(--motion-normal), var(--motion-normal);
+    transition-timing-function: var(--ease-standard), var(--ease-standard), var(--ease-standard);
+}
+
+.map-screen__dot--locked {
+    background-color: var(--transparent);
+}
+
+.map-screen__dot--current {
+    width: 24px;
+
+    border-color: var(--accent);
+    background-color: var(--accent);
+}
+
+.map-screen__dot--current.map-screen__dot--locked {
+    background-color: var(--transparent);
+}
+
+
+/* --------------------------------------------------------------------------
+   ARRIVING
+
+   When the screen opens the picture rises into place, the words follow it
+   and the dots come last - the order they are read in. The delays are fixed
+   and small; with Reduced motion there is nothing left to wait for but them.
+   -------------------------------------------------------------------------- */
+
+.map-screen__preview,
+.map-screen__text,
+.map-screen__dots {
+    opacity: 0;
+    translate: 0 24px;
+
+    transition-property: opacity, translate;
+    transition-duration: var(--motion-screen), var(--motion-screen);
+    transition-timing-function: var(--ease-standard), var(--ease-entrance);
+}
+
+.map-screen--open .map-screen__preview,
+.map-screen--open .map-screen__text,
+.map-screen--open .map-screen__dots {
+    opacity: 1;
+    translate: 0 0;
+}
+
+.map-screen--open .map-screen__text {
+    transition-delay: 0.06s, 0.06s;
+}
+
+.map-screen--open .map-screen__dots {
+    transition-delay: 0.12s, 0.12s;
 }
 
 
@@ -194,12 +354,6 @@
     min-width: 160px;
     margin-left: var(--space-s);
     -unity-text-align: middle-center;
-}
-
-.map-screen__count {
-    color: var(--text-dim);
-    font-size: var(--font-size-s);
-    margin-right: var(--space-l);
 }
 
 

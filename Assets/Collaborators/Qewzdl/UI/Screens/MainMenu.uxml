@@ -44,7 +44,7 @@
              aside while it is up. One map to a page, in the order they are
              played (see MapProgress), turned from the edges of the frame. -->
         <ui:VisualElement name="MapScreen" class="map-screen">
-            <ui:VisualElement class="map-screen__page">
+            <ui:VisualElement name="MapSheet" class="map-screen__page">
                 <ui:VisualElement name="MapPreview" class="map-screen__preview">
                     <ui:Label text="Locked" class="map-screen__lock" />
                     <ui:Label text="No preview" class="map-screen__no-preview" />
@@ -55,10 +55,10 @@
                     <ui:Label name="MapHint" class="hint map-screen__hint" />
                 </ui:VisualElement>
             </ui:VisualElement>
+            <ui:VisualElement name="MapDots" picking-mode="Ignore" class="map-screen__dots" />
             <ui:Button name="MapPreviousButton" tooltip="Previous map" class="map-screen__arrow map-screen__arrow--previous" />
             <ui:Button name="MapNextButton" tooltip="Next map" class="map-screen__arrow map-screen__arrow--next" />
             <ui:VisualElement class="map-screen__footer">
-                <ui:Label name="MapPage" class="map-screen__count" />
                 <ui:Button text="All lobbies" name="MapAllLobbiesButton" class="button" />
                 <ui:Button text="Back" name="MapBackButton" class="button button--cancel" />
                 <ui:Button name="MapConfirmButton" class="button button--confirm" />

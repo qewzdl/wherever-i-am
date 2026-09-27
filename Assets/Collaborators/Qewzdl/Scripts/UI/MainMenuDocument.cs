@@ -58,7 +58,6 @@ public sealed class MainMenuDocument : MonoBehaviour
     // The map page. The confirming button says what it is about to do, which
     // is different for each of the three ways in.
     [Header("Map selection")]
-    [SerializeField] private string mapPageFormat = "{0} / {1}";
     [SerializeField] private string startActionText = "Start";
     [SerializeField] private string createLobbyActionText = "Create lobby";
     [SerializeField] private string findLobbiesActionText = "Find lobbies";
@@ -129,6 +128,11 @@ public sealed class MainMenuDocument : MonoBehaviour
 
     private IGameMapCatalog mapCatalog;
     private const string MapScreenOpenClass = "map-screen--open";
+    private const string PageLeavingNextClass = "map-screen__page--leaving-next";
+    private const string PageLeavingPreviousClass = "map-screen__page--leaving-previous";
+    private const string PageArrivingNextClass = "map-screen__page--arriving-next";
+    private const string PageArrivingPreviousClass = "map-screen__page--arriving-previous";
+    private const long PageLeaveMilliseconds = 160;
     private const string JoinScreenOpenClass = "join-screen--open";
     private const string MultiplayerScreenOpenClass = "multiplayer-screen--open";
     private const string ChoiceFocusedClass = "multiplayer-screen__choice--focused";
@@ -139,7 +143,9 @@ public sealed class MainMenuDocument : MonoBehaviour
     private Label mapName;
     private Label mapDescription;
     private Label mapHint;
-    private Label mapPage;
+    private VisualElement mapSheet;
+    private VisualElement mapDots;
+    private IVisualElementScheduledItem pageTurn;
     private Button mapPreviousButton;
     private Button mapNextButton;
     private Button mapConfirmButton;
@@ -460,7 +466,8 @@ public sealed class MainMenuDocument : MonoBehaviour
         mapName = root.Q<Label>("MapName");
         mapDescription = root.Q<Label>("MapDescription");
         mapHint = root.Q<Label>("MapHint");
-        mapPage = root.Q<Label>("MapPage");
+        mapSheet = root.Q<VisualElement>("MapSheet");
+        mapDots = root.Q<VisualElement>("MapDots");
         mapPreviousButton = root.Q<Button>("MapPreviousButton");
         mapNextButton = root.Q<Button>("MapNextButton");
 
@@ -984,10 +991,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (mapIndex <= 0)
             return;
 
-        mapIndex--;
-        ShowMapPage();
-        KeepFocusOnScreen(mapPreviousButton);
-        PlayPageTurn();
+        TurnMapPage(-1);
     }
 
     private void ShowNextMap()
@@ -995,10 +999,68 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (mapCatalog == null || mapIndex >= mapCatalog.Count - 1)
             return;
 
-        mapIndex++;
-        ShowMapPage();
-        KeepFocusOnScreen(mapNextButton);
+        TurnMapPage(1);
+    }
+
+    // The arrows, the dots and what the confirm button says follow the press
+    // at once, so a second press is never waiting on the first. The page
+    // itself leaves the way the arrow points, and only once it is gone is the
+    // next map written onto it and brought in from the other side - the
+    // classes are in MapSelect.uss. A press while a turn is still under way
+    // starts the next one from wherever the page has got to.
+    private void TurnMapPage(int step)
+    {
+        mapIndex += step;
+        ShowMapNavigation();
+        KeepFocusOnScreen(step < 0 ? mapPreviousButton : mapNextButton);
         PlayPageTurn();
+
+        StopTurningPage();
+
+        if (mapSheet == null || TurnsInstantly(mapSheet))
+        {
+            ShowMapContent();
+            return;
+        }
+
+        string leaving = step > 0 ? PageLeavingNextClass : PageLeavingPreviousClass;
+        string arriving = step > 0 ? PageArrivingNextClass : PageArrivingPreviousClass;
+
+        mapSheet.AddToClassList(leaving);
+
+        // ponytail: the wait mirrors the leaving duration in MapSelect.uss
+        // (--motion-normal) by hand; read it off the style if the two drift.
+        pageTurn = mapSheet.schedule.Execute(() =>
+        {
+            ShowMapContent();
+            mapSheet.RemoveFromClassList(leaving);
+            mapSheet.AddToClassList(arriving);
+            pageTurn = mapSheet.schedule.Execute(() => mapSheet.RemoveFromClassList(arriving));
+        }).StartingIn(PageLeaveMilliseconds);
+    }
+
+    private void StopTurningPage()
+    {
+        pageTurn?.Pause();
+        pageTurn = null;
+
+        if (mapSheet == null)
+            return;
+
+        mapSheet.RemoveFromClassList(PageLeavingNextClass);
+        mapSheet.RemoveFromClassList(PageLeavingPreviousClass);
+        mapSheet.RemoveFromClassList(PageArrivingNextClass);
+        mapSheet.RemoveFromClassList(PageArrivingPreviousClass);
+    }
+
+    // Reduced motion zeroes every duration in the theme, the page's with them;
+    // then there is nothing to wait for and the page is simply swapped.
+    private static bool TurnsInstantly(VisualElement sheet)
+    {
+        foreach (TimeValue duration in sheet.resolvedStyle.transitionDuration)
+            return duration.value <= 0f;
+
+        return true;
     }
 
     // The arrows are bare pictures, not .button, so the document's own
@@ -1027,6 +1089,14 @@ public sealed class MainMenuDocument : MonoBehaviour
     }
 
     private void ShowMapPage()
+    {
+        StopTurningPage();
+        ShowMapContent();
+        ShowMapNavigation();
+    }
+
+    // What is on the page: the picture and the words about the map.
+    private void ShowMapContent()
     {
         GameMapDefinition map = mapCatalog.GetMapAt(mapIndex);
         bool open = map != null && MapProgress.IsUnlocked(mapCatalog, map.MapId);
@@ -1064,8 +1134,16 @@ public sealed class MainMenuDocument : MonoBehaviour
                     UiLocalization.Text(gate.DisplayName));
         }
 
-        if (mapPage != null)
-            mapPage.text = string.Format(UiLocalization.Text(mapPageFormat), mapIndex + 1, mapCatalog.Count);
+    }
+
+    // Everything around the page: the dots, the arrows and what can be done
+    // with the map.
+    private void ShowMapNavigation()
+    {
+        GameMapDefinition map = mapCatalog.GetMapAt(mapIndex);
+        bool open = map != null && MapProgress.IsUnlocked(mapCatalog, map.MapId);
+
+        ShowMapDots();
 
         // No arrow where there is no page to turn to.
         if (mapPreviousButton != null)
@@ -1093,6 +1171,32 @@ public sealed class MainMenuDocument : MonoBehaviour
             mapAllLobbiesButton.style.display = mapIntent == MapIntent.Join
                 ? DisplayStyle.Flex
                 : DisplayStyle.None;
+        }
+    }
+
+    private void ShowMapDots()
+    {
+        if (mapDots == null)
+            return;
+
+        while (mapDots.childCount < mapCatalog.Count)
+        {
+            VisualElement dot = new() { pickingMode = PickingMode.Ignore };
+            dot.AddToClassList("map-screen__dot");
+            mapDots.Add(dot);
+        }
+
+        while (mapDots.childCount > mapCatalog.Count)
+            mapDots.RemoveAt(mapDots.childCount - 1);
+
+        for (int i = 0; i < mapCatalog.Count; i++)
+        {
+            GameMapDefinition map = mapCatalog.GetMapAt(i);
+            VisualElement dot = mapDots[i];
+            dot.EnableInClassList("map-screen__dot--current", i == mapIndex);
+            dot.EnableInClassList(
+                "map-screen__dot--locked",
+                map == null || !MapProgress.IsUnlocked(mapCatalog, map.MapId));
         }
     }
 
