@@ -51,17 +51,17 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         UnsubscribeFromSceneFlowService();
     }
 
-    public Task HostLanAsync()
+    public Task HostLanAsync(int? mapId = null)
     {
-        return HostAsync(SessionMode.Multiplayer);
+        return HostAsync(SessionMode.Multiplayer, mapId);
     }
 
-    public Task HostSingleplayerAsync()
+    public Task HostSingleplayerAsync(int? mapId = null)
     {
-        return HostAsync(SessionMode.Singleplayer);
+        return HostAsync(SessionMode.Singleplayer, mapId);
     }
 
-    private async Task HostAsync(SessionMode mode)
+    private async Task HostAsync(SessionMode mode, int? mapId)
     {
         if (!HasRequiredReferences())
             return;
@@ -94,6 +94,18 @@ public sealed class NetworkSessionFlowService : MonoBehaviour, INetworkSessionSe
         if (!connectionService.IsConnectionReady)
         {
             await FailAsync(CreateConnectionLostDuringStartupResult());
+            return;
+        }
+
+        // Before the lobby, which reads it once and offers no way to change
+        // it: the map is what the host chose to open a room for.
+        if (mapId.HasValue && !gameMapService.SelectMap(mapId.Value))
+        {
+            await FailAsync(ConnectionResult.Fail(
+                ConnectionErrorCode.Unknown,
+                "Failed to select the map.",
+                $"Invalid game map id: {mapId.Value}.",
+                true));
             return;
         }
 

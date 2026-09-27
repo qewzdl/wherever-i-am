@@ -22,20 +22,20 @@ public sealed class NetworkSessionOrchestrator : MonoBehaviour, INetworkSessionS
         HasRequiredReferences();
     }
 
-    public Task HostLanAsync()
+    public Task HostLanAsync(int? mapId = null)
     {
         if (!HasRequiredReferences())
             return Task.CompletedTask;
 
-        return sessionFlowService.HostLanAsync();
+        return sessionFlowService.HostLanAsync(mapId);
     }
 
-    public Task HostSingleplayerAsync()
+    public Task HostSingleplayerAsync(int? mapId = null)
     {
         if (!HasRequiredReferences())
             return Task.CompletedTask;
 
-        return sessionFlowService.HostSingleplayerAsync();
+        return sessionFlowService.HostSingleplayerAsync(mapId);
     }
 
     public Task JoinLanAsync(string ip)

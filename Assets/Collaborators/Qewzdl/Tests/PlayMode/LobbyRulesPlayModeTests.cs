@@ -12,12 +12,12 @@ internal sealed class LobbySessionServiceProbe : INetworkSessionService
     internal int LastDifficultyId { get; private set; } = -1;
     internal int ReturnToLobbyCount { get; private set; }
 
-    public Task HostLanAsync()
+    public Task HostLanAsync(int? mapId = null)
     {
         return Task.CompletedTask;
     }
 
-    public Task HostSingleplayerAsync()
+    public Task HostSingleplayerAsync(int? mapId = null)
     {
         return Task.CompletedTask;
     }
@@ -415,8 +415,8 @@ public sealed class LobbyRulesPlayModeTests
             LogAssert.Expect(
                 LogType.Warning,
                 "Lobby settings cannot be changed while lobby phase is Starting.");
-            settings.SetMap(7);
-            Assert.That(state.Settings.Value.MapId, Is.EqualTo(7));
+            settings.SetDifficulty(0);
+            Assert.That(state.Settings.Value.DifficultyId, Is.EqualTo(0));
         }
         finally
         {

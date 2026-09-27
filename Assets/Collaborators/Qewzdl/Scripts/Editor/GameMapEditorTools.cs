@@ -271,6 +271,11 @@ public sealed class GameMapManagerWindow : EditorWindow
     {
         EditorGUILayout.Space(8f);
         EditorGUILayout.LabelField("Maps", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(
+            "In the order they are played. The first is always open; each one " +
+            "after it opens once the one before it has been won. The arrows " +
+            "move a map along the line.",
+            MessageType.None);
 
         if (validationEntries.Count == 0)
         {
@@ -303,10 +308,22 @@ public sealed class GameMapManagerWindow : EditorWindow
         {
             string defaultSuffix = map.MapId == catalog.DefaultMapId ? "  (DEFAULT)" : string.Empty;
             EditorGUILayout.LabelField(
-                $"[{map.MapId}] {map.DisplayName}{defaultSuffix}",
+                $"{catalogIndex + 1}.  [{map.MapId}] {map.DisplayName}{defaultSuffix}",
                 EditorStyles.boldLabel);
 
             GUILayout.FlexibleSpace();
+
+            using (new EditorGUI.DisabledScope(catalogIndex == 0))
+            {
+                if (GUILayout.Button("\u25B2", GUILayout.Width(26f)))
+                    MoveMap(catalogIndex, -1);
+            }
+
+            using (new EditorGUI.DisabledScope(catalogIndex == validationEntries.Count - 1))
+            {
+                if (GUILayout.Button("\u25BC", GUILayout.Width(26f)))
+                    MoveMap(catalogIndex, 1);
+            }
 
             using (new EditorGUI.DisabledScope(map.MapId == catalog.DefaultMapId))
             {
@@ -369,6 +386,19 @@ public sealed class GameMapManagerWindow : EditorWindow
         }
 
         return availableMaps;
+    }
+
+    private void MoveMap(int index, int offset)
+    {
+        Undo.RecordObject(catalog, "Reorder Game Maps");
+
+        if (!catalog.MoveMapEditor(index, offset))
+            return;
+
+        EditorUtility.SetDirty(catalog);
+        AssetDatabase.SaveAssets();
+        RefreshValidation();
+        GUIUtility.ExitGUI();
     }
 
     private void SetDefaultMap(GameMapDefinition map)

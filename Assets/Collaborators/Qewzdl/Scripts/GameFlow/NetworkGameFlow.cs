@@ -443,7 +443,25 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
         }
 
         matchResolvedRaised = true;
+        RecordWinOnThisMachine(result.Value);
         MatchResolved?.Invoke(result.Value);
+    }
+
+    // Here because this is the one place every machine in the match learns
+    // the result - the host deciding it and each client being told - and a
+    // win opens the next map for everybody who played it.
+    private void RecordWinOnThisMachine(GameResultData matchResult)
+    {
+        if (matchResult.ResultType != GameResultType.Victory)
+            return;
+
+        if (NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IGameMapSessionService maps) &&
+            maps.ActiveMap != null)
+        {
+            MapProgress.RecordWin(maps.ActiveMap.MapId);
+        }
     }
 
     private void RaiseMatchFinishedOnce()

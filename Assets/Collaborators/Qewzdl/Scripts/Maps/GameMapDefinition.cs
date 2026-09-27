@@ -8,12 +8,22 @@ public sealed class GameMapDefinition : ScriptableObject
 {
     [SerializeField] [Min(0)] private int mapId;
     [SerializeField] private string displayName;
+
+    // What the map selection screen shows for it: a sentence or two under
+    // the name, and a tall picture beside them - 1 wide by 2.3 high.
+    [SerializeField] [TextArea(3, 8)] private string description;
+    [SerializeField] private Texture2D preview;
     [SerializeField] private string sceneName;
     [SerializeField] private string scenePath;
     [SerializeField] private ObjectiveSequenceDefinition objectiveSequenceOverride;
 
     public int MapId => mapId;
     public string DisplayName => displayName;
+    public string Description => description;
+    public Texture2D Preview => preview;
+
+    // The shape the preview is drawn in, width over height.
+    public const float PreviewAspect = 1f / 2.3f;
     public string SceneName => sceneName;
     public string ScenePath => scenePath;
     public ObjectiveSequenceDefinition ObjectiveSequenceOverride => objectiveSequenceOverride;

@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mapId: 0
   displayName: Prototype
+  description: This map is used for testing and development purposes, including gameplay
+    mechanics, new features, and various in-game systems.
+  preview: {fileID: 2800000, guid: 5854c3e9433034240ba977d6afb140e1, type: 3}
   sceneName: Map_Prototype
   scenePath: Assets/Collaborators/Qewzdl/Scenes/Maps/Map_Prototype.unity
   objectiveSequenceOverride: {fileID: 0}

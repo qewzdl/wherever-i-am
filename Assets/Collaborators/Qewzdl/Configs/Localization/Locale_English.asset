@@ -448,3 +448,29 @@ MonoBehaviour:
     Translation: You did not get out
   - English: The match is over - you did not get out.
     Translation: The match is over - you did not get out.
+  - English: Locked
+    Translation: Locked
+  - English: No preview
+    Translation: No preview
+  - English: All lobbies
+    Translation: All lobbies
+  - English: Find lobbies
+    Translation: Find lobbies
+  - English: 'Map: {0}'
+    Translation: 'Map: {0}'
+  - English: Win {0} to open this map.
+    Translation: Win {0} to open this map.
+  - English: Win {0} to host this map. You can still join a game on it.
+    Translation: Win {0} to host this map. You can still join a game on it.
+  - English: No lobbies on this map have answered yet
+    Translation: No lobbies on this map have answered yet
+  - English: All maps
+    Translation: All maps
+  - English: Only {0}
+    Translation: Only {0}
+  - English: There are no maps to choose from.
+    Translation: There are no maps to choose from.
+  - English: Previous map
+    Translation: Previous map
+  - English: Next map
+    Translation: Next map

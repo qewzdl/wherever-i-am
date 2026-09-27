@@ -23,9 +23,17 @@ public sealed class ObjectiveRuntimePlayModeTests
     private NetworkGameFlow gameFlow;
     private readonly List<UnityEngine.Object> cleanup = new();
 
+    // A won match opens the next map in this machine's own progress - the
+    // player's, not the test's - so it is put back the way it was found.
+    private bool hadMapProgress;
+    private string savedMapProgress;
+
     [UnitySetUp]
     public IEnumerator SetUp()
     {
+        hadMapProgress = PlayerPrefs.HasKey(MapProgress.Key);
+        savedMapProgress = PlayerPrefs.GetString(MapProgress.Key, string.Empty);
+
         persistentSceneProbe = new GameObject("Objective runtime PlayMode test probe");
         UnityEngine.Object.DontDestroyOnLoad(persistentSceneProbe);
         persistentScene = persistentSceneProbe.scene;
@@ -41,6 +49,13 @@ public sealed class ObjectiveRuntimePlayModeTests
     [UnityTearDown]
     public IEnumerator TearDown()
     {
+        if (hadMapProgress)
+            PlayerPrefs.SetString(MapProgress.Key, savedMapProgress);
+        else
+            PlayerPrefs.DeleteKey(MapProgress.Key);
+
+        PlayerPrefs.Save();
+
         for (int i = cleanup.Count - 1; i >= 0; i--)
         {
             if (cleanup[i] != null)
@@ -104,6 +119,12 @@ public sealed class ObjectiveRuntimePlayModeTests
         Assert.That(
             gameFlow.CurrentResult.ResultType,
             Is.EqualTo(ProductionSequence.CompletionResult));
+
+        // A win opens the next map for whoever played it.
+        int playedMapId = runtimeContext.SessionOrchestrator.SessionServices
+            .Resolve<IGameMapSessionService>().ActiveMap.MapId;
+        Assert.That(ProductionSequence.CompletionResult, Is.EqualTo(GameResultType.Victory));
+        Assert.That(MapProgress.IsWon(playedMapId), Is.True, "Winning the map did not count as winning it.");
     }
 
     // A lost objective is a gameplay result, not a broken flow: it resolves the

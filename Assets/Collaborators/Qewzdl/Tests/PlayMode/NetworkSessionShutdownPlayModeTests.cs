@@ -978,7 +978,11 @@ public sealed class NetworkSessionShutdownPlayModeTests
             GetSinglePersistentComponent<NetworkSessionStateMachine>();
         IProjectSceneFlowService sceneFlow = G.Resolve<IProjectSceneFlowService>();
 
-        Task start = runtimeContext.SessionOrchestrator.HostSingleplayerAsync();
+        // Not the default map, so the lobby cannot be right by accident.
+        const int ChosenMapId = 1;
+        Assert.That(G.Resolve<IGameMapCatalog>().DefaultMapId, Is.Not.EqualTo(ChosenMapId));
+
+        Task start = runtimeContext.SessionOrchestrator.HostSingleplayerAsync(ChosenMapId);
         yield return WaitForTask(start, "Singleplayer startup did not complete.");
         yield return WaitForCondition(
             () => sessionStateMachine.CurrentState == NetworkSessionState.Lobby &&
@@ -1024,6 +1028,12 @@ public sealed class NetworkSessionShutdownPlayModeTests
         }
 
         Assert.That(root.Q<Button>("StartButton"), Is.Not.Null);
+
+        // Chosen before the lobby, and the lobby is for it.
+        Assert.That(lobbyState.Settings.Value.MapId, Is.EqualTo(ChosenMapId),
+            "The lobby is not for the map that was chosen.");
+        G.Resolve<IGameMapCatalog>().TryGetMap(ChosenMapId, out GameMapDefinition chosen);
+        Assert.That(root.Q<Label>("SetupMap").text, Does.Contain(UiLocalization.Text(chosen.DisplayName)));
         Assert.That(root.Q<Label>("Title").text, Is.EqualTo(UiLocalization.Text("Singleplayer")));
     }
 

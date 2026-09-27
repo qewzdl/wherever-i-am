@@ -21,15 +21,19 @@ internal sealed class PendingSessionServiceStub : INetworkSessionService
     public int JoinCallCount { get; private set; }
     public int ShutdownCallCount { get; private set; }
 
-    public Task HostLanAsync()
+    public int? LastMapId { get; private set; }
+
+    public Task HostLanAsync(int? mapId = null)
     {
         HostCallCount++;
+        LastMapId = mapId;
         return pending.Task;
     }
 
-    public Task HostSingleplayerAsync()
+    public Task HostSingleplayerAsync(int? mapId = null)
     {
         SingleplayerCallCount++;
+        LastMapId = mapId;
         return pending.Task;
     }
 
@@ -689,11 +693,12 @@ public sealed class MapLobbyAndGameplayLogicTests
                 settingsScreen: null,
                 sessionReadService: state);
 
-            menu.Singleplayer();
-            menu.Singleplayer();
+            menu.Singleplayer(3);
+            menu.Singleplayer(3);
 
             Assert.That(session.SingleplayerCallCount, Is.EqualTo(1));
             Assert.That(session.HostCallCount, Is.Zero, "Singleplayer started a LAN host.");
+            Assert.That(session.LastMapId, Is.EqualTo(3), "The map chosen was not the map started.");
             Assert.That(menu.IsRequestInFlight, Is.True);
         }
         finally

@@ -106,7 +106,8 @@ public sealed class LanLobbyBeacon : MonoBehaviour
             LanLobbyNetwork.GamePort,
             readService.PlayerCount,
             readService.Settings.MaxPlayers,
-            ResolveName());
+            ResolveName(),
+            readService.Settings.MapId);
     }
 
     // The host's own name, which is what everybody else in the room is looking

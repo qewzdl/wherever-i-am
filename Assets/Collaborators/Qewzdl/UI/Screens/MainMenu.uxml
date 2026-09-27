@@ -25,6 +25,32 @@
         <ui:VisualElement name="Masthead" picking-mode="Ignore" class="masthead enter">
             <ui:Label text="Wherever I Am" name="Title" class="title title--display" />
         </ui:VisualElement>
+        <!-- Which map, before anything else: a host opens a room for one, and
+             somebody looking to join looks for rooms playing one. A screen of
+             its own over the same picture - the menu and the masthead step
+             aside while it is up. One map to a page, in the order they are
+             played (see MapProgress), turned from the edges of the frame. -->
+        <ui:VisualElement name="MapScreen" class="map-screen">
+            <ui:VisualElement class="map-screen__page">
+                <ui:VisualElement name="MapPreview" class="map-screen__preview">
+                    <ui:Label text="Locked" class="map-screen__lock" />
+                    <ui:Label text="No preview" class="map-screen__no-preview" />
+                </ui:VisualElement>
+                <ui:VisualElement class="map-screen__text">
+                    <ui:Label name="MapName" class="title title--display map-screen__name" />
+                    <ui:Label name="MapDescription" class="map-screen__description" />
+                    <ui:Label name="MapHint" class="hint map-screen__hint" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:Button name="MapPreviousButton" tooltip="Previous map" class="map-screen__arrow map-screen__arrow--previous" />
+            <ui:Button name="MapNextButton" tooltip="Next map" class="map-screen__arrow map-screen__arrow--next" />
+            <ui:VisualElement class="map-screen__footer">
+                <ui:Label name="MapPage" class="map-screen__count" />
+                <ui:Button text="All lobbies" name="MapAllLobbiesButton" class="button" />
+                <ui:Button text="Back" name="MapBackButton" class="button button--cancel" />
+                <ui:Button name="MapConfirmButton" class="button button--confirm" />
+            </ui:VisualElement>
+        </ui:VisualElement>
         <ui:VisualElement name="JoinPanel" class="overlay">
             <ui:VisualElement class="panel panel--wide">
                 <ui:Label text="Join a lobby" class="question" />
@@ -49,6 +75,7 @@
                 <ui:TextField name="Address" class="input" />
                 <ui:Label name="AddressHint" class="hint input__hint" />
                 <ui:VisualElement class="footer">
+                    <ui:Button name="BrowserFilterButton" class="button" />
                     <ui:Button text="Refresh" name="RefreshButton" class="button" />
                     <ui:Button text="Connect" name="ConnectButton" class="button button--confirm" />
                     <ui:Button text="Cancel" name="CancelJoinButton" class="button button--cancel" />

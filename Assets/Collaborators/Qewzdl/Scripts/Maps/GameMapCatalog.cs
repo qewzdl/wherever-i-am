@@ -109,7 +109,8 @@ public sealed class GameMapCatalog : ScriptableObject, IGameMapCatalog
         return true;
     }
 
-#if UNITY_EDITOR
+    // In the order the maps are played in. Runtime as well as editor: the map
+    // selection screen and MapProgress walk the catalog by position.
     public GameMapDefinition GetMapAt(int index)
     {
         if (maps == null || index < 0 || index >= maps.Length)
@@ -117,6 +118,8 @@ public sealed class GameMapCatalog : ScriptableObject, IGameMapCatalog
 
         return maps[index];
     }
+
+#if UNITY_EDITOR
 
     public bool AddMapEditor(GameMapDefinition map)
     {
@@ -155,6 +158,18 @@ public sealed class GameMapCatalog : ScriptableObject, IGameMapCatalog
             return false;
 
         defaultMapId = mapId;
+        return true;
+    }
+
+    // Moves a map up or down the order the maps are played in.
+    public bool MoveMapEditor(int index, int offset)
+    {
+        int target = index + offset;
+
+        if (maps == null || index < 0 || index >= maps.Length || target < 0 || target >= maps.Length)
+            return false;
+
+        (maps[index], maps[target]) = (maps[target], maps[index]);
         return true;
     }
 

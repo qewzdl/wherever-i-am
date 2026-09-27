@@ -249,10 +249,8 @@ public sealed class ServerAuthorityPlayModeTests
         Assert.That(hostLobby.Settings.Value.GameModeId, Is.EqualTo(FirstGameModeId));
 
         LogAssert.Expect(LogType.Warning, "Only room owner can change lobby settings.");
-        LogAssert.Expect(LogType.Warning, "Only room owner can change lobby settings.");
         LogAssert.Expect(LogType.Warning, "Only room owner can request game start.");
 
-        controllerOnClient.RequestSetMapRpc(SecondMapId);
         controllerOnClient.RequestSetGameModeRpc(SecondGameModeId);
         controllerOnClient.RequestStartGameRpc();
         yield return WaitFrames(SettleFrames);
@@ -270,15 +268,13 @@ public sealed class ServerAuthorityPlayModeTests
 
         Assert.That(IsPlayerReady(hostLobby, ownerClientId), Is.False);
 
-        hostController.RequestSetMapRpc(SecondMapId);
         hostController.RequestSetGameModeRpc(SecondGameModeId);
         yield return WaitForCondition(
-            () => hostLobby.Settings.Value.MapId == SecondMapId &&
-                  hostLobby.Settings.Value.GameModeId == SecondGameModeId,
+            () => hostLobby.Settings.Value.GameModeId == SecondGameModeId,
             "The room owner could not change the lobby it owns.");
 
         // Changing the terms stands the room down. The guest said yes to the
-        // first map, and that yes is not transferable to the second - so the
+        // first ones, and that yes is not transferable to the second - so the
         // room has to answer again before it can start, and this is the step
         // this test used to be written without.
         Assert.That(IsPlayerReady(hostLobby, guestClientId), Is.False);
@@ -297,7 +293,9 @@ public sealed class ServerAuthorityPlayModeTests
             "The room owner could not start the match.");
 
         Assert.That(sessionProbe.StartGameCount, Is.EqualTo(1));
-        Assert.That(sessionProbe.LastMapId, Is.EqualTo(SecondMapId));
+        // The map is chosen before the lobby exists and nobody can change it
+        // in there, so the match starts on the map the room was opened for.
+        Assert.That(sessionProbe.LastMapId, Is.EqualTo(FirstMapId));
     }
 
     private static bool IsPlayerReady(LobbyState lobby, ulong clientId)

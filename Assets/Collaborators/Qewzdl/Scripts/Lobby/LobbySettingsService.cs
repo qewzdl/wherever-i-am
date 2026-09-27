@@ -110,24 +110,6 @@ public class LobbySettingsService
         return true;
     }
 
-    public bool SetMap(int mapId)
-    {
-        if (!CanChangeSettings())
-            return false;
-
-        if (!IsValidMapId(mapId))
-            return false;
-
-        LobbySettingsData settings = lobbyState.Settings.Value;
-
-        if (settings.MapId == mapId)
-            return false;
-
-        settings.MapId = mapId;
-        lobbyState.Settings.Value = settings;
-        return true;
-    }
-
     // The room's capacity, which is the host's to narrow and nobody's to widen
     // past what the build allows.
     //

@@ -54,10 +54,24 @@ public sealed class MainMenuDocument : MonoBehaviour
     // What the browser says about itself. An empty list has two meanings that
     // look identical - nobody is hosting, or nothing is listening - and only
     // one of them is a fault the player can do something about.
+    // The map page. The confirming button says what it is about to do, which
+    // is different for each of the three ways in.
+    [Header("Map selection")]
+    [SerializeField] private string mapPageFormat = "{0} / {1}";
+    [SerializeField] private string startActionText = "Start";
+    [SerializeField] private string createLobbyActionText = "Create lobby";
+    [SerializeField] private string findLobbiesActionText = "Find lobbies";
+    [SerializeField] private string lockedHintFormat = "Win {0} to open this map.";
+    [SerializeField] private string lockedJoinHintFormat =
+        "Win {0} to host this map. You can still join a game on it.";
+
     [Header("Server browser")]
     [SerializeField] private string browserListeningText = "Listening";
     [SerializeField] private string browserUnavailableText = "Discovery unavailable";
     [SerializeField] private string browserEmptyText = "No lobbies have answered yet";
+    [SerializeField] private string browserEmptyOnMapText = "No lobbies on this map have answered yet";
+    [SerializeField] private string showAllMapsText = "All maps";
+    [SerializeField] private string onlyMapFormat = "Only {0}";
     [SerializeField] private string browserCountFormat = "{0}/{1}";
 
     [Header("Join address")]
@@ -100,6 +114,40 @@ public sealed class MainMenuDocument : MonoBehaviour
     private string chosenAddress = string.Empty;
     private string chosenName = string.Empty;
     private Button hostButton;
+
+    private enum MapIntent
+    {
+        Singleplayer,
+        Host,
+        Join
+    }
+
+    // Every map, whatever the browser is showing.
+    public const int AnyMap = -1;
+
+    private IGameMapCatalog mapCatalog;
+    private const string MapScreenOpenClass = "map-screen--open";
+
+    private VisualElement mapScreen;
+    private VisualElement masthead;
+    private VisualElement mapPreview;
+    private Label mapName;
+    private Label mapDescription;
+    private Label mapHint;
+    private Label mapPage;
+    private Button mapPreviousButton;
+    private Button mapNextButton;
+    private Button mapConfirmButton;
+    private Button mapBackButton;
+    private Button mapAllLobbiesButton;
+    private Button browserFilterButton;
+    private MapIntent mapIntent;
+    private int mapIndex;
+
+    // Which map the browser shows rooms for, and the last one chosen, so the
+    // filter can be switched off and back on again.
+    private int browserMapId = AnyMap;
+    private int chosenMapId = AnyMap;
     private Button singleplayerButton;
     private Button multiplayerButton;
     private Button backButton;
@@ -165,12 +213,14 @@ public sealed class MainMenuDocument : MonoBehaviour
         INetworkSessionService sessionService,
         IUiErrorService errorService,
         ISettingsScreen settingsScreen,
-        INetworkSessionReadService sessionReadService = null)
+        INetworkSessionReadService sessionReadService = null,
+        IGameMapCatalog mapCatalog = null)
     {
         UnsubscribeFromSessionState();
 
         this.sessionService = sessionService;
         this.sessionReadService = sessionReadService;
+        this.mapCatalog = mapCatalog;
         this.errorService = errorService;
         this.settingsScreen = settingsScreen;
 
@@ -224,6 +274,13 @@ public sealed class MainMenuDocument : MonoBehaviour
             if (!isCancelling)
                 CancelRequest();
 
+            evt.StopPropagation();
+            return;
+        }
+
+        if (IsMapSelectOpen)
+        {
+            CloseMapSelect();
             evt.StopPropagation();
             return;
         }
@@ -373,6 +430,20 @@ public sealed class MainMenuDocument : MonoBehaviour
         connectButton = root.Q<Button>("ConnectButton");
         cancelJoinButton = root.Q<Button>("CancelJoinButton");
         cancelRequestButton = root.Q<Button>("CancelRequestButton");
+        mapScreen = root.Q<VisualElement>("MapScreen");
+        masthead = root.Q<VisualElement>("Masthead");
+        mapPreview = root.Q<VisualElement>("MapPreview");
+        mapName = root.Q<Label>("MapName");
+        mapDescription = root.Q<Label>("MapDescription");
+        mapHint = root.Q<Label>("MapHint");
+        mapPage = root.Q<Label>("MapPage");
+        mapPreviousButton = root.Q<Button>("MapPreviousButton");
+        mapNextButton = root.Q<Button>("MapNextButton");
+
+        mapConfirmButton = root.Q<Button>("MapConfirmButton");
+        mapBackButton = root.Q<Button>("MapBackButton");
+        mapAllLobbiesButton = root.Q<Button>("MapAllLobbiesButton");
+        browserFilterButton = root.Q<Button>("BrowserFilterButton");
 
         if (screen == null)
         {
@@ -402,6 +473,9 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         Subscribe();
         SetDisplayed(joinPanel, false);
+
+        if (mapScreen != null)
+            mapScreen.style.display = DisplayStyle.None;
         SetMultiplayerOpen(false, moveFocus: false);
         SetBusy(false, string.Empty, string.Empty, string.Empty);
 
@@ -420,10 +494,31 @@ public sealed class MainMenuDocument : MonoBehaviour
     private void Subscribe()
     {
         if (hostButton != null)
-            hostButton.clicked += Host;
+            hostButton.clicked += ChooseMapToHost;
 
         if (singleplayerButton != null)
-            singleplayerButton.clicked += Singleplayer;
+            singleplayerButton.clicked += ChooseMapToPlayAlone;
+
+        if (mapPreviousButton != null)
+            mapPreviousButton.clicked += ShowPreviousMap;
+
+        if (mapNextButton != null)
+            mapNextButton.clicked += ShowNextMap;
+
+        mapPreviousButton?.RegisterCallback<PointerEnterEvent>(HandleArrowHovered);
+        mapNextButton?.RegisterCallback<PointerEnterEvent>(HandleArrowHovered);
+
+        if (mapConfirmButton != null)
+            mapConfirmButton.clicked += ConfirmMap;
+
+        if (mapBackButton != null)
+            mapBackButton.clicked += CloseMapSelect;
+
+        if (mapAllLobbiesButton != null)
+            mapAllLobbiesButton.clicked += ShowEveryLobby;
+
+        if (browserFilterButton != null)
+            browserFilterButton.clicked += ToggleBrowserFilter;
 
         if (multiplayerButton != null)
             multiplayerButton.clicked += OpenMultiplayer;
@@ -432,7 +527,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             backButton.clicked += CloseMultiplayer;
 
         if (joinButton != null)
-            joinButton.clicked += ShowJoinPrompt;
+            joinButton.clicked += ChooseMapToJoin;
 
         if (settingsButton != null)
             settingsButton.clicked += OpenSettings;
@@ -465,10 +560,31 @@ public sealed class MainMenuDocument : MonoBehaviour
     private void Unsubscribe()
     {
         if (hostButton != null)
-            hostButton.clicked -= Host;
+            hostButton.clicked -= ChooseMapToHost;
 
         if (singleplayerButton != null)
-            singleplayerButton.clicked -= Singleplayer;
+            singleplayerButton.clicked -= ChooseMapToPlayAlone;
+
+        if (mapPreviousButton != null)
+            mapPreviousButton.clicked -= ShowPreviousMap;
+
+        if (mapNextButton != null)
+            mapNextButton.clicked -= ShowNextMap;
+
+        mapPreviousButton?.UnregisterCallback<PointerEnterEvent>(HandleArrowHovered);
+        mapNextButton?.UnregisterCallback<PointerEnterEvent>(HandleArrowHovered);
+
+        if (mapConfirmButton != null)
+            mapConfirmButton.clicked -= ConfirmMap;
+
+        if (mapBackButton != null)
+            mapBackButton.clicked -= CloseMapSelect;
+
+        if (mapAllLobbiesButton != null)
+            mapAllLobbiesButton.clicked -= ShowEveryLobby;
+
+        if (browserFilterButton != null)
+            browserFilterButton.clicked -= ToggleBrowserFilter;
 
         if (multiplayerButton != null)
             multiplayerButton.clicked -= OpenMultiplayer;
@@ -477,7 +593,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             backButton.clicked -= CloseMultiplayer;
 
         if (joinButton != null)
-            joinButton.clicked -= ShowJoinPrompt;
+            joinButton.clicked -= ChooseMapToJoin;
 
         if (settingsButton != null)
             settingsButton.clicked -= OpenSettings;
@@ -551,10 +667,18 @@ public sealed class MainMenuDocument : MonoBehaviour
             JoinAddressProvider.Set(address.value);
     }
 
-    private void ShowJoinPrompt()
+    private void ShowJoinPrompt(int mapId)
     {
         if (isRequestInFlight)
             return;
+
+        browserMapId = mapId;
+
+        if (mapId != AnyMap)
+            chosenMapId = mapId;
+
+        ForgetChosenLobby();
+        RefreshBrowserFilter();
 
         StartListening();
         RefreshAddressValidation();
@@ -621,13 +745,15 @@ public sealed class MainMenuDocument : MonoBehaviour
         // choice made on it stayed behind: the row went, the mark went with
         // it, and Join stayed lit over a room that had closed.
         if (chosenAddress.Length > 0 &&
-            (discovery == null || !discovery.Knows(chosenAddress)))
+            (discovery == null ||
+             !discovery.Knows(chosenAddress) ||
+             !IsShown(chosenAddress)))
         {
             ForgetChosenLobby();
         }
 
         IReadOnlyList<LanLobbyDiscovery.Entry> lobbies =
-            discovery != null ? discovery.Lobbies : null;
+            discovery != null ? FilterByMap(discovery.Lobbies, browserMapId) : null;
 
         // Rebuilt only when the rows would actually read differently. The list
         // is redrawn on every beacon otherwise, which is once a second per
@@ -644,7 +770,8 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         if (lobbies == null || lobbies.Count == 0)
         {
-            Label empty = new Label(UiLocalization.Text(browserEmptyText));
+            Label empty = new Label(UiLocalization.Text(
+                browserMapId == AnyMap ? browserEmptyText : browserEmptyOnMapText));
             empty.AddToClassList("browser__empty");
             browser.Add(empty);
             return;
@@ -655,6 +782,273 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         MarkChosen();
         sounds?.Bind();
+    }
+
+    // The rooms playing one map, or all of them.
+    public static List<LanLobbyDiscovery.Entry> FilterByMap(
+        IReadOnlyList<LanLobbyDiscovery.Entry> lobbies,
+        int mapId)
+    {
+        List<LanLobbyDiscovery.Entry> shown = new();
+
+        if (lobbies == null)
+            return shown;
+
+        for (int i = 0; i < lobbies.Count; i++)
+        {
+            if (mapId == AnyMap || lobbies[i].Advert.mapId == mapId)
+                shown.Add(lobbies[i]);
+        }
+
+        return shown;
+    }
+
+    private bool IsShown(string lobbyAddress)
+    {
+        if (discovery == null)
+            return false;
+
+        foreach (LanLobbyDiscovery.Entry entry in FilterByMap(discovery.Lobbies, browserMapId))
+        {
+            if (entry.Address == lobbyAddress)
+                return true;
+        }
+
+        return false;
+    }
+
+    // One button, two states: narrowed to the map that was chosen, or every
+    // room on the network. Hidden when no map was ever chosen - there is
+    // nothing to narrow to.
+    private void ToggleBrowserFilter()
+    {
+        browserMapId = browserMapId == AnyMap ? chosenMapId : AnyMap;
+        ForgetChosenLobby();
+        RefreshBrowserFilter();
+        RefreshBrowser();
+    }
+
+    private void RefreshBrowserFilter()
+    {
+        if (browserFilterButton == null)
+            return;
+
+        browserFilterButton.style.display = chosenMapId == AnyMap
+            ? DisplayStyle.None
+            : DisplayStyle.Flex;
+
+        browserFilterButton.text = browserMapId == AnyMap
+            ? string.Format(UiLocalization.Text(onlyMapFormat), MapDisplayName(chosenMapId))
+            : UiLocalization.Text(showAllMapsText);
+    }
+
+    private string MapDisplayName(int mapId)
+    {
+        return mapCatalog != null && mapCatalog.TryGetMap(mapId, out GameMapDefinition map)
+            ? UiLocalization.Text(map.DisplayName)
+            : string.Empty;
+    }
+
+    // ------------------------------------------------------------ map page
+
+    private bool IsMapSelectOpen =>
+        mapScreen != null && mapScreen.ClassListContains(MapScreenOpenClass);
+
+    // A screen of its own: the menu and the masthead step aside while it is
+    // up, and come back when it goes, over the same picture.
+    private void SetMapScreenOpen(bool open)
+    {
+        if (panel != null)
+            panel.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+
+        if (masthead != null)
+            masthead.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+
+        UiFade.Set(mapScreen, open, MapScreenOpenClass);
+    }
+
+    private void ChooseMapToPlayAlone() => OpenMapSelect(MapIntent.Singleplayer);
+
+    private void ChooseMapToHost() => OpenMapSelect(MapIntent.Host);
+
+    private void ChooseMapToJoin() => OpenMapSelect(MapIntent.Join);
+
+    // Always from the first page, in the order the maps are played.
+    private void OpenMapSelect(MapIntent intent)
+    {
+        if (isRequestInFlight)
+            return;
+
+        if (mapCatalog == null || mapCatalog.Count == 0)
+        {
+            ShowError("There are no maps to choose from.");
+            return;
+        }
+
+        mapIntent = intent;
+        mapIndex = 0;
+        ShowMapPage();
+        SetMapScreenOpen(true);
+        sounds?.Play(UiSoundType.Open);
+        screen?.schedule.Execute(() => (mapConfirmButton.enabledSelf ? mapConfirmButton : mapBackButton)?.Focus());
+    }
+
+    private void CloseMapSelect()
+    {
+        if (!IsMapSelectOpen)
+            return;
+
+        SetMapScreenOpen(false);
+
+        Button opener = mapIntent == MapIntent.Singleplayer
+            ? singleplayerButton
+            : mapIntent == MapIntent.Host ? hostButton : joinButton;
+
+        screen?.schedule.Execute(() => opener?.Focus());
+    }
+
+    private void ShowPreviousMap()
+    {
+        if (mapIndex <= 0)
+            return;
+
+        mapIndex--;
+        ShowMapPage();
+        KeepFocusOnScreen(mapPreviousButton);
+        PlayPageTurn();
+    }
+
+    private void ShowNextMap()
+    {
+        if (mapCatalog == null || mapIndex >= mapCatalog.Count - 1)
+            return;
+
+        mapIndex++;
+        ShowMapPage();
+        KeepFocusOnScreen(mapNextButton);
+        PlayPageTurn();
+    }
+
+    // The arrows are bare pictures, not .button, so the document's own
+    // bindings do not hear them: they say it for themselves, like a button.
+    private void PlayPageTurn()
+    {
+        sounds?.Play(UiSoundType.Click);
+    }
+
+    private void HandleArrowHovered(PointerEnterEvent evt)
+    {
+        sounds?.Play(UiSoundType.Hover);
+    }
+
+    // Reaching the first or last page takes away the arrow that was just
+    // pressed, and with it the keyboard's place on the screen. The arrow
+    // pointing back the other way is where it goes instead.
+    private void KeepFocusOnScreen(Button pressed)
+    {
+        if (pressed == null || pressed.style.display != DisplayStyle.None)
+            return;
+
+        Button other = pressed == mapPreviousButton ? mapNextButton : mapPreviousButton;
+        Button target = other != null && other.style.display != DisplayStyle.None ? other : mapConfirmButton;
+        screen?.schedule.Execute(() => target?.Focus());
+    }
+
+    private void ShowMapPage()
+    {
+        GameMapDefinition map = mapCatalog.GetMapAt(mapIndex);
+        bool open = map != null && MapProgress.IsUnlocked(mapCatalog, map.MapId);
+
+        if (mapName != null)
+            mapName.text = map != null ? UiLocalization.Text(map.DisplayName) : string.Empty;
+
+        if (mapDescription != null)
+        {
+            mapDescription.text = map != null && !string.IsNullOrWhiteSpace(map.Description)
+                ? UiLocalization.Text(map.Description)
+                : string.Empty;
+        }
+
+        if (mapPreview != null)
+        {
+            mapPreview.style.backgroundImage = map != null && map.Preview != null
+                ? new StyleBackground(map.Preview)
+                : new StyleBackground(StyleKeyword.None);
+
+            mapPreview.EnableInClassList("map-screen__preview--empty", map == null || map.Preview == null);
+            mapPreview.EnableInClassList("map-screen__preview--locked", !open);
+        }
+
+        if (mapHint != null)
+        {
+            GameMapDefinition gate = map != null ? MapProgress.GateOf(mapCatalog, map.MapId) : null;
+
+            mapHint.text = open || gate == null
+                ? string.Empty
+                : string.Format(
+                    UiLocalization.Text(mapIntent == MapIntent.Join ? lockedJoinHintFormat : lockedHintFormat),
+                    UiLocalization.Text(gate.DisplayName));
+        }
+
+        if (mapPage != null)
+            mapPage.text = string.Format(UiLocalization.Text(mapPageFormat), mapIndex + 1, mapCatalog.Count);
+
+        // No arrow where there is no page to turn to.
+        if (mapPreviousButton != null)
+            mapPreviousButton.style.display = mapIndex > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+
+        if (mapNextButton != null)
+            mapNextButton.style.display = mapIndex < mapCatalog.Count - 1 ? DisplayStyle.Flex : DisplayStyle.None;
+
+        if (mapConfirmButton != null)
+        {
+            mapConfirmButton.text = UiLocalization.Text(mapIntent switch
+            {
+                MapIntent.Singleplayer => startActionText,
+                MapIntent.Host => createLobbyActionText,
+                _ => findLobbiesActionText
+            });
+
+            // A locked map can be looked for, to join somebody who has it
+            // open, but not hosted.
+            mapConfirmButton.SetEnabled(map != null && (open || mapIntent == MapIntent.Join));
+        }
+
+        if (mapAllLobbiesButton != null)
+        {
+            mapAllLobbiesButton.style.display = mapIntent == MapIntent.Join
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
+        }
+    }
+
+    private void ConfirmMap()
+    {
+        GameMapDefinition map = mapCatalog?.GetMapAt(mapIndex);
+
+        if (map == null)
+            return;
+
+        SetMapScreenOpen(false);
+
+        switch (mapIntent)
+        {
+            case MapIntent.Singleplayer:
+                Singleplayer(map.MapId);
+                break;
+            case MapIntent.Host:
+                Host(map.MapId);
+                break;
+            default:
+                ShowJoinPrompt(map.MapId);
+                break;
+        }
+    }
+
+    private void ShowEveryLobby()
+    {
+        SetMapScreenOpen(false);
+        ShowJoinPrompt(AnyMap);
     }
 
     private bool HasBrowserChanged(IReadOnlyList<LanLobbyDiscovery.Entry> lobbies)
@@ -815,7 +1209,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     // ask it.
     // A game for one. Still a host underneath - see SessionMode - but one
     // nobody else can reach or find.
-    public async void Singleplayer()
+    public async void Singleplayer(int? mapId = null)
     {
         SavePlayerName();
 
@@ -829,7 +1223,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             if (!HasSessionService())
                 return;
 
-            await sessionService.HostSingleplayerAsync();
+            await sessionService.HostSingleplayerAsync(mapId);
         }
         finally
         {
@@ -837,7 +1231,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         }
     }
 
-    public async void Host()
+    public async void Host(int? mapId = null)
     {
         SavePlayerName();
 
@@ -849,7 +1243,7 @@ public sealed class MainMenuDocument : MonoBehaviour
             if (!HasSessionService())
                 return;
 
-            await sessionService.HostLanAsync();
+            await sessionService.HostLanAsync(mapId);
         }
         finally
         {

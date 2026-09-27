@@ -1,0 +1,195 @@
+/* ==========================================================================
+   MAP SCREEN
+
+   A screen of its own, not a dialog: while it is up the menu and the masthead
+   step aside and the picture behind them is all that is left of the main menu.
+   One map to a page - a tall picture, its name and what it is - with the pages
+   turned from the two edges of the frame, and what to do with the map in the
+   bottom corner, where the menu keeps its own words.
+
+   The picture is 1 wide by 2.3 high - the numbers below are that ratio, not a
+   guess at a nice size - and is cropped rather than squashed to fill it.
+   ========================================================================== */
+
+.map-screen {
+    display: none;
+
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    align-items: center;
+    justify-content: center;
+
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: var(--motion-screen);
+    transition-timing-function: var(--ease-standard);
+}
+
+.map-screen--open {
+    opacity: 1;
+}
+
+
+/* --------------------------------------------------------------------------
+   THE PAGE
+   -------------------------------------------------------------------------- */
+
+.map-screen__page {
+    flex-direction: row;
+    /* The name starts level with the top of the picture. */
+    align-items: flex-start;
+
+    /* Clear of the arrows on both edges. */
+    margin-left: 140px;
+    margin-right: 140px;
+}
+
+.map-screen__preview {
+    width: 260px;
+    height: 598px;
+    flex-shrink: 0;
+
+    background-color: var(--surface);
+    border-width: var(--border);
+    border-color: var(--line);
+
+    -unity-background-scale-mode: scale-and-crop;
+
+    justify-content: flex-end;
+    align-items: center;
+}
+
+/* A map nobody has drawn a picture for yet is still a page, not a hole: the
+   frame stays and says so. */
+.map-screen__no-preview {
+    display: none;
+    color: var(--text-disabled);
+    font-size: var(--font-size-xs);
+    letter-spacing: var(--tracking-wide);
+    margin-bottom: var(--space-l);
+}
+
+.map-screen__preview--empty .map-screen__no-preview {
+    display: flex;
+}
+
+/* A locked map is shown, dimmed, so the road ahead can be seen before it can
+   be walked. */
+.map-screen__preview--locked {
+    -unity-background-image-tint-color: rgba(255, 255, 255, 0.3);
+}
+
+.map-screen__lock {
+    display: none;
+    color: var(--text);
+    font-size: var(--font-size-s);
+    letter-spacing: var(--tracking-wider);
+    margin-bottom: var(--space-l);
+}
+
+.map-screen__preview--locked .map-screen__lock {
+    display: flex;
+}
+
+.map-screen__text {
+    width: 560px;
+    flex-shrink: 1;
+    margin-left: var(--space-xl);
+}
+
+.map-screen__name {
+    -unity-text-align: upper-left;
+    margin-bottom: var(--space-m);
+}
+
+.map-screen__description {
+    color: var(--text-dim);
+    font-size: var(--font-size-m);
+    white-space: normal;
+    -unity-text-align: upper-left;
+}
+
+.map-screen__hint {
+    -unity-text-align: upper-left;
+    margin-top: var(--space-l);
+}
+
+
+/* --------------------------------------------------------------------------
+   TURNING THE PAGE
+
+   On the edges of the frame, the whole height of it, the way a page is
+   turned from its edge rather than from a row of buttons under it. Each
+   arrow is a picture - UI/Images/Icons/icon-arrow-left.png and
+   icon-arrow-right.png - small in the middle of its strip, and
+   nothing else: no frame, no fill, and nothing that changes when the pointer
+   is on it.
+
+   There is no arrow where there is no page to turn to: the first page has
+   no left arrow and the last no right one.
+   -------------------------------------------------------------------------- */
+
+/* Every state spelled out, and on .unity-button too, so the theme's own
+   button looks (a fill or a frame on hover, focus and press) never win. */
+.unity-button.map-screen__arrow,
+.unity-button.map-screen__arrow:hover,
+.unity-button.map-screen__arrow:focus,
+.unity-button.map-screen__arrow:active {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+
+    width: 120px;
+
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    background-color: var(--transparent);
+
+    /* The icon keeps its own size in the middle of the strip, however wide
+       the strip is. */
+    background-size: 40px auto;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: center;
+}
+
+.map-screen__arrow--previous {
+    left: 0;
+    background-image: url("../Images/Icons/icon-arrow-left.png");
+}
+
+.map-screen__arrow--next {
+    right: 0;
+    background-image: url("../Images/Icons/icon-arrow-right.png");
+}
+
+
+/* --------------------------------------------------------------------------
+   WHAT TO DO WITH IT
+   -------------------------------------------------------------------------- */
+
+.map-screen__footer {
+    position: absolute;
+    right: var(--space-xl);
+    bottom: var(--space-xl);
+
+    flex-direction: row;
+    align-items: center;
+}
+
+.map-screen__footer .button {
+    min-width: 160px;
+    margin-left: var(--space-s);
+    -unity-text-align: middle-center;
+}
+
+.map-screen__count {
+    color: var(--text-dim);
+    font-size: var(--font-size-s);
+    margin-right: var(--space-l);
+}

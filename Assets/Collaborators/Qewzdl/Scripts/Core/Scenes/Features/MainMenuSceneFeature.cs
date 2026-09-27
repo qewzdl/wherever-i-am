@@ -12,6 +12,7 @@ public sealed class MainMenuSceneFeature : SceneRuntimeFeature
         valid &= RequireService<INetworkSessionReadService>(context, out _);
         valid &= RequireService<IUiErrorService>(context, out _);
         valid &= RequireService<ISettingsScreen>(context, out _);
+        valid &= RequireService<IGameMapCatalog>(context, out _);
 
         return valid;
     }
@@ -27,7 +28,8 @@ public sealed class MainMenuSceneFeature : SceneRuntimeFeature
             sessionService,
             errorService,
             settingsScreen,
-            sessionReadService);
+            sessionReadService,
+            context.Services.Resolve<IGameMapCatalog>());
         return true;
     }
 

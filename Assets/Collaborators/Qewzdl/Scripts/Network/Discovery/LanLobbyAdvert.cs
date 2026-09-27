@@ -19,7 +19,9 @@ public struct LanLobbyAdvert
     // Bumped when the shape below changes in a way an older build would read
     // wrongly. A build that does not recognise the number ignores the advert
     // rather than showing a lobby it cannot join.
-    public const int CurrentFormat = 1;
+    // 2: the map the room was opened for, so a player looking for a map can
+    // be shown only the rooms playing it.
+    public const int CurrentFormat = 2;
 
     private const string Prefix = "WIA-LOBBY ";
 
@@ -34,13 +36,15 @@ public struct LanLobbyAdvert
     public int players;
     public int maxPlayers;
     public string name;
+    public int mapId;
 
     public LanLobbyAdvert(
         int protocol,
         ushort port,
         int players,
         int maxPlayers,
-        string name)
+        string name,
+        int mapId = 0)
     {
         format = CurrentFormat;
         this.protocol = protocol;
@@ -48,6 +52,7 @@ public struct LanLobbyAdvert
         this.players = players;
         this.maxPlayers = maxPlayers;
         this.name = name ?? string.Empty;
+        this.mapId = mapId;
     }
 
     public bool IsFull => maxPlayers > 0 && players >= maxPlayers;

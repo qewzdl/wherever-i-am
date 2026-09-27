@@ -151,17 +151,6 @@ public class NetworkLobbyService : MonoBehaviour, ILobbyReadService, ILobbyComma
         lobbyController.RequestSetGameModeRpc(gameModeId);
     }
 
-    public void SetMap(int mapId)
-    {
-        if (lobbyController == null)
-        {
-            Debug.LogError("LobbyController is missing.");
-            return;
-        }
-
-        lobbyController.RequestSetMapRpc(mapId);
-    }
-
     public void SetDifficulty(int difficultyId)
     {
         if (lobbyController == null)

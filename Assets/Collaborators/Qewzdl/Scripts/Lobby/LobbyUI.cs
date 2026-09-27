@@ -55,9 +55,10 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private string startingText = "Starting the match...";
     [SerializeField] private string ownerOnlySettingText = "Only the host can change this";
 
-    // The terms of the match, said on the wall of the room. Difficulty only:
-    // map and mode get a line each the day either of them has more than one
-    // value, and a line naming the only map there is would be furniture.
+    // The terms of the match, said on the wall of the room. The map was chosen
+    // before the room existed and cannot change in it, so it is said here
+    // rather than offered. Mode gets a line the day it has more than one value.
+    [SerializeField] private string matchMapFormat = "Map: {0}";
     [SerializeField] private string matchDifficultyFormat = "Difficulty: {0}";
     [SerializeField] private string settingsOwnerFormat = "{0} sets the terms";
     [SerializeField] private string settingsYoursText = "You set the terms";
@@ -208,6 +209,8 @@ public class LobbyUI : MonoBehaviour
     private Label doorHintLabel;
     private Label doorStatusLabel;
     private Label setupDifficultyLabel;
+    private Label setupMapLabel;
+    private IGameMapCatalog mapCatalog;
     private Label setupOwnerLabel;
     private Label setupNoticeLabel;
     private Label addressLabel;
@@ -377,7 +380,8 @@ public class LobbyUI : MonoBehaviour
         ILobbyReadService readService,
         INetworkSessionReadService sessionReadService = null,
         ISettingsScreen settingsScreen = null,
-        SessionMode mode = SessionMode.Multiplayer)
+        SessionMode mode = SessionMode.Multiplayer,
+        IGameMapCatalog mapCatalog = null)
     {
         if (this.readService != null)
             this.readService.LobbyChanged -= Refresh;
@@ -388,6 +392,7 @@ public class LobbyUI : MonoBehaviour
         this.sessionReadService = sessionReadService;
         this.settingsScreen = settingsScreen;
         this.mode = mode;
+        this.mapCatalog = mapCatalog;
 
         if (this.readService != null)
             this.readService.LobbyChanged += Refresh;
@@ -600,6 +605,7 @@ public class LobbyUI : MonoBehaviour
         doorHintLabel = root.Q<Label>("DoorHint");
         doorStatusLabel = root.Q<Label>("DoorStatus");
         setupDifficultyLabel = root.Q<Label>("SetupDifficulty");
+        setupMapLabel = root.Q<Label>("SetupMap");
         setupOwnerLabel = root.Q<Label>("SetupOwner");
         setupNoticeLabel = root.Q<Label>("SetupNotice");
         addressLabel = root.Q<Label>("Address");
@@ -1154,11 +1160,17 @@ public class LobbyUI : MonoBehaviour
     // be: by remembering what the room said last time.
     private void RefreshMatchSetup()
     {
-        // ponytail: difficulty only. Map and mode belong on this block the day
-        // either of them has more than one value - LobbySettingsData already
-        // carries both ids, and GameMapCatalog can name a map - but a line
-        // reading "Map: The House" on a game with one house is furniture.
+        // ponytail: mode belongs on this block the day it has more than one
+        // value - LobbySettingsData already carries its id.
         int difficultyId = readService.Settings.DifficultyId;
+
+        if (setupMapLabel != null)
+        {
+            setupMapLabel.text = mapCatalog != null &&
+                                 mapCatalog.TryGetMap(readService.Settings.MapId, out GameMapDefinition map)
+                ? string.Format(UiLocalization.Text(matchMapFormat), UiLocalization.Text(map.DisplayName))
+                : string.Empty;
+        }
 
         if (setupDifficultyLabel != null)
         {
