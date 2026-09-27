@@ -79,4 +79,33 @@ public sealed class SettingRowPlayModeTests
         Assert.That(root.Q<DropdownField>("Quality"), Is.Not.Null);
         Assert.That(root.Q<Toggle>("VerticalSync"), Is.Not.Null);
     }
+
+    // The room settings in the lobby use the same rows, and one of them is
+    // marked multiplayer-only in markup - a class on the row that must sit
+    // beside the row's own .field rather than replace it, or singleplayer
+    // would not take it away and the row would lose its layout.
+    [UnityTest]
+    public IEnumerator TheRoomSettingsRowsKeepTheirOwnClassesBesideTheMarkups()
+    {
+        panel = Object.Instantiate(AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath));
+        host = new GameObject(nameof(SettingRowPlayModeTests));
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+        document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(
+            "Assets/Collaborators/Qewzdl/UI/Screens/Lobby.uxml");
+        yield return null;
+
+        VisualElement root = document.rootVisualElement;
+        DropdownField players = root.Q<DropdownField>("MaxPlayers");
+        DropdownField difficulty = root.Q<DropdownField>("Difficulty");
+
+        Assert.That(players, Is.Not.Null, "No 'MaxPlayers'.");
+        Assert.That(difficulty, Is.Not.Null, "No 'Difficulty'.");
+
+        VisualElement playersRow = players.parent;
+        Assert.That(playersRow.ClassListContains("field"), Is.True, "The players row lost its layout.");
+        Assert.That(playersRow.ClassListContains("multiplayer-only"), Is.True, "The players row is not multiplayer-only.");
+        Assert.That(difficulty.parent.ClassListContains("multiplayer-only"), Is.False);
+    }
 }

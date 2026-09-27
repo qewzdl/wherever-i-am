@@ -54,15 +54,9 @@
         <ui:VisualElement name="RoomSettingsPanel" class="overlay">
             <ui:VisualElement class="panel panel--wide">
                 <ui:Label text="Room settings" name="RoomSettingsTitle" class="title" />
-                <ui:VisualElement class="field multiplayer-only">
-                    <ui:Label text="Players" class="field__label" />
-                    <ui:DropdownField name="MaxPlayers" class="field__control" />
-                </ui:VisualElement>
+                <SettingRow setting="MaxPlayers" label="Players" control="Dropdown" class="multiplayer-only" />
                 <ui:Label name="MaxPlayersNote" class="hint hint--field multiplayer-only" />
-                <ui:VisualElement class="field">
-                    <ui:Label text="Difficulty" class="field__label" />
-                    <ui:DropdownField name="Difficulty" class="field__control" />
-                </ui:VisualElement>
+                <SettingRow setting="Difficulty" label="Difficulty" control="Dropdown" />
                 <ui:Label name="DifficultyDescription" class="hint hint--field" />
                 <ui:Label name="DifficultyOwnerNote" class="hint hint--field multiplayer-only" />
                 <ui:VisualElement class="footer">
