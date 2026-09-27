@@ -14,12 +14,15 @@ using UnityEngine;
 // and it is what a second language is copied from. Keeping it by hand would
 // mean it was wrong within a week, so it is not kept by hand.
 //
-// Only the markup is harvested. The sentences that live in components are set
+// The markup is harvested, and so are the maps: a map's name and description
+// are copy written into an asset rather than a screen, but they are read on
+// the map screen all the same. The sentences that live in components are set
 // from code and reach the table through the call that shows them, which the
 // missing-row report below is there to catch.
 public static class LocalizationHarvest
 {
     private const string ScreensFolder = "Assets/Collaborators/Qewzdl/UI/Screens";
+    private const string MapsFolder = "Assets/Collaborators/Qewzdl/Configs/Maps";
 
     // Every element, and every attribute on it that a player can read.
     //
@@ -60,15 +63,43 @@ public static class LocalizationHarvest
                 {
                     string text = attribute.Groups["text"].Value;
 
-                    if (string.IsNullOrWhiteSpace(text) || !seen.Add(text))
-                        continue;
-
-                    found.Add(text);
+                    Add(text);
                 }
             }
         }
 
+        // After the screens, in the order the maps are played, the way the
+        // map screen pages through them.
+        foreach (GameMapDefinition map in ReadMaps())
+        {
+            Add(map.DisplayName);
+            Add(map.Description);
+        }
+
         return found;
+
+        void Add(string text)
+        {
+            if (!string.IsNullOrWhiteSpace(text) && seen.Add(text))
+                found.Add(text);
+        }
+    }
+
+    // The maps as the catalog lists them: a definition it does not list is
+    // never on screen.
+    private static IEnumerable<GameMapDefinition> ReadMaps()
+    {
+        foreach (string guid in AssetDatabase.FindAssets("t:GameMapCatalog", new[] { MapsFolder }))
+        {
+            GameMapCatalog catalog = AssetDatabase.LoadAssetAtPath<GameMapCatalog>(
+                AssetDatabase.GUIDToAssetPath(guid));
+
+            for (int i = 0; catalog != null && i < catalog.Count; i++)
+            {
+                if (catalog.GetMapAt(i) != null)
+                    yield return catalog.GetMapAt(i);
+            }
+        }
     }
 
     // Rows already in the table keep their translation and their place. A row
