@@ -39,8 +39,10 @@ public static class LocalizationHarvest
     // A guard with a hole in it is worse than no guard: the test that
     // says every sentence on every screen is in the table was telling the
     // truth only about the sentences it happened to look at.
+    // With or without the ui: prefix: a control of our own, such as
+    // <SettingRow label="...">, has none and carries words all the same.
     private static readonly Regex Element = new(
-        @"<ui:[A-Za-z][A-Za-z0-9]*\b[^>]*>",
+        @"<(?:ui:)?[A-Za-z][A-Za-z0-9]*\b[^>]*>",
         RegexOptions.Compiled);
 
     // Preceded by whitespace, not by a word boundary: a hyphen is a
