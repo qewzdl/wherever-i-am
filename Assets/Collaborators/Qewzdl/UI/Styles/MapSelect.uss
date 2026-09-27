@@ -240,9 +240,7 @@
 }
 
 /* No frame and no fill in any state - the theme's button looks are spelled
-   out of every one of them, on .unity-button so they win. What answers the
-   pointer is the whole choice rising a little and growing a little towards
-   it. */
+   out of every one of them, on .unity-button so they win. */
 .unity-button.multiplayer-screen__choice,
 .unity-button.multiplayer-screen__choice:hover,
 .unity-button.multiplayer-screen__choice:focus,
@@ -256,33 +254,55 @@
 
     border-width: 0;
     background-color: var(--transparent);
+}
 
+
+/* --------------------------------------------------------------------------
+   UNDER THE POINTER
+
+   A transition is read off the state being arrived at, so the way up and the
+   way down are written separately. Up is quick and overshoots a touch, the
+   way something light answers a hand; down settles without one, because a
+   choice that bounced every time the pointer left it would never be still.
+   Pressed, it dips back towards the surface. All of it on the motion
+   tokens, so Reduced motion turns it into a plain change of state.
+   -------------------------------------------------------------------------- */
+
+.unity-button.multiplayer-screen__choice {
     transition-property: translate, scale;
-    transition-duration: var(--motion-normal), var(--motion-normal);
+    transition-duration: var(--motion-screen), var(--motion-screen);
     transition-timing-function: var(--ease-standard), var(--ease-standard);
 }
 
 .unity-button.multiplayer-screen__choice:hover {
     translate: 0 -8px;
     scale: 1.04 1.04;
+
+    transition-duration: var(--motion-screen), var(--motion-screen);
+    transition-timing-function: var(--ease-entrance), var(--ease-entrance);
 }
 
-/* Focus is said by the name, not by the lift, and only focus the keyboard or
-   a pad put there (--focused, set from code). A click focuses the button it
-   lands on, and coming back from the maps focuses the one that led there, so
-   anything shown for :focus stayed on after the pointer had gone and looked
-   like a hover that would not let go. The name, dim at rest, comes up bright
-   - under the pointer as well, so the two never disagree. */
-.unity-button.multiplayer-screen__choice:hover .multiplayer-screen__caption,
-.multiplayer-screen__choice--focused .multiplayer-screen__caption {
-    color: var(--accent);
+.unity-button.multiplayer-screen__choice:hover:active {
+    translate: 0 -3px;
+    scale: 1.01 1.01;
+
+    transition-duration: var(--motion-fast), var(--motion-fast);
+    transition-timing-function: var(--ease-standard), var(--ease-standard);
 }
 
+/* The picture is dimmed at rest and comes up to full under the pointer -
+   white drawn on black, so this reads as the picture being lit rather than
+   a highlight laid over it. */
 .multiplayer-screen__picture {
     width: 360px;
     height: 360px;
 
     -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: rgb(190, 190, 190);
+}
+
+.unity-button.multiplayer-screen__choice:hover .multiplayer-screen__picture {
+    -unity-background-image-tint-color: rgb(255, 255, 255);
 }
 
 .multiplayer-screen__picture--create {
@@ -301,6 +321,58 @@
     letter-spacing: var(--tracking-wide);
 
     -unity-text-align: middle-center;
+}
+
+/* Focus is said by the name, not by the lift, and only focus the keyboard or
+   a pad put there (--focused, set from code). A click focuses the button it
+   lands on, and coming back from the maps focuses the one that led there, so
+   anything shown for :focus stayed on after the pointer had gone and looked
+   like a hover that would not let go. The name, dim at rest, comes up bright
+   - under the pointer as well, so the two never disagree. */
+.unity-button.multiplayer-screen__choice:hover .multiplayer-screen__caption,
+.multiplayer-screen__choice--focused .multiplayer-screen__caption {
+    color: var(--accent);
+}
+
+
+/* --------------------------------------------------------------------------
+   ARRIVING
+
+   When the screen opens the pictures rise into place and the names follow
+   them, Create a beat before Join, so the two read as two things to choose
+   between rather than one block appearing. It is the picture and the name
+   that move, not the button: the button's own transitions belong to the
+   pointer, and a delay written there would hold back every hover as well.
+   The delays are fixed rather than tokens, and small - with Reduced motion
+   there is nothing left to wait for but the beat itself.
+   -------------------------------------------------------------------------- */
+
+.multiplayer-screen__picture,
+.multiplayer-screen__caption {
+    opacity: 0;
+    translate: 0 24px;
+
+    transition-property: opacity, translate, -unity-background-image-tint-color, color;
+    transition-duration: var(--motion-screen), var(--motion-screen), var(--motion-normal), var(--motion-normal);
+    transition-timing-function: var(--ease-standard), var(--ease-entrance), var(--ease-standard), var(--ease-standard);
+}
+
+.multiplayer-screen--open .multiplayer-screen__picture,
+.multiplayer-screen--open .multiplayer-screen__caption {
+    opacity: 1;
+    translate: 0 0;
+}
+
+.multiplayer-screen--open .multiplayer-screen__caption {
+    transition-delay: 0.06s, 0.06s, 0s, 0s;
+}
+
+.multiplayer-screen--open #JoinButton .multiplayer-screen__picture {
+    transition-delay: 0.08s, 0.08s, 0s, 0s;
+}
+
+.multiplayer-screen--open #JoinButton .multiplayer-screen__caption {
+    transition-delay: 0.14s, 0.14s, 0s, 0s;
 }
 
 .multiplayer-screen__footer {
