@@ -18,17 +18,15 @@ using UnityEngine.UIElements;
 public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
 {
     private const string OpenClass = "chat__window--open";
-    private const string MessageClass = "chat__message";
     private const string OwnMessageClass = "chat__message--own";
     private const string SystemMessageClass = "chat__message--system";
-    private const string SenderClass = "chat__message__sender";
-    private const string TextClass = "chat__message__text";
     private const string EmptyClass = "chat__empty";
 
     [Header("References")]
     [SerializeField] private UIDocument document;
     [SerializeField] private ChatVisibilityController visibilityController;
     [SerializeField] private UiDocumentSounds sounds;
+    [SerializeField] private VisualTreeAsset messageTemplate;
     [SerializeField] private ChatWindowInput chatInput;
 
     [Header("Events")]
@@ -641,33 +639,18 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         bool isSystem = message.Channel == ChatChannel.System;
         bool isOwn = !isSystem && readService.IsLocalClient(message.SenderClientId);
 
-        // A row of two labels, the way a roster row is built: the name sized to
-        // itself, the sentence taking the rest and wrapping inside it. One
-        // label with the name inside it would have to be one colour, or rich
-        // text - and rich text hands every player a way to write markup into
-        // somebody else's screen.
-        VisualElement row = new VisualElement();
-        row.AddToClassList(MessageClass);
+        VisualElement row = UiTemplates.Stamp(messageTemplate, "a chat line");
         row.EnableInClassList(SystemMessageClass, isSystem);
         row.EnableInClassList(OwnMessageClass, isOwn);
 
         // The room speaking gets no name. A line with no author is a note, not
-        // a message with the author left off.
-        if (!isSystem)
-        {
-            string sender = message.SenderName.ToString();
-
-            if (!string.IsNullOrWhiteSpace(sender))
-            {
-                // The colon belongs to the name and is coloured with it. It is
-                // punctuation the name owns, not a separator sitting between
-                // two labels - which is also why the gap after it is a space
-                // rather than a margin wide enough to read as a column.
-                Label name = new Label($"{sender}:") { enableRichText = false };
-                name.AddToClassList(SenderClass);
-                row.Add(name);
-            }
-        }
+        // a message with the author left off. The colon belongs to the name
+        // and is coloured with it - punctuation the name owns, not a
+        // separator between two labels.
+        string sender = isSystem ? string.Empty : message.SenderName.ToString();
+        Label name = row.Q<Label>("Sender");
+        name.text = $"{sender}:";
+        name.style.display = string.IsNullOrWhiteSpace(sender) ? DisplayStyle.None : DisplayStyle.Flex;
 
         string body = message.Text.ToString();
 
@@ -685,9 +668,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
                 body = Fill(body, about);
         }
 
-        Label text = new Label(body) { enableRichText = false };
-        text.AddToClassList(TextClass);
-        row.Add(text);
+        row.Q<Label>("Text").text = body;
 
         return row;
     }

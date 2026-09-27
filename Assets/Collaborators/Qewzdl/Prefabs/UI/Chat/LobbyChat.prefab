@@ -85,6 +85,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c563677f2b1b4b329f6c3b458528cf09, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  messageTemplate: {fileID: 9197481963319205126, guid: c7f9e6c1e35743ac9ef3feb4bb226c6b, type: 3}
   document: {fileID: 7100000000000000003}
   visibilityController: {fileID: 7100000000000000004}
   sounds: {fileID: 7100000000000000009}

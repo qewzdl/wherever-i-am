@@ -162,48 +162,35 @@ public sealed class ScreenOverflowPlayModeTests
         return column;
     }
 
+    // The rows as the game makes them: its own templates, filled the way the
+    // code fills them, rather than a copy of their layout written out here
+    // that would go on passing after the real ones changed.
     private static VisualElement RosterRow(string playerName)
     {
-        VisualElement row = new();
-        row.AddToClassList("roster__row");
-
-        Label name = new(playerName);
-        name.AddToClassList("roster__name");
-        row.Add(name);
-
-        VisualElement badges = new();
-        badges.AddToClassList("roster__badges");
-        row.Add(badges);
-
-        Label role = new("Owner");
-        role.AddToClassList("roster__role");
-        badges.Add(role);
-
-        Label status = new("Not ready");
-        status.AddToClassList("roster__status");
-        badges.Add(status);
-
-        Button kick = new() { text = "Remove" };
-        kick.AddToClassList("roster__kick");
-        row.Add(kick);
-
+        VisualElement row = Stamp("RosterRow");
+        row.Q<Label>("Name").text = playerName;
+        row.Q<Label>("Role").text = "Owner";
+        row.Q<Label>("Status").text = "Not ready";
+        row.Q<Button>("Kick").text = "Remove";
         return row;
     }
 
     private static VisualElement BrowserRow(string lobbyName)
     {
-        Button row = new() { text = string.Empty };
-        row.AddToClassList("button");
-        row.AddToClassList("browser__row");
+        VisualElement row = Stamp("LobbyRow");
+        row.Q<Label>("Name").text = lobbyName;
+        row.Q<Label>("Count").text = "4/8";
+        return row;
+    }
 
-        Label name = new(lobbyName);
-        name.AddToClassList("browser__name");
-        row.Add(name);
+    private static VisualElement Stamp(string template)
+    {
+        string path = $"Assets/Collaborators/Qewzdl/UI/Templates/{template}.uxml";
+        VisualTreeAsset markup = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(path);
+        Assert.That(markup, Is.Not.Null, $"No template at '{path}'.");
 
-        Label count = new("4/8");
-        count.AddToClassList("browser__count");
-        row.Add(count);
-
+        VisualElement row = markup.Instantiate()[0];
+        row.RemoveFromHierarchy();
         return row;
     }
 

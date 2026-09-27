@@ -188,7 +188,12 @@
    rather than a place to go - but sized to sit inside a row, not to be one. */
 
 .roster__kick {
-    width: 96px;
+    /* At least this wide, so the buttons down the list line up, and wider when
+       the word needs it: it carries a button's letter spacing, and at the
+       largest text a fixed width left "Remove" running out of its own frame.
+       A long name gives way instead - it is the one that ellipsizes. */
+    min-width: 96px;
+    flex-shrink: 0;
 
     font-size: var(--font-size-xs);
 

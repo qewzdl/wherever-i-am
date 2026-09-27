@@ -354,6 +354,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2f1c8ae9298373d43b64364e4caa0938, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  rosterRowTemplate: {fileID: 9197481963319205126, guid: 0355bf38f7624f45abacd3303e5a7b13, type: 3}
   document: {fileID: 896598421}
   sounds: {fileID: 896598422}
   difficultyCatalog: {fileID: 11400000, guid: f7d33c00ad6b47638905fe74e2e503a4, type: 2}

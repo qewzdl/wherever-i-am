@@ -23,6 +23,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     [Header("References")]
     [SerializeField] private UIDocument document;
     [SerializeField] private UiDocumentSounds sounds;
+    [SerializeField] private VisualTreeAsset lobbyRowTemplate;
 
     [Header("While connecting")]
     [SerializeField] private string preparingMessage = "Preparing network...";
@@ -1119,25 +1120,18 @@ public sealed class MainMenuDocument : MonoBehaviour
         string lobbyAddress = entry.Address;
         string lobbyName = entry.Advert.name;
 
-        Button row = new Button(() => ChooseLobby(lobbyAddress, lobbyName));
-        row.AddToClassList("button");
-        row.AddToClassList("browser__row");
+        Button row = (Button)UiTemplates.Stamp(lobbyRowTemplate, "a lobby row");
+        row.clicked += () => ChooseLobby(lobbyAddress, lobbyName);
         row.EnableInClassList("browser__row--full", entry.Advert.IsFull);
 
         // Shown, so it is known why nobody is getting in, but not choosable:
         // the server would only turn the connection away.
         row.SetEnabled(!entry.Advert.IsFull);
 
-        Label name = new Label(entry.Advert.name) { enableRichText = false };
-        name.AddToClassList("browser__name");
-        row.Add(name);
-
-        Label count = new Label(entry.Advert.IsFull
+        row.Q<Label>("Name").text = entry.Advert.name;
+        row.Q<Label>("Count").text = entry.Advert.IsFull
             ? UiLocalization.Text(browserFullText)
-            : string.Format(browserCountFormat, entry.Advert.players, entry.Advert.maxPlayers));
-
-        count.AddToClassList("browser__count");
-        row.Add(count);
+            : string.Format(browserCountFormat, entry.Advert.players, entry.Advert.maxPlayers);
 
         return row;
     }

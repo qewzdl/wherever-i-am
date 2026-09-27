@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
@@ -22,6 +23,7 @@ using UnityEngine;
 public static class LocalizationHarvest
 {
     private const string ScreensFolder = "Assets/Collaborators/Qewzdl/UI/Screens";
+    private const string TemplatesFolder = "Assets/Collaborators/Qewzdl/UI/Templates";
     private const string MapsFolder = "Assets/Collaborators/Qewzdl/Configs/Maps";
 
     // Every element, and every attribute on it that a player can read.
@@ -41,8 +43,11 @@ public static class LocalizationHarvest
         @"<ui:[A-Za-z][A-Za-z0-9]*\b[^>]*>",
         RegexOptions.Compiled);
 
+    // Preceded by whitespace, not by a word boundary: a hyphen is a
+    // boundary, so enable-rich-text="false" read as a text= that said
+    // "false".
     private static readonly Regex ReadableAttribute = new(
-        @"\b(?:text|label|tooltip|placeholder-text)=""(?<text>[^""]*)""",
+        @"(?<=\s)(?:text|label|tooltip|placeholder-text)=""(?<text>[^""]*)""",
         RegexOptions.Compiled);
 
     // Every sentence the markup writes, in the order it is read on screen, so
@@ -51,9 +56,19 @@ public static class LocalizationHarvest
     {
         List<string> found = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
+        // The templates after the screens: a row is read where it is used,
+        // which is on a screen.
         string[] files = Directory.GetFiles(ScreensFolder, "*.uxml");
-        fileCount = files.Length;
         Array.Sort(files, StringComparer.Ordinal);
+
+        if (Directory.Exists(TemplatesFolder))
+        {
+            string[] templates = Directory.GetFiles(TemplatesFolder, "*.uxml");
+            Array.Sort(templates, StringComparer.Ordinal);
+            files = files.Concat(templates).ToArray();
+        }
+
+        fileCount = files.Length;
 
         foreach (string file in files)
         {

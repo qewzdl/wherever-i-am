@@ -27,6 +27,7 @@ public class LobbyUI : MonoBehaviour
     [Header("References")]
     [SerializeField] private UIDocument document;
     [SerializeField] private UiDocumentSounds sounds;
+    [SerializeField] private VisualTreeAsset rosterRowTemplate;
     [SerializeField] private GameDifficultyCatalog difficultyCatalog;
     [SerializeField] private LobbyConfig lobbyConfig;
     [SerializeField] private Texture2D copyAddressIcon;
@@ -1550,53 +1551,29 @@ public class LobbyUI : MonoBehaviour
     // set by UpdatePlayerRow, so the elements themselves outlive every packet.
     private RosterRow BuildPlayerRow(ulong clientId)
     {
-        VisualElement root = new VisualElement();
-        root.AddToClassList("roster__row");
-
-        Label name = new Label();
-        name.AddToClassList("roster__name");
-        root.Add(name);
-
-        VisualElement badges = new VisualElement();
-        badges.AddToClassList("roster__badges");
+        VisualElement root = UiTemplates.Stamp(rosterRowTemplate, "a player row");
 
         // Ownership and readiness are independent facts. The old row replaced
         // the host's ready state with "Owner", while the start rule still
         // counted that state; clients were told to wait for somebody the list
-        // could never identify.
-        //
-        // Both labels are made now and hidden when they have nothing to say,
-        // rather than added and removed - a row that grows and shrinks its
-        // children is a row that cannot keep anything.
-        Label role = new Label(UiLocalization.Text(ownerStatusText));
-        role.AddToClassList("roster__role");
-        badges.Add(role);
-
-        Label status = new Label();
-        status.AddToClassList("roster__status");
-        badges.Add(status);
-
-        root.Add(badges);
+        // could never identify. Both are in the row from the start and hidden
+        // when they have nothing to say.
+        Label role = root.Q<Label>("Role");
+        role.text = UiLocalization.Text(ownerStatusText);
 
         // Captured once rather than read back off the list. The row belongs to
         // this client for as long as it exists, so the handler can too - and
         // an index would be pointing at whoever took that place.
-        Button kick = null;
-        kick = new Button(() => HandlePlayerKickRequested(clientId, kick))
-        {
-            text = UiLocalization.Text(kickActionText)
-        };
-
-        kick.AddToClassList("button");
-        kick.AddToClassList("roster__kick");
-        root.Add(kick);
+        Button kick = root.Q<Button>("Kick");
+        kick.text = UiLocalization.Text(kickActionText);
+        kick.clicked += () => HandlePlayerKickRequested(clientId, kick);
 
         return new RosterRow
         {
             Root = root,
-            Name = name,
+            Name = root.Q<Label>("Name"),
             Role = role,
-            Status = status,
+            Status = root.Q<Label>("Status"),
             Kick = kick
         };
     }

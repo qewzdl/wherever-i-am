@@ -1,0 +1,11 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- One room on the join screen's list. The whole row is the button, so
+         the name and the count are part of what is pressed. The words are
+         filled in from code: the room names itself, and a name somebody
+         typed is shown as typed, never read as markup. -->
+    <ui:Button name="Row" class="button browser__row">
+        <ui:Label name="Name" enable-rich-text="false" class="browser__name" />
+        <ui:Label name="Count" class="browser__count" />
+    </ui:Button>
+</ui:UXML>

@@ -1,0 +1,12 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- One line of chat: the name sized to itself, the sentence taking the
+         rest and wrapping inside it. Two labels rather than one with the name
+         inside it, so the name can be its own colour without rich text -
+         which would hand every player a way to write markup onto somebody
+         else's screen. A line from the room itself has no name. -->
+    <ui:VisualElement name="Row" class="chat__message">
+        <ui:Label name="Sender" enable-rich-text="false" class="chat__message__sender" />
+        <ui:Label name="Text" enable-rich-text="false" class="chat__message__text" />
+    </ui:VisualElement>
+</ui:UXML>

@@ -718,6 +718,12 @@ public sealed class MapLobbyAndGameplayLogicTests
         try
         {
             MainMenuDocument menu = menuObject.AddComponent<MainMenuDocument>();
+            TestReflection.SetField(
+                menu,
+                "lobbyRowTemplate",
+                UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(
+                    "Assets/Collaborators/Qewzdl/UI/Templates/LobbyRow.uxml"));
+
             System.Net.IPEndPoint at = new(System.Net.IPAddress.Loopback, 7777);
 
             VisualElement full = (VisualElement)TestReflection.Invoke(

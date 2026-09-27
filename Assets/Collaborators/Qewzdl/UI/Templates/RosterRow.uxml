@@ -1,0 +1,15 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Collaborators/Qewzdl/UI/Styles/Theme.uss?fileID=7433441132597879392&amp;guid=ca5559e6448f84549894374ceeaa586c&amp;type=3#Theme" />
+    <!-- One player in the lobby. Built once per player and kept: everything
+         that changes - the name, whether they own the room, whether they are
+         ready, whether they can be removed - is shown or hidden from code
+         rather than added and taken away. -->
+    <ui:VisualElement name="Row" class="roster__row">
+        <ui:Label name="Name" enable-rich-text="false" class="roster__name" />
+        <ui:VisualElement class="roster__badges">
+            <ui:Label name="Role" class="roster__role" />
+            <ui:Label name="Status" class="roster__status" />
+        </ui:VisualElement>
+        <ui:Button name="Kick" class="button roster__kick" />
+    </ui:VisualElement>
+</ui:UXML>
