@@ -211,7 +211,9 @@ public class LobbyUI : MonoBehaviour
     private Label doorStatusLabel;
     private Label setupDifficultyLabel;
     private Label setupMapLabel;
+    private VisualElement mapCard;
     private VisualElement setupPreview;
+    private Label mapCardName;
     private IGameMapCatalog mapCatalog;
     private Label setupOwnerLabel;
     private Label setupNoticeLabel;
@@ -615,7 +617,9 @@ public class LobbyUI : MonoBehaviour
         doorStatusLabel = root.Q<Label>("DoorStatus");
         setupDifficultyLabel = root.Q<Label>("SetupDifficulty");
         setupMapLabel = root.Q<Label>("SetupMap");
+        mapCard = root.Q<VisualElement>("MapCard");
         setupPreview = root.Q<VisualElement>("SetupPreview");
+        mapCardName = root.Q<Label>("MapCardName");
         setupOwnerLabel = root.Q<Label>("SetupOwner");
         setupNoticeLabel = root.Q<Label>("SetupNotice");
         addressLabel = root.Q<Label>("Address");
@@ -1189,14 +1193,20 @@ public class LobbyUI : MonoBehaviour
                 : string.Empty;
         }
 
+        bool pictured = knownMap && map.Preview != null;
+
+        if (mapCard != null)
+            mapCard.style.display = pictured ? DisplayStyle.Flex : DisplayStyle.None;
+
         if (setupPreview != null)
         {
-            bool pictured = knownMap && map.Preview != null;
             setupPreview.style.backgroundImage = pictured
                 ? new StyleBackground(map.Preview)
                 : new StyleBackground(StyleKeyword.None);
-            setupPreview.style.display = pictured ? DisplayStyle.Flex : DisplayStyle.None;
         }
+
+        if (mapCardName != null)
+            mapCardName.text = pictured ? UiLocalization.Text(map.DisplayName) : string.Empty;
 
         if (setupDifficultyLabel != null)
         {

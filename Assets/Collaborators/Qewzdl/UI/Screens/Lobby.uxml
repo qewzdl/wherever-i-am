@@ -9,13 +9,10 @@
         <ui:VisualElement name="Panel" class="panel panel--rail">
             <ui:Label text="Lobby" name="Title" class="title enter" />
             <ui:VisualElement name="MatchSetup" class="setup enter enter--2">
-                <ui:VisualElement name="SetupPreview" picking-mode="Ignore" class="setup__preview" />
-                <ui:VisualElement class="setup__lines">
-                    <ui:Label name="SetupMap" class="setup__line" />
-                    <ui:Label name="SetupDifficulty" class="setup__line" />
-                    <ui:Label name="SetupOwner" class="setup__note multiplayer-only" />
-                    <ui:Label name="SetupNotice" class="setup__notice" />
-                </ui:VisualElement>
+                <ui:Label name="SetupMap" class="setup__line" />
+                <ui:Label name="SetupDifficulty" class="setup__line" />
+                <ui:Label name="SetupOwner" class="setup__note multiplayer-only" />
+                <ui:Label name="SetupNotice" class="setup__notice" />
             </ui:VisualElement>
             <ui:ScrollView name="LobbyContent" class="scroll lobby__content enter enter--3 multiplayer-only">
                 <ui:VisualElement class="roster__header">
@@ -53,6 +50,13 @@
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Leave" name="LeaveButton" class="button button--cancel" />
             </ui:VisualElement>
+        </ui:VisualElement>
+        <!-- The map the match is on, as the tall picture the map screen showed
+             when it was chosen, with its name - in the corner the stage and
+             the rail leave free, clear of the chat below it. -->
+        <ui:VisualElement name="MapCard" picking-mode="Ignore" class="lobby-map enter enter--3">
+            <ui:VisualElement name="SetupPreview" picking-mode="Ignore" class="lobby-map__preview" />
+            <ui:Label name="MapCardName" picking-mode="Ignore" class="lobby-map__name" />
         </ui:VisualElement>
         <ui:VisualElement name="RoomSettingsPanel" class="overlay">
             <ui:VisualElement class="panel panel--wide">
