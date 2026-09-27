@@ -7,6 +7,7 @@ using NUnit.Framework;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 // Hands back a task nobody completes, which is what a host or join looks like
 // while it is still going.
@@ -700,6 +701,40 @@ public sealed class MapLobbyAndGameplayLogicTests
             Assert.That(session.HostCallCount, Is.Zero, "Singleplayer started a LAN host.");
             Assert.That(session.LastMapId, Is.EqualTo(3), "The map chosen was not the map started.");
             Assert.That(menu.IsRequestInFlight, Is.True);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(menuObject);
+        }
+    }
+
+    // A full room is listed, so it is known why nobody is getting in, but it
+    // cannot be chosen: the server would only turn the connection away.
+    [Test]
+    public void MainMenu_ListsAFullLobbyAsFullAndOutOfReach()
+    {
+        GameObject menuObject = new(nameof(MainMenuDocument));
+
+        try
+        {
+            MainMenuDocument menu = menuObject.AddComponent<MainMenuDocument>();
+            System.Net.IPEndPoint at = new(System.Net.IPAddress.Loopback, 7777);
+
+            VisualElement full = (VisualElement)TestReflection.Invoke(
+                menu,
+                "BuildLobbyRow",
+                new LanLobbyDiscovery.Entry(at, new LanLobbyAdvert(1, 7777, 4, 4, "Room"), 0f));
+
+            VisualElement open = (VisualElement)TestReflection.Invoke(
+                menu,
+                "BuildLobbyRow",
+                new LanLobbyDiscovery.Entry(at, new LanLobbyAdvert(1, 7777, 3, 4, "Room"), 0f));
+
+            Assert.That(full.enabledSelf, Is.False, "A full lobby can be chosen.");
+            Assert.That(full.Q<Label>(className: "browser__count").text, Is.EqualTo("Full"));
+
+            Assert.That(open.enabledSelf, Is.True);
+            Assert.That(open.Q<Label>(className: "browser__count").text, Is.EqualTo("3/4"));
         }
         finally
         {

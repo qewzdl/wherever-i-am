@@ -73,6 +73,7 @@ public sealed class MainMenuDocument : MonoBehaviour
     [SerializeField] private string showAllMapsText = "All maps";
     [SerializeField] private string onlyMapFormat = "Only {0}";
     [SerializeField] private string browserCountFormat = "{0}/{1}";
+    [SerializeField] private string browserFullText = "Full";
 
     [Header("Join address")]
     // Carries the reason as well as the shape now. The reason used to be a
@@ -743,11 +744,12 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         // A lobby ages off this list when it stops speaking, and until now the
         // choice made on it stayed behind: the row went, the mark went with
-        // it, and Join stayed lit over a room that had closed.
+        // it, and Join stayed lit over a room that had closed. A room that
+        // filled up while it was chosen is let go the same way.
         if (chosenAddress.Length > 0 &&
             (discovery == null ||
              !discovery.Knows(chosenAddress) ||
-             !IsShown(chosenAddress)))
+             !IsJoinable(chosenAddress)))
         {
             ForgetChosenLobby();
         }
@@ -803,7 +805,8 @@ public sealed class MainMenuDocument : MonoBehaviour
         return shown;
     }
 
-    private bool IsShown(string lobbyAddress)
+    // On the list and with a seat left.
+    private bool IsJoinable(string lobbyAddress)
     {
         if (discovery == null)
             return false;
@@ -811,7 +814,7 @@ public sealed class MainMenuDocument : MonoBehaviour
         foreach (LanLobbyDiscovery.Entry entry in FilterByMap(discovery.Lobbies, browserMapId))
         {
             if (entry.Address == lobbyAddress)
-                return true;
+                return !entry.Advert.IsFull;
         }
 
         return false;
@@ -1095,14 +1098,17 @@ public sealed class MainMenuDocument : MonoBehaviour
         row.AddToClassList("browser__row");
         row.EnableInClassList("browser__row--full", entry.Advert.IsFull);
 
+        // Shown, so it is known why nobody is getting in, but not choosable:
+        // the server would only turn the connection away.
+        row.SetEnabled(!entry.Advert.IsFull);
+
         Label name = new Label(entry.Advert.name) { enableRichText = false };
         name.AddToClassList("browser__name");
         row.Add(name);
 
-        Label count = new Label(string.Format(
-            browserCountFormat,
-            entry.Advert.players,
-            entry.Advert.maxPlayers));
+        Label count = new Label(entry.Advert.IsFull
+            ? UiLocalization.Text(browserFullText)
+            : string.Format(browserCountFormat, entry.Advert.players, entry.Advert.maxPlayers));
 
         count.AddToClassList("browser__count");
         row.Add(count);

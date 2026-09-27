@@ -829,6 +829,18 @@
     color: var(--text-disabled);
 }
 
+/* It is also switched off, so it cannot be chosen, and a switched-off button
+   draws a frame all the way round. A row keeps the look of a row: the rule
+   under it and nothing else. */
+.unity-button.button.browser__row:disabled {
+    background-color: var(--transparent);
+
+    border-top-color: var(--transparent);
+    border-right-color: var(--transparent);
+    border-left-color: var(--transparent);
+    border-bottom-color: var(--line);
+}
+
 
 .browser__name {
     flex-grow: 1;
