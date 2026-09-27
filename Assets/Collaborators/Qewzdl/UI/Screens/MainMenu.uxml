@@ -9,7 +9,7 @@
             <ui:Label text="Name" class="hint enter enter--2" />
             <ui:TextField name="PlayerName" max-length="16" class="input enter enter--3" />
             <ui:VisualElement name="MainButtons" class="stack enter enter--4">
-                <ui:Button text="Play" name="PlayButton" class="button button--confirm" />
+                <ui:Button text="Start game" name="PlayButton" class="button button--confirm" />
                 <ui:Button text="Settings" name="SettingsButton" class="button" />
                 <ui:Button text="Quit" name="QuitButton" class="button" />
             </ui:VisualElement>
