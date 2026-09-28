@@ -83,16 +83,29 @@
     -unity-background-image-tint-color: rgba(255, 255, 255, 0.3);
 }
 
+/* A lock in the middle of the dimmed picture says it before any words do;
+   what opens it is said beside the picture, in the hint. With the lock
+   there, "No preview" has nothing to add. */
 .map-screen__lock {
     display: none;
-    color: var(--text);
-    font-size: var(--font-size-s);
-    letter-spacing: var(--tracking-wider);
-    margin-bottom: var(--space-l);
+
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 96px;
+    height: 96px;
+    translate: -50% -50%;
+
+    background-image: url("../Images/Icons/icon-lock.png");
+    -unity-background-scale-mode: scale-to-fit;
 }
 
 .map-screen__preview--locked .map-screen__lock {
     display: flex;
+}
+
+.map-screen__preview--locked .map-screen__no-preview {
+    display: none;
 }
 
 .map-screen__text {

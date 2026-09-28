@@ -65,7 +65,7 @@
         <ui:VisualElement name="MapScreen" class="map-screen">
             <ui:VisualElement name="MapSheet" class="map-screen__page">
                 <ui:VisualElement name="MapPreview" class="map-screen__preview">
-                    <ui:Label text="Locked" class="map-screen__lock" />
+                    <ui:VisualElement picking-mode="Ignore" class="map-screen__lock" />
                     <ui:Label text="No preview" class="map-screen__no-preview" />
                 </ui:VisualElement>
                 <ui:VisualElement class="map-screen__text">

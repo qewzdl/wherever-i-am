@@ -360,28 +360,76 @@
 }
 
 
-/* The settings panel is the one that outgrew the screen: its longest page now carries a
-   dozen rows, and a panel with no ceiling simply kept getting taller until the buttons at
-   the bottom were off the frame. The ceiling is here rather than on .panel--wide because
-   the lobby and the main menu wear that class too, and neither has a scroll view at panel
-   level to fall back on - a ceiling there would crop them instead of scrolling them.
+/* Settings is a screen of its own, the way the maps, Play and the list of
+   lobbies are: no box in the middle of the menu, but the frame itself - the
+   screen's veil is near enough opaque to stand in for a background - with
+   one column down the middle and what to do with it in the bottom corner,
+   where the other screens keep theirs.
 
-   Percentages resolve against .screen, which is stretched across the frame by its own
-   absolute positioning, so this is 90% of the window however large the window is.
+   The column is the title, the tabs and the page, as wide as the lobby list
+   and as tall as the frame leaves it. Only the page gives way when the frame
+   is short: the title and the row of tabs keep their size, so the tabs never
+   close up on each other. */
 
-   Only the page inside is allowed to give way. Without the second rule the title, the row
-   of tabs and the footer would shrink alongside it - tabs closing up on each other and the
-   buttons drifting - because none of those three carry a flex-shrink of their own. */
-
-.panel--settings {
-    max-height: 90%;
+/* Solid, not the shared veil: settings opens over the menu, the lobby's
+   stage and the game alike, and any of them showing through read as a
+   screen that had not finished covering the last one. The colour is the one
+   the settings box used to have, with the vignette closing it in. */
+.screen--settings {
+    background-color: var(--surface);
 }
 
+.panel--settings {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    width: auto;
+
+    align-items: center;
+
+    padding-top: 96px;
+    padding-bottom: 128px;
+    padding-left: 0;
+    padding-right: 0;
+
+    background-color: var(--transparent);
+    border-width: 0;
+    border-radius: 0;
+}
 
 .panel--settings > .title,
 .panel--settings > .tabs,
-.panel--settings > .footer {
+.panel--settings > .page {
+    width: 800px;
+    max-width: 80%;
+}
+
+.panel--settings > .title {
     flex-shrink: 0;
+    -unity-text-align: middle-left;
+
+    /* A text element measures itself, and the percentage cap was taken from
+       that measure rather than from the column - it came out a fifth short,
+       and the title sat in from the tabs under it. The frame is always drawn
+       at the reference width, so the column's own width is enough. */
+    max-width: none;
+}
+
+.panel--settings > .tabs {
+    flex-shrink: 0;
+}
+
+.panel--settings > .footer {
+    position: absolute;
+    right: var(--space-xl);
+    bottom: var(--space-xl);
+
+    border-top-width: 0;
+    padding-top: 0;
+    margin-top: 0;
 }
 
 
