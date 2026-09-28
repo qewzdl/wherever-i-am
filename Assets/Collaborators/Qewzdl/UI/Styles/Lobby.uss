@@ -1015,10 +1015,6 @@
     padding-bottom: 128px;
 }
 
-.join-screen__title {
-    -unity-text-align: middle-left;
-}
-
 /* The list takes whatever the column has left over, rather than the fixed
    height it has in a panel. */
 .join-screen .browser {

@@ -366,10 +366,11 @@
    one column down the middle and what to do with it in the bottom corner,
    where the other screens keep theirs.
 
-   The column is the title, the tabs and the page, as wide as the lobby list
-   and as tall as the frame leaves it. Only the page gives way when the frame
-   is short: the title and the row of tabs keep their size, so the tabs never
-   close up on each other. */
+   The title is in the top left corner, where every screen keeps its name
+   (.screen-title). The column is the tabs and the page, as wide as the lobby
+   list and as tall as the frame leaves it. Only the page gives way when the
+   frame is short: the row of tabs keeps its size, so the tabs never close up
+   on each other. */
 
 /* Solid, not the shared veil: settings opens over the menu, the lobby's
    stage and the game alike, and any of them showing through read as a
@@ -400,22 +401,10 @@
     border-radius: 0;
 }
 
-.panel--settings > .title,
 .panel--settings > .tabs,
 .panel--settings > .page {
     width: 800px;
     max-width: 80%;
-}
-
-.panel--settings > .title {
-    flex-shrink: 0;
-    -unity-text-align: middle-left;
-
-    /* A text element measures itself, and the percentage cap was taken from
-       that measure rather than from the column - it came out a fifth short,
-       and the title sat in from the tabs under it. The frame is always drawn
-       at the reference width, so the column's own width is enough. */
-    max-width: none;
 }
 
 .panel--settings > .tabs {

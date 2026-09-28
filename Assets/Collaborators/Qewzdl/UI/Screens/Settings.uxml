@@ -4,7 +4,7 @@
     <ui:VisualElement name="Screen" class="screen screen--settings">
         <ui:VisualElement name="Vignette" picking-mode="Ignore" class="vignette" />
         <ui:VisualElement name="Panel" class="panel panel--wide panel--settings">
-            <ui:Label text="Settings" name="Title" class="title" />
+            <ui:Label text="Settings" name="Title" picking-mode="Ignore" class="title screen-title" />
             <ui:VisualElement name="Tabs" class="tabs">
                 <ui:Button text="Graphics" name="GraphicsTab" class="button tab" />
                 <ui:Button text="Audio" name="AudioTab" class="button tab" />

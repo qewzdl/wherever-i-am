@@ -24,6 +24,7 @@
              the maps returns here when the map was for a game alone, and
              Back from Create and Join always does. -->
         <ui:VisualElement name="PlayScreen" class="choice-screen">
+            <ui:Label text="Game mode" picking-mode="Ignore" class="title screen-title" />
             <ui:VisualElement class="choice-screen__choices">
                 <ui:Button name="SingleplayerButton" class="picture-choice">
                     <ui:VisualElement picking-mode="Ignore" class="picture-choice__picture picture-choice__picture--singleplayer" />
@@ -43,6 +44,7 @@
              it. Back or Escape returns to Play, and Back from the map screen
              returns here. -->
         <ui:VisualElement name="MultiplayerScreen" class="choice-screen">
+            <ui:Label text="Multiplayer" picking-mode="Ignore" class="title screen-title" />
             <ui:VisualElement class="choice-screen__choices">
                 <ui:Button name="HostButton" class="picture-choice">
                     <ui:VisualElement picking-mode="Ignore" class="picture-choice__picture picture-choice__picture--create" />
@@ -63,6 +65,7 @@
              aside while it is up. One map to a page, in the order they are
              played (see MapProgress), turned from the edges of the frame. -->
         <ui:VisualElement name="MapScreen" class="map-screen">
+            <ui:Label text="Choose a map" picking-mode="Ignore" class="title screen-title" />
             <ui:VisualElement name="MapSheet" class="map-screen__page">
                 <ui:VisualElement name="MapPreview" class="map-screen__preview">
                     <ui:VisualElement picking-mode="Ignore" class="map-screen__lock" />
@@ -87,8 +90,8 @@
              aside while it is up, the list takes the height of the frame,
              and what to do with it sits in the bottom corner. -->
         <ui:VisualElement name="JoinScreen" class="join-screen">
+            <ui:Label text="Join a lobby" picking-mode="Ignore" class="title screen-title" />
             <ui:VisualElement class="join-screen__page">
-                <ui:Label text="Join a lobby" class="title join-screen__title" />
                 <!-- The rooms that have said they are open. A host broadcasts
                      while its door is open, and this asks out loud every couple
                      of seconds as well - because a machine is entitled to drop

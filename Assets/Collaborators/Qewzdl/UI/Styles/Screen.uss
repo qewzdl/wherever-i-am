@@ -451,3 +451,24 @@
     background-image: url("../Images/texture-vignette.png");
     -unity-background-scale-mode: stretch-to-fill;
 }
+
+
+/* ==========================================================================
+   WHICH SCREEN THIS IS
+
+   Every screen past the main menu says what it is in the top left corner -
+   the place the game's own name holds on the menu, which steps aside for
+   it - and keeps what to do with it in the bottom right. The two corners
+   are the same on every screen, so wherever the player is, they know where
+   to look for where they are and for the way on.
+   ========================================================================== */
+
+.screen-title {
+    position: absolute;
+    left: var(--space-xl);
+    top: var(--space-xl);
+
+    margin: 0;
+
+    -unity-text-align: middle-left;
+}
