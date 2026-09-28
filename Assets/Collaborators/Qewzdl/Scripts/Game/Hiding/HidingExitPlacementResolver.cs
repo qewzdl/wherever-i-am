@@ -25,9 +25,11 @@ internal sealed class HidingExitPlacementResolver
     };
 
     private readonly Collider[] overlaps = new Collider[MaxOverlaps];
+    private readonly RaycastHit[] hits = new RaycastHit[MaxOverlaps];
 
     internal bool TryResolve(
         PlayerHidingController player,
+        Transform hidingPoint,
         Transform primaryExit,
         Transform[] fallbackExits,
         bool alignPlayerRotation,
@@ -45,6 +47,7 @@ internal sealed class HidingExitPlacementResolver
 
         if (TryResolveTransform(
                 player,
+                hidingPoint,
                 primaryExit,
                 alignPlayerRotation,
                 settings,
@@ -67,6 +70,7 @@ internal sealed class HidingExitPlacementResolver
 
                 if (TryResolveTransform(
                         player,
+                        hidingPoint,
                         fallbackExit,
                         alignPlayerRotation,
                         settings,
@@ -148,7 +152,13 @@ internal sealed class HidingExitPlacementResolver
                         candidate,
                         obstructionMask,
                         triggerInteraction,
-                        collisionSkin))
+                        collisionSkin) ||
+                    !IsReachable(
+                        player,
+                        recoveryPose,
+                        candidate,
+                        obstructionMask,
+                        null))
                 {
                     continue;
                 }
@@ -212,7 +222,7 @@ internal sealed class HidingExitPlacementResolver
             Collider overlap = overlaps[i];
 
             if (overlap == null ||
-                BelongsToPlayer(overlap, player, playerObject))
+                BelongsTo(overlap, player.transform, playerObject))
             {
                 continue;
             }
@@ -225,6 +235,7 @@ internal sealed class HidingExitPlacementResolver
 
     private bool TryResolveTransform(
         PlayerHidingController player,
+        Transform hidingPoint,
         Transform exit,
         bool alignPlayerRotation,
         HidingPlaceData settings,
@@ -256,7 +267,17 @@ internal sealed class HidingExitPlacementResolver
                 candidate,
                 settings.ExitObstructionMask,
                 settings.ExitTriggerInteraction,
-                settings.ExitCollisionSkin))
+                settings.ExitCollisionSkin) ||
+            !IsReachable(
+                player,
+                hidingPoint != null
+                    ? new Pose(hidingPoint.position, player.transform.rotation)
+                    : new Pose(player.transform.position, player.transform.rotation),
+                candidate,
+                settings.ExitObstructionMask,
+                hidingPoint != null
+                    ? hidingPoint.GetComponentInParent<NetworkObject>()
+                    : null))
         {
             return false;
         }
@@ -265,21 +286,86 @@ internal sealed class HidingExitPlacementResolver
         return true;
     }
 
-    private static bool BelongsToPlayer(
-        Collider candidate,
+    // Whether the body could get from one pose to the other in a straight
+    // line. A free spot is not enough: an exit on the far side of a wall is
+    // free too, and the player came out behind it. Measured from the hiding
+    // point rather than from the player, whose position on the server is
+    // whatever their client last reported. The place being left does not
+    // stand in its own way.
+    private bool IsReachable(
         PlayerHidingController player,
-        NetworkObject playerObject
+        Pose from,
+        Pose to,
+        LayerMask obstructionMask,
+        NetworkObject ignoredObject
     )
     {
-        Transform candidateTransform = candidate.transform;
+        if (!player.TryBuildExitCapsule(from, 0f, out Vector3 fromA, out Vector3 fromB, out _) ||
+            !player.TryBuildExitCapsule(to, 0f, out Vector3 toA, out Vector3 toB, out _))
+        {
+            return false;
+        }
 
-        if (candidateTransform == player.transform ||
-            candidateTransform.IsChildOf(player.transform))
+        Vector3 start = (fromA + fromB) * 0.5f;
+        Vector3 path = (toA + toB) * 0.5f - start;
+        float distance = path.magnitude;
+
+        if (distance <= Mathf.Epsilon)
         {
             return true;
         }
 
-        if (playerObject == null || !playerObject.IsSpawned)
+        int hitCount = Physics.RaycastNonAlloc(
+            start,
+            path / distance,
+            hits,
+            distance,
+            obstructionMask,
+            QueryTriggerInteraction.Ignore
+        );
+
+        if (hitCount >= hits.Length)
+        {
+            return false;
+        }
+
+        NetworkObject playerObject = player.NetworkObject;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hit = hits[i].collider;
+
+            if (hit == null ||
+                BelongsTo(hit, player.transform, playerObject) ||
+                (ignoredObject != null &&
+                 BelongsTo(hit, ignoredObject.transform, ignoredObject)))
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool BelongsTo(
+        Collider candidate,
+        Transform root,
+        NetworkObject rootObject
+    )
+    {
+        Transform candidateTransform = candidate.transform;
+
+        if (candidateTransform == root ||
+            candidateTransform.IsChildOf(root))
+        {
+            return true;
+        }
+
+        // Not asked whether it is still spawned: a place being torn down no
+        // longer is, and its copies on other peers still carry its id.
+        if (rootObject == null)
         {
             return false;
         }
@@ -290,6 +376,6 @@ internal sealed class HidingExitPlacementResolver
         return candidateNetworkObject != null &&
                candidateNetworkObject.IsSpawned &&
                candidateNetworkObject.NetworkObjectId ==
-               playerObject.NetworkObjectId;
+               rootObject.NetworkObjectId;
     }
 }

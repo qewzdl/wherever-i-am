@@ -519,6 +519,59 @@ public abstract class DraggableObject : InteractableObject
         }
     }
 
+    // Whoever is pushing an item simulates it, the way whoever drags one does.
+    //
+    // A resting item belongs to the server, and NetworkRigidbody keeps it
+    // kinematic everywhere else - so a guest walking into one met a wall on
+    // their own machine, and it only moved on the host, shoved along in small
+    // steps by the host's copy of the guest. The host pushed the real thing
+    // and heard it hit walls and floor; the guest crept it along too slowly
+    // for any impact to count. Now the body touching it is given it.
+    private const float PushAuthorityRequestInterval = 0.25f;
+    private const float MaxPushAuthorityDistance = 3f;
+    private float nextPushAuthorityRequestTime;
+
+    public void RequestPushAuthority()
+    {
+        if (!IsSpawned ||
+            IsOwner ||
+            netIsDragging.Value ||
+            !CanStartDragging() ||
+            Time.time < nextPushAuthorityRequestTime)
+        {
+            return;
+        }
+
+        nextPushAuthorityRequestTime = Time.time + PushAuthorityRequestInterval;
+        RequestPushAuthorityServerRpc();
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void RequestPushAuthorityServerRpc(RpcParams rpcParams = default)
+    {
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        // Never out of somebody's hands: a dragged item stays with its dragger.
+        if (netIsDragging.Value ||
+            !CanStartDragging() ||
+            OwnerClientId == senderClientId)
+        {
+            return;
+        }
+
+        NetworkObject pusher =
+            NetworkManager.SpawnManager.GetPlayerNetworkObject(senderClientId);
+
+        if (pusher == null ||
+            (pusher.transform.position - rb.position).sqrMagnitude >
+            MaxPushAuthorityDistance * MaxPushAuthorityDistance)
+        {
+            return;
+        }
+
+        NetworkObject.ChangeOwnership(senderClientId);
+    }
+
     // Overridable by subclasses that need to reject a drag start (e.g. item already picked up).
     protected virtual bool CanStartDragging()
     {

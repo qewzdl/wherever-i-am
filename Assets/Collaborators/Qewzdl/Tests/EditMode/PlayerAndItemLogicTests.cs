@@ -559,6 +559,37 @@ public sealed class PlayerAndItemLogicTests
             "The part-stride from before the stop was still being counted.");
     }
 
+    // Somebody else's player, as this machine sees them: moving on one frame
+    // in two, because their position comes in ticks. Judged a frame at a time
+    // they set off on every tick, and every tick landed a foot.
+    [Test]
+    public void WindowedSpeed_TickedMovementStillStepsOncePerStride()
+    {
+        const float Stride = 0.9f;
+        const float Speed = 2f;
+        const float Frame = 1f / 60f;
+        const int Frames = 180;
+        WindowedSpeed speed = new();
+        StrideCounter counter = new();
+        bool isMoving = false;
+        int steps = 0;
+
+        for (int i = 0; i < Frames; i++)
+        {
+            float travelled = i % 2 == 0 ? Speed * Frame * 2f : 0f;
+
+            if (speed.TryAdd(travelled, Frame, 0.15f, out float observed))
+                isMoving = observed > 0.5f;
+
+            if (counter.Advance(isMoving, travelled, Stride))
+                steps++;
+        }
+
+        int expected = Mathf.FloorToInt(Speed * Frames * Frame / Stride) + 1;
+
+        Assert.That(steps, Is.InRange(expected - 1, expected));
+    }
+
     // A player who walked cannot claim to be out of breath.
     //
     // Breathing is the one noise the client asks for rather than the server

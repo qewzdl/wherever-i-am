@@ -44,6 +44,7 @@ public sealed class SpectatorDocument : MonoBehaviour
     private bool isWatching;
     private PlayerEnemyAttackReceiver reportedWatched;
     private PlayerEnemyAttackReceiver reportedNext;
+    private PlayerEnemyAttackReceiver markedWatched;
     private string reportedNextKey;
     private string reportedPreviousKey;
 
@@ -169,6 +170,7 @@ public sealed class SpectatorDocument : MonoBehaviour
         // last thing it said. Forgotten now, so the next one starts empty.
         reportedWatched = null;
         reportedNext = null;
+        markedWatched = null;
         shown.Clear();
         survivors?.Clear();
     }
@@ -213,6 +215,10 @@ public sealed class SpectatorDocument : MonoBehaviour
 
         shown.Clear();
         survivors.Clear();
+
+        // The new names carry no marks yet, whoever is being watched.
+        markedWatched = null;
+        reportedNext = null;
 
         for (int i = 0; i < players.Count; i++)
         {
@@ -279,9 +285,14 @@ public sealed class SpectatorDocument : MonoBehaviour
     // nobody can keep their place in - and says where the next press goes.
     private void Mark(PlayerEnemyAttackReceiver watched, PlayerEnemyAttackReceiver next)
     {
-        if (reportedWatched == watched && reportedNext == next)
+        // Its own record of what it marked, not the label's: the label is
+        // brought up to date first, and compared with that, a change of who
+        // is watched looked like no change and the list kept lighting the
+        // player who had just left.
+        if (markedWatched == watched && reportedNext == next)
             return;
 
+        markedWatched = watched;
         reportedNext = next;
 
         for (int i = 0; i < shown.Count && i < survivors.childCount; i++)

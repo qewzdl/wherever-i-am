@@ -60,10 +60,18 @@ public sealed class FootstepEmitter : NetworkBehaviour
         "step instead.")]
     [SerializeField, Min(0.05f)] private float strideLength = 0.9f;
 
+    [Tooltip(
+        "Seconds of movement the gait is judged over. Somebody else's " +
+        "player moves in network ticks, so a single frame of them often " +
+        "shows no movement at all; this has to cover a few ticks.")]
+    [SerializeField, Min(0.02f)] private float gaitSampleWindow = 0.15f;
+
     private Vector3 previousPosition;
     private float previousSampleTime;
     private bool hasPreviousSample;
     private readonly StrideCounter stride = new();
+    private readonly WindowedSpeed speed = new();
+    private PlayerGait gait = PlayerGait.Silent;
 
     private IGameplaySoundService gameplaySound;
 
@@ -119,7 +127,12 @@ public sealed class FootstepEmitter : NetworkBehaviour
             return;
 
         float travelled = displacement.magnitude;
-        PlayerGait gait = movement.GaitFromObservedSpeed(travelled / deltaTime);
+
+        // The gait is held between windows, the distance is counted every
+        // frame - so a step still lands where the stride ends, not where a
+        // window happens to.
+        if (speed.TryAdd(travelled, deltaTime, gaitSampleWindow, out float observedSpeed))
+            gait = movement.GaitFromObservedSpeed(observedSpeed);
 
         // Silence is the absence of an event, not an event with nothing in it -
         // so there is no silent preset, no silent clip, and nothing to play
@@ -166,6 +179,8 @@ public sealed class FootstepEmitter : NetworkBehaviour
     {
         hasPreviousSample = false;
         stride.Reset();
+        speed.Reset();
+        gait = PlayerGait.Silent;
         previousPosition = Vector3.zero;
         previousSampleTime = 0f;
     }

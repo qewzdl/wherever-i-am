@@ -175,6 +175,16 @@ public sealed class EnemyServerBrain
         }
 
         blackboard.EngagementTactics.Clear();
+
+        // And the person it was after is gone for good. Losing a target
+        // normally leaves her its last known position to search, which after
+        // a catch sent her back to comb the spot where she had just caught
+        // them, as if they were still standing in it.
+        blackboard.TargetMemory.ClearAll();
+        blackboard.PerceptionMemory.ClearAll();
+        blackboard.InvestigationMemory.ClearAll();
+        blackboard.ClearCurrentStimulus();
+        SyncTarget();
     }
 
     // Which behaviours this enemy actually gets.

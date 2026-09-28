@@ -224,6 +224,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
             (settings == null ||
              !exitPlacementResolver.TryResolve(
                  playerHiding,
+                 hidingPoint,
                  exitPoint,
                  fallbackExitPoints,
                  settings.AlignPlayerRotation,
@@ -494,6 +495,31 @@ public sealed class HidingPlaceInteractable : InteractableObject
             return;
         }
 
+        // The exit was chosen when the player started climbing out; somebody
+        // may have stepped onto it since.
+        HidingPlaceData settings = Configuration;
+
+        if (pendingExitTeleport &&
+            settings != null &&
+            !exitPlacementResolver.IsPoseClear(
+                playerHiding,
+                pendingExitPose,
+                settings.ExitObstructionMask,
+                settings.ExitTriggerInteraction,
+                settings.ExitCollisionSkin) &&
+            exitPlacementResolver.TryResolve(
+                playerHiding,
+                hidingPoint,
+                exitPoint,
+                fallbackExitPoints,
+                settings.AlignPlayerRotation,
+                settings,
+                includeRecoveryPose: true,
+                out Pose freeExitPose))
+        {
+            pendingExitPose = freeExitPose;
+        }
+
         if (!playerHiding.CompleteExitingHidingServer(
                 this,
                 pendingExitPose.position,
@@ -705,6 +731,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
         if (settings != null &&
             exitPlacementResolver.TryResolve(
                 playerHiding,
+                hidingPoint,
                 exitPoint,
                 fallbackExitPoints,
                 settings.AlignPlayerRotation,

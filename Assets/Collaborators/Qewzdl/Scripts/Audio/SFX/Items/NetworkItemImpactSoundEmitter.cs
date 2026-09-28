@@ -100,7 +100,13 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour, IGameplayS
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (IsNetworkActive() && !HasAuthority)
+        // Heard by whoever is simulating the body, which is its owner - not
+        // HasAuthority, which outside distributed authority only ever means
+        // the server. A guest dragging an item moves it themselves and was
+        // ignored here, while on the server the same item is a kinematic copy
+        // that gets no impacts against walls or floor, only against other
+        // moving items. So a guest's item was silent unless it hit another.
+        if (IsNetworkActive() && !IsOwner)
         {
             return;
         }

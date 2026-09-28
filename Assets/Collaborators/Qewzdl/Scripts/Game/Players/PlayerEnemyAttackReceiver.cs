@@ -15,6 +15,9 @@ public sealed class PlayerEnemyAttackReceiver :
 {
     private static readonly List<PlayerEnemyAttackReceiver> RegisteredPlayers = new();
 
+    private const string LastSurvivorLeftReason =
+        "The last player still in play left the match";
+
     [SerializeField] private GameResultType hitResult = GameResultType.Defeat;
     [SerializeField] private string hitReason = "A player was caught by an enemy";
     [SerializeField] private string lastPlayerCaughtReason =
@@ -94,6 +97,36 @@ public sealed class PlayerEnemyAttackReceiver :
     {
         eliminated.OnValueChanged -= HandleEliminatedChanged;
         RegisteredPlayers.Remove(this);
+
+        if (IsServer && !isEliminated)
+            CompleteIfNobodyLeftInPlayServer();
+    }
+
+    // The last survivor leaving is the match lost for everybody still in it.
+    // Until now only a catch asked whether anybody was left, so a survivor
+    // who quit left the caught players watching nobody, in a match that no
+    // longer had anybody who could finish it.
+    private void CompleteIfNobodyLeftInPlayServer()
+    {
+        NetworkManager manager = NetworkManager;
+
+        if (manager == null ||
+            manager.ShutdownInProgress ||
+            RegisteredPlayers.Count == 0 ||
+            HasPlayerInPlay(RegisteredPlayers) ||
+            !NetworkObjectServiceContext.TryResolveSessionService(
+                manager,
+                out IMatchCompletionService matchCompletionService))
+        {
+            return;
+        }
+
+        completionGate.TryComplete(
+            matchCompletionService,
+            hitResult,
+            OwnerClientId,
+            LastSurvivorLeftReason
+        );
     }
 
     public bool TryReceiveEnemyAttack(EnemyAttackContext context)
@@ -260,6 +293,12 @@ public sealed class PlayerEnemyAttackReceiver :
         DisableIfPresent<PlayerUI>();
         DisableIfPresent<UnityEngine.InputSystem.PlayerInput>();
 
+        // Whatever was in reach at the moment of the catch stayed drawn on the
+        // crosshair for the rest of the match: the one thing that would have
+        // cleared it, the interaction, has just been switched off.
+        if (CrosshairUI.Active != null)
+            CrosshairUI.Active.ShowInteraction(null);
+
         // CameraLook hands the cursor back when it is switched off, which is
         // right for a menu and wrong here: watching is still playing, the end
         // of the match is still on screen, and the pause menu takes the cursor
@@ -285,6 +324,15 @@ public sealed class PlayerEnemyAttackReceiver :
         for (int i = 0; i < renderers.Length; i++)
         {
             renderers[i].enabled = false;
+        }
+
+        // The light the body carries goes with it. Left on, it went on
+        // glowing where the player was caught for the rest of the match.
+        Light[] lights = GetComponentsInChildren<Light>(true);
+
+        for (int i = 0; i < lights.Length; i++)
+        {
+            lights[i].enabled = false;
         }
 
         Collider[] colliders = GetComponentsInChildren<Collider>(true);

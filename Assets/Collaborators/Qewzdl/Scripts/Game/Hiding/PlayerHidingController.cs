@@ -219,7 +219,7 @@ public sealed class PlayerHidingController :
             return false;
         }
 
-        ApplyServerPose(hidingPosition, hidingRotation);
+        ApplyBodyPose(hidingPosition, hidingRotation);
         TeleportOwnerRpc(hidingPosition, hidingRotation);
         hidingState.Value = CreateSnapshot(
             HidingTransitionState.Occupied,
@@ -272,13 +272,15 @@ public sealed class PlayerHidingController :
             return false;
         }
 
-        hidingState.Value = PlayerHidingSnapshot.NotHidden;
-
+        // The body is at the exit before the state lets it go, so it is
+        // never free for a physics step while still inside the hiding place.
         if (teleportToExit)
         {
-            ApplyServerPose(exitPosition, exitRotation);
+            ApplyBodyPose(exitPosition, exitRotation);
             TeleportOwnerRpc(exitPosition, exitRotation);
         }
+
+        hidingState.Value = PlayerHidingSnapshot.NotHidden;
 
         ClearRecoveryPose();
         return true;
@@ -300,13 +302,15 @@ public sealed class PlayerHidingController :
             return false;
         }
 
-        hidingState.Value = PlayerHidingSnapshot.NotHidden;
-
+        // The body is at the exit before the state lets it go, so it is
+        // never free for a physics step while still inside the hiding place.
         if (teleportToExit)
         {
-            ApplyServerPose(exitPosition, exitRotation);
+            ApplyBodyPose(exitPosition, exitRotation);
             TeleportOwnerRpc(exitPosition, exitRotation);
         }
+
+        hidingState.Value = PlayerHidingSnapshot.NotHidden;
 
         ClearRecoveryPose();
         return true;
@@ -560,8 +564,7 @@ public sealed class PlayerHidingController :
             return false;
         }
 
-        hidingState.Value = PlayerHidingSnapshot.NotHidden;
-        ApplyServerPose(
+        ApplyBodyPose(
             safePose.position,
             safePose.rotation
         );
@@ -569,6 +572,7 @@ public sealed class PlayerHidingController :
             safePose.position,
             safePose.rotation
         );
+        hidingState.Value = PlayerHidingSnapshot.NotHidden;
         ClearRecoveryPose();
         return true;
     }
@@ -594,7 +598,12 @@ public sealed class PlayerHidingController :
     )]
     private void TeleportOwnerRpc(Vector3 position, Quaternion rotation)
     {
-        ResolveReferences();
+        // The body is moved too, not just the transform: the player's
+        // Rigidbody interpolates, and a transform written between two physics
+        // steps is taken back by the interpolation - the body stayed inside
+        // the hiding place, and was thrown up out of it once let go. The
+        // velocity goes with it, or a push picked up in there carries on.
+        ApplyBodyPose(position, rotation);
 
         if (networkTransform != null &&
             networkTransform.IsSpawned &&
@@ -658,7 +667,7 @@ public sealed class PlayerHidingController :
         return hidingPlace != null;
     }
 
-    private void ApplyServerPose(Vector3 position, Quaternion rotation)
+    private void ApplyBodyPose(Vector3 position, Quaternion rotation)
     {
         ResolveReferences();
 

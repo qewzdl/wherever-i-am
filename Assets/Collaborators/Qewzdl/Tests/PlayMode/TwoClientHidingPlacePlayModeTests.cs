@@ -1008,6 +1008,71 @@ public sealed class TwoClientHidingPlacePlayModeTests
         Object.Destroy(primaryBlocker);
     }
 
+    // A free exit on the far side of a wall is still on the far side of a
+    // wall. The spot itself passes every overlap test, which is how players
+    // used to come out of a hiding place into the next room.
+    [UnityTest]
+    public IEnumerator ExitBehindAWall_IsNeverTaken()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(
+                clientA,
+                playerId
+            );
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(
+                clientA,
+                hidingPlaceId
+            );
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(
+                server,
+                hidingPlaceId
+            );
+
+        Assert.That(clientPlace.TryRequestEnter(player), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.OccupantNetworkObjectId == playerId &&
+                  player.IsHidden,
+            "Player did not enter before exit validation."
+        );
+
+        // The primary exit is blocked outright; the fallback is free but
+        // stands behind a post between it and the hiding point.
+        GameObject primaryBlocker =
+            CreateExitBlocker("Primary exit blocker", Vector3.back);
+        GameObject wall = Track(new GameObject("Wall before the fallback"));
+        wall.transform.position = new Vector3(1f, 1f, 0.5f);
+        wall.AddComponent<BoxCollider>().size = new Vector3(0.2f, 4f, 0.2f);
+        Physics.SyncTransforms();
+
+        player.RequestExitHiding();
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(
+            Vector3.Distance(
+                player.transform.position,
+                GroundedExit(Vector3.right * 2f)
+            ),
+            Is.GreaterThan(0.5f),
+            "The player came out on the far side of a wall."
+        );
+
+        Object.Destroy(primaryBlocker);
+        Object.Destroy(wall);
+    }
+
     [UnityTest]
     public IEnumerator GroundLevelExitAnchor_PlacesCapsuleAboveFloor()
     {

@@ -160,7 +160,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
             return false;
         }
 
-        if (!noiseEvent.IsValid)
+        if (!noiseEvent.IsValid || IsFromCaughtPlayer(noiseEvent))
         {
             return false;
         }
@@ -174,6 +174,24 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
 
         noises.Add(noiseEvent);
         return true;
+    }
+
+    // A caught player is out of the match, and so is every sound they make.
+    // Their breathing, their phone and anything else still running on their
+    // body kept going for the rest of it, and the enemy went back to the spot
+    // where she caught them as though somebody were still there. Refused here,
+    // where every noise arrives, rather than in each thing that makes one.
+    private static bool IsFromCaughtPlayer(GameplayNoiseEvent noiseEvent)
+    {
+        if (noiseEvent.SourceObject is not Component source || source == null)
+        {
+            return false;
+        }
+
+        PlayerEnemyAttackReceiver player =
+            source.GetComponentInParent<PlayerEnemyAttackReceiver>();
+
+        return player != null && player.IsEliminated;
     }
 
     public bool TryFindBestNoise(

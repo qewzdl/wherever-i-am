@@ -519,6 +519,9 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
         // sliding along their surface.
         DraggableObject draggable = collision.collider.GetComponentInParent<DraggableObject>();
 
+        if (draggable != null)
+            draggable.RequestPushAuthority();
+
         for (int i = 0; i < collision.contactCount; i++)
         {
             Vector3 normal = collision.GetContact(i).normal;
