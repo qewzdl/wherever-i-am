@@ -56,6 +56,20 @@ public sealed class ProjectAssetValidationTests
     // and without approval there is no networking at all. An empty version
     // field is therefore not a release-day detail - it takes the whole session
     // down, and it does it at runtime where the cause is far from the symptom.
+    // A game that stops when its window loses focus stops the match for
+    // everybody if it is the host's, and gets a guest dropped if it is
+    // theirs. The test harnesses switch this on for themselves, so nothing
+    // else here would ever notice it off.
+    [Test]
+    public void Game_KeepsRunningInTheBackground()
+    {
+        Assert.That(
+            PlayerSettings.runInBackground,
+            Is.True,
+            "Run In Background is off: a host who switches windows freezes " +
+            "the match for every guest.");
+    }
+
     [Test]
     public void BuildVersion_IsSetAndFitsTheConnectionPayload()
     {

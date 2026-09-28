@@ -108,6 +108,8 @@ public abstract class DraggableObject : InteractableObject
 
     private void FixedUpdate()
     {
+        TickReturnToServerWhenAtRest();
+
         if (!netIsDragging.Value) return;
 
         if (IsClient && IsOwner && holdPointTransform != null)
@@ -531,8 +533,20 @@ public abstract class DraggableObject : InteractableObject
     private const float MaxPushAuthorityDistance = 3f;
     private float nextPushAuthorityRequestTime;
 
+    // And given back once it is left alone. An item stays with whoever last
+    // touched it otherwise, simulated on their machine for the rest of the
+    // match - so one player's hitch, or their window losing focus, froze
+    // every item they had ever pushed, for everybody.
+    private const float ReturnToServerAfterRestSeconds = 1f;
+    private const float RestSpeed = 0.05f;
+    private float lastTouchedTime;
+    private float restingSince = float.PositiveInfinity;
+    private bool returnToServerRequested;
+
     public void RequestPushAuthority()
     {
+        lastTouchedTime = Time.time;
+
         if (!IsSpawned ||
             IsOwner ||
             netIsDragging.Value ||
@@ -570,6 +584,56 @@ public abstract class DraggableObject : InteractableObject
         }
 
         NetworkObject.ChangeOwnership(senderClientId);
+    }
+
+    private void TickReturnToServerWhenAtRest()
+    {
+        if (!IsSpawned || IsServer || !IsOwner)
+        {
+            returnToServerRequested = false;
+            restingSince = float.PositiveInfinity;
+            return;
+        }
+
+        bool atRest =
+            !netIsDragging.Value &&
+            CanStartDragging() &&
+            !rb.isKinematic &&
+            rb.linearVelocity.sqrMagnitude < RestSpeed * RestSpeed &&
+            rb.angularVelocity.sqrMagnitude < RestSpeed * RestSpeed &&
+            Time.time - lastTouchedTime >= ReturnToServerAfterRestSeconds;
+
+        if (!atRest)
+        {
+            restingSince = float.PositiveInfinity;
+            returnToServerRequested = false;
+            return;
+        }
+
+        if (float.IsPositiveInfinity(restingSince))
+            restingSince = Time.time;
+
+        if (returnToServerRequested ||
+            Time.time - restingSince < ReturnToServerAfterRestSeconds)
+        {
+            return;
+        }
+
+        returnToServerRequested = true;
+        ReturnToServerServerRpc();
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+    private void ReturnToServerServerRpc(RpcParams rpcParams = default)
+    {
+        if (OwnerClientId != rpcParams.Receive.SenderClientId ||
+            netIsDragging.Value ||
+            !CanStartDragging())
+        {
+            return;
+        }
+
+        NetworkObject.ChangeOwnership(NetworkManager.ServerClientId);
     }
 
     // Overridable by subclasses that need to reject a drag start (e.g. item already picked up).

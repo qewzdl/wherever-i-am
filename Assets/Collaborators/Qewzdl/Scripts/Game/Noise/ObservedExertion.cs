@@ -16,6 +16,16 @@ using UnityEngine;
 // could honestly make.
 public sealed class ObservedExertion
 {
+    // How long the pace is judged over. A guest's body reaches the server in
+    // network ticks, so frame by frame it alternates between standing still
+    // and jumping ahead: every still frame counted as rest, and at any frame
+    // rate above a few frames a tick a running guest never tired at all. The
+    // server refused every breath they asked for, and the enemy heard only
+    // the host - whose own breaths it never checks - out of breath.
+    public const float SampleWindow = 0.25f;
+
+    private readonly WindowedSpeed speed = new();
+    private PlayerGait gait = PlayerGait.Silent;
     private Vector3 previousPosition;
     private float previousSampleTime;
     private bool hasPreviousSample;
@@ -25,6 +35,8 @@ public sealed class ObservedExertion
     public void Reset()
     {
         Stamina = 1f;
+        speed.Reset();
+        gait = PlayerGait.Silent;
         hasPreviousSample = false;
         previousPosition = Vector3.zero;
         previousSampleTime = 0f;
@@ -55,7 +67,8 @@ public sealed class ObservedExertion
         if (deltaTime <= Mathf.Epsilon)
             return;
 
-        PlayerGait gait = movement.GaitFromObservedSpeed(displacement.magnitude / deltaTime);
+        if (speed.TryAdd(displacement.magnitude, deltaTime, SampleWindow, out float observedSpeed))
+            gait = movement.GaitFromObservedSpeed(observedSpeed);
 
         // Only running costs anything. Walking is below the running band by
         // construction, so somebody who has been walking can never arrive at a

@@ -640,6 +640,15 @@ public sealed class PlayerAndItemLogicTests
             // matters is that it drains at about the rate the legs drain at,
             // not that two models agree to the frame.
             Assert.That(afterRunning, Is.EqualTo(0.5f).Within(0.05f));
+
+            // A guest, as the server sees them: drawn a hundred and forty
+            // times a second, moved thirty times a second. Judged frame by
+            // frame they rested on every frame between ticks and never tired.
+            Assert.That(
+                Travel(profile, profile.RunSpeed, 4f, framesPerSecond: 144f, ticksPerSecond: 30f),
+                Is.EqualTo(afterRunning).Within(0.05f),
+                "Running seen in network ticks cost nothing, so the server " +
+                "refused every breath a guest took.");
         }
         finally
         {
@@ -654,19 +663,25 @@ public sealed class PlayerAndItemLogicTests
     private static float Travel(
         PlayerMovementProfile profile,
         float speed,
-        float seconds)
+        float seconds,
+        float framesPerSecond = 60f,
+        float ticksPerSecond = 0f)
     {
         ObservedExertion exertion = new();
 
-        const float Step = 1f / 60f;
-        int steps = Mathf.RoundToInt(seconds / Step);
+        float step = 1f / framesPerSecond;
+        int steps = Mathf.RoundToInt(seconds / step);
 
         for (int i = 0; i <= steps; i++)
         {
-            exertion.Sample(
-                new Vector3(speed * i * Step, 0f, 0f),
-                i * Step,
-                profile);
+            float time = i * step;
+
+            // With ticks, the body is only where the last tick put it.
+            float seen = ticksPerSecond > 0f
+                ? Mathf.Floor(time * ticksPerSecond) / ticksPerSecond
+                : time;
+
+            exertion.Sample(new Vector3(speed * seen, 0f, 0f), time, profile);
         }
 
         return exertion.Stamina;

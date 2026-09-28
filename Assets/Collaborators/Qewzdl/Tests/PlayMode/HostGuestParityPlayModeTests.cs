@@ -219,6 +219,54 @@ public sealed class HostGuestParityPlayModeTests
             "An item was handed to a player nowhere near it.");
     }
 
+    // And once nobody is touching it, the item goes back to the host. Left
+    // with whoever last pushed it, it was simulated on their machine for the
+    // rest of the match, and froze for everybody whenever that machine did.
+    [UnityTest]
+    public IEnumerator ItemLeftAlone_GoesBackToTheHost()
+    {
+        yield return StartNetwork();
+
+        ulong itemId = SpawnDraggable(new Vector3(0f, 0f, 2f));
+
+        yield return WaitForCondition(
+            () => HasSpawned(host, itemId) && HasSpawned(guest, itemId),
+            "The item did not spawn on both machines.");
+
+        Physics.IgnoreCollision(
+            GetSpawned<BoxCollider>(host, itemId),
+            GetSpawned<BoxCollider>(guest, itemId));
+
+        NetworkItemTestDraggable hostItem = GetSpawned<NetworkItemTestDraggable>(host, itemId);
+        NetworkItemTestDraggable guestItem = GetSpawned<NetworkItemTestDraggable>(guest, itemId);
+        ulong guestClient = guest.Manager.LocalClientId;
+
+        guestItem.RequestPushAuthority();
+
+        yield return WaitForCondition(
+            () => hostItem.OwnerClientId == guestClient,
+            "The guest never got the item.");
+
+        // Still being pushed: it stays with the guest.
+        float pushingUntil = Time.realtimeSinceStartup + 3f;
+
+        while (Time.realtimeSinceStartup < pushingUntil)
+        {
+            guestItem.RequestPushAuthority();
+            yield return null;
+        }
+
+        Assert.That(hostItem.OwnerClientId, Is.EqualTo(guestClient),
+            "The item was taken from a guest who was still pushing it.");
+
+        // Let go of: back to the host.
+        yield return WaitForCondition(
+            () => hostItem.OwnerClientId == NetworkManager.ServerClientId &&
+                  !hostItem.GetComponent<Rigidbody>().isKinematic &&
+                  guestItem.GetComponent<Rigidbody>().isKinematic,
+            "An item nobody was touching stayed with the guest.");
+    }
+
     // Whoever moves an item hears it hit things, and so does the server - the
     // enemy listens there. The check that decided who reports an impact asked
     // whether this machine was the server rather than whether it was moving
