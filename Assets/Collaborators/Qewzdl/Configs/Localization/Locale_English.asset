@@ -454,10 +454,10 @@ MonoBehaviour:
     Translation: Find lobbies
   - English: 'Map: {0}'
     Translation: 'Map: {0}'
-  - English: Win {0} to open this map.
-    Translation: Win {0} to open this map.
-  - English: Win {0} to host this map. You can still join a game on it.
-    Translation: Win {0} to host this map. You can still join a game on it.
+  - English: Complete {0} to open this map.
+    Translation: Complete {0} to open this map.
+  - English: Complete {0} to host this map. You can still join a game on it.
+    Translation: Complete {0} to host this map. You can still join a game on it.
   - English: No lobbies on this map have answered yet
     Translation: No lobbies on this map have answered yet
   - English: All maps

@@ -61,9 +61,9 @@ public sealed class MainMenuDocument : MonoBehaviour
     [SerializeField] private string startActionText = "Start";
     [SerializeField] private string createLobbyActionText = "Create lobby";
     [SerializeField] private string findLobbiesActionText = "Find lobbies";
-    [SerializeField] private string lockedHintFormat = "Win {0} to open this map.";
+    [SerializeField] private string lockedHintFormat = "Complete {0} to open this map.";
     [SerializeField] private string lockedJoinHintFormat =
-        "Win {0} to host this map. You can still join a game on it.";
+        "Complete {0} to host this map. You can still join a game on it.";
 
     [Header("Server browser")]
     [SerializeField] private string browserListeningText = "Listening";
