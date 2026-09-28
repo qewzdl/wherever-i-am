@@ -130,4 +130,14 @@ public sealed class MapSelectionTests
         created.Add(catalog);
         return catalog;
     }
+
+    // The reset has to find the build's entry by the name Unity gave it in the
+    // registry. These three are copied from a build's saves on a real machine.
+    [TestCase("wia.mapsWon", "wia.mapsWon_h2230816237")]
+    [TestCase("wia.playerName", "wia.playerName_h3070940928")]
+    [TestCase("wia.joinAddress", "wia.joinAddress_h765580160")]
+    public void TheResetNamesTheBuildsEntryAsUnityDoes(string prefsKey, string registryName)
+    {
+        Assert.That(MapProgressReset.RegistryName(prefsKey), Is.EqualTo(registryName));
+    }
 }

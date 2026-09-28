@@ -12,7 +12,7 @@ using UnityEngine;
 // rather than handing out, or taking away, what was earned.
 public static class MapProgress
 {
-    internal const string Key = "wia.mapsWon";
+    public const string Key = "wia.mapsWon";
 
     public static bool IsWon(int mapId)
     {
