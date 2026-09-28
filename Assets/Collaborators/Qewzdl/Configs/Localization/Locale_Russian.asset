@@ -583,8 +583,6 @@ MonoBehaviour:
     Translation: "\u0417\u0430\u043A\u0440\u044B\u0442\u043E"
   - English: No preview
     Translation: "\u041D\u0435\u0442 \u043F\u0440\u0435\u0432\u044C\u044E"
-  - English: All lobbies
-    Translation: "\u0412\u0441\u0435 \u043B\u043E\u0431\u0431\u0438"
   - English: Find lobbies
     Translation: "\u041D\u0430\u0439\u0442\u0438 \u043B\u043E\u0431\u0431\u0438"
   - English: 'Map: {0}'

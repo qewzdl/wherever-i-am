@@ -160,7 +160,6 @@ public sealed class MainMenuDocument : MonoBehaviour
     private Button mapNextButton;
     private Button mapConfirmButton;
     private Button mapBackButton;
-    private Button mapAllLobbiesButton;
     private Button browserFilterButton;
     private MapIntent mapIntent;
     private int mapIndex;
@@ -532,7 +531,6 @@ public sealed class MainMenuDocument : MonoBehaviour
 
         mapConfirmButton = root.Q<Button>("MapConfirmButton");
         mapBackButton = root.Q<Button>("MapBackButton");
-        mapAllLobbiesButton = root.Q<Button>("MapAllLobbiesButton");
         browserFilterButton = root.Q<Button>("BrowserFilterButton");
 
         if (screen == null)
@@ -627,8 +625,6 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (mapBackButton != null)
             mapBackButton.clicked += CloseMapSelect;
 
-        if (mapAllLobbiesButton != null)
-            mapAllLobbiesButton.clicked += ShowEveryLobby;
 
         if (browserFilterButton != null)
             browserFilterButton.clicked += ToggleBrowserFilter;
@@ -711,8 +707,6 @@ public sealed class MainMenuDocument : MonoBehaviour
         if (mapBackButton != null)
             mapBackButton.clicked -= CloseMapSelect;
 
-        if (mapAllLobbiesButton != null)
-            mapAllLobbiesButton.clicked -= ShowEveryLobby;
 
         if (browserFilterButton != null)
             browserFilterButton.clicked -= ToggleBrowserFilter;
@@ -1133,8 +1127,9 @@ public sealed class MainMenuDocument : MonoBehaviour
     }
 
     // One step back from the rooms: to the map they were listed for, on the
-    // same page, rather than past it to the menu. Both ways in - a map's own
-    // rooms and every room - start from the map screen.
+    // same page, rather than past it to the menu. Every room on the network
+    // is one press away on the rooms' own screen (All maps), so the way in
+    // is always through a map.
     private void ReturnToMapSelect()
     {
         if (!IsJoinOpen || isRequestInFlight)
@@ -1348,13 +1343,6 @@ public sealed class MainMenuDocument : MonoBehaviour
             // open, but not hosted.
             mapConfirmButton.SetEnabled(map != null && (open || mapIntent == MapIntent.Join));
         }
-
-        if (mapAllLobbiesButton != null)
-        {
-            mapAllLobbiesButton.style.display = mapIntent == MapIntent.Join
-                ? DisplayStyle.Flex
-                : DisplayStyle.None;
-        }
     }
 
     private void ShowMapDots()
@@ -1404,12 +1392,6 @@ public sealed class MainMenuDocument : MonoBehaviour
                 ShowJoinPrompt(map.MapId);
                 break;
         }
-    }
-
-    private void ShowEveryLobby()
-    {
-        SetMapScreenOpen(false);
-        ShowJoinPrompt(AnyMap);
     }
 
     private VisualElement BuildLobbyRow(LanLobbyDiscovery.Entry entry)

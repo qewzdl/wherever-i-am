@@ -78,7 +78,6 @@
             <ui:Button name="MapPreviousButton" tooltip="Previous map" class="map-screen__arrow map-screen__arrow--previous" />
             <ui:Button name="MapNextButton" tooltip="Next map" class="map-screen__arrow map-screen__arrow--next" />
             <ui:VisualElement class="map-screen__footer">
-                <ui:Button text="All lobbies" name="MapAllLobbiesButton" class="button" />
                 <ui:Button text="Back" name="MapBackButton" class="button button--cancel" />
                 <ui:Button name="MapConfirmButton" class="button button--confirm" />
             </ui:VisualElement>

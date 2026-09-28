@@ -452,8 +452,6 @@ MonoBehaviour:
     Translation: Locked
   - English: No preview
     Translation: No preview
-  - English: All lobbies
-    Translation: All lobbies
   - English: Find lobbies
     Translation: Find lobbies
   - English: 'Map: {0}'
