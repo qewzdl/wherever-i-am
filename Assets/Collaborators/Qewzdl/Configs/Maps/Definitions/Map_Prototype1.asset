@@ -14,6 +14,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mapId: 1
   displayName: New Map
+  description: 'Maecenas mattis lorem ullamcorper, aliquet velit eu, mollis turpis.
+    Nulla non eros sit amet justo lacinia suscipit quis ullamcorper est. Vestibulum
+    quis efficitur orci. Donec luctus dui ac nibh volutpat, eu rhoncus leo feugiat.
+    Donec blandit nunc eu sodales bibendum. Vestibulum luctus maximus purus eget
+    congue. Vivamus eget sapien ac diam sagittis feugiat. Donec finibus enim nisi,
+    id rhoncus nunc condimentum id.
+
+    
+
+    Etiam condimentum tellus eu quam
+    imperdiet interdum. Aliquam euismod massa nec mauris fringilla tempor. Aliquam
+    vel mollis diam. Vivamus condimentum mollis auctor. Proin interdum quam euismod
+    mi vulputate, vitae tempor dolor consectetur. Aliquam erat volutpat. Quisque
+    gravida enim et massa tincidunt, eu hendrerit est maximus. Vestibulum pharetra
+    nibh eu dui elementum, vitae tempor tortor auctor.'
+  preview: {fileID: 0}
   sceneName: Map_Prototype1
   scenePath: Assets/Collaborators/Qewzdl/Scenes/Maps/Map_Prototype1.unity
   objectiveSequenceOverride: {fileID: 0}
