@@ -286,6 +286,24 @@ public sealed class MainMenuNavigationPlayModeTests
         Assert.That(play.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex), "Play is not on screen.");
     }
 
+    // The vignette lies over everything behind the menu and under all of
+    // it: a layer that caught clicks would be a menu nothing can press.
+    [UnityTest]
+    public IEnumerator TheVignetteLetsThePointerThrough()
+    {
+        panel = Object.Instantiate(AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelPath));
+        host = new GameObject(nameof(MainMenuNavigationPlayModeTests));
+
+        UIDocument document = host.AddComponent<UIDocument>();
+        document.panelSettings = panel;
+        document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(MarkupPath);
+        yield return null;
+
+        VisualElement vignette = document.rootVisualElement.Q<VisualElement>("Vignette");
+        Assert.That(vignette, Is.Not.Null, "The main menu has no vignette.");
+        Assert.That(vignette.pickingMode, Is.EqualTo(PickingMode.Ignore), "The vignette catches the pointer.");
+    }
+
     private static List<LanLobbyDiscovery.Entry> Rooms(params (string address, string name, int players)[] rooms)
     {
         List<LanLobbyDiscovery.Entry> entries = new();

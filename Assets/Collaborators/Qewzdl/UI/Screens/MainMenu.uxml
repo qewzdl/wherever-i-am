@@ -5,6 +5,7 @@
         <ui:VisualElement name="Backdrop" picking-mode="Ignore" class="backdrop">
             <ui:VisualElement picking-mode="Ignore" class="backdrop__shade" />
         </ui:VisualElement>
+        <ui:VisualElement name="Vignette" picking-mode="Ignore" class="vignette" />
         <ui:VisualElement name="Panel" class="menu">
             <ui:Label text="Name" class="hint enter enter--2" />
             <ui:TextField name="PlayerName" max-length="16" class="input enter enter--3" />

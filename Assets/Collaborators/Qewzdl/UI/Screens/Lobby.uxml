@@ -6,6 +6,7 @@
     <ui:Template name="ConnectionDialog" src="project://database/Assets/Collaborators/Qewzdl/UI/Templates/ConnectionDialog.uxml?fileID=9197481963319205126&amp;guid=a3ee74ff77b54dd58f40e6840bedaf3c&amp;type=3#ConnectionDialog" />
     <ui:Template name="ConfirmDialog" src="project://database/Assets/Collaborators/Qewzdl/UI/Templates/ConfirmDialog.uxml?fileID=9197481963319205126&amp;guid=1d9e9df5d8304406b8618e6830c56ab7&amp;type=3#ConfirmDialog" />
     <ui:VisualElement name="Screen" class="screen screen--left screen--curtained">
+        <ui:VisualElement name="Vignette" picking-mode="Ignore" class="vignette" />
         <ui:VisualElement name="Panel" class="panel panel--rail">
             <ui:Label text="Lobby" name="Title" class="title enter" />
             <ui:VisualElement name="MatchSetup" class="setup enter enter--2">

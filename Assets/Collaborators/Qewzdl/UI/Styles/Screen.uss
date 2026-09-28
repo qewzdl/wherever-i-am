@@ -432,3 +432,22 @@
 }
 
 
+/* ==========================================================================
+   ATMOSPHERE
+
+   The menus are drawn in black and white like the pictures in them. The
+   vignette sits under the interface and over whatever is behind it, closing
+   the frame in to black at its edges, so the eye rests in the middle and the
+   edges fall away into the dark. It takes no pointer.
+   ========================================================================== */
+
+.vignette {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+
+    background-image: url("../Images/texture-vignette.png");
+    -unity-background-scale-mode: stretch-to-fill;
+}
