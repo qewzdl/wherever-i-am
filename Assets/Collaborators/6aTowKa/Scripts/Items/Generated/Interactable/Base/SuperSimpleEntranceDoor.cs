@@ -13,9 +13,14 @@ public class SuperSimpleEntranceDoor : InteractableObject
         Destroy(transform.parent.gameObject);
     }
 
-    [Rpc(SendTo.Server)]
-    private void DestroyDoorRpc()
+    // Only for somebody standing at it: open to anybody anywhere, it let a
+    // client skip the whole match with one message.
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void DestroyDoorRpc(RpcParams rpcParams = default)
     {
+        if (!PlayerRequestGuard.IsInPlayAndNear(NetworkManager, rpcParams.Receive.SenderClientId, this))
+            return;
+
         NetworkObject netObj = GetComponentInParent<NetworkObject>();
         if (netObj != null)
         {

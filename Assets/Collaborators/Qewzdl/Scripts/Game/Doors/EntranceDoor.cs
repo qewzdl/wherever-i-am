@@ -133,7 +133,14 @@ public sealed class EntranceDoor : InteractableObject
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     private void RequestInsertHandleRpc(int handleId, RpcParams rpcParams = default)
     {
-        TryInsertHandleAuthoritative(handleId, rpcParams.Receive.SenderClientId);
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        // Holding the handle was checked; standing at the door was not, and
+        // the exit opened for somebody at the other end of the house.
+        if (!PlayerRequestGuard.IsInPlayAndNear(NetworkManager, senderClientId, this))
+            return;
+
+        TryInsertHandleAuthoritative(handleId, senderClientId);
     }
 
     private bool TryInsertHandleAuthoritative(int handleId, ulong instigatorClientId)
@@ -156,8 +163,10 @@ public sealed class EntranceDoor : InteractableObject
         // The handle is only checked on the client that interacts, and the
         // insert RPC is open to everyone - without this the door opens for
         // anyone who sends the message, item or not.
+        PickupItem heldHandle = null;
+
         if (requireHandleItem && IsSpawned && IsServer &&
-            !HoldsHandleItem(instigatorClientId, handleId))
+            !PickupItem.TryFindHeldServer(NetworkManager, instigatorClientId, handleId, out heldHandle))
         {
             Debug.LogWarning(
                 $"{nameof(EntranceDoor)} rejected handle insert from client " +
@@ -167,6 +176,10 @@ public sealed class EntranceDoor : InteractableObject
 
             return false;
         }
+
+        // Used up, and only now may its carrier have it destroyed.
+        if (consumeInsertedHandle && heldHandle != null)
+            heldHandle.MarkConsumedServer();
 
         int nextHandleCount = Mathf.Min(InsertedHandleCount + 1, RequiredHandleCount);
         SetInsertedHandleCount(nextHandleCount);
@@ -197,40 +210,6 @@ public sealed class EntranceDoor : InteractableObject
         }
 
         return true;
-    }
-
-    private bool HoldsHandleItem(ulong instigatorClientId, int handleId)
-    {
-        NetworkManager manager = NetworkManager;
-
-        if (manager == null ||
-            !manager.ConnectedClients.TryGetValue(
-                instigatorClientId,
-                out NetworkClient client))
-        {
-            return false;
-        }
-
-        NetworkObject[] ownedObjects = client.OwnedObjects;
-
-        for (int i = 0; i < ownedObjects.Length; i++)
-        {
-            NetworkObject owned = ownedObjects[i];
-
-            if (owned == null || !owned.IsSpawned)
-            {
-                continue;
-            }
-
-            if (owned.TryGetComponent(out PickupItem item) &&
-                item.IsPickedUp &&
-                item.GetItemID() == handleId)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private bool TryResolveHandleItem(

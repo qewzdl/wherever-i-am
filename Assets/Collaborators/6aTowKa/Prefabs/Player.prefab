@@ -873,6 +873,7 @@ GameObject:
   - component: {fileID: 3796379094830436580}
   - component: {fileID: 5846477740682510391}
   - component: {fileID: 1774658826461861830}
+  - component: {fileID: 4821736590147362819}
   m_Layer: 3
   m_Name: Player
   m_TagString: Untagged
@@ -1860,3 +1861,16 @@ MonoBehaviour:
   m_LightCookieSize: {x: 1, y: 1}
   m_LightCookieOffset: {x: 0, y: 0}
   m_SoftShadowQuality: 0
+--- !u!114 &4821736590147362819
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51486047dad24399b2890e9991789f9c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -18,12 +19,56 @@ public abstract class PickupItem : DraggableObject
     private Transform ownerTransform;
     private GameObject viewModel;
     private PickUpContext context;
-    private MeshRenderer meshRenderer;
+    private Renderer[] shownRenderers;
     private Collider[] colliders;
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
 
     public bool IsPickedUp => netIsPickedUp.Value;
+
+    // Set by whatever used the item up - a door that took the handle - so
+    // the item may then be destroyed at its carrier's request, and not
+    // before. Server only.
+    public bool IsConsumedServer { get; private set; }
+
+    public void MarkConsumedServer()
+    {
+        if (IsServer)
+            IsConsumedServer = true;
+    }
+
+    // The item with this id that this client is actually holding, as the
+    // server sees it. What a client says it holds is not evidence of it.
+    public static bool TryFindHeldServer(
+        NetworkManager manager,
+        ulong clientId,
+        int itemId,
+        out PickupItem held)
+    {
+        held = null;
+
+        if (manager == null ||
+            !manager.IsServer ||
+            !manager.ConnectedClients.TryGetValue(clientId, out NetworkClient client))
+        {
+            return false;
+        }
+
+        foreach (NetworkObject owned in client.OwnedObjects)
+        {
+            if (owned != null &&
+                owned.IsSpawned &&
+                owned.TryGetComponent(out PickupItem item) &&
+                item.IsPickedUp &&
+                item.GetItemID() == itemId)
+            {
+                held = item;
+                return true;
+            }
+        }
+
+        return false;
+    }
     public event Action<bool> PickedUpChanged;
 
     protected override void Awake()
@@ -237,10 +282,13 @@ public abstract class PickupItem : DraggableObject
     // position they do not own.
     private void SetCarried(bool carried)
     {
-        MeshRenderer renderer = GetMeshRenderer();
+        Renderer[] renderers = GetShownRenderers();
 
-        if (renderer != null)
-            renderer.enabled = !carried;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+                renderers[i].enabled = !carried;
+        }
 
         colliders ??= GetComponentsInChildren<Collider>(true);
 
@@ -291,12 +339,27 @@ public abstract class PickupItem : DraggableObject
     }
 
     // Client
-    private MeshRenderer GetMeshRenderer()
+    // Every part of the item that is drawn, not just the first. An item made
+    // of several meshes - the crumpled paper is five - left all but one of
+    // them hanging in the air where it was picked up. Only the ones drawn to
+    // begin with, so hiding and showing never turns on a part that was meant
+    // to stay off.
+    private Renderer[] GetShownRenderers()
     {
-        if (meshRenderer == null)
-            meshRenderer = GetComponentInChildren<MeshRenderer>();
+        if (shownRenderers != null)
+            return shownRenderers;
 
-        return meshRenderer;
+        Renderer[] all = GetComponentsInChildren<Renderer>(true);
+        List<Renderer> shown = new(all.Length);
+
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (all[i].enabled)
+                shown.Add(all[i]);
+        }
+
+        shownRenderers = shown.ToArray();
+        return shownRenderers;
     }
 
     private void MakeViewModel(Transform viewModelContainer)

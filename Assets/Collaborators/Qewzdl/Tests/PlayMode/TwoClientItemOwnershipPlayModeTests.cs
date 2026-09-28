@@ -31,6 +31,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private const uint DraggablePrefabHash = 0x17A60001u;
     private const uint PickupPrefabHash = 0x17A60002u;
     private const uint PlayerPrefabHash = 0x17A60003u;
+    private const uint HandlePrefabHash = 0x17A60004u;
+    private const uint EntranceDoorPrefabHash = 0x17A60005u;
 
     private readonly List<Endpoint> endpoints = new();
     private readonly List<Object> cleanup = new();
@@ -41,6 +43,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private GameObject draggablePrefab;
     private GameObject pickupPrefab;
     private GameObject networkTestPlayerPrefab;
+    private GameObject handlePrefab;
+    private GameObject entranceDoorPrefab;
 
     private Vector3 worldGravity;
 
@@ -485,6 +489,169 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         Assert.That(loser.Controller.GetSpeed(), Is.EqualTo(InitialPlayerSpeed));
     }
 
+    // Carried is gone from the world, all of it, on every player's machine. Only the
+    // first mesh used to be hidden, so an item made of several left the rest
+    // hanging in the air where it was picked up.
+    [UnityTest]
+    public IEnumerator CarriedItem_IsHiddenWholeOnEveryMachine()
+    {
+        yield return StartNetwork();
+
+        ulong networkObjectId = SpawnOnServer<NetworkItemTestPickup>(
+            pickupPrefab,
+            new Vector3(0f, 2f, 0f));
+        yield return WaitForSpawnOnEveryEndpoint(networkObjectId);
+
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+        NetworkItemTestPickup itemA =
+            GetSpawnedComponent<NetworkItemTestPickup>(clientA, networkObjectId);
+
+        AssertServerCanReach(
+            clientA.Manager.LocalClientId,
+            GetSpawnedComponent<NetworkItemTestPickup>(server, networkObjectId));
+        BeginPickupRequest(itemA, playerA);
+
+        yield return WaitForCondition(
+            () => IsDrawnEverywhere(networkObjectId, false),
+            "Part of a carried item is still drawn in the world.");
+
+        itemA.OnDrop();
+
+        yield return WaitForCondition(
+            () => IsDrawnEverywhere(networkObjectId, true),
+            "A dropped item did not come back whole.");
+    }
+
+    // The three copies of one item share this fixture's physics scene and,
+    // left to touch, shove each other out of reach. Redone after anything
+    // that turns the colliders back on, which forgets it.
+    private void IgnoreReplicaCollisions(ulong networkObjectId)
+    {
+        Collider[] copies =
+        {
+            GetSpawnedComponent<BoxCollider>(server, networkObjectId),
+            GetSpawnedComponent<BoxCollider>(clientA, networkObjectId),
+            GetSpawnedComponent<BoxCollider>(clientB, networkObjectId)
+        };
+
+        for (int i = 0; i < copies.Length; i++)
+        {
+            for (int j = i + 1; j < copies.Length; j++)
+                Physics.IgnoreCollision(copies[i], copies[j]);
+        }
+    }
+
+    private bool IsDrawnEverywhere(ulong networkObjectId, bool drawn)
+    {
+        // The clients only: a server that is not also a player draws nothing,
+        // and is never sent the order to hide what it does not draw.
+        foreach (Endpoint endpoint in new[] { clientA, clientB })
+        {
+            MeshRenderer[] parts = GetSpawnedComponent<NetworkItemTestPickup>(
+                    endpoint,
+                    networkObjectId)
+                .GetComponentsInChildren<MeshRenderer>(true);
+
+            Assert.That(parts.Length, Is.EqualTo(2));
+
+            foreach (MeshRenderer part in parts)
+            {
+                if (part.enabled != drawn)
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    // The one handle in the house can end the match or save it, so the
+    // server takes nobody's word about it. It goes into the exit only from
+    // somebody standing at the exit, and it is destroyed only by whoever
+    // carries it and only once a door has taken it - open to anybody, a
+    // single message from any client destroyed it and nobody could win.
+    [UnityTest]
+    public IEnumerator DoorHandle_IsUsedOnlyAtTheDoorAndDestroyedOnlyOnceUsed()
+    {
+        yield return StartNetwork();
+
+        ulong handleId = SpawnOnServer<SuperSimpleDoorHandle>(
+            handlePrefab,
+            new Vector3(0f, 0f, 0.5f));
+        ulong nearDoorId = SpawnOnServer<EntranceDoor>(
+            entranceDoorPrefab,
+            new Vector3(0f, 0f, 2.5f));
+        ulong farDoorId = SpawnOnServer<EntranceDoor>(
+            entranceDoorPrefab,
+            new Vector3(0f, 0f, 20f));
+        yield return WaitForSpawnOnEveryEndpoint(handleId);
+        yield return WaitForSpawnOnEveryEndpoint(nearDoorId);
+        yield return WaitForSpawnOnEveryEndpoint(farDoorId);
+
+        SuperSimpleDoorHandle serverHandle =
+            GetSpawnedComponent<SuperSimpleDoorHandle>(server, handleId);
+        int itemId = serverHandle.GetItemID();
+
+        // Picked up and thrown away before any door took it: dropped, not
+        // destroyed.
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+        SuperSimpleDoorHandle handleA =
+            GetSpawnedComponent<SuperSimpleDoorHandle>(clientA, handleId);
+        AssertServerCanReach(clientA.Manager.LocalClientId, serverHandle);
+        BeginPickupRequest(handleA, playerA);
+
+        yield return WaitForCondition(
+            () => IsPickedUp(serverHandle) &&
+                  handleA.IsOwner &&
+                  playerA.Orchestrator.States.IsCarrying,
+            "Client A could not pick the handle up.");
+
+        handleA.Activate();
+
+        yield return WaitForCondition(
+            () => !IsPickedUp(serverHandle),
+            "The handle was never dropped.");
+        Assert.That(HasSpawnedObject(server, handleId), Is.True,
+            "The handle was destroyed before any door took it.");
+        IgnoreReplicaCollisions(handleId);
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(HasSpawnedObject(server, handleId), Is.True,
+            "The handle was destroyed before any door took it.");
+
+        // Carried by client B to a door twenty metres away: refused.
+        NetworkTestPlayer playerB = GetNetworkTestPlayer(clientB);
+        SuperSimpleDoorHandle handleB =
+            GetSpawnedComponent<SuperSimpleDoorHandle>(clientB, handleId);
+        AssertServerCanReach(clientB.Manager.LocalClientId, serverHandle);
+        BeginPickupRequest(handleB, playerB);
+
+        yield return WaitForCondition(
+            () => IsPickedUp(serverHandle) &&
+                  handleB.IsOwner &&
+                  playerB.Orchestrator.States.IsCarrying,
+            "Client B could not pick the handle up.");
+
+        GetSpawnedComponent<EntranceDoor>(clientB, farDoorId).TryInsertHandle(itemId);
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(GetSpawnedComponent<EntranceDoor>(server, farDoorId).IsUnlocked, Is.False,
+            "The exit took a handle from somebody twenty metres away.");
+
+        // At the door: taken, and only now destroyed when its carrier asks.
+        GetSpawnedComponent<EntranceDoor>(clientB, nearDoorId).TryInsertHandle(itemId);
+
+        yield return WaitForCondition(
+            () => GetSpawnedComponent<EntranceDoor>(server, nearDoorId).IsUnlocked &&
+                  serverHandle.IsConsumedServer,
+            "The exit did not take the handle from somebody standing at it.");
+
+        handleB.Activate();
+
+        yield return WaitForCondition(
+            () => !HasSpawnedObject(server, handleId),
+            "A handle the door had taken was not destroyed.");
+    }
+
     private IEnumerator StartNetwork()
     {
         CreateNetworkPrefabs();
@@ -600,6 +767,22 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             PickupPrefabHash,
             pickupData,
             viewModel);
+        handlePrefab = CreateNetworkItemPrefab<SuperSimpleDoorHandle>(
+            "Network door handle test prefab",
+            HandlePrefabHash,
+            pickupData,
+            viewModel);
+
+        entranceDoorPrefab = Track(new GameObject("Network entrance door test prefab"));
+        entranceDoorPrefab.SetActive(false);
+        entranceDoorPrefab.transform.position = new Vector3(10000f, 10000f, 10000f);
+        ConfigureNetworkObject(
+            entranceDoorPrefab.AddComponent<NetworkObject>(),
+            EntranceDoorPrefabHash);
+        entranceDoorPrefab.AddComponent<BoxCollider>();
+        EntranceDoor entranceDoor = entranceDoorPrefab.AddComponent<EntranceDoor>();
+        PlayModeTestReflection.SetField(entranceDoor, "requiredHandleItemId", pickupData.ItemID);
+        entranceDoorPrefab.SetActive(true);
     }
 
     private GameObject CreateNetworkItemPrefab<T>(
@@ -631,7 +814,18 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         PlayModeTestReflection.SetField(item, "data", data);
 
         if (item is PickupItem)
+        {
             PlayModeTestReflection.SetField(item, "model", model);
+
+            // Made of more than one mesh, like the crumpled paper.
+            for (int i = 0; i < 2; i++)
+            {
+                GameObject part = new($"Part {i}");
+                part.transform.SetParent(prefab.transform, false);
+                part.AddComponent<MeshFilter>();
+                part.AddComponent<MeshRenderer>();
+            }
+        }
 
         prefab.SetActive(true);
         return prefab;
@@ -673,6 +867,10 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 new NetworkPrefab { Prefab = draggablePrefab });
             targets[i].Manager.NetworkConfig.Prefabs.Add(
                 new NetworkPrefab { Prefab = pickupPrefab });
+            targets[i].Manager.NetworkConfig.Prefabs.Add(
+                new NetworkPrefab { Prefab = handlePrefab });
+            targets[i].Manager.NetworkConfig.Prefabs.Add(
+                new NetworkPrefab { Prefab = entranceDoorPrefab });
         }
     }
 
@@ -747,7 +945,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     }
 
     private static void BeginPickupRequest(
-        NetworkItemTestPickup item,
+        PickupItem item,
         NetworkTestPlayer player)
     {
         Assert.That(

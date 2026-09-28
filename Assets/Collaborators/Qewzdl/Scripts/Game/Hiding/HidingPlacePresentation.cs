@@ -12,6 +12,12 @@ public sealed class HidingPlacePresentation : MonoBehaviour
 
     private int occupiedParameterHash;
     private int stateParameterHash;
+    private bool? occupied;
+    private bool exitPlayed;
+
+    // What this copy last played. There is nothing else to ask an
+    // AudioSource about a one-shot once it has been fired.
+    internal AudioClip LastPlayedClip { get; private set; }
 
     private void Awake()
     {
@@ -57,31 +63,67 @@ public sealed class HidingPlacePresentation : MonoBehaviour
             );
         }
 
-        if (previousState == currentState || audioSource == null)
+        // Climbing out is heard when it starts, where it takes long enough
+        // to be seen; see ApplyOccupancy for when it does not.
+        if (previousState != currentState &&
+            currentState == HidingTransitionState.Exiting &&
+            !exitPlayed)
+        {
+            exitPlayed = true;
+            Play(Settings?.ExitSound);
+        }
+    }
+
+    // The sounds hang off who is inside rather than off the climbing.
+    //
+    // With no time given to climbing in or out, the place is Entering and
+    // Occupied - or Exiting and Available - within one call on the server.
+    // Only where it ended up reaches anybody else, so a guest never saw either
+    // climb, and the host, whose copy is the one being changed, heard every
+    // sound nobody else did. Somebody being inside, and then not, reaches
+    // everyone whatever the timings.
+    private void PlayForOccupancyChange(bool isOccupied)
+    {
+        bool? wasOccupied = occupied;
+        occupied = isOccupied;
+
+        if (wasOccupied == null || wasOccupied == isOccupied)
         {
             return;
         }
 
-        HidingPlaceData settings = hidingPlace != null
-            ? hidingPlace.Configuration
-            : null;
-        AudioClip clip = currentState switch
+        if (isOccupied)
         {
-            HidingTransitionState.Entering =>
-                settings != null ? settings.EnterSound : null,
-            HidingTransitionState.Exiting =>
-                settings != null ? settings.ExitSound : null,
-            _ => null
-        };
-
-        if (clip != null)
-        {
-            audioSource.PlayOneShot(clip);
+            exitPlayed = false;
+            Play(Settings?.EnterSound);
+            return;
         }
+
+        if (!exitPlayed)
+        {
+            exitPlayed = true;
+            Play(Settings?.ExitSound);
+        }
+    }
+
+    private HidingPlaceData Settings =>
+        hidingPlace != null ? hidingPlace.Configuration : null;
+
+    private void Play(AudioClip clip)
+    {
+        if (clip == null || audioSource == null)
+        {
+            return;
+        }
+
+        LastPlayedClip = clip;
+        audioSource.PlayOneShot(clip);
     }
 
     private void ApplyOccupancy(bool isOccupied)
     {
+        PlayForOccupancyChange(isOccupied);
+
         if (animator == null || occupiedParameterHash == 0)
         {
             return;

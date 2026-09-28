@@ -11,7 +11,8 @@ using UnityEngine;
 public sealed class PlayerEnemyAttackReceiver :
     NetworkBehaviour,
     IEnemyAttackReceiver,
-    IHidingEntryEligibility
+    IHidingEntryEligibility,
+    IPlayerInPlay
 {
     private static readonly List<PlayerEnemyAttackReceiver> RegisteredPlayers = new();
 
@@ -47,6 +48,7 @@ public sealed class PlayerEnemyAttackReceiver :
     public static IReadOnlyList<PlayerEnemyAttackReceiver> All => RegisteredPlayers;
 
     public bool IsEliminated => isEliminated;
+    public bool IsInPlay => !isEliminated;
 
     public string DisplayName
     {

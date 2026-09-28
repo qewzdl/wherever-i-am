@@ -969,6 +969,22 @@ public sealed class ProjectAssetValidationTests
         Assert.That(hasPlayerPrefab, Is.True, "Player prefab is absent from NetworkPrefabsList.");
     }
 
+    // The parity tests build their own player; this is what ties their
+    // answer to the real one.
+    [Test]
+    public void PlayerPrefab_KeepsOtherPlayersBodiesKinematic()
+    {
+        GameObject playerPrefab = LoadBootstrapPlayerPrefab();
+
+        Assert.That(playerPrefab, Is.Not.Null);
+        Assert.That(
+            playerPrefab.GetComponent<RemotePlayerBody>(),
+            Is.Not.Null,
+            "The player prefab lost RemotePlayerBody: every machine will " +
+            "simulate everybody else's body again, and a guest can push the " +
+            "host but never be pushed.");
+    }
+
     [Test]
     public void GameplayCameras_HandOffFromSceneCameraToLocalPlayer()
     {

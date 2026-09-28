@@ -270,6 +270,11 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
         if (!IsServer || target == null || rayOrigin == null || target.Colliders == null)
             return false;
 
+        // A caught player's hands are off the controls on their own machine
+        // only; the server has to refuse them itself.
+        if (!PlayerRequestGuard.IsInPlay(NetworkManager, OwnerClientId))
+            return false;
+
         Vector3 origin = rayOrigin.position;
         float maxDistanceSqr = interactionRange * interactionRange;
         int lineOfSightMask =

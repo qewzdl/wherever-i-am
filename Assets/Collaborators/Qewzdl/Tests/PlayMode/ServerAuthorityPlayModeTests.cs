@@ -90,6 +90,7 @@ public sealed class ServerAuthorityPlayModeTests
         ulong handleId = SpawnHandleOnServer();
         yield return WaitForSpawnOnEveryEndpoint(doorId);
         yield return WaitForSpawnOnEveryEndpoint(handleId);
+        yield return StandBothClientsAt(doorId);
 
         EntranceDoor serverDoor = GetSpawned<EntranceDoor>(server, doorId);
         EntranceDoor doorOnClientA = GetSpawned<EntranceDoor>(clientA, doorId);
@@ -143,6 +144,7 @@ public sealed class ServerAuthorityPlayModeTests
         yield return WaitForSpawnOnEveryEndpoint(doorId);
         yield return WaitForSpawnOnEveryEndpoint(handleAId);
         yield return WaitForSpawnOnEveryEndpoint(handleBId);
+        yield return StandBothClientsAt(doorId);
 
         EntranceDoor serverDoor = GetSpawned<EntranceDoor>(server, doorId);
         EntranceDoor doorOnClientA = GetSpawned<EntranceDoor>(clientA, doorId);
@@ -500,6 +502,26 @@ public sealed class ServerAuthorityPlayModeTests
         PlayModeTestReflection
             .GetField<NetworkVariable<bool>>(item, "netIsPickedUp")
             .Value = true;
+    }
+
+    // The door takes a handle only from a player standing at it, so both
+    // clients are given one there.
+    private IEnumerator StandBothClientsAt(ulong networkObjectId)
+    {
+        Vector3 position = GetSpawned<EntranceDoor>(server, networkObjectId)
+            .transform.position;
+
+        foreach (Endpoint client in new[] { clientA, clientB })
+        {
+            NetworkObject player = CreatePlayerInstance();
+            player.transform.position = position;
+            player.SpawnAsPlayerObject(client.Manager.LocalClientId);
+        }
+
+        yield return WaitForCondition(
+            () => server.Manager.ConnectedClients[clientA.Manager.LocalClientId].PlayerObject != null &&
+                  server.Manager.ConnectedClients[clientB.Manager.LocalClientId].PlayerObject != null,
+            "The clients' players were not spawned at the door.");
     }
 
     private NetworkObject CreatePlayerInstance()

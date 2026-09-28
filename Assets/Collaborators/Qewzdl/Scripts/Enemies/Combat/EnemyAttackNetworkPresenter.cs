@@ -83,12 +83,29 @@ public sealed class EnemyAttackNetworkPresenter : NetworkBehaviour
         return false;
     }
 
+    // Every phase is sent as it happens, in the same stream as the results.
+    //
+    // The variable alone carries only where the attack is at the end of a
+    // network tick: two phases inside one tick reached a guest as the second,
+    // and a result - sent at once - arrived before the phase the server had
+    // entered in the same breath. The host, whose copy of the variable is the
+    // one being written, saw every phase in order. The variable stays for a
+    // copy that spawns mid-attack and needs to know where it is.
     private void HandleServerPhaseChanged(EnemyAttackPhaseEvent phaseEvent)
     {
-        currentPhaseFrame.Value = EnemyAttackPresentationFrame.FromPhaseEvent(
+        EnemyAttackPresentationFrame frame = EnemyAttackPresentationFrame.FromPhaseEvent(
             phaseEvent,
             NextPhaseSequenceId()
         );
+
+        currentPhaseFrame.Value = frame;
+        ReceivePhaseClientRpc(frame);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void ReceivePhaseClientRpc(EnemyAttackPresentationFrame frame)
+    {
+        DeliverPhaseFrame(frame);
     }
 
     private void HandleServerAttackResolved(EnemyAttackResult result)
@@ -116,7 +133,10 @@ public sealed class EnemyAttackNetworkPresenter : NetworkBehaviour
 
     private void DeliverPhaseFrame(EnemyAttackPresentationFrame frame)
     {
-        if (!frame.HasValue || frame.SequenceId == lastDeliveredPhaseSequenceId)
+        // Each phase arrives twice - once as it happens, once as the
+        // variable catches up - and only the first, or anything older, is
+        // turned away.
+        if (!frame.HasValue || frame.SequenceId <= lastDeliveredPhaseSequenceId)
         {
             return;
         }

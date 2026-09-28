@@ -14,9 +14,15 @@ public class SuperSimpleDoorHandle : PassiveItem
         Destroy(gameObject);
     }
 
-    [Rpc(SendTo.Server)]
+    // Its carrier's to destroy, and only once a door has taken it. Open to
+    // anybody, one message from any client destroyed the only handle in the
+    // house and left a match nobody could finish.
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void DestroyHandleRpc()
     {
+        if (!IsConsumedServer)
+            return;
+
         NetworkObject netObj = GetComponent<NetworkObject>();
         if (netObj != null)
         {

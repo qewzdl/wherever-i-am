@@ -573,12 +573,11 @@ public abstract class DraggableObject : InteractableObject
             return;
         }
 
-        NetworkObject pusher =
-            NetworkManager.SpawnManager.GetPlayerNetworkObject(senderClientId);
-
-        if (pusher == null ||
-            (pusher.transform.position - rb.position).sqrMagnitude >
-            MaxPushAuthorityDistance * MaxPushAuthorityDistance)
+        if (!PlayerRequestGuard.IsInPlayAndNear(
+                NetworkManager,
+                senderClientId,
+                this,
+                MaxPushAuthorityDistance))
         {
             return;
         }

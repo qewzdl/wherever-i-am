@@ -52,8 +52,7 @@ internal sealed class PlayerHidingEffects
 
         if (playerBody != null)
         {
-            playerBody.linearVelocity = Vector3.zero;
-            playerBody.angularVelocity = Vector3.zero;
+            StopBody();
             playerBody.constraints = RigidbodyConstraints.FreezeAll;
         }
 
@@ -73,11 +72,21 @@ internal sealed class PlayerHidingEffects
         if (playerBody != null)
         {
             playerBody.constraints = originalConstraints;
-            playerBody.linearVelocity = Vector3.zero;
-            playerBody.angularVelocity = Vector3.zero;
+            StopBody();
         }
 
         effectsApplied = false;
+    }
+
+    // Somebody else's body is kinematic here (RemotePlayerBody) and has no
+    // velocity of its own to stop.
+    private void StopBody()
+    {
+        if (playerBody.isKinematic)
+            return;
+
+        playerBody.linearVelocity = Vector3.zero;
+        playerBody.angularVelocity = Vector3.zero;
     }
 
     private void Capture()

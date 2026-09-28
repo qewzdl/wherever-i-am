@@ -24,9 +24,12 @@ public class SuperSimpleDoor : InteractableObject
         UpdateDoorRotationRpc();
     }
 
-    [Rpc(SendTo.Server)]
-    private void UpdateDoorRotationRpc()
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void UpdateDoorRotationRpc(RpcParams rpcParams = default)
     {
+        if (!PlayerRequestGuard.IsInPlayAndNear(NetworkManager, rpcParams.Receive.SenderClientId, this))
+            return;
+
         isOpen.Value = !isOpen.Value;
         if (isOpen.Value)
             transform.rotation = Quaternion.Euler(openRotation);

@@ -647,8 +647,18 @@ public class DoorInteractableObject : InteractableObject
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void RequestOpenStateRpc(bool shouldOpen)
+    private void RequestOpenStateRpc(bool shouldOpen, RpcParams rpcParams = default)
     {
+        // From somebody at the door and still in the match. Without it any
+        // client could slam any door in the house from anywhere in it.
+        if (!PlayerRequestGuard.IsInPlayAndNear(
+                NetworkManager,
+                rpcParams.Receive.SenderClientId,
+                this))
+        {
+            return;
+        }
+
         if (shouldOpen)
         {
             TryOpenServer();

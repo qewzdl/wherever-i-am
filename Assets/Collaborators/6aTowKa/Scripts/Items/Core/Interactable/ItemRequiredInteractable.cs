@@ -4,6 +4,8 @@ public abstract class ItemRequiredInteractable : InteractableObject
 {
     [SerializeField] int requiredItemID;
 
+    protected int RequiredItemID => requiredItemID;
+
     public override void OnInteract(InteractionContext context)
     {
         PickupItem currentItem = context.CurrentItem;

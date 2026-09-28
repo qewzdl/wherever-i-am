@@ -26,6 +26,8 @@ public sealed class HostGuestParityPlayModeTests
     private const float TimeoutSeconds = 10f;
     private const uint PlayerPrefabHash = 0x17A70001u;
     private const uint DraggablePrefabHash = 0x17A70002u;
+    private const uint EnemyPrefabHash = 0x17A70003u;
+    private const uint DoorPrefabHash = 0x17A70004u;
 
     private readonly List<Endpoint> endpoints = new();
     private readonly List<Object> cleanup = new();
@@ -34,19 +36,31 @@ public sealed class HostGuestParityPlayModeTests
     private Endpoint guest;
     private GameObject playerPrefab;
     private GameObject draggablePrefab;
+    private GameObject enemyPrefab;
+    private GameObject doorPrefab;
     private Vector3 worldGravity;
+    private int playerLayer = -1;
+    private bool playerLayerCollided;
 
     [SetUp]
     public void HoldTheWorldStill()
     {
         worldGravity = Physics.gravity;
         Physics.gravity = Vector3.zero;
+
+        // Both machines' copies of every player share this test's one physics
+        // scene, standing inside each other. Real players never meet their
+        // own copies, so these must not either.
+        playerLayer = LayerMask.NameToLayer("Player");
+        playerLayerCollided = !Physics.GetIgnoreLayerCollision(playerLayer, playerLayer);
+        Physics.IgnoreLayerCollision(playerLayer, playerLayer, true);
     }
 
     [UnityTearDown]
     public IEnumerator TearDown()
     {
         Physics.gravity = worldGravity;
+        Physics.IgnoreLayerCollision(playerLayer, playerLayer, !playerLayerCollided);
 
         for (int i = 0; i < endpoints.Count; i++)
         {
@@ -321,6 +335,146 @@ public sealed class HostGuestParityPlayModeTests
                 : "An item the host threw into a wall made no sound.");
     }
 
+    // A body is simulated only where it is driven. Every other machine keeps
+    // a kinematic copy where the network puts it - otherwise the copy and the
+    // network fought, and a guest could shove the host but never be shoved.
+    [UnityTest]
+    public IEnumerator OtherPlayersBodies_AreNotSimulatedHere()
+    {
+        yield return StartNetwork();
+
+        ulong hostPlayer = PlayerObjectId(NetworkManager.ServerClientId);
+        ulong guestPlayer = PlayerObjectId(guest.Manager.LocalClientId);
+
+        Assert.That(GetSpawned<Rigidbody>(host, hostPlayer).isKinematic, Is.False,
+            "The host's own body is not simulated on the host.");
+        Assert.That(GetSpawned<Rigidbody>(guest, guestPlayer).isKinematic, Is.False,
+            "The guest's own body is not simulated on the guest.");
+        Assert.That(GetSpawned<Rigidbody>(host, guestPlayer).isKinematic, Is.True,
+            "The host simulates the guest's body as well as the guest does.");
+        Assert.That(GetSpawned<Rigidbody>(guest, hostPlayer).isKinematic, Is.True,
+            "The guest simulates the host's body as well as the host does.");
+    }
+
+    // Every phase of an attack reaches a guest, in the order it happened.
+    // The phase used to travel only as a value read once a tick, so two
+    // phases inside one tick - an attack cut short as it began - arrived as
+    // the second alone, while the host, writing that value, saw both.
+    [UnityTest]
+    public IEnumerator EnemyAttackPhases_ReachTheGuestOneByOneInOrder()
+    {
+        yield return StartNetwork();
+
+        ulong enemyId = Spawn(enemyPrefab, new Vector3(0f, 0f, -5f));
+
+        yield return WaitForCondition(
+            () => HasSpawned(host, enemyId) && HasSpawned(guest, enemyId),
+            "The enemy did not spawn on both machines.");
+
+        EnemyAttackNetworkPresenter hostPresenter =
+            GetSpawned<EnemyAttackNetworkPresenter>(host, enemyId);
+        List<EnemyAttackPhase> hostSaw = new();
+        List<EnemyAttackPhase> guestSaw = new();
+        hostPresenter.PhaseReceived += phase => hostSaw.Add(phase.Phase);
+        GetSpawned<EnemyAttackNetworkPresenter>(guest, enemyId).PhaseReceived +=
+            phase => guestSaw.Add(phase.Phase);
+
+        foreach (EnemyAttackPhase phase in new[]
+                 {
+                     EnemyAttackPhase.AttackWindup,
+                     EnemyAttackPhase.AttackInterrupted
+                 })
+        {
+            PlayModeTestReflection.Invoke(
+                hostPresenter,
+                "HandleServerPhaseChanged",
+                new EnemyAttackPhaseEvent(
+                    phase,
+                    EnemyTargetIdentity.None,
+                    Vector3.zero,
+                    Vector3.zero));
+        }
+
+        // A second's grace for anything still on its way, then the two
+        // accounts compared - checked after, so the message says what the
+        // guest ended up with rather than what it had before waiting.
+        float settled = Time.realtimeSinceStartup + 1f;
+
+        while (Time.realtimeSinceStartup < settled)
+            yield return null;
+
+        Assert.That(
+            guestSaw,
+            Is.EqualTo(hostSaw),
+            $"The guest saw [{string.Join(", ", guestSaw)}] of an attack " +
+            $"the host saw as [{string.Join(", ", hostSaw)}].");
+    }
+
+    // The server takes a request only from somebody who could have made it:
+    // at the door, and still in the match. Doors used to open for anybody
+    // anywhere, and a caught player - whose controls are off only on their
+    // own machine - could still open doors and take items.
+    [UnityTest]
+    public IEnumerator Requests_AreRefusedFromAfarAndFromTheCaught()
+    {
+        yield return StartNetwork();
+
+        ulong nearDoorId = Spawn(doorPrefab, new Vector3(0f, 0f, 2.5f));
+        ulong farDoorId = Spawn(doorPrefab, new Vector3(0f, 0f, 20f));
+        ulong itemId = SpawnDraggable(new Vector3(2f, 0f, 0f));
+
+        yield return WaitForCondition(
+            () => HasSpawned(guest, nearDoorId) &&
+                  HasSpawned(guest, farDoorId) &&
+                  HasSpawned(guest, itemId),
+            "The doors and the item did not reach the guest.");
+
+        Physics.IgnoreCollision(
+            GetSpawned<BoxCollider>(host, itemId),
+            GetSpawned<BoxCollider>(guest, itemId));
+
+        DoorInteractableObject nearDoor = GetSpawned<DoorInteractableObject>(host, nearDoorId);
+        DoorInteractableObject farDoor = GetSpawned<DoorInteractableObject>(host, farDoorId);
+
+        GetSpawned<DoorInteractableObject>(guest, farDoorId).TryOpen();
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(farDoor.IsOpen, Is.False,
+            "A door opened for a guest twenty metres from it.");
+
+        GetSpawned<DoorInteractableObject>(guest, nearDoorId).TryOpen();
+
+        yield return WaitForCondition(
+            () => nearDoor.IsOpen,
+            "A door did not open for the guest standing at it.");
+
+        Assert.That(nearDoor.TryClose(), Is.True);
+
+        yield return WaitForCondition(
+            () => !GetSpawned<DoorInteractableObject>(guest, nearDoorId).IsOpen,
+            "The door never closed on the guest's side.");
+
+        ulong guestPlayer = PlayerObjectId(guest.Manager.LocalClientId);
+        PlayModeTestReflection.Invoke(
+            GetSpawned<PlayerEnemyAttackReceiver>(host, guestPlayer),
+            "EliminateServerOnly");
+
+        yield return WaitForCondition(
+            () => GetSpawned<PlayerEnemyAttackReceiver>(guest, guestPlayer).IsEliminated,
+            "The guest was never told they were caught.");
+
+        GetSpawned<DoorInteractableObject>(guest, nearDoorId).TryOpen();
+        GetSpawned<NetworkItemTestDraggable>(guest, itemId).RequestPushAuthority();
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(nearDoor.IsOpen, Is.False,
+            "A caught guest opened a door.");
+        Assert.That(
+            GetSpawned<NetworkItemTestDraggable>(host, itemId).OwnerClientId,
+            Is.EqualTo(NetworkManager.ServerClientId),
+            "A caught guest took an item.");
+    }
+
     private IEnumerator StartNetwork()
     {
         CreatePrefabs();
@@ -365,10 +519,13 @@ public sealed class HostGuestParityPlayModeTests
         playerPrefab = Track(new GameObject("Parity player prefab"));
         playerPrefab.SetActive(false);
         ConfigureNetworkObject(playerPrefab.AddComponent<NetworkObject>(), PlayerPrefabHash);
-        playerPrefab.AddComponent<Rigidbody>().isKinematic = true;
+        playerPrefab.layer = playerLayer;
+        playerPrefab.AddComponent<Rigidbody>().useGravity = false;
+        playerPrefab.AddComponent<RemotePlayerBody>();
         playerPrefab.AddComponent<PlayerEnemyAttackReceiver>();
 
         GameObject body = new("Body");
+        body.layer = playerLayer;
         body.transform.SetParent(playerPrefab.transform, false);
         body.AddComponent<MeshFilter>();
         body.AddComponent<MeshRenderer>();
@@ -423,6 +580,29 @@ public sealed class HostGuestParityPlayModeTests
             "profile",
             impacts);
         draggablePrefab.SetActive(true);
+
+        enemyPrefab = Track(new GameObject("Parity enemy prefab"));
+        enemyPrefab.SetActive(false);
+        ConfigureNetworkObject(enemyPrefab.AddComponent<NetworkObject>(), EnemyPrefabHash);
+        LogAssert.Expect(LogType.Error, new Regex("EnemyAttackController has invalid configuration"));
+        EnemyAttackController attack = enemyPrefab.AddComponent<EnemyAttackController>();
+        PlayModeTestReflection.SetField(
+            attack,
+            "attackEffect",
+            Track(ScriptableObject.CreateInstance<EnemyDebugAttackEffect>()));
+        PlayModeTestReflection.SetField(
+            enemyPrefab.AddComponent<EnemyAttackNetworkPresenter>(),
+            "attackController",
+            attack);
+        enemyPrefab.SetActive(true);
+
+        doorPrefab = Track(new GameObject("Parity door prefab"));
+        doorPrefab.SetActive(false);
+        doorPrefab.transform.position = new Vector3(10000f, 10000f, 10000f);
+        ConfigureNetworkObject(doorPrefab.AddComponent<NetworkObject>(), DoorPrefabHash);
+        doorPrefab.AddComponent<BoxCollider>();
+        doorPrefab.AddComponent<DoorInteractableObject>();
+        doorPrefab.SetActive(true);
     }
 
     private GameplayNoiseWorldService CreateNoiseService()
@@ -451,6 +631,8 @@ public sealed class HostGuestParityPlayModeTests
         {
             target.Manager.NetworkConfig.Prefabs.Add(new NetworkPrefab { Prefab = playerPrefab });
             target.Manager.NetworkConfig.Prefabs.Add(new NetworkPrefab { Prefab = draggablePrefab });
+            target.Manager.NetworkConfig.Prefabs.Add(new NetworkPrefab { Prefab = enemyPrefab });
+            target.Manager.NetworkConfig.Prefabs.Add(new NetworkPrefab { Prefab = doorPrefab });
         }
     }
 
@@ -464,8 +646,13 @@ public sealed class HostGuestParityPlayModeTests
 
     private ulong SpawnDraggable(Vector3 position)
     {
+        return Spawn(draggablePrefab, position);
+    }
+
+    private ulong Spawn(GameObject prefab, Vector3 position)
+    {
         NetworkObject networkObject = Track(
-                Object.Instantiate(draggablePrefab, position, Quaternion.identity))
+                Object.Instantiate(prefab, position, Quaternion.identity))
             .GetComponent<NetworkObject>();
         PlayModeTestReflection.SetField(networkObject, "NetworkManagerOwner", host.Manager);
         networkObject.Spawn();

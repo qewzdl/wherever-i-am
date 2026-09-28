@@ -3,10 +3,12 @@ using UnityEngine;
 
 public class SuperSimpleHandleDoorCase : ItemRequiredInteractable
 {
+    // The case goes first: it is what checks the handle and uses it up, and
+    // the handle may only be destroyed once it has been.
     protected override void InteractWith(IActivator item)
     {
-        item.Activate();
         DestroyCaseRpc();
+        item.Activate();
     }
 
     protected override void UnsuccessfulInteract()
@@ -19,9 +21,23 @@ public class SuperSimpleHandleDoorCase : ItemRequiredInteractable
         Destroy(gameObject);
     }
 
-    [Rpc(SendTo.Server)]
-    private void DestroyCaseRpc()
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void DestroyCaseRpc(RpcParams rpcParams = default)
     {
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
+
+        // The handle is checked on the client that interacts; here it has to
+        // be held, and by somebody standing at the case.
+        PickupItem handle = null;
+
+        if (!PlayerRequestGuard.IsInPlayAndNear(NetworkManager, senderClientId, this) ||
+            !PickupItem.TryFindHeldServer(NetworkManager, senderClientId, RequiredItemID, out handle))
+        {
+            return;
+        }
+
+        handle.MarkConsumedServer();
+
         NetworkObject netObj = GetComponent<NetworkObject>();
         if (netObj != null)
         {

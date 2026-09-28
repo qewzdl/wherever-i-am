@@ -675,8 +675,13 @@ public sealed class PlayerHidingController :
         {
             playerBody.position = position;
             playerBody.rotation = rotation;
-            playerBody.linearVelocity = Vector3.zero;
-            playerBody.angularVelocity = Vector3.zero;
+
+            if (!playerBody.isKinematic)
+            {
+                playerBody.linearVelocity = Vector3.zero;
+                playerBody.angularVelocity = Vector3.zero;
+            }
+
             return;
         }
 

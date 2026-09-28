@@ -35,6 +35,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
     private Endpoint clientB;
     private GameObject playerPrefab;
     private GameObject hidingPlacePrefab;
+    private AudioClip enterSound;
+    private AudioClip exitSound;
 
     private int playerLayer = -1;
     private bool previousPlayerLayerCollision;
@@ -1008,6 +1010,56 @@ public sealed class TwoClientHidingPlacePlayModeTests
         Object.Destroy(primaryBlocker);
     }
 
+    // Somebody climbing in and out is heard by everybody, however quickly
+    // they do it. With no time given to the climb, the place went from free
+    // to taken and back inside a single call on the server; only the end of
+    // it reached anybody else, and only the host heard the sounds.
+    [UnityTest]
+    public IEnumerator HidingSounds_ReachEveryoneWhenClimbingTakesNoTime()
+    {
+        yield return StartNetwork();
+
+        HidingPlaceData data = hidingPlacePrefab
+            .GetComponent<HidingPlaceInteractable>()
+            .Configuration;
+        PlayModeTestReflection.SetField(data, "enterDuration", 0f);
+        PlayModeTestReflection.SetField(data, "exitDuration", 0f);
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController player =
+            GetComponent<PlayerHidingController>(clientA, playerId);
+        HidingPlacePresentation hiderSees =
+            GetComponent<HidingPlacePresentation>(clientA, hidingPlaceId);
+        HidingPlacePresentation watcherSees =
+            GetComponent<HidingPlacePresentation>(clientB, hidingPlaceId);
+
+        Assert.That(
+            GetComponent<HidingPlaceInteractable>(clientA, hidingPlaceId)
+                .TryRequestEnter(player),
+            Is.True);
+
+        yield return WaitForCondition(
+            () => hiderSees.LastPlayedClip == enterSound &&
+                  watcherSees.LastPlayedClip == enterSound,
+            "Somebody climbed in and not everybody heard it."
+        );
+
+        player.RequestExitHiding();
+
+        yield return WaitForCondition(
+            () => hiderSees.LastPlayedClip == exitSound &&
+                  watcherSees.LastPlayedClip == exitSound,
+            "Somebody climbed out and not everybody heard it."
+        );
+    }
+
     // A free exit on the far side of a wall is still on the far side of a
     // wall. The spot itself passes every overlap test, which is how players
     // used to come out of a hiding place into the next room.
@@ -1321,6 +1373,10 @@ public sealed class TwoClientHidingPlacePlayModeTests
             Track(ScriptableObject.CreateInstance<HidingPlaceData>());
         PlayModeTestReflection.SetField(hidingData, "enterDuration", 0.2f);
         PlayModeTestReflection.SetField(hidingData, "exitDuration", 0.2f);
+        enterSound = Track(AudioClip.Create("Climb in", 441, 1, 44100, false));
+        exitSound = Track(AudioClip.Create("Climb out", 441, 1, 44100, false));
+        PlayModeTestReflection.SetField(hidingData, "enterSound", enterSound);
+        PlayModeTestReflection.SetField(hidingData, "exitSound", exitSound);
 
         // The other half of SuppressReplicaCollisions. Three NetworkManagers
         // share one physics scene, so every player exists three times, and
@@ -1416,6 +1472,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
             "fallbackExitPoints",
             new[] { fallbackExitPoint }
         );
+        hidingPlacePrefab.AddComponent<AudioSource>();
+        hidingPlacePrefab.AddComponent<HidingPlacePresentation>();
 
         hidingPlacePrefab.SetActive(true);
     }
