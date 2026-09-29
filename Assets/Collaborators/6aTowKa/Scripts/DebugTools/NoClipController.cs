@@ -10,6 +10,7 @@ public sealed class NoClipController
     private bool originalUseGravity;
     private bool originalIsKinematic;
     private bool originalDetectCollisions;
+    private RigidbodyInterpolation originalInterpolation;
 
     public bool IsEnabled { get; private set; }
     public float Speed { get; set; } = 10f;
@@ -33,12 +34,19 @@ public sealed class NoClipController
         originalUseGravity = body.useGravity;
         originalIsKinematic = body.isKinematic;
         originalDetectCollisions = body.detectCollisions;
+        originalInterpolation = body.interpolation;
         player.SetMovementActive(this, false);
         body.linearVelocity = Vector3.zero;
         body.angularVelocity = Vector3.zero;
         body.useGravity = false;
         body.detectCollisions = false;
         body.isKinematic = true;
+
+        // Off while flying. The body interpolates between physics steps and
+        // writes its own pose over the transform every frame in between, so
+        // only the last frame's move before each step survived: the higher
+        // the frame rate, the shorter that frame, and the slower the flight.
+        body.interpolation = RigidbodyInterpolation.None;
         IsEnabled = true;
         return true;
     }
@@ -69,7 +77,16 @@ public sealed class NoClipController
         if (keyboard.leftCtrlKey.isPressed || keyboard.cKey.isPressed) direction -= Vector3.up;
 
         float multiplier = keyboard.leftShiftKey.isPressed ? 2.5f : 1f;
-        player.transform.position += direction.normalized * Speed * multiplier * unscaledDeltaTime;
+        Fly(direction.normalized * multiplier, unscaledDeltaTime);
+    }
+
+    // One frame of flight: a direction scaled by how much faster than Speed.
+    public void Fly(Vector3 direction, float deltaTime)
+    {
+        if (!IsEnabled || player == null)
+            return;
+
+        player.transform.position += direction * Speed * deltaTime;
     }
 
     public void Restore()
@@ -82,7 +99,10 @@ public sealed class NoClipController
             body.isKinematic = originalIsKinematic;
             body.detectCollisions = originalDetectCollisions;
             body.useGravity = originalUseGravity;
-            body.linearVelocity = Vector3.zero;
+            body.interpolation = originalInterpolation;
+
+            if (!body.isKinematic)
+                body.linearVelocity = Vector3.zero;
         }
 
         player = null;

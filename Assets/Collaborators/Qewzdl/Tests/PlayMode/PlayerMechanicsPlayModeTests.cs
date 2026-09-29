@@ -1,7 +1,9 @@
+using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 
 [Category("Gameplay")]
@@ -448,5 +450,49 @@ public sealed class PlayerMechanicsPlayModeTests
     {
         cleanup.Add(value);
         return value;
+    }
+
+    // A second of flight covers the same ground at any frame rate. The body
+    // interpolates between physics steps and used to write its own pose over
+    // every frame's move but the last before each step, so the faster the
+    // game ran, the slower noclip flew.
+    [UnityTest]
+    public IEnumerator NoClip_FliesAsFastAtAnyFrameRate([Values(30, 144)] int framesPerSecond)
+    {
+        GameObject body = new("Noclip body");
+        body.SetActive(false);
+        cleanup.Add(body);
+        body.AddComponent<Rigidbody>().interpolation = RigidbodyInterpolation.Interpolate;
+        PlayerController player = body.AddComponent<PlayerController>();
+        player.enabled = false;
+        body.SetActive(true);
+
+        NoClipController noClip = new();
+        Assert.That(noClip.SetEnabled(player, true), Is.True);
+
+        int previousCaptureFramerate = Time.captureFramerate;
+        Time.captureFramerate = framesPerSecond;
+
+        try
+        {
+            yield return null;
+            Vector3 start = body.transform.position;
+
+            for (int frame = 0; frame < framesPerSecond; frame++)
+            {
+                noClip.Fly(Vector3.forward, Time.deltaTime);
+                yield return null;
+            }
+
+            Assert.That(
+                Vector3.Distance(start, body.transform.position),
+                Is.EqualTo(noClip.Speed).Within(noClip.Speed * 0.1f),
+                $"One second of noclip at {framesPerSecond} frames a second.");
+        }
+        finally
+        {
+            Time.captureFramerate = previousCaptureFramerate;
+            noClip.Restore();
+        }
     }
 }
