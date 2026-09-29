@@ -18,6 +18,10 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
     [SerializeField] private Transform viewModelContainer;
     [SerializeField] private Transform itemDropTransform;
 
+    // Where this player puts an item down, asked by the server when it has
+    // to put one down for them.
+    public Transform ItemDropPoint => itemDropTransform;
+
     private InteractableObject focusedInteractable;
 
     // What this player's crosshair is on, for somebody watching through

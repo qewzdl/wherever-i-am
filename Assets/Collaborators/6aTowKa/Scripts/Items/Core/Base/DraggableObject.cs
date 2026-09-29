@@ -370,36 +370,161 @@ public abstract class DraggableObject : InteractableObject
                 this);
         }
 
+        ForgetLocalHold();
+        DisableDraggedPhysicsMode();
+        netIsDragging.OnValueChanged -= HandleDraggingCollisionChanged;
+    }
+
+    // =====================================================================
+    // Letting go of what a player can no longer hold.
+    //
+    // A player may hold an item - carry it or drag it - only while they are
+    // in the match: they have a body, and it has not been caught. The server
+    // checks that every frame for every held item, and the moment it stops
+    // being true, lets the item go.
+    //
+    // A rule rather than a list of events, because the list is what went
+    // wrong. Letting go used to happen only as a side effect of the item's
+    // ownership going back to the server, which a disconnect happens to do -
+    // so a caught player walked off with whatever they held (the only door
+    // handle, and the match with it), a dragged item hung in the air where
+    // they fell, and a host picking up something a guest had just touched
+    // had it snatched back out of their hands, because that ownership change
+    // looked exactly like a guest leaving. Anything that takes a player out
+    // of play later - through IPlayerInPlay, or by removing their body - is
+    // covered without a line here.
+    //
+    // Every way of letting go ends in ReleaseServer: this rule, and anything
+    // that has to take an item off somebody, like the enemy pushing through
+    // a dragged barricade. It also tells the holder, if they are still
+    // connected, so their hands are emptied too - a model still in the hand,
+    // a player still slowed by a drag the server had already ended.
+    private ulong heldByClientId;
+    private bool hasHolder;
+    private bool hasHolderDropPosition;
+    private Vector3 holderDropPosition;
+
+    protected virtual bool IsHeld => netIsDragging.Value;
+
+    protected void BeginHoldServer(ulong clientId)
+    {
+        heldByClientId = clientId;
+        hasHolder = true;
+        hasHolderDropPosition = false;
+    }
+
+    private void Update()
+    {
+        if (!IsServer || !IsSpawned || !IsHeld)
+        {
+            hasHolder = false;
+            return;
+        }
+
+        // A hold that began some other way than the two that record it is
+        // still somebody's: whoever owns the item, which a holder always does.
+        if (!hasHolder)
+            BeginHoldServer(OwnerClientId);
+
+        NetworkObject holder =
+            NetworkManager.SpawnManager.GetPlayerNetworkObject(heldByClientId);
+
+        if (holder == null || !PlayerRequestGuard.IsInPlay(NetworkManager, heldByClientId))
+        {
+            ReleaseServer();
+            return;
+        }
+
+        // Kept every frame, because by the time a holder has left there is
+        // no body left to ask.
+        holderDropPosition = DropPositionFor(holder);
+        hasHolderDropPosition = true;
+    }
+
+    // Where an item falls when its holder lets go without meaning to: at
+    // their feet, as if they had dropped it - and for somebody inside a
+    // hiding place, outside it, where they climbed in, rather than sealed in
+    // there with them.
+    private static Vector3 DropPositionFor(NetworkObject holder)
+    {
+        Transform dropPoint =
+            holder.TryGetComponent(out PlayerInteraction interaction)
+                ? interaction.ItemDropPoint
+                : null;
+        Vector3 dropOffset = dropPoint != null
+            ? dropPoint.position - holder.transform.position
+            : Vector3.zero;
+
+        if (holder.TryGetComponent(out PlayerHidingController hiding) &&
+            hiding.IsInHidingSequence &&
+            hiding.TryGetRecoveryPose(out Pose outside))
+        {
+            return outside.position + dropOffset;
+        }
+
+        return holder.transform.position + dropOffset;
+    }
+
+    public void ReleaseServer()
+    {
+        if (!IsServer || !IsSpawned || !IsHeld)
+            return;
+
+        // Back to the server first, so what is done to the body below is done
+        // by whoever now moves it.
+        if (OwnerClientId != NetworkManager.ServerClientId)
+            NetworkObject.ChangeOwnership(NetworkManager.ServerClientId);
+
+        LetGoServer(
+            heldByClientId,
+            hasHolderDropPosition ? holderDropPosition : (Vector3?)null);
+        hasHolderDropPosition = false;
+
+        ReleasedClientRpc();
+    }
+
+    protected virtual void LetGoServer(ulong holderClientId, Vector3? dropPosition)
+    {
+        if (!netIsDragging.Value)
+            return;
+
+        PlayerActionGateContext.TryEnd(
+            NetworkManager,
+            holderClientId,
+            PlayerActionKind.Drag,
+            this);
+        netIsDragging.Value = false;
+    }
+
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
+    private void ReleasedClientRpc()
+    {
+        ForgetLocalHold();
+    }
+
+    // Whatever this machine was doing with the item as its holder, undone:
+    // on the holder's machine the drag is let go of and the player given
+    // their speed back; everywhere else there is nothing to undo. Shared
+    // with the item disappearing altogether.
+    protected virtual void ForgetLocalHold()
+    {
+        StopAllCoroutines();
+        rb.useGravity = true;
+        rb.linearDamping = 0f;
+        rb.angularDamping = 0.05f;
+        rb.mass = originalMass;
+
+        RestorePlayerAfterDragging();
+        playerController = null;
+        CleanupHoldPoint();
+
         draggableContext?.PlayerInteraction?.HandleDraggableUnavailable(this);
 
         if (playerInteraction != draggableContext?.PlayerInteraction)
             playerInteraction?.HandleDraggableUnavailable(this);
 
-        RestorePlayerAfterDragging();
-        CleanupHoldPoint();
-        DisableDraggedPhysicsMode();
         draggableContext = null;
         playerInteraction = null;
-        netIsDragging.OnValueChanged -= HandleDraggingCollisionChanged;
-    }
-
-    protected override void OnOwnershipChanged(ulong previous, ulong current)
-    {
-        base.OnOwnershipChanged(previous, current);
-
-        if (!IsServer ||
-            current != NetworkManager.ServerClientId ||
-            !netIsDragging.Value)
-        {
-            return;
-        }
-
-        PlayerActionGateContext.TryEnd(
-            NetworkManager,
-            previous,
-            PlayerActionKind.Drag,
-            this);
-        netIsDragging.Value = false;
     }
 
     public override void OnDestroy()
@@ -509,6 +634,7 @@ public abstract class DraggableObject : InteractableObject
 
         try
         {
+            BeginHoldServer(clientId);
             NetworkObject.ChangeOwnership(clientId);
             netIsDragging.Value = true;
             StartDraggingOwnerRpc();

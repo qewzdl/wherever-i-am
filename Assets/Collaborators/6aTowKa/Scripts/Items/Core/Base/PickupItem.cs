@@ -94,34 +94,57 @@ public abstract class PickupItem : DraggableObject
         }
     }
 
-    protected override void OnOwnershipChanged(ulong previous, ulong current)
-    {
-        base.OnOwnershipChanged(previous, current);
+    protected override bool IsHeld => base.IsHeld || netIsPickedUp.Value;
 
-        if (!IsServer ||
-            current != NetworkManager.ServerClientId ||
-            !netIsPickedUp.Value)
+    // Put down where its carrier stood (see DraggableObject.ReleaseServer), or
+    // back where it was found when nobody saw where that was.
+    protected override void LetGoServer(ulong holderClientId, Vector3? dropPosition)
+    {
+        if (!netIsPickedUp.Value)
         {
+            base.LetGoServer(holderClientId, dropPosition);
             return;
         }
 
         PlayerActionGateContext.TryEnd(
             NetworkManager,
-            previous,
+            holderClientId,
             PlayerActionKind.Pickup,
             this);
         netIsPickedUp.Value = false;
 
-        rb.position = spawnPosition;
-        rb.rotation = spawnRotation;
+        // Here as well as in the message to everybody: a server that is not
+        // also a player is sent nothing, and would keep the item switched
+        // off where it was picked up.
+        SetCarried(false);
 
-        // Put back means put back at rest. The body kept whatever it was doing
-        // before somebody picked it up, so the moment it was dynamic again it
-        // carried on doing it and drifted off the spawn point it had just been
-        // returned to. Gravity hides this in a real room - the item is falling
-        // anyway - and it is the difference between an item waiting where it
-        // was left and one that has wandered off by the time anyone looks.
-        DropClientRpc();
+        rb.position = dropPosition ?? spawnPosition;
+        rb.rotation = dropPosition.HasValue ? Quaternion.identity : spawnRotation;
+
+        // Put down means put down at rest. The body kept whatever it was
+        // doing before somebody picked it up, and would carry on doing it the
+        // moment it was dynamic again.
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+    }
+
+    // Shown again everywhere; on the carrier's machine the model leaves their
+    // hand and they stop carrying.
+    protected override void ForgetLocalHold()
+    {
+        SetCarried(false);
+
+        context?.PlayerInteraction?.HandlePickupUnavailable(this);
+
+        if (playerInteraction != context?.PlayerInteraction)
+            playerInteraction?.HandlePickupUnavailable(this);
+
+        if (viewModel != null)
+            Destroy(viewModel);
+
+        context = null;
+        ownerTransform = null;
+        base.ForgetLocalHold();
     }
 
     public override void OnNetworkDespawn()
@@ -137,16 +160,6 @@ public abstract class PickupItem : DraggableObject
                 this);
         }
 
-        context?.PlayerInteraction?.HandlePickupUnavailable(this);
-
-        if (playerInteraction != context?.PlayerInteraction)
-            playerInteraction?.HandlePickupUnavailable(this);
-
-        if (viewModel != null)
-            Destroy(viewModel);
-
-        context = null;
-        ownerTransform = null;
         base.OnNetworkDespawn();
     }
 
@@ -248,6 +261,7 @@ public abstract class PickupItem : DraggableObject
 
         try
         {
+            BeginHoldServer(ownerId);
             netIsPickedUp.Value = true;
             PickUpServer(ownerId);
             return true;

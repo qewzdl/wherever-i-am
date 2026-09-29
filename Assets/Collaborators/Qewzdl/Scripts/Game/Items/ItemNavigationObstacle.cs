@@ -80,6 +80,14 @@ public sealed class ItemNavigationObstacle : NetworkBehaviour
             return;
         }
 
+        // Taken out of the hands of whoever is dragging it, the same way any
+        // item is taken off a player: their side is told and let go too.
+        if (item.IsBeingDragged)
+        {
+            item.ReleaseServer();
+            return;
+        }
+
         NetworkObject itemNetworkObject = item.NetworkObject;
 
         if (itemNetworkObject != null &&

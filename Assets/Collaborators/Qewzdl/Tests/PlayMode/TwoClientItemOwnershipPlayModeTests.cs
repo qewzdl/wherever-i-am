@@ -15,6 +15,14 @@ public sealed class NetworkItemTestDraggable : DraggableObject
 {
 }
 
+// Takes a player out of play for the rules that ask, whatever would do it in
+// the game - caught today, something else tomorrow. The item rules are
+// written against that question, so that is what these tests turn off.
+public sealed class InPlayProbe : MonoBehaviour, IPlayerInPlay
+{
+    public bool IsInPlay { get; set; } = true;
+}
+
 public sealed class NetworkItemTestPickup : PassiveItem
 {
     public override void Activate()
@@ -179,6 +187,12 @@ public sealed class TwoClientItemOwnershipPlayModeTests
 
         Assert.That(playerA.Orchestrator.States.IsCarrying, Is.False);
 
+        // Where the server last saw client B put things down: at their feet.
+        Vector3 carrierFeet = server.Manager
+            .ConnectedClients[clientB.Manager.LocalClientId]
+            .PlayerObject.GetComponent<PlayerInteraction>()
+            .ItemDropPoint.position;
+
         clientB.Manager.Shutdown(discardMessageQueue: false);
 
         // Sampled the first frame the release lands, not after the wait
@@ -205,30 +219,35 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         yield return WaitForCondition(
             () =>
             {
-                bool released =
-                    !clientB.Manager.IsListening &&
-                    serverItem.OwnerClientId == NetworkManager.ServerClientId &&
+                // Sampled the frame the server lets go, before the other
+                // copies of the item - all in this one physics scene - can
+                // shove it. Waiting for client A to hear about it first gave
+                // them a few physics steps to do that, and the item was
+                // measured a tenth of a metre from where it had been put:
+                // the failure this test was known for.
+                if (!hasRestoredPosition &&
                     !IsPickedUp(serverItem) &&
-                    itemA.OwnerClientId == NetworkManager.ServerClientId;
-
-                if (released && !hasRestoredPosition)
+                    serverItem.OwnerClientId == NetworkManager.ServerClientId)
                 {
                     hasRestoredPosition = true;
                     restoredPosition = serverItem.GetComponent<Rigidbody>().position;
+                    IgnoreReplicaCollisions(networkObjectId);
                 }
 
-                return released;
+                return hasRestoredPosition &&
+                       !clientB.Manager.IsListening &&
+                       itemA.OwnerClientId == NetworkManager.ServerClientId;
             },
             "Disconnect did not return the picked item to server ownership.");
 
         Assert.That(
-            Vector3.Distance(restoredPosition, spawnPosition),
+            Vector3.Distance(restoredPosition, carrierFeet),
             Is.LessThan(0.05f),
-            "The server did not put the item back where it spawned.");
+            "The server did not put the item down where its carrier left.");
 
         yield return WaitForCondition(
-            () => Vector3.Distance(serverItem.transform.position, spawnPosition) < 0.05f,
-            "The item's transform never followed its body back to where it spawned.");
+            () => Vector3.Distance(serverItem.transform.position, carrierFeet) < 0.05f,
+            "The item's transform never followed its body to where its carrier left.");
         Assert.That(serverItem.GetComponent<Rigidbody>().isKinematic, Is.False);
         Assert.That(serverItem.GetComponent<Rigidbody>().useGravity, Is.True);
         Assert.That(
@@ -525,15 +544,29 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     // A caught player watches through somebody else's eyes, and that means
     // their crosshair too: what it is on is published by the player it
     // belongs to, and every other copy of that player can read it.
+    //
+    // Driven by player A's own interaction ray, looking at the item and then
+    // away: setting the focus by hand raced the ray, which cleared it again
+    // on the next frame.
     [UnityTest]
     public IEnumerator Crosshair_IsSeenByAnybodyWatchingThroughTheseEyes()
     {
         yield return StartNetwork();
 
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+        ulong playerAId = clientA.Manager.LocalClient.PlayerObject.NetworkObjectId;
+        Transform eyes = PlayModeTestReflection.GetField<Transform>(playerA.Interaction, "rayOrigin");
+        PlayModeTestReflection.SetField(
+            playerA.Interaction,
+            "interactableLayer",
+            (LayerMask)Physics.DefaultRaycastLayers);
+
+        // In front of A's eyes, and within reach of them.
         ulong itemId = SpawnOnServer<NetworkItemTestDraggable>(
             draggablePrefab,
-            new Vector3(0f, 0f, 2f));
+            eyes.position + Vector3.forward * 1.5f);
         yield return WaitForSpawnOnEveryEndpoint(itemId);
+        IgnoreReplicaCollisions(itemId);
 
         Sprite hand = Track(Sprite.Create(
             Texture2D.whiteTexture,
@@ -545,26 +578,149 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 "data")
             .InteractionSprite = hand;
 
-        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
-        ulong playerAId = clientA.Manager.LocalClient.PlayerObject.NetworkObjectId;
         PlayerInteraction playerASeenByB = clientB.Manager.SpawnManager
             .SpawnedObjects[playerAId]
             .GetComponent<PlayerInteraction>();
 
-        PlayModeTestReflection.Invoke(
-            playerA.Interaction,
-            "SetFocusedInteractable",
-            GetSpawnedComponent<NetworkItemTestDraggable>(clientA, itemId));
+        eyes.rotation = Quaternion.LookRotation(Vector3.forward);
 
         yield return WaitForCondition(
             () => playerASeenByB.FocusedSprite == hand,
             "Somebody watching player A did not see their crosshair on the item.");
 
-        PlayModeTestReflection.Invoke(playerA.Interaction, "ResetFocusedInteractable");
+        eyes.rotation = Quaternion.LookRotation(Vector3.back);
 
         yield return WaitForCondition(
             () => playerASeenByB.FocusedSprite == null,
             "Somebody watching player A kept seeing the item after they looked away.");
+    }
+
+    // =====================================================================
+    // Letting go of what a player can no longer hold. One rule - a player
+    // out of play holds nothing - and every way it can happen: taken out of
+    // play while carrying, while dragging, and an item taken off them by the
+    // enemy. The disconnect case is PickupDrop above.
+
+    [UnityTest]
+    public IEnumerator CarriedItem_IsPutDownAtTheFeetOfACarrierWhoLeavesPlay()
+    {
+        yield return StartNetwork();
+
+        ulong networkObjectId = SpawnOnServer<NetworkItemTestPickup>(
+            pickupPrefab,
+            new Vector3(0f, 2f, 0f));
+        yield return WaitForSpawnOnEveryEndpoint(networkObjectId);
+
+        NetworkItemTestPickup serverItem =
+            GetSpawnedComponent<NetworkItemTestPickup>(server, networkObjectId);
+        NetworkItemTestPickup itemA =
+            GetSpawnedComponent<NetworkItemTestPickup>(clientA, networkObjectId);
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+
+        AssertServerCanReach(clientA.Manager.LocalClientId, serverItem);
+        BeginPickupRequest(itemA, playerA);
+
+        yield return WaitForCondition(
+            () => IsPickedUp(serverItem) &&
+                  itemA.IsOwner &&
+                  playerA.Orchestrator.States.IsCarrying,
+            "Client A could not pick the item up.");
+
+        NetworkObject carrier = server.Manager
+            .ConnectedClients[clientA.Manager.LocalClientId]
+            .PlayerObject;
+        Vector3 carrierFeet =
+            carrier.GetComponent<PlayerInteraction>().ItemDropPoint.position;
+
+        carrier.GetComponent<InPlayProbe>().IsInPlay = false;
+
+        yield return WaitForCondition(
+            () => !IsPickedUp(serverItem) &&
+                  serverItem.OwnerClientId == NetworkManager.ServerClientId,
+            "A carrier taken out of play kept the item.");
+
+        Assert.That(
+            Vector3.Distance(serverItem.GetComponent<Rigidbody>().position, carrierFeet),
+            Is.LessThan(0.05f),
+            "The item was not put down at the feet of its carrier.");
+        IgnoreReplicaCollisions(networkObjectId);
+
+        yield return WaitForCondition(
+            () => !playerA.Orchestrator.States.IsCarrying &&
+                  playerA.ViewModel.childCount == 0 &&
+                  IsDrawnEverywhere(networkObjectId, true),
+            "The hands of the carrier were not emptied, or the item was not shown again.");
+
+        NetworkTestPlayer playerB = GetNetworkTestPlayer(clientB);
+        AssertServerCanReach(clientB.Manager.LocalClientId, serverItem);
+        BeginPickupRequest(
+            GetSpawnedComponent<NetworkItemTestPickup>(clientB, networkObjectId),
+            playerB);
+
+        yield return WaitForCondition(
+            () => IsPickedUp(serverItem) &&
+                  serverItem.OwnerClientId == clientB.Manager.LocalClientId,
+            "Nobody could pick the item up again.");
+    }
+
+    [UnityTest]
+    public IEnumerator DraggedItem_IsLetGoWhenItsDraggerLeavesPlay()
+    {
+        yield return DragThenLoseIt(
+            serverItem => server.Manager
+                .ConnectedClients[clientA.Manager.LocalClientId]
+                .PlayerObject.GetComponent<InPlayProbe>().IsInPlay = false,
+            "A dragger taken out of play");
+    }
+
+    [UnityTest]
+    public IEnumerator DraggedItem_TakenByTheEnemy_LetsTheDraggerGo()
+    {
+        yield return DragThenLoseIt(
+            serverItem => serverItem.GetComponent<ItemNavigationObstacle>().RequestPushThrough(),
+            "A dragger whose item the enemy pushed through");
+    }
+
+    // Client A drags an item, loses it to whatever takeAway does, and must
+    // end up with nothing in hand, their speed back, and the item free.
+    private IEnumerator DragThenLoseIt(
+        Action<NetworkItemTestDraggable> takeAway,
+        string who)
+    {
+        yield return StartNetwork();
+
+        ulong networkObjectId = SpawnOnServer<NetworkItemTestDraggable>(
+            draggablePrefab,
+            new Vector3(0f, 1f, 0f));
+        yield return WaitForSpawnOnEveryEndpoint(networkObjectId);
+
+        NetworkTestPlayer player = GetNetworkTestPlayer(clientA);
+        NetworkItemTestDraggable clientItem =
+            GetSpawnedComponent<NetworkItemTestDraggable>(clientA, networkObjectId);
+        NetworkItemTestDraggable serverItem =
+            GetSpawnedComponent<NetworkItemTestDraggable>(server, networkObjectId);
+
+        AssertServerCanReach(clientA.Manager.LocalClientId, serverItem);
+        BeginDragRequest(clientItem, player, clientItem.transform.position);
+
+        yield return WaitForCondition(
+            () => IsDragging(serverItem) &&
+                  player.Orchestrator.States.IsDragging &&
+                  player.Controller.GetSpeed() < InitialPlayerSpeed,
+            "Client A did not start dragging.");
+
+        takeAway(serverItem);
+
+        yield return WaitForCondition(
+            () => !IsDragging(serverItem) &&
+                  serverItem.OwnerClientId == NetworkManager.ServerClientId,
+            $"{who} kept the item.");
+
+        yield return WaitForCondition(
+            () => !player.Orchestrator.States.IsDragging &&
+                  Mathf.Approximately(player.Controller.GetSpeed(), InitialPlayerSpeed) &&
+                  clientItem.GetComponent<Rigidbody>().useGravity,
+            $"{who} was left dragging on their own machine.");
     }
 
     // The three copies of one item share this fixture's physics scene and,
@@ -572,16 +728,17 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     // that turns the colliders back on, which forgets it.
     private void IgnoreReplicaCollisions(ulong networkObjectId)
     {
-        Collider[] copies =
-        {
-            GetSpawnedComponent<BoxCollider>(server, networkObjectId),
-            GetSpawnedComponent<BoxCollider>(clientA, networkObjectId),
-            GetSpawnedComponent<BoxCollider>(clientB, networkObjectId)
-        };
+        List<Collider> copies = new();
 
-        for (int i = 0; i < copies.Length; i++)
+        foreach (Endpoint endpoint in new[] { server, clientA, clientB })
         {
-            for (int j = i + 1; j < copies.Length; j++)
+            if (endpoint.Manager.IsListening && HasSpawnedObject(endpoint, networkObjectId))
+                copies.Add(GetSpawnedComponent<BoxCollider>(endpoint, networkObjectId));
+        }
+
+        for (int i = 0; i < copies.Count; i++)
+        {
+            for (int j = i + 1; j < copies.Count; j++)
                 Physics.IgnoreCollision(copies[i], copies[j]);
         }
     }
@@ -790,6 +947,7 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             actionGate);
 
         networkTestPlayerPrefab.AddComponent<PlayerOrchestrator>();
+        networkTestPlayerPrefab.AddComponent<InPlayProbe>();
         networkTestPlayerPrefab.SetActive(true);
 
         DraggableObjectData draggableData =

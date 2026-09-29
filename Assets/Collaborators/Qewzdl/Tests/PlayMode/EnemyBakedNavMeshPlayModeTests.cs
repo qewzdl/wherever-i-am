@@ -2230,6 +2230,17 @@ public sealed class EnemyBakedNavMeshPlayModeTests
                 item,
                 "netIsDragging");
 
+        // A drag always has somebody doing it: an item that is dragged by
+        // nobody in play is let go of on the next frame. The host's player
+        // is standing in for the one holding it.
+        GameObject dragger = Track(new GameObject("Dragging player"));
+        NetworkObject draggerObject = dragger.AddComponent<NetworkObject>();
+        PlayModeTestReflection.SetField(
+            draggerObject,
+            "NetworkManagerOwner",
+            manager);
+        draggerObject.SpawnAsPlayerObject(NetworkManager.ServerClientId);
+
         draggingState.Value = true;
 
         yield return WaitForCondition(
