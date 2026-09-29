@@ -21,11 +21,20 @@ public sealed class RemotePlayerBody : NetworkBehaviour
 {
     public override void OnNetworkSpawn()
     {
+        Rigidbody body = GetComponent<Rigidbody>();
+
+        // Every player's body, own or not, is one the enemy cannot push.
+        EnemyPlayerContacts.AddPlayer(body);
+
         if (IsOwner)
             return;
 
-        Rigidbody body = GetComponent<Rigidbody>();
         body.isKinematic = true;
         body.interpolation = RigidbodyInterpolation.None;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        EnemyPlayerContacts.RemovePlayer(GetComponent<Rigidbody>());
     }
 }

@@ -108,6 +108,7 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
         );
         body.isKinematic = false;
         body.WakeUp();
+        EnemyPlayerContacts.AddEnemy(body);
 
         controlsAgentMotion = true;
     }
@@ -192,6 +193,8 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
 
     private void StopDriving()
     {
+        EnemyPlayerContacts.RemoveEnemy(body);
+
         if (body != null && !body.isKinematic)
         {
             body.linearVelocity = Vector3.zero;

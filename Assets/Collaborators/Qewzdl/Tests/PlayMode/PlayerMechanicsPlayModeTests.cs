@@ -495,4 +495,53 @@ public sealed class PlayerMechanicsPlayModeTests
             noClip.Restore();
         }
     }
+
+    // The enemy walks into a player and stops; the player is not moved. It
+    // used to walk the host out of its way - the one player whose body is
+    // simulated on the server - while stopping against every guest.
+    [UnityTest]
+    public IEnumerator Enemy_CannotShoveAPlayer()
+    {
+        Vector3 gravity = Physics.gravity;
+        Physics.gravity = Vector3.zero;
+
+        Rigidbody player = Body("Player body", Vector3.zero, 5f);
+        Rigidbody enemy = Body("Enemy body", new Vector3(0f, 0f, -1.2f), 30f);
+        EnemyPlayerContacts.AddPlayer(player);
+        EnemyPlayerContacts.AddEnemy(enemy);
+
+        try
+        {
+            for (int step = 0; step < 50; step++)
+            {
+                enemy.linearVelocity = new Vector3(0f, 0f, 2f);
+                yield return new WaitForFixedUpdate();
+            }
+
+            Assert.That(player.position.magnitude, Is.LessThan(0.05f),
+                "The enemy shoved the player.");
+            Assert.That(enemy.position.z, Is.LessThan(-0.9f),
+                "The enemy walked through the player.");
+        }
+        finally
+        {
+            EnemyPlayerContacts.RemovePlayer(player);
+            EnemyPlayerContacts.RemoveEnemy(enemy);
+            Physics.gravity = gravity;
+        }
+    }
+
+    private Rigidbody Body(string name, Vector3 position, float mass)
+    {
+        GameObject body = new(name);
+        cleanup.Add(body);
+        body.transform.position = position;
+        body.AddComponent<CapsuleCollider>().radius = 0.5f;
+
+        Rigidbody rigidbody = body.AddComponent<Rigidbody>();
+        rigidbody.mass = mass;
+        rigidbody.useGravity = false;
+        rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
+        return rigidbody;
+    }
 }
