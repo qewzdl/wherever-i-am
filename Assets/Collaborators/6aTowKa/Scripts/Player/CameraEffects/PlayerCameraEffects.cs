@@ -8,6 +8,12 @@ using UnityEngine;
 // Registered effects (ICameraEffect) never touch the transform or camera themselves; they
 // add to a shared CameraEffectOutput each frame via CameraEffectStack, and this component
 // applies the summed result once.
+//
+// Runs after CameraLook, which turns the head in its own LateUpdate. Left to the same
+// default order the two ran in whichever order Unity chose, and the turn rate below was
+// sometimes read off a head the body had turned but CameraLook had not yet - a rate that
+// jumped from frame to frame, and a roll that twitched with it.
+[DefaultExecutionOrder(50)]
 public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISettingsServiceConsumer
 {
     private const float DefaultFieldOfView = 75f;
@@ -41,6 +47,7 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
 
     private ISettingsService settingsService;
     private float baseFieldOfView = DefaultFieldOfView;
+    private IFootfallSource footfalls;
 
     // Raised whenever something below changes: the inspector via OnValidate, or the player's
     // settings via SettingsChanged. The push itself waits for LateUpdate, because OnValidate
@@ -90,6 +97,12 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
         headBobFigureEightEffect = headBob.CreateEffect();
         effectStack.Add(headBobFigureEightEffect);
 
+        // The bob steps with the footsteps, when this player has any.
+        footfalls = GetComponent<IFootfallSource>();
+
+        if (footfalls != null)
+            footfalls.Footfall += headBobFigureEightEffect.MarkFootfall;
+
         strafeLeanEffect = strafeLean.CreateEffect();
         effectStack.Add(strafeLeanEffect);
 
@@ -102,6 +115,11 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
 
     public void Cleanup()
     {
+        if (footfalls != null && headBobFigureEightEffect != null)
+            footfalls.Footfall -= headBobFigureEightEffect.MarkFootfall;
+
+        footfalls = null;
+
         if (signals == null)
         {
             listensToCrouchSync = false;
@@ -186,6 +204,9 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
     {
         if (settingsDirty)
             PushSettings();
+
+        if (footfalls != null)
+            headBobFigureEightEffect.SetFootfallLength(footfalls.StrideLength);
 
         float deltaTime = Time.deltaTime;
 

@@ -280,4 +280,77 @@ public sealed class HeadBobFigureEightEffectTests
 
         Assert.That(afterReset.PositionOffset, Is.EqualTo(Vector3.zero));
     }
+
+    // The step you see lands with the step you hear. Footfalls start out of
+    // step with the bob on purpose; once the footsteps have said where a foot
+    // lands a few times, the dip is at its bottom on every one of them.
+    [Test]
+    public void MarkFootfall_LandsTheDipWithTheFootstep()
+    {
+        const float Stride = 1.3f;
+        const float Speed = 2.5f;
+        const float DeltaTime = 0.01f;
+
+        HeadBobFigureEightEffect effect = NewEffect(stepJitterRange: 0f);
+        effect.SetFootfallLength(Stride);
+
+        float travelled = 0f;
+        float nextFootfall = 1.0f;
+        float depthAtLastFootfall = 0f;
+
+        for (int frame = 0; frame < 1000; frame++)
+        {
+            bool footfall = travelled >= nextFootfall;
+
+            if (footfall)
+            {
+                effect.MarkFootfall();
+                nextFootfall += Stride;
+            }
+
+            CameraEffectOutput output = default;
+            output.Clear();
+            effect.Evaluate(ContextWithSpeed(Speed, deltaTime: DeltaTime), ref output);
+
+            if (footfall)
+                depthAtLastFootfall = output.PositionOffset.y;
+
+            travelled += Speed * DeltaTime;
+        }
+
+        // Half of full speed, so half of the 0.02 m dip.
+        Assert.That(depthAtLastFootfall, Is.EqualTo(-0.01f).Within(0.0005f),
+            "The head was not at the bottom of its dip when the foot landed.");
+    }
+
+    // One dip per stride of the footsteps, not per the bob's own idea of one:
+    // 1.3 m strides over 26 m is twenty footfalls; the bob's own 1.25 m
+    // would have been twenty-one.
+    [Test]
+    public void SetFootfallLength_DipsOncePerStride()
+    {
+        HeadBobFigureEightEffect effect = NewEffect(stepJitterRange: 0f);
+        effect.SetFootfallLength(1.3f);
+
+        int dips = 0;
+        float previous = 0f;
+        bool falling = false;
+
+        for (int frame = 0; frame < 1040; frame++)
+        {
+            CameraEffectOutput output = default;
+            output.Clear();
+            effect.Evaluate(ContextWithSpeed(2.5f, deltaTime: 0.01f), ref output);
+
+            float y = output.PositionOffset.y;
+
+            if (falling && y > previous)
+                dips++;
+
+            falling = y < previous;
+            previous = y;
+        }
+
+        Assert.That(dips, Is.EqualTo(20));
+    }
 }

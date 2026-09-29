@@ -1,3 +1,4 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -26,7 +27,7 @@ using UnityEngine;
 // copies of one step, so nobody can tell.
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NetworkObject))]
-public sealed class FootstepEmitter : NetworkBehaviour
+public sealed class FootstepEmitter : NetworkBehaviour, IFootfallSource
 {
     [Header("Observation")]
     [Tooltip("Left empty, this object's own transform is watched.")]
@@ -74,6 +75,12 @@ public sealed class FootstepEmitter : NetworkBehaviour
     private PlayerGait gait = PlayerGait.Silent;
 
     private IGameplaySoundService gameplaySound;
+
+    // Heard by the head bob on this player's own machine, so the step you see
+    // lands with the step you hear.
+    public event Action Footfall;
+
+    public float StrideLength => strideLength;
 
     public override void OnNetworkSpawn()
     {
@@ -145,6 +152,8 @@ public sealed class FootstepEmitter : NetworkBehaviour
         {
             return;
         }
+
+        Footfall?.Invoke();
 
         bool isRunning = gait == PlayerGait.Running;
 

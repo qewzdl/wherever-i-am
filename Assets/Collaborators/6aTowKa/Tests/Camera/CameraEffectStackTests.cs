@@ -1,3 +1,5 @@
+using System;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -327,5 +329,19 @@ public sealed class CameraEffectStackTests
 
         Assert.That(first.ResetCallCount, Is.EqualTo(1));
         Assert.That(second.ResetCallCount, Is.EqualTo(1));
+    }
+
+    // The effects read how fast the head turned, so they run after the head
+    // has turned for this frame - and before the held item, which follows
+    // them. Left at the same order as CameraLook they read a half-turned head
+    // now and then, and the roll twitched with it.
+    [Test]
+    public void CameraEffects_RunAfterTheHeadTurnsAndBeforeTheItemFollows()
+    {
+        static int Order(Type type) =>
+            type.GetCustomAttribute<DefaultExecutionOrder>()?.order ?? 0;
+
+        Assert.That(Order(typeof(PlayerCameraEffects)), Is.GreaterThan(Order(typeof(CameraLook))));
+        Assert.That(Order(typeof(PlayerCameraEffects)), Is.LessThan(Order(typeof(ViewmodelSway))));
     }
 }

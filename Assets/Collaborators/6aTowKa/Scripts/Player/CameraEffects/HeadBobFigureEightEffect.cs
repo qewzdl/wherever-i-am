@@ -35,6 +35,15 @@ public sealed class HeadBobFigureEightEffect : ICameraEffect
     private int lastStepIndex = -1;
     private float currentStepJitter = 1f;
 
+    // The footsteps you hear, when there are any (see IFootfallSource). The
+    // bob used to keep its own beat: its own stride length, and a dip that
+    // bottomed out a third of the way into each step while the footstep
+    // played at the start of it, from a phase that ran on through every stop
+    // while the footsteps started over. Heard and seen steps drifted apart
+    // and never agreed on where a foot landed.
+    private float footfallLength;
+    private float timeSinceFootfall = float.PositiveInfinity;
+
     // randomSeed is exposed only so tests can get a reproducible jitter sequence; gameplay
     // code should leave it unset.
     public HeadBobFigureEightEffect(
@@ -115,8 +124,31 @@ public sealed class HeadBobFigureEightEffect : ICameraEffect
 
     public float UserMultiplier { get; set; } = 1f;
 
+    // Metres between footfalls while standing; 0 goes back to the authored
+    // frequency. Crouching keeps its own, being silent.
+    public void SetFootfallLength(float metres)
+    {
+        footfallLength = Mathf.Max(0f, metres);
+    }
+
+    // A foot has just landed: the head should be at the bottom of its dip.
+    // Out of sight - standing, or the first step of a walk - it goes straight
+    // there; in sight it goes half the way per step, and settles within a few
+    // without anything jumping.
+    public void MarkFootfall()
+    {
+        float nearestLanding = Mathf.Round(phase / Mathf.PI - impactFraction) + impactFraction;
+        float error = nearestLanding * Mathf.PI - phase;
+        bool freshWalk = envelope < 0.1f || timeSinceFootfall > 1f;
+
+        phase += freshWalk ? error : error * 0.5f;
+        timeSinceFootfall = 0f;
+    }
+
     public void Evaluate(in CameraEffectContext context, ref CameraEffectOutput output)
     {
+        timeSinceFootfall += context.DeltaTime;
+
         float speedFactor = Mathf.Clamp01(context.HorizontalSpeed / fullAmplitudeSpeed);
         float targetEnvelope = context.IsGrounded ? speedFactor : 0f;
 
@@ -131,6 +163,8 @@ public sealed class HeadBobFigureEightEffect : ICameraEffect
         float activeFrequency = frequency;
         if (context.IsCrouching)
             activeFrequency = crouchFrequency;
+        else if (footfallLength > 0f)
+            activeFrequency = 1f / (2f * footfallLength);
 
         // One full phase cycle = one full stride (two footfalls): vertical dips twice per
         // cycle (abs(sin), once per footfall), horizontal sways once per cycle (plain sin,
@@ -216,5 +250,6 @@ public sealed class HeadBobFigureEightEffect : ICameraEffect
         envelopeVelocity = 0f;
         lastStepIndex = -1;
         currentStepJitter = 1f;
+        timeSinceFootfall = float.PositiveInfinity;
     }
 }
