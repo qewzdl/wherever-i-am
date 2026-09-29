@@ -274,8 +274,15 @@ public sealed class TwoClientHidingPlacePlayModeTests
     {
         yield return StartNetwork();
 
+        // Side by side, not inside each other. Standing on the same spot,
+        // player B's body was in the way of player A's look at the hiding
+        // place - the server checks that nothing stands between - and
+        // whether it blocked came down to how the copies of B had settled:
+        // this failed now and then in a full run and never on its own.
         ulong playerAId = SpawnPlayer(clientA.Manager.LocalClientId);
-        ulong playerBId = SpawnPlayer(clientB.Manager.LocalClientId);
+        ulong playerBId = SpawnPlayer(
+            clientB.Manager.LocalClientId,
+            new Vector3(1.5f, 0f, 0f));
         ulong hidingPlaceId = SpawnHidingPlace();
 
         yield return WaitForSpawnOnEveryEndpoint(
