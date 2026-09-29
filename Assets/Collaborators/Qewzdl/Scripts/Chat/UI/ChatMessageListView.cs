@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public class ChatMessageListView : MonoBehaviour
@@ -9,9 +8,34 @@ public class ChatMessageListView : MonoBehaviour
     [SerializeField] private ChatMessageItemView itemPrefab;
     [SerializeField] private ScrollRect scrollRect;
 
+    [Tooltip(
+        "How far one notch of the mouse wheel moves the messages, in pixels - " +
+        "about one line. " +
+        "Never more than half the visible height, whatever this says, so no " +
+        "line can be stepped over without being seen.")]
+    [SerializeField, Min(1f)] private float wheelStep = 24f;
+
     private readonly Dictionary<uint, ChatMessageItemView> itemsById = new Dictionary<uint, ChatMessageItemView>();
     private readonly List<uint> idsToRemove = new List<uint>();
     private ChatTypographyProfile typographyProfile;
+
+    // The wheel is handled here rather than by the ScrollRect. Its own
+    // handling multiplied the UI's per-notch size (6) by the chat's
+    // sensitivity (30): a notch moved the messages 180 pixels, several lines
+    // at once, and lines in between were never on screen. Scrolling from the
+    // input field went a different way again and moved 30.
+    private void Awake()
+    {
+        if (scrollRect == null)
+            return;
+
+        scrollRect.scrollSensitivity = 0f;
+
+        if (!scrollRect.TryGetComponent(out ChatWheelScroll wheel))
+            wheel = scrollRect.gameObject.AddComponent<ChatWheelScroll>();
+
+        wheel.Bind(this);
+    }
 
     public void SetTypographyProfile(ChatTypographyProfile typographyProfile)
     {
@@ -71,20 +95,35 @@ public class ChatMessageListView : MonoBehaviour
         itemsById.Clear();
     }
 
+    // Mouse.scroll is one per notch on every platform the input system
+    // supports (its uniform range, the project default).
     public void ScrollByWheelDelta(Vector2 scrollDelta)
     {
-        if (scrollRect == null)
+        ScrollByNotches(scrollDelta.y);
+    }
+
+    // Up is positive, towards older messages.
+    public void ScrollByNotches(float notches)
+    {
+        if (scrollRect == null || !scrollRect.vertical || Mathf.Approximately(notches, 0f))
             return;
 
-        if (!scrollRect.vertical)
+        RectTransform content = scrollRect.content;
+        RectTransform viewport = ResolveScrollRectTransform();
+
+        if (content == null || viewport == null)
             return;
 
-        PointerEventData pointerEventData = new PointerEventData(EventSystem.current)
-        {
-            scrollDelta = scrollDelta
-        };
+        float overflow = content.rect.height - viewport.rect.height;
 
-        scrollRect.OnScroll(pointerEventData);
+        if (overflow <= 0f)
+            return;
+
+        float step = Mathf.Min(wheelStep, viewport.rect.height * 0.5f);
+
+        scrollRect.StopMovement();
+        scrollRect.verticalNormalizedPosition = Mathf.Clamp01(
+            scrollRect.verticalNormalizedPosition + notches * step / overflow);
     }
 
     public bool ContainsScreenPoint(Vector2 screenPosition)

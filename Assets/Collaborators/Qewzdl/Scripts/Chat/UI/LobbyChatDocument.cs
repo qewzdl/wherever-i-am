@@ -22,6 +22,9 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
     private const string SystemMessageClass = "chat__message--system";
     private const string EmptyClass = "chat__empty";
 
+    // One line of message text per notch of the wheel (see WheelStepScroll).
+    private const float WheelStep = 24f;
+
     [Header("References")]
     [SerializeField] private UIDocument document;
     [SerializeField] private ChatVisibilityController visibilityController;
@@ -326,6 +329,7 @@ public sealed class LobbyChatDocument : MonoBehaviour, IChatWindowView
         tabKey = root.Q<Label>("TabKey");
         tabUnread = root.Q<Label>("TabUnread");
         messages = root.Q<ScrollView>("Messages");
+        WheelStepScroll.Attach(messages, WheelStep);
         input = root.Q<TextField>("Input");
 
         if (tab != null)

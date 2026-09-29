@@ -228,4 +228,90 @@ public sealed class ChatAndUiMechanicsPlayModeTests
         cleanup.Add(value);
         return value;
     }
+
+    // One notch of the wheel moves the chat one fixed step, whichever way the
+    // wheel reaches it, and never more than half of what is on screen - so no
+    // line can be scrolled past unseen. It used to move 180 pixels a notch.
+    [UnityTest]
+    public IEnumerator ChatWheel_MovesAFixedStepThatSkipsNothing()
+    {
+        GameObject root = Track(new GameObject("Chat scroll", typeof(Canvas)));
+        root.SetActive(false);
+
+        RectTransform viewport = new GameObject("Viewport", typeof(RectTransform)).GetComponent<RectTransform>();
+        viewport.SetParent(root.transform, false);
+        viewport.sizeDelta = new Vector2(300f, 200f);
+
+        RectTransform content = new GameObject("Content", typeof(RectTransform)).GetComponent<RectTransform>();
+        content.SetParent(viewport, false);
+        content.sizeDelta = new Vector2(300f, 1000f);
+
+        ScrollRect scrollRect = viewport.gameObject.AddComponent<ScrollRect>();
+        scrollRect.viewport = viewport;
+        scrollRect.content = content;
+        scrollRect.horizontal = false;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+
+        ChatMessageListView list = root.AddComponent<ChatMessageListView>();
+        PlayModeTestReflection.SetField(list, "scrollRect", scrollRect);
+        root.SetActive(true);
+        yield return null;
+
+        Assert.That(scrollRect.scrollSensitivity, Is.EqualTo(0f),
+            "The ScrollRect still scrolls the wheel by itself.");
+        Assert.That(viewport.GetComponent<ChatWheelScroll>(), Is.Not.Null);
+
+        const float Overflow = 800f;
+        scrollRect.verticalNormalizedPosition = 1f;
+
+        list.ScrollByWheelDelta(new Vector2(0f, -1f));
+        Assert.That((1f - scrollRect.verticalNormalizedPosition) * Overflow, Is.EqualTo(24f).Within(0.5f));
+
+        // A step larger than half the view is held to half of it.
+        PlayModeTestReflection.SetField(list, "wheelStep", 500f);
+        scrollRect.verticalNormalizedPosition = 1f;
+        list.ScrollByNotches(-1f);
+        Assert.That((1f - scrollRect.verticalNormalizedPosition) * Overflow, Is.EqualTo(100f).Within(0.5f));
+    }
+
+    // The same rule for UI Toolkit, where the lobby chat lives: one notch is
+    // one step, and never more than half the view. Left alone, a ScrollView
+    // multiplied the notch by its own wheel size and jumped most of a small
+    // window at a time. (A wheel event cannot be delivered to a panel in a
+    // batch run, so this checks the step the chat's wheel handler takes.)
+    [UnityTest]
+    public IEnumerator ScrollViewWheel_MovesOneStepAndSkipsNothing()
+    {
+        GameObject root = Track(new GameObject("Wheel view"));
+        UIDocument document = root.AddComponent<UIDocument>();
+        document.panelSettings = Track(ScriptableObject.CreateInstance<PanelSettings>());
+        yield return null;
+
+        ScrollView view = new();
+        view.style.width = 300f;
+        view.style.height = 200f;
+
+        VisualElement tall = new();
+        tall.style.height = 1000f;
+        tall.style.flexShrink = 0f;
+        view.Add(tall);
+        document.rootVisualElement.Add(view);
+
+        yield return null;
+        yield return null;
+
+        WheelStepScroll.Step(view, 24f, 1f);
+        Assert.That(view.scrollOffset.y, Is.EqualTo(24f).Within(0.5f),
+            "One notch did not move the view one step.");
+
+        view.scrollOffset = Vector2.zero;
+        WheelStepScroll.Step(view, 500f, 1f);
+        Assert.That(view.scrollOffset.y, Is.EqualTo(100f).Within(0.5f),
+            "A step bigger than half the view was not held to half of it.");
+
+        WheelStepScroll.Step(view, 24f, -1f);
+        WheelStepScroll.Step(view, 500f, -1f);
+        Assert.That(view.scrollOffset.y, Is.EqualTo(0f).Within(0.5f),
+            "Scrolling up went past the first line.");
+    }
 }
