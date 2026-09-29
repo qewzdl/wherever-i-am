@@ -522,6 +522,51 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             "A dropped item did not come back whole.");
     }
 
+    // A caught player watches through somebody else's eyes, and that means
+    // their crosshair too: what it is on is published by the player it
+    // belongs to, and every other copy of that player can read it.
+    [UnityTest]
+    public IEnumerator Crosshair_IsSeenByAnybodyWatchingThroughTheseEyes()
+    {
+        yield return StartNetwork();
+
+        ulong itemId = SpawnOnServer<NetworkItemTestDraggable>(
+            draggablePrefab,
+            new Vector3(0f, 0f, 2f));
+        yield return WaitForSpawnOnEveryEndpoint(itemId);
+
+        Sprite hand = Track(Sprite.Create(
+            Texture2D.whiteTexture,
+            new Rect(0f, 0f, 4f, 4f),
+            new Vector2(0.5f, 0.5f)));
+        PlayModeTestReflection
+            .GetField<InteractableObjectData>(
+                GetSpawnedComponent<NetworkItemTestDraggable>(server, itemId),
+                "data")
+            .InteractionSprite = hand;
+
+        NetworkTestPlayer playerA = GetNetworkTestPlayer(clientA);
+        ulong playerAId = clientA.Manager.LocalClient.PlayerObject.NetworkObjectId;
+        PlayerInteraction playerASeenByB = clientB.Manager.SpawnManager
+            .SpawnedObjects[playerAId]
+            .GetComponent<PlayerInteraction>();
+
+        PlayModeTestReflection.Invoke(
+            playerA.Interaction,
+            "SetFocusedInteractable",
+            GetSpawnedComponent<NetworkItemTestDraggable>(clientA, itemId));
+
+        yield return WaitForCondition(
+            () => playerASeenByB.FocusedSprite == hand,
+            "Somebody watching player A did not see their crosshair on the item.");
+
+        PlayModeTestReflection.Invoke(playerA.Interaction, "ResetFocusedInteractable");
+
+        yield return WaitForCondition(
+            () => playerASeenByB.FocusedSprite == null,
+            "Somebody watching player A kept seeing the item after they looked away.");
+    }
+
     // The three copies of one item share this fixture's physics scene and,
     // left to touch, shove each other out of reach. Redone after anything
     // that turns the colliders back on, which forgets it.

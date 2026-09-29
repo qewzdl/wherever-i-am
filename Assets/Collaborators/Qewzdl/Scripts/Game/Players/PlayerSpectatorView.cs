@@ -27,6 +27,9 @@ public sealed class PlayerSpectatorView : MonoBehaviour
     private PlayerEnemyAttackReceiver self;
     private PlayerEnemyAttackReceiver watched;
     private PlayerGazeNetwork watchedGaze;
+    private PlayerInteraction watchedInteraction;
+    private Sprite shownCrosshair;
+    private bool hasShownCrosshair;
     private Vector3 smoothedLocalPosition;
     private Quaternion smoothedLocalRotation = Quaternion.identity;
     private bool hasSmoothedPose;
@@ -116,6 +119,8 @@ public sealed class PlayerSpectatorView : MonoBehaviour
         {
             Watch(PreviousTarget(PlayerEnemyAttackReceiver.All, self, watched));
         }
+
+        ShowWatchedCrosshair();
 
         // Whatever their camera is doing - crouched, folded into a hiding
         // place, or anything added to it later - arrives as one pose. Nothing
@@ -260,8 +265,34 @@ public sealed class PlayerSpectatorView : MonoBehaviour
             ? player.GetComponent<PlayerGazeNetwork>()
             : null;
 
+        watchedInteraction = player != null
+            ? player.GetComponent<PlayerInteraction>()
+            : null;
+
         // Switching player is a cut, not a glide between two heads.
         hasSmoothedPose = false;
+    }
+
+    // Their crosshair as well as their eyes: the hand over a door they are
+    // looking at, the resting dot when nothing is in reach. Until now the
+    // spectator's own crosshair sat unchanged over whatever they watched.
+    private void ShowWatchedCrosshair()
+    {
+        Sprite sprite = watchedInteraction != null
+            ? watchedInteraction.FocusedSprite
+            : null;
+
+        if (hasShownCrosshair && sprite == shownCrosshair)
+            return;
+
+        CrosshairUI crosshair = CrosshairUI.Active;
+
+        if (crosshair == null)
+            return;
+
+        crosshair.ShowInteraction(sprite);
+        shownCrosshair = sprite;
+        hasShownCrosshair = true;
     }
 
     // The camera under the look pivot, which is the one this player sees

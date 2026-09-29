@@ -19,6 +19,20 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
     [SerializeField] private Transform itemDropTransform;
 
     private InteractableObject focusedInteractable;
+
+    // What this player's crosshair is on, for somebody watching through
+    // their eyes once caught. Only the owner decides what is in focus, so
+    // only the owner writes it; it changes when the focus does, not per frame.
+    private readonly NetworkVariable<NetworkBehaviourReference> focusedForWatchers = new(
+        default,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner);
+
+    // The picture this player's crosshair shows, or null for the resting one.
+    public Sprite FocusedSprite =>
+        focusedForWatchers.Value.TryGet(out InteractableObject focused, NetworkManager)
+            ? focused.GetIteractionSprite()
+            : null;
     private PickupItem currentItem;
     private DraggableObject currentDraggable;
     private PickupItem pendingPickup;
@@ -121,6 +135,7 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
         focusedInteractable = interactable;
         signals.CrosshairSpriteSignal.Trigger(interactable.GetIteractionSprite());
         crosshairIsDefualt = false;
+        PublishFocus(interactable);
     }
 
     private void ResetFocusedInteractable()
@@ -132,6 +147,17 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
         // and it used to be a sprite on this prefab that nothing here read.
         signals.CrosshairSpriteSignal.Trigger(null);
         crosshairIsDefualt = true;
+        PublishFocus(null);
+    }
+
+    private void PublishFocus(InteractableObject interactable)
+    {
+        if (!IsSpawned || !IsOwner)
+            return;
+
+        focusedForWatchers.Value = interactable != null
+            ? new NetworkBehaviourReference(interactable)
+            : default;
     }
 
     private bool CanFocus()
