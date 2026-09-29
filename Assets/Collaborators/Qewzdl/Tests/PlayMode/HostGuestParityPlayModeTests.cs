@@ -475,6 +475,69 @@ public sealed class HostGuestParityPlayModeTests
             "A caught guest took an item.");
     }
 
+    // A caught guest watches through the survivor's eyes. The camera effects
+    // of the caught body - bob, breathing - write the very camera the
+    // spectator view borrows, and once they were made to run after the head
+    // turns they also ran after the spectator view and put the camera back
+    // on the corpse every frame.
+    [UnityTest]
+    public IEnumerator CaughtGuest_WatchesThroughTheSurvivorsEyes()
+    {
+        yield return StartNetwork();
+
+        ulong hostPlayer = PlayerObjectId(NetworkManager.ServerClientId);
+        ulong guestPlayer = PlayerObjectId(guest.Manager.LocalClientId);
+
+        // The survivor stands away from where the guest will be caught, on
+        // every copy of them.
+        // Through the body as well as the transform: the host's own copy is
+        // a simulated, interpolated body, which puts back a transform
+        // written behind its back.
+        Vector3 survivorAt = new(6f, 0f, 0f);
+
+        foreach (Endpoint endpoint in new[] { host, guest })
+        {
+            GetSpawned<Rigidbody>(endpoint, hostPlayer).position = survivorAt;
+            GetSpawned<Transform>(endpoint, hostPlayer).position = survivorAt;
+        }
+
+        yield return WaitForCondition(
+            () => GetSpawned<PlayerGazeNetwork>(guest, hostPlayer)
+                .TryGetLocalViewPose(out _, out _),
+            "The survivor's view never reached the guest.");
+
+        PlayModeTestReflection.Invoke(
+            GetSpawned<PlayerEnemyAttackReceiver>(host, guestPlayer),
+            "EliminateServerOnly");
+
+        PlayerSpectatorView spectator = null;
+
+        yield return WaitForCondition(
+            () => (spectator = GetSpawnedOrNull<PlayerSpectatorView>(guest, guestPlayer)) != null,
+            "The caught guest was not given a spectator view.");
+
+        Assert.That(
+            GetSpawned<PlayerCameraEffects>(guest, guestPlayer).enabled,
+            Is.False,
+            "The caught body's camera effects are still moving the camera.");
+
+        Transform view = GetSpawned<Transform>(guest, guestPlayer).Find("Head/Eyes");
+        Vector3 survivorEyes = survivorAt + new Vector3(0f, 1.6f, 0f);
+
+        float until = Time.realtimeSinceStartup + 3f;
+
+        while (Vector3.Distance(view.position, survivorEyes) >= 0.05f &&
+               Time.realtimeSinceStartup < until)
+        {
+            yield return null;
+        }
+
+        Assert.That(
+            Vector3.Distance(view.position, survivorEyes),
+            Is.LessThan(0.05f),
+            $"The caught guest looks from {view.position}, not the survivor's eyes at {survivorEyes}.");
+    }
+
     private IEnumerator StartNetwork()
     {
         CreatePrefabs();
@@ -538,9 +601,24 @@ public sealed class HostGuestParityPlayModeTests
         lamp.transform.SetParent(playerPrefab.transform, false);
         lamp.AddComponent<Light>();
 
+        // The head holds the height, the camera inside it is what the
+        // effects move - as on the real player, where they move Main Camera
+        // inside CameraPivot.
+        GameObject head = new("Head");
+        head.transform.SetParent(playerPrefab.transform, false);
+        head.transform.localPosition = new Vector3(0f, 1.6f, 0f);
+
         GameObject eyes = new("Eyes");
-        eyes.transform.SetParent(playerPrefab.transform, false);
-        eyes.AddComponent<Camera>().enabled = false;
+        eyes.transform.SetParent(head.transform, false);
+        Camera eyesCamera = eyes.AddComponent<Camera>();
+        eyesCamera.enabled = false;
+
+        // What a spectator is shown, and what moves the same camera on the
+        // player's own machine.
+        playerPrefab.AddComponent<PlayerGazeNetwork>();
+        PlayerCameraEffects cameraEffects = playerPrefab.AddComponent<PlayerCameraEffects>();
+        PlayModeTestReflection.SetField(cameraEffects, "effectsTarget", eyes.transform);
+        PlayModeTestReflection.SetField(cameraEffects, "targetCamera", eyesCamera);
 
         // Adding one checks its sources before there is any way to give it
         // them, and says so.
@@ -674,6 +752,16 @@ public sealed class HostGuestParityPlayModeTests
     {
         return endpoint.Manager.SpawnManager != null &&
                endpoint.Manager.SpawnManager.SpawnedObjects.ContainsKey(networkObjectId);
+    }
+
+    private static T GetSpawnedOrNull<T>(Endpoint endpoint, ulong networkObjectId)
+        where T : Component
+    {
+        return endpoint.Manager.SpawnManager.SpawnedObjects.TryGetValue(
+                   networkObjectId,
+                   out NetworkObject networkObject)
+            ? networkObject.GetComponent<T>()
+            : null;
     }
 
     private static T GetSpawned<T>(Endpoint endpoint, ulong networkObjectId)

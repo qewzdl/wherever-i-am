@@ -9,7 +9,12 @@ using UnityEngine.InputSystem;
 // pose they publish themselves. Nothing here models crouching, hiding places
 // or anything else that moves a camera - whatever the watched player's camera
 // does, this follows, including whatever it learns to do later.
+//
+// It borrows the caught player's own camera, so it has the last word on it:
+// after everything that moves a camera in LateUpdate - the look, the posture,
+// the camera effects - whether or not those have been switched off.
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(200)]
 public sealed class PlayerSpectatorView : MonoBehaviour
 {
     private const float ViewCatchUp = 30f;

@@ -293,6 +293,11 @@ public sealed class PlayerEnemyAttackReceiver :
         DisableIfPresent<PlayerInputHandler>();
         DisableIfPresent<PlayerPostureController>();
         DisableIfPresent<PlayerUI>();
+
+        // The head bob and breathing of a body nobody is in. They also write
+        // the very camera the spectator view borrows, and running after it
+        // put the view back on the corpse every frame.
+        DisableIfPresent<PlayerCameraEffects>();
         DisableIfPresent<UnityEngine.InputSystem.PlayerInput>();
 
         // Whatever was in reach at the moment of the catch stayed drawn on the
