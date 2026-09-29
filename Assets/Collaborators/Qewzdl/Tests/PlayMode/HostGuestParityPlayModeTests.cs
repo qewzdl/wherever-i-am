@@ -538,6 +538,27 @@ public sealed class HostGuestParityPlayModeTests
             $"The caught guest looks from {view.position}, not the survivor's eyes at {survivorEyes}.");
     }
 
+    // The end of a match is worded for how many played it, not for how many
+    // are left: a survivor who has gone does not make it a solo match for
+    // the one caught player still there.
+    [UnityTest]
+    public IEnumerator ResultWording_RemembersEverybodyWhoPlayed()
+    {
+        yield return StartNetwork();
+
+        Assert.That(PlayerEnemyAttackReceiver.MatchWasPlayedAlone, Is.False);
+
+        ulong guestPlayer = PlayerObjectId(guest.Manager.LocalClientId);
+        guest.Manager.Shutdown(discardMessageQueue: false);
+
+        yield return WaitForCondition(
+            () => !HasSpawned(host, guestPlayer),
+            "The guest's player never left the host.");
+
+        Assert.That(PlayerEnemyAttackReceiver.MatchWasPlayedAlone, Is.False,
+            "With the guest gone, the match was called a solo one.");
+    }
+
     private IEnumerator StartNetwork()
     {
         CreatePrefabs();

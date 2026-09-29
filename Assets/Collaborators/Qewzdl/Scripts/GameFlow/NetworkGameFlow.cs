@@ -239,7 +239,7 @@ public sealed class NetworkGameFlow : NetworkBehaviour,
             GameResultType.Victory => victoryMessage,
             GameResultType.Defeat => matchResult.Source != MatchResultSource.PlayerCaught
                 ? notOutDefeatMessage
-                : PlayerEnemyAttackReceiver.PlayedAlone(PlayerEnemyAttackReceiver.All)
+                : PlayerEnemyAttackReceiver.MatchWasPlayedAlone
                     ? aloneDefeatMessage
                     : defeatMessage,
             _ => drawMessage

@@ -83,16 +83,8 @@ public sealed class PlayerEnemyAttackReceiverTests
     [Test]
     public void PlayedAlone_IsAboutHowManyWereInTheMatch()
     {
-        GameObject one = new("One");
-        GameObject two = new("Two");
-        createdPlayers.Add(one);
-        createdPlayers.Add(two);
-
-        PlayerEnemyAttackReceiver first = one.AddComponent<PlayerEnemyAttackReceiver>();
-        PlayerEnemyAttackReceiver second = two.AddComponent<PlayerEnemyAttackReceiver>();
-
-        Assert.That(PlayerEnemyAttackReceiver.PlayedAlone(new[] { first }), Is.True);
-        Assert.That(PlayerEnemyAttackReceiver.PlayedAlone(new[] { first, second }), Is.False);
+        Assert.That(PlayerEnemyAttackReceiver.PlayedAlone(1), Is.True);
+        Assert.That(PlayerEnemyAttackReceiver.PlayedAlone(2), Is.False);
     }
 
     // Being caught used to end the match for everyone. It takes one player out

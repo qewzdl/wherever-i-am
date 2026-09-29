@@ -69,7 +69,16 @@ public sealed class PlayerEnemyAttackReceiver :
     private static void ResetRegisteredPlayers()
     {
         RegisteredPlayers.Clear();
+        MostPlayersThisMatch = 0;
     }
+
+    // The most players this match has had at once. How many were left at the
+    // end was the wrong question: in a match of two whose survivor had left,
+    // the one caught player still there was told the solo wording, as if they
+    // had played alone.
+    private static int MostPlayersThisMatch;
+
+    public static bool MatchWasPlayedAlone => PlayedAlone(MostPlayersThisMatch);
 
     private void Awake()
     {
@@ -89,6 +98,8 @@ public sealed class PlayerEnemyAttackReceiver :
             RegisteredPlayers.Add(this);
         }
 
+        MostPlayersThisMatch = Mathf.Max(MostPlayersThisMatch, RegisteredPlayers.Count);
+
         if (isEliminated)
         {
             ApplyElimination();
@@ -99,6 +110,10 @@ public sealed class PlayerEnemyAttackReceiver :
     {
         eliminated.OnValueChanged -= HandleEliminatedChanged;
         RegisteredPlayers.Remove(this);
+
+        // Everybody gone is the match over; the next one counts afresh.
+        if (RegisteredPlayers.Count == 0)
+            MostPlayersThisMatch = 0;
 
         if (IsServer && !isEliminated)
             CompleteIfNobodyLeftInPlayServer();
@@ -280,9 +295,9 @@ public sealed class PlayerEnemyAttackReceiver :
 
     // Whether the match was one person's. What the end of it says is worded
     // for one or for many by this, rather than by the kind of session.
-    internal static bool PlayedAlone(IReadOnlyList<PlayerEnemyAttackReceiver> players)
+    internal static bool PlayedAlone(int mostPlayersAtOnce)
     {
-        return players == null || players.Count <= 1;
+        return mostPlayersAtOnce <= 1;
     }
 
     private void StopPlaying()

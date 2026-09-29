@@ -131,7 +131,7 @@ public sealed class MatchResultUi : SceneRuntimeFeature
 
     private void HandleMatchResolved(GameResultData matchResult)
     {
-        bool alone = PlayerEnemyAttackReceiver.PlayedAlone(PlayerEnemyAttackReceiver.All);
+        bool alone = PlayerEnemyAttackReceiver.MatchWasPlayedAlone;
 
         outcome.text = UiLocalization.Text(matchResult.ResultType switch
         {
