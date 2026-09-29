@@ -615,3 +615,5 @@ MonoBehaviour:
     Translation: "\u0420\u0435\u0436\u0438\u043C \u0438\u0433\u0440\u044B"
   - English: Choose a map
     Translation: "\u0412\u044B\u0431\u043E\u0440 \u043A\u0430\u0440\u0442\u044B"
+  - English: The match has already started.
+    Translation: "\u041C\u0430\u0442\u0447 \u0443\u0436\u0435 \u043D\u0430\u0447\u0430\u043B\u0441\u044F."

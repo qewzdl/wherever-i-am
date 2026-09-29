@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using Unity.Netcode;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
@@ -97,33 +98,27 @@ internal sealed class GameStateServiceStub : IGameStateService
 [Category("Baseline")]
 public sealed class MapLobbyAndGameplayLogicTests
 {
+    // Only the lobby lets anybody in. Once the match has started - loading
+    // or playing - a newcomer and a returning player alike are turned away,
+    // and told that the match has started: a player let in then had no body
+    // and nothing to watch.
     [Test]
-    public void ConnectionApproval_AllowsConfiguredLobbyAndCommittedLateJoinOnly()
+    public void ConnectionApproval_LetsPlayersInOnlyBeforeTheMatchStarts()
     {
         NetworkConnectionApprovalConfig config =
-            ScriptableObject.CreateInstance<NetworkConnectionApprovalConfig>();
+            AssetDatabase.LoadAssetAtPath<NetworkConnectionApprovalConfig>(
+                "Assets/Collaborators/Qewzdl/Configs/Network/NetworkConnectionApprovalConfig.asset");
 
-        try
-        {
-            TestReflection.SetField(
-                config,
-                "remoteClientAllowedState",
-                GameState.Lobby);
-            TestReflection.SetField(config, "allowInGameLateJoin", true);
+        Assert.That(config, Is.Not.Null);
+        Assert.That(config.CanAcceptRemoteClient(GameState.Lobby), Is.True);
+        Assert.That(config.CanAcceptRemoteClient(GameState.LoadingGame), Is.False);
+        Assert.That(config.CanAcceptRemoteClient(GameState.InGame), Is.False);
+        Assert.That(config.CanAcceptRemoteClient(GameState.Connecting), Is.False);
+        Assert.That(config.CanAcceptRemoteClient(GameState.MainMenu), Is.False);
 
-            Assert.That(config.CanAcceptRemoteClient(GameState.Lobby), Is.True);
-            Assert.That(config.CanAcceptRemoteClient(GameState.InGame), Is.True);
-            Assert.That(config.CanAcceptRemoteClient(GameState.LoadingGame), Is.False);
-            Assert.That(config.CanAcceptRemoteClient(GameState.Connecting), Is.False);
-            Assert.That(config.CanAcceptRemoteClient(GameState.MainMenu), Is.False);
-
-            TestReflection.SetField(config, "allowInGameLateJoin", false);
-            Assert.That(config.CanAcceptRemoteClient(GameState.InGame), Is.False);
-        }
-        finally
-        {
-            UnityEngine.Object.DestroyImmediate(config);
-        }
+        Assert.That(config.DenialReasonFor(GameState.LoadingGame), Is.EqualTo("The match has already started."));
+        Assert.That(config.DenialReasonFor(GameState.InGame), Is.EqualTo("The match has already started."));
+        Assert.That(config.DenialReasonFor(GameState.MainMenu), Is.EqualTo(config.RemoteClientDeniedReason));
     }
 
     [Test]

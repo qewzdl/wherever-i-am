@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: NetworkConnectionApprovalConfig
   m_EditorClassIdentifier: 
   remoteClientAllowedState: 3
-  allowInGameLateJoin: 1
   remoteClientDeniedReason: The network session is not accepting new players right
     now.
+  matchInProgressReason: The match has already started.
   reconnectGracePeriodSeconds: 20
   reconnectingReason: Connection lost. Reconnecting...
   invalidPayloadReason: The connection request is invalid.

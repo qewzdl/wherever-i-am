@@ -484,3 +484,5 @@ MonoBehaviour:
     Translation: Game mode
   - English: Choose a map
     Translation: Choose a map
+  - English: The match has already started.
+    Translation: The match has already started.

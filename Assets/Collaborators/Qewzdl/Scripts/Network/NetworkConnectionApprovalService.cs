@@ -202,7 +202,7 @@ public sealed class NetworkConnectionApprovalService : MonoBehaviour,
             Reject(
                 request.ClientNetworkId,
                 response,
-                approvalConfig.RemoteClientDeniedReason,
+                approvalConfig.DenialReasonFor(stateMachine.CurrentState),
                 $"Game state is {stateMachine.CurrentState}.");
             return;
         }
