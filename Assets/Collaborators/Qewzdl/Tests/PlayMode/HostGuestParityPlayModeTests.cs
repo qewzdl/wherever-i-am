@@ -21,16 +21,13 @@ using Object = UnityEngine.Object;
 // end and once with the guest's: a feature that only works for one of them
 // fails here instead of in somebody's match.
 [Category("Multiplayer")]
-public sealed class HostGuestParityPlayModeTests
+public sealed class HostGuestParityPlayModeTests : MultiEndpointPlayModeTest
 {
-    private const float TimeoutSeconds = 10f;
     private const uint PlayerPrefabHash = 0x17A70001u;
     private const uint DraggablePrefabHash = 0x17A70002u;
     private const uint EnemyPrefabHash = 0x17A70003u;
     private const uint DoorPrefabHash = 0x17A70004u;
 
-    private readonly List<Endpoint> endpoints = new();
-    private readonly List<Object> cleanup = new();
 
     private Endpoint host;
     private Endpoint guest;
@@ -40,55 +37,21 @@ public sealed class HostGuestParityPlayModeTests
     private GameObject doorPrefab;
     private Vector3 worldGravity;
     private int playerLayer = -1;
-    private bool playerLayerCollided;
 
     [SetUp]
     public void HoldTheWorldStill()
     {
         worldGravity = Physics.gravity;
         Physics.gravity = Vector3.zero;
-
-        // Both machines' copies of every player share this test's one physics
-        // scene, standing inside each other. Real players never meet their
-        // own copies, so these must not either.
         playerLayer = LayerMask.NameToLayer("Player");
-        playerLayerCollided = !Physics.GetIgnoreLayerCollision(playerLayer, playerLayer);
-        Physics.IgnoreLayerCollision(playerLayer, playerLayer, true);
     }
 
     [UnityTearDown]
     public IEnumerator TearDown()
     {
         Physics.gravity = worldGravity;
-        Physics.IgnoreLayerCollision(playerLayer, playerLayer, !playerLayerCollided);
-
-        for (int i = 0; i < endpoints.Count; i++)
-        {
-            NetworkManager manager = endpoints[i].Manager;
-
-            if (manager != null && manager.IsListening)
-                manager.Shutdown(discardMessageQueue: true);
-        }
-
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!AllEndpointsStopped() && Time.realtimeSinceStartup < timeout)
-            yield return null;
-
+        yield return StopEndpoints();
         DraggableObject.ActiveDraggedObjects.Clear();
-
-        for (int i = endpoints.Count - 1; i >= 0; i--)
-            endpoints[i].Dispose();
-
-        endpoints.Clear();
-
-        for (int i = cleanup.Count - 1; i >= 0; i--)
-        {
-            if (cleanup[i] != null)
-                Object.DestroyImmediate(cleanup[i]);
-        }
-
-        cleanup.Clear();
         host = null;
         guest = null;
         yield return null;
@@ -182,12 +145,6 @@ public sealed class HostGuestParityPlayModeTests
             () => HasSpawned(host, itemId) && HasSpawned(guest, itemId),
             "The item did not spawn on both machines.");
 
-        // Both copies sit in the one physics scene this test has; left to
-        // touch, they shove each other out of reach.
-        Physics.IgnoreCollision(
-            GetSpawned<BoxCollider>(host, itemId),
-            GetSpawned<BoxCollider>(guest, itemId));
-
         NetworkItemTestDraggable hostItem = GetSpawned<NetworkItemTestDraggable>(host, itemId);
         NetworkItemTestDraggable guestItem = GetSpawned<NetworkItemTestDraggable>(guest, itemId);
         ulong guestClient = guest.Manager.LocalClientId;
@@ -247,10 +204,6 @@ public sealed class HostGuestParityPlayModeTests
             () => HasSpawned(host, itemId) && HasSpawned(guest, itemId),
             "The item did not spawn on both machines.");
 
-        Physics.IgnoreCollision(
-            GetSpawned<BoxCollider>(host, itemId),
-            GetSpawned<BoxCollider>(guest, itemId));
-
         NetworkItemTestDraggable hostItem = GetSpawned<NetworkItemTestDraggable>(host, itemId);
         NetworkItemTestDraggable guestItem = GetSpawned<NetworkItemTestDraggable>(guest, itemId);
         ulong guestClient = guest.Manager.LocalClientId;
@@ -297,10 +250,6 @@ public sealed class HostGuestParityPlayModeTests
         yield return WaitForCondition(
             () => HasSpawned(host, itemId) && HasSpawned(guest, itemId),
             "The item did not spawn on both machines.");
-
-        Physics.IgnoreCollision(
-            GetSpawned<BoxCollider>(host, itemId),
-            GetSpawned<BoxCollider>(guest, itemId));
 
         NetworkItemTestDraggable hostItem = GetSpawned<NetworkItemTestDraggable>(host, itemId);
         NetworkItemTestDraggable mover = theGuestMovesIt
@@ -428,10 +377,6 @@ public sealed class HostGuestParityPlayModeTests
                   HasSpawned(guest, farDoorId) &&
                   HasSpawned(guest, itemId),
             "The doors and the item did not reach the guest.");
-
-        Physics.IgnoreCollision(
-            GetSpawned<BoxCollider>(host, itemId),
-            GetSpawned<BoxCollider>(guest, itemId));
 
         DoorInteractableObject nearDoor = GetSpawned<DoorInteractableObject>(host, nearDoorId);
         DoorInteractableObject farDoor = GetSpawned<DoorInteractableObject>(host, farDoorId);
@@ -796,82 +741,5 @@ public sealed class HostGuestParityPlayModeTests
         T component = networkObject.GetComponent<T>();
         Assert.That(component, Is.Not.Null);
         return component;
-    }
-
-    private Endpoint CreateEndpoint(string name)
-    {
-        Endpoint endpoint = Endpoint.Create(name);
-        endpoints.Add(endpoint);
-        return endpoint;
-    }
-
-    private bool AllEndpointsStopped()
-    {
-        foreach (Endpoint endpoint in endpoints)
-        {
-            NetworkManager manager = endpoint.Manager;
-
-            if (manager != null &&
-                (manager.IsListening || manager.IsClient || manager.IsServer ||
-                 manager.ShutdownInProgress))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static IEnumerator WaitForCondition(Func<bool> condition, string failureMessage)
-    {
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!condition.Invoke() && Time.realtimeSinceStartup < timeout)
-            yield return null;
-
-        Assert.That(condition.Invoke(), Is.True, failureMessage);
-    }
-
-    private T Track<T>(T value)
-        where T : Object
-    {
-        cleanup.Add(value);
-        return value;
-    }
-
-    private sealed class Endpoint : IDisposable
-    {
-        private readonly GameObject root;
-
-        private Endpoint(GameObject root, NetworkManager manager, UnityTransport transport)
-        {
-            this.root = root;
-            Manager = manager;
-            Transport = transport;
-        }
-
-        internal NetworkManager Manager { get; }
-        internal UnityTransport Transport { get; }
-
-        internal static Endpoint Create(string name)
-        {
-            GameObject root = new(name);
-            UnityTransport transport = root.AddComponent<UnityTransport>();
-            NetworkManager manager = root.AddComponent<NetworkManager>();
-            manager.NetworkConfig = new NetworkConfig
-            {
-                NetworkTransport = transport,
-                EnableSceneManagement = false,
-                ProtocolVersion = 4
-            };
-            transport.SetConnectionData("127.0.0.1", 0, "127.0.0.1");
-            return new Endpoint(root, manager, transport);
-        }
-
-        public void Dispose()
-        {
-            if (root != null)
-                Object.DestroyImmediate(root);
-        }
     }
 }

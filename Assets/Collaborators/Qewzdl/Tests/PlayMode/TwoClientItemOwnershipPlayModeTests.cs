@@ -31,9 +31,8 @@ public sealed class NetworkItemTestPickup : PassiveItem
 }
 
 [Category("Multiplayer")]
-public sealed class TwoClientItemOwnershipPlayModeTests
+public sealed class TwoClientItemOwnershipPlayModeTests : MultiEndpointPlayModeTest
 {
-    private const float TimeoutSeconds = 10f;
     private const float InitialPlayerSpeed = 10f;
     private const float ItemMass = 2f;
     private const uint DraggablePrefabHash = 0x17A60001u;
@@ -42,8 +41,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     private const uint HandlePrefabHash = 0x17A60004u;
     private const uint EntranceDoorPrefabHash = 0x17A60005u;
 
-    private readonly List<Endpoint> endpoints = new();
-    private readonly List<Object> cleanup = new();
 
     private Endpoint server;
     private Endpoint clientA;
@@ -82,34 +79,8 @@ public sealed class TwoClientItemOwnershipPlayModeTests
     public IEnumerator TearDown()
     {
         Physics.gravity = worldGravity;
-
-        for (int i = 0; i < endpoints.Count; i++)
-        {
-            NetworkManager manager = endpoints[i].Manager;
-
-            if (manager != null && manager.IsListening)
-                manager.Shutdown(discardMessageQueue: true);
-        }
-
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!AllEndpointsStopped() && Time.realtimeSinceStartup < timeout)
-            yield return null;
-
+        yield return StopEndpoints();
         DraggableObject.ActiveDraggedObjects.Clear();
-
-        for (int i = endpoints.Count - 1; i >= 0; i--)
-            endpoints[i].Dispose();
-
-        endpoints.Clear();
-
-        for (int i = cleanup.Count - 1; i >= 0; i--)
-        {
-            if (cleanup[i] != null)
-                Object.DestroyImmediate(cleanup[i]);
-        }
-
-        cleanup.Clear();
         server = null;
         clientA = null;
         clientB = null;
@@ -231,7 +202,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 {
                     hasRestoredPosition = true;
                     restoredPosition = serverItem.GetComponent<Rigidbody>().position;
-                    IgnoreReplicaCollisions(networkObjectId);
                 }
 
                 return hasRestoredPosition &&
@@ -256,6 +226,30 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                     networkObjectId)
                 .OwnerClientId,
             Is.EqualTo(NetworkManager.ServerClientId));
+    }
+
+    // Every machine's copy of an item stands in this fixture's one physics
+    // scene, on the same spot; the clients' copies are kinematic and would
+    // walk the server's out of the way. The test base keeps machines apart,
+    // so the server's copy stays exactly where it was put.
+    [UnityTest]
+    public IEnumerator CopiesOnDifferentMachines_DoNotShoveEachOther()
+    {
+        yield return StartNetwork();
+
+        Vector3 spot = new(3f, 1f, 3f);
+        ulong itemId = SpawnOnServer<NetworkItemTestDraggable>(draggablePrefab, spot);
+        yield return WaitForSpawnOnEveryEndpoint(itemId);
+
+        for (int i = 0; i < 20; i++)
+            yield return new WaitForFixedUpdate();
+
+        Assert.That(
+            Vector3.Distance(
+                GetSpawnedComponent<Rigidbody>(server, itemId).position,
+                spot),
+            Is.LessThan(0.001f),
+            "The other machines' copies shoved the server's copy of the item.");
     }
 
     [UnityTest]
@@ -566,7 +560,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             draggablePrefab,
             eyes.position + Vector3.forward * 1.5f);
         yield return WaitForSpawnOnEveryEndpoint(itemId);
-        IgnoreReplicaCollisions(itemId);
 
         Sprite hand = Track(Sprite.Create(
             Texture2D.whiteTexture,
@@ -643,7 +636,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             Vector3.Distance(serverItem.GetComponent<Rigidbody>().position, carrierFeet),
             Is.LessThan(0.05f),
             "The item was not put down at the feet of its carrier.");
-        IgnoreReplicaCollisions(networkObjectId);
 
         yield return WaitForCondition(
             () => !playerA.Orchestrator.States.IsCarrying &&
@@ -723,26 +715,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             $"{who} was left dragging on their own machine.");
     }
 
-    // The three copies of one item share this fixture's physics scene and,
-    // left to touch, shove each other out of reach. Redone after anything
-    // that turns the colliders back on, which forgets it.
-    private void IgnoreReplicaCollisions(ulong networkObjectId)
-    {
-        List<Collider> copies = new();
-
-        foreach (Endpoint endpoint in new[] { server, clientA, clientB })
-        {
-            if (endpoint.Manager.IsListening && HasSpawnedObject(endpoint, networkObjectId))
-                copies.Add(GetSpawnedComponent<BoxCollider>(endpoint, networkObjectId));
-        }
-
-        for (int i = 0; i < copies.Count; i++)
-        {
-            for (int j = i + 1; j < copies.Count; j++)
-                Physics.IgnoreCollision(copies[i], copies[j]);
-        }
-    }
-
     private bool IsDrawnEverywhere(ulong networkObjectId, bool drawn)
     {
         // The clients only: a server that is not also a player draws nothing,
@@ -814,7 +786,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             "The handle was never dropped.");
         Assert.That(HasSpawnedObject(server, handleId), Is.True,
             "The handle was destroyed before any door took it.");
-        IgnoreReplicaCollisions(handleId);
         yield return new WaitForSecondsRealtime(0.5f);
 
         Assert.That(HasSpawnedObject(server, handleId), Is.True,
@@ -1248,32 +1219,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
             $"{target.name} at {target.transform.position}.");
     }
 
-    private Endpoint CreateEndpoint(string name)
-    {
-        Endpoint endpoint = Endpoint.Create(name);
-        endpoints.Add(endpoint);
-        return endpoint;
-    }
-
-    private bool AllEndpointsStopped()
-    {
-        for (int i = 0; i < endpoints.Count; i++)
-        {
-            NetworkManager manager = endpoints[i].Manager;
-
-            if (manager != null &&
-                (manager.IsListening ||
-                 manager.IsClient ||
-                 manager.IsServer ||
-                 manager.ShutdownInProgress))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private static bool IsDragging(DraggableObject item)
     {
         return PlayModeTestReflection
@@ -1286,25 +1231,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
         return PlayModeTestReflection
             .GetField<NetworkVariable<bool>>(item, "netIsPickedUp")
             .Value;
-    }
-
-    private static IEnumerator WaitForCondition(
-        Func<bool> condition,
-        string failureMessage)
-    {
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!condition.Invoke() && Time.realtimeSinceStartup < timeout)
-            yield return null;
-
-        Assert.That(condition.Invoke(), Is.True, failureMessage);
-    }
-
-    private T Track<T>(T value)
-        where T : Object
-    {
-        cleanup.Add(value);
-        return value;
     }
 
     private sealed class NetworkTestPlayer
@@ -1360,45 +1286,6 @@ public sealed class TwoClientItemOwnershipPlayModeTests
                 OwnerTransform = DropPoint,
                 PlayerInteraction = Interaction
             };
-        }
-    }
-
-    private sealed class Endpoint : IDisposable
-    {
-        private readonly GameObject root;
-
-        private Endpoint(
-            GameObject endpointRoot,
-            NetworkManager manager,
-            UnityTransport transport)
-        {
-            root = endpointRoot;
-            Manager = manager;
-            Transport = transport;
-        }
-
-        internal NetworkManager Manager { get; }
-        internal UnityTransport Transport { get; }
-
-        internal static Endpoint Create(string name)
-        {
-            GameObject root = new(name);
-            UnityTransport transport = root.AddComponent<UnityTransport>();
-            NetworkManager manager = root.AddComponent<NetworkManager>();
-            manager.NetworkConfig = new NetworkConfig
-            {
-                NetworkTransport = transport,
-                EnableSceneManagement = false,
-                ProtocolVersion = 4
-            };
-            transport.SetConnectionData("127.0.0.1", 0, "127.0.0.1");
-            return new Endpoint(root, manager, transport);
-        }
-
-        public void Dispose()
-        {
-            if (root != null)
-                Object.DestroyImmediate(root);
         }
     }
 }

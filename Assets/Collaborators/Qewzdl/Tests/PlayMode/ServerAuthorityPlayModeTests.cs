@@ -12,9 +12,8 @@ using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
 [Category("Multiplayer")]
-public sealed class ServerAuthorityPlayModeTests
+public sealed class ServerAuthorityPlayModeTests : MultiEndpointPlayModeTest
 {
-    private const float TimeoutSeconds = 10f;
     private const int SettleFrames = 20;
     private const int HandleItemId = 7101;
     private const int FirstMapId = 7;
@@ -26,8 +25,6 @@ public sealed class ServerAuthorityPlayModeTests
     private const uint PlayerPrefabHash = 0x5EA10003u;
     private const uint LobbyPrefabHash = 0x5EA10004u;
 
-    private readonly List<Endpoint> endpoints = new();
-    private readonly List<Object> cleanup = new();
 
     private Endpoint server;
     private Endpoint clientA;
@@ -42,31 +39,7 @@ public sealed class ServerAuthorityPlayModeTests
     [UnityTearDown]
     public IEnumerator TearDown()
     {
-        for (int i = 0; i < endpoints.Count; i++)
-        {
-            NetworkManager manager = endpoints[i].Manager;
-
-            if (manager != null && manager.IsListening)
-                manager.Shutdown(discardMessageQueue: true);
-        }
-
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!AllEndpointsStopped() && Time.realtimeSinceStartup < timeout)
-            yield return null;
-
-        for (int i = endpoints.Count - 1; i >= 0; i--)
-            endpoints[i].Dispose();
-
-        endpoints.Clear();
-
-        for (int i = cleanup.Count - 1; i >= 0; i--)
-        {
-            if (cleanup[i] != null)
-                Object.DestroyImmediate(cleanup[i]);
-        }
-
-        cleanup.Clear();
+        yield return StopEndpoints();
         server = null;
         clientA = null;
         clientB = null;
@@ -598,91 +571,9 @@ public sealed class ServerAuthorityPlayModeTests
         sceneObjectProperty.SetValue(networkObject, false);
     }
 
-    private Endpoint CreateEndpoint(string name)
-    {
-        Endpoint endpoint = Endpoint.Create(name);
-        endpoints.Add(endpoint);
-        return endpoint;
-    }
-
-    private bool AllEndpointsStopped()
-    {
-        for (int i = 0; i < endpoints.Count; i++)
-        {
-            NetworkManager manager = endpoints[i].Manager;
-
-            if (manager != null &&
-                (manager.IsListening || manager.IsClient || manager.IsServer ||
-                 manager.ShutdownInProgress))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private static IEnumerator WaitFrames(int frames)
     {
         for (int i = 0; i < frames; i++)
             yield return null;
-    }
-
-    private static IEnumerator WaitForCondition(
-        Func<bool> condition,
-        string failureMessage)
-    {
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!condition.Invoke() && Time.realtimeSinceStartup < timeout)
-            yield return null;
-
-        Assert.That(condition.Invoke(), Is.True, failureMessage);
-    }
-
-    private T Track<T>(T value)
-        where T : Object
-    {
-        cleanup.Add(value);
-        return value;
-    }
-
-    private sealed class Endpoint : IDisposable
-    {
-        private readonly GameObject root;
-
-        private Endpoint(
-            GameObject endpointRoot,
-            NetworkManager manager,
-            UnityTransport transport)
-        {
-            root = endpointRoot;
-            Manager = manager;
-            Transport = transport;
-        }
-
-        internal NetworkManager Manager { get; }
-        internal UnityTransport Transport { get; }
-
-        internal static Endpoint Create(string name)
-        {
-            GameObject root = new(name);
-            UnityTransport transport = root.AddComponent<UnityTransport>();
-            NetworkManager manager = root.AddComponent<NetworkManager>();
-            manager.NetworkConfig = new NetworkConfig
-            {
-                NetworkTransport = transport,
-                EnableSceneManagement = false,
-                ProtocolVersion = 6
-            };
-            transport.SetConnectionData("127.0.0.1", 0, "127.0.0.1");
-            return new Endpoint(root, manager, transport);
-        }
-
-        public void Dispose()
-        {
-            if (root != null)
-                Object.DestroyImmediate(root);
-        }
     }
 }

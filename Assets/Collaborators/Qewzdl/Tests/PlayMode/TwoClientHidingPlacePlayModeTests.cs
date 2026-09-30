@@ -21,14 +21,11 @@ internal sealed class HidingEntryEligibilityProbe :
 }
 
 [Category("Multiplayer")]
-public sealed class TwoClientHidingPlacePlayModeTests
+public sealed class TwoClientHidingPlacePlayModeTests : MultiEndpointPlayModeTest
 {
-    private const float TimeoutSeconds = 10f;
     private const uint PlayerPrefabHash = 0x17A60011u;
     private const uint HidingPlacePrefabHash = 0x17A60012u;
 
-    private readonly List<Endpoint> endpoints = new();
-    private readonly List<Object> cleanup = new();
 
     private Endpoint server;
     private Endpoint clientA;
@@ -38,47 +35,11 @@ public sealed class TwoClientHidingPlacePlayModeTests
     private AudioClip enterSound;
     private AudioClip exitSound;
 
-    private int playerLayer = -1;
-    private bool previousPlayerLayerCollision;
 
     [UnityTearDown]
     public IEnumerator TearDown()
     {
-        for (int i = 0; i < endpoints.Count; i++)
-        {
-            NetworkManager manager = endpoints[i].Manager;
-
-            if (manager != null && manager.IsListening)
-            {
-                manager.Shutdown(discardMessageQueue: true);
-            }
-        }
-
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!AllEndpointsStopped() &&
-               Time.realtimeSinceStartup < timeout)
-        {
-            yield return null;
-        }
-
-        for (int i = endpoints.Count - 1; i >= 0; i--)
-        {
-            endpoints[i].Dispose();
-        }
-
-        endpoints.Clear();
-
-        for (int i = cleanup.Count - 1; i >= 0; i--)
-        {
-            if (cleanup[i] != null)
-            {
-                Object.DestroyImmediate(cleanup[i]);
-            }
-        }
-
-        cleanup.Clear();
-        RestoreReplicaCollisions();
+        yield return StopEndpoints();
         server = null;
         clientA = null;
         clientB = null;
@@ -1306,47 +1267,8 @@ public sealed class TwoClientHidingPlacePlayModeTests
         return groundPosition + Vector3.up;
     }
 
-    // Three NetworkManagers share one physics scene, so every networked object
-    // exists three times at identical coordinates - the server's copy and one
-    // per client, capsules exactly inside each other. Penetration resolution
-    // shoves them apart, and with useGravity off nothing brings them back: the
-    // replicas climb away from the spawn point for the rest of the test.
-    //
-    // Left alone this randomly pushed the server's copy of the player out of
-    // MaxInteractionDistance before it could enter a hiding place, which is
-    // where this fixture's intermittent failures came from. Replicas of one
-    // object have no business colliding with each other.
-    private void SuppressReplicaCollisions()
-    {
-        playerLayer = LayerMask.NameToLayer("Player");
-
-        if (playerLayer < 0)
-        {
-            return;
-        }
-
-        previousPlayerLayerCollision =
-            Physics.GetIgnoreLayerCollision(playerLayer, playerLayer);
-        Physics.IgnoreLayerCollision(playerLayer, playerLayer, true);
-    }
-
-    private void RestoreReplicaCollisions()
-    {
-        if (playerLayer < 0)
-        {
-            return;
-        }
-
-        Physics.IgnoreLayerCollision(
-            playerLayer,
-            playerLayer,
-            previousPlayerLayerCollision);
-        playerLayer = -1;
-    }
-
     private IEnumerator StartNetwork()
     {
-        SuppressReplicaCollisions();
         CreateNetworkPrefabs();
 
         server = CreateEndpoint("Hiding dedicated server");
@@ -1463,10 +1385,9 @@ public sealed class TwoClientHidingPlacePlayModeTests
         PlayModeTestReflection.SetField(hidingData, "enterSound", enterSound);
         PlayModeTestReflection.SetField(hidingData, "exitSound", exitSound);
 
-        // The other half of SuppressReplicaCollisions. Three NetworkManagers
-        // share one physics scene, so every player exists three times, and
-        // ignoring the player layer against itself only stops the copies
-        // shoving each other - it leaves them in overlap queries.
+        // Three NetworkManagers share one physics scene, so every player
+        // exists three times. The test base stops the copies shoving each
+        // other, but it leaves them in overlap queries.
         //
         // The exit resolver defaults to a mask of everything and excludes
         // only colliders belonging to the player it is placing. A replica is
@@ -1724,105 +1645,5 @@ public sealed class TwoClientHidingPlacePlayModeTests
         child.transform.SetParent(parent, false);
         child.transform.localPosition = localPosition;
         return child.transform;
-    }
-
-    private Endpoint CreateEndpoint(string name)
-    {
-        Endpoint endpoint = Endpoint.Create(name);
-        endpoints.Add(endpoint);
-        return endpoint;
-    }
-
-    private bool AllEndpointsStopped()
-    {
-        for (int i = 0; i < endpoints.Count; i++)
-        {
-            NetworkManager manager = endpoints[i].Manager;
-
-            if (manager != null &&
-                (manager.IsListening ||
-                 manager.IsClient ||
-                 manager.IsServer ||
-                 manager.ShutdownInProgress))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static IEnumerator WaitForCondition(
-        Func<bool> condition,
-        string failureMessage
-    )
-    {
-        float timeout = Time.realtimeSinceStartup + TimeoutSeconds;
-
-        while (!condition.Invoke() &&
-               Time.realtimeSinceStartup < timeout)
-        {
-            yield return null;
-        }
-
-        Assert.That(condition.Invoke(), Is.True, failureMessage);
-    }
-
-    private T Track<T>(T value)
-        where T : Object
-    {
-        cleanup.Add(value);
-        return value;
-    }
-
-    private sealed class Endpoint : IDisposable
-    {
-        private readonly GameObject root;
-
-        private Endpoint(
-            GameObject endpointRoot,
-            NetworkManager manager,
-            UnityTransport transport
-        )
-        {
-            root = endpointRoot;
-            Manager = manager;
-            Transport = transport;
-        }
-
-        internal NetworkManager Manager { get; }
-        internal UnityTransport Transport { get; }
-
-        internal static Endpoint Create(string name)
-        {
-            GameObject root = new(name);
-            UnityTransport transport =
-                root.AddComponent<UnityTransport>();
-            NetworkManager manager =
-                root.AddComponent<NetworkManager>();
-
-            manager.NetworkConfig = new NetworkConfig
-            {
-                NetworkTransport = transport,
-                EnableSceneManagement = false,
-                ProtocolVersion = 6
-            };
-
-            transport.SetConnectionData(
-                "127.0.0.1",
-                0,
-                "127.0.0.1"
-            );
-
-            return new Endpoint(root, manager, transport);
-        }
-
-        public void Dispose()
-        {
-            if (root != null)
-            {
-                Object.DestroyImmediate(root);
-            }
-        }
     }
 }
