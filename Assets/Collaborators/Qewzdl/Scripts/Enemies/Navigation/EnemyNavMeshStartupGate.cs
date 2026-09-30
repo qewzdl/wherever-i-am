@@ -148,7 +148,7 @@ public class EnemyNavMeshStartupGate : MonoBehaviour
         }
 
         agent.enabled = false;
-        transform.position = hit.position;
+        BodyPlacement.Place(transform, GetComponent<Rigidbody>(), hit.position, transform.rotation);
         agent.enabled = true;
 
         return agent.isOnNavMesh;

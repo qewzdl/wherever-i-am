@@ -670,22 +670,7 @@ public sealed class PlayerHidingController :
     private void ApplyBodyPose(Vector3 position, Quaternion rotation)
     {
         ResolveReferences();
-
-        if (playerBody != null)
-        {
-            playerBody.position = position;
-            playerBody.rotation = rotation;
-
-            if (!playerBody.isKinematic)
-            {
-                playerBody.linearVelocity = Vector3.zero;
-                playerBody.angularVelocity = Vector3.zero;
-            }
-
-            return;
-        }
-
-        transform.SetPositionAndRotation(position, rotation);
+        BodyPlacement.Place(transform, playerBody, position, rotation);
     }
 
     private void ClearRecoveryPose()

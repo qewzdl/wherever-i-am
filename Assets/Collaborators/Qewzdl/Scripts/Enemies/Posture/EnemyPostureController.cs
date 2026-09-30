@@ -492,7 +492,7 @@ public class EnemyPostureController : MonoBehaviour
         if (previousAgentTypeId != targetAgentTypeId)
         {
             agent.enabled = false;
-            transform.position = postureHit.position;
+            MoveBody(postureHit.position);
             ApplyAgentProfile(posture);
             agent.enabled = true;
         }
@@ -691,6 +691,19 @@ public class EnemyPostureController : MonoBehaviour
         agent.baseOffset = baseOffset;
     }
 
+    // The body with the transform: while it is being driven it interpolates,
+    // and a transform written on its own was taken back to where the body
+    // still was. Moving on at the pace it had.
+    private void MoveBody(Vector3 position)
+    {
+        BodyPlacement.Place(
+            transform,
+            GetComponent<Rigidbody>(),
+            position,
+            transform.rotation,
+            stop: false);
+    }
+
     private void RestoreAgentProfile(
         int agentTypeId,
         float height,
@@ -706,7 +719,7 @@ public class EnemyPostureController : MonoBehaviour
             agent.enabled = false;
         }
 
-        transform.position = position;
+        MoveBody(position);
         ApplyAgentProfileValues(agentTypeId, height, radius, baseOffset);
 
         if (wasEnabled && agent.gameObject.activeInHierarchy)

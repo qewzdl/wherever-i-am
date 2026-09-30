@@ -118,14 +118,14 @@ public abstract class PickupItem : DraggableObject
         // off where it was picked up.
         SetCarried(false);
 
-        rb.position = dropPosition ?? spawnPosition;
-        rb.rotation = dropPosition.HasValue ? Quaternion.identity : spawnRotation;
-
         // Put down means put down at rest. The body kept whatever it was
         // doing before somebody picked it up, and would carry on doing it the
         // moment it was dynamic again.
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        BodyPlacement.Place(
+            transform,
+            rb,
+            dropPosition ?? spawnPosition,
+            dropPosition.HasValue ? Quaternion.identity : spawnRotation);
     }
 
     // Shown again everywhere; on the carrier's machine the model leaves their
@@ -203,8 +203,7 @@ public abstract class PickupItem : DraggableObject
 
         SetCarried(false);
 
-        rb.rotation = Quaternion.identity;
-        rb.position = ownerTransform.position;
+        BodyPlacement.Place(transform, rb, ownerTransform.position, Quaternion.identity);
 
         Destroy(viewModel);
 
