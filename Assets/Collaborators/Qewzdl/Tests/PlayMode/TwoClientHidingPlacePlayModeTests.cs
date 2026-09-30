@@ -884,6 +884,75 @@ public sealed class TwoClientHidingPlacePlayModeTests
         AssertPlayerRestored(clientPlayer);
     }
 
+    // Caught on the way in. The climb used to finish regardless, and the
+    // place stayed Occupied by somebody no longer playing, shut to everybody
+    // for the rest of the match - and letting them out put back the body
+    // that being caught had taken out of the room.
+    [UnityTest]
+    public IEnumerator OccupantLeavingPlay_ReleasesPlace_AndBodyStaysOut()
+    {
+        yield return StartNetwork();
+
+        ulong playerId = SpawnPlayer(clientA.Manager.LocalClientId);
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(
+            playerId,
+            hidingPlaceId
+        );
+
+        PlayerHidingController clientPlayer =
+            GetComponent<PlayerHidingController>(clientA, playerId);
+        PlayerHidingController serverPlayer =
+            GetComponent<PlayerHidingController>(server, playerId);
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(clientA, hidingPlaceId);
+        HidingPlaceInteractable serverPlace =
+            GetComponent<HidingPlaceInteractable>(server, hidingPlaceId);
+
+        Assert.That(clientPlace.TryRequestEnter(clientPlayer), Is.True);
+
+        yield return WaitForCondition(
+            () => serverPlace.State == HidingTransitionState.Entering &&
+                  clientPlayer.HidingState == HidingTransitionState.Entering,
+            "The entering transition did not replicate to the owner."
+        );
+
+        // What being caught does on every machine: out of play, and the
+        // body out of the world.
+        foreach (Endpoint endpoint in endpoints)
+        {
+            PlayerHidingController copy =
+                GetComponent<PlayerHidingController>(endpoint, playerId);
+            copy.GetComponent<InPlayProbe>().IsInPlay = false;
+            copy.GetComponent<MeshRenderer>().enabled = false;
+            copy.GetComponent<CapsuleCollider>().enabled = false;
+        }
+
+        yield return WaitForCondition(
+            () => serverPlace.State == HidingTransitionState.Available &&
+                  !serverPlace.IsOccupied &&
+                  clientPlace.IsAvailable &&
+                  !serverPlayer.IsInHidingSequence &&
+                  !clientPlayer.IsInHidingSequence,
+            "A player caught while climbing in kept the hiding place."
+        );
+
+        foreach (Endpoint endpoint in endpoints)
+        {
+            PlayerHidingController copy =
+                GetComponent<PlayerHidingController>(endpoint, playerId);
+
+            Assert.That(
+                copy.GetComponent<MeshRenderer>().enabled ||
+                copy.GetComponent<CapsuleCollider>().enabled,
+                Is.False,
+                "Letting the caught player out of the hiding place put " +
+                "their body back."
+            );
+        }
+    }
+
     [UnityTest]
     public IEnumerator DespawnDuringExiting_RecoversPlayerAndUnlocksMovement()
     {
@@ -1336,6 +1405,7 @@ public sealed class TwoClientHidingPlacePlayModeTests
         bodyCollider.height = 2f;
         playerPrefab.AddComponent<MeshRenderer>();
         playerPrefab.AddComponent<HidingEntryEligibilityProbe>();
+        playerPrefab.AddComponent<InPlayProbe>();
 
         PlayerController movement =
             playerPrefab.AddComponent<PlayerController>();

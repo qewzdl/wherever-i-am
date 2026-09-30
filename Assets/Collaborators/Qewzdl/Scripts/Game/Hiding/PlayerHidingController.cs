@@ -806,7 +806,7 @@ public sealed class PlayerHidingController :
             );
         }
 
-        hidingEffects?.Restore();
+        RestoreHidingEffects();
 
         if (currentState.IsInHidingSequence)
         {
@@ -820,6 +820,22 @@ public sealed class PlayerHidingController :
 
         ApplyLocalHidingCamera(currentState);
         ApplyLocalHidingVignette(currentState);
+    }
+
+    // A body out of play stays out. Hiding noted the body as switched on
+    // when it climbed in, whatever took the player out of play has switched
+    // it off since, and putting back what hiding noted brought the caught
+    // body back into the room.
+    private void RestoreHidingEffects()
+    {
+        if (PlayerInPlay.Of(this))
+        {
+            hidingEffects?.Restore();
+        }
+        else
+        {
+            hidingEffects?.Forget();
+        }
     }
 
     private void RestoreLocalHidingState()
@@ -837,7 +853,7 @@ public sealed class PlayerHidingController :
         }
 
         playerInteraction?.SetHidingActive(false);
-        hidingEffects?.Restore();
+        RestoreHidingEffects();
         cameraLook?.ClearHidingView();
         hidingVignette?.HideImmediate();
         hidingRequestPending = false;

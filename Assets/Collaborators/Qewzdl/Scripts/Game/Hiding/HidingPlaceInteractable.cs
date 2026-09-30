@@ -120,6 +120,11 @@ public sealed class HidingPlaceInteractable : InteractableObject
 
     private void Update()
     {
+        if (IsServer && IsSpawned && IsOccupied)
+        {
+            ReleaseOccupantOutOfPlayServer();
+        }
+
         if (!IsServer ||
             !IsSpawned ||
             !transitionPending ||
@@ -326,6 +331,32 @@ public sealed class HidingPlaceInteractable : InteractableObject
 
         LastInvestigationRefusal = InvestigationRefusal.None;
         return true;
+    }
+
+    // Only a player in play holds a hiding place, asked every frame rather
+    // than told. Leaving the match and a body despawning were each handled
+    // on their own, and being caught while climbing in was not handled at
+    // all: the climb finished, and the place stayed Occupied by somebody
+    // no longer playing, shut to everybody for the rest of the match.
+    // Whatever takes a player out of play in future lets go of it here.
+    //
+    // The body of a player out of play has already left the world, so it is
+    // let go where it is rather than walked to an exit.
+    private void ReleaseOccupantOutOfPlayServer()
+    {
+        bool hasOccupant = TryGetOccupant(out PlayerHidingController occupant);
+
+        if (hasOccupant && PlayerInPlay.Of(occupant))
+        {
+            return;
+        }
+
+        if (hasOccupant)
+        {
+            occupant.CleanupHidingSequenceServer(this);
+        }
+
+        ResetAvailableServer();
     }
 
     internal bool ReleaseOccupantForPlayerDespawnServer(

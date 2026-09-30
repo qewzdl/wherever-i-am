@@ -78,6 +78,11 @@ internal sealed class PlayerHidingEffects
         effectsApplied = false;
     }
 
+    internal void Forget()
+    {
+        effectsApplied = false;
+    }
+
     // Somebody else's body is kinematic here (RemotePlayerBody) and has no
     // velocity of its own to stop.
     private void StopBody()
