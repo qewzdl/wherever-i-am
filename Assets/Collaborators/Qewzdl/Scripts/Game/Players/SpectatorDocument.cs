@@ -224,7 +224,7 @@ public sealed class SpectatorDocument : MonoBehaviour
         {
             PlayerEnemyAttackReceiver player = players[i];
 
-            if (player == null || player.IsEliminated)
+            if (player == null || !player.IsInPlay)
                 continue;
 
             shown.Add(player);
@@ -267,7 +267,7 @@ public sealed class SpectatorDocument : MonoBehaviour
         {
             PlayerEnemyAttackReceiver player = players[i];
 
-            if (player == null || player.IsEliminated)
+            if (player == null || !player.IsInPlay)
                 continue;
 
             if (alive >= shown.Count || shown[alive] != player)

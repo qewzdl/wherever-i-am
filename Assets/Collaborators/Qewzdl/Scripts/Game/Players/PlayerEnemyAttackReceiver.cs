@@ -210,7 +210,7 @@ public sealed class PlayerEnemyAttackReceiver :
         {
             PlayerEnemyAttackReceiver player = players[i];
 
-            if (player != null && !player.IsEliminated)
+            if (player != null && player.IsInPlay)
             {
                 return true;
             }
@@ -241,8 +241,10 @@ public sealed class PlayerEnemyAttackReceiver :
         }
     }
 
-    // Runs on every peer: the body has to leave play for the enemy, for the
-    // survivors looking at it, and for the physics they walk through.
+    // Runs on every peer: the body has to leave the world for the survivors
+    // looking at it and for the physics they walk through. What the enemy,
+    // the gaze, the noise and the rest make of a player out of play they
+    // work out for themselves, from IsInPlay; only the body is this class's.
     private void ApplyElimination()
     {
         if (eliminationApplied)
@@ -251,20 +253,6 @@ public sealed class PlayerEnemyAttackReceiver :
         }
 
         eliminationApplied = true;
-
-        EnemyTarget enemyTarget = GetComponentInChildren<EnemyTarget>(true);
-
-        if (enemyTarget != null)
-        {
-            enemyTarget.SetDetectable(false);
-        }
-
-        PlayerGazeNetwork gaze = GetComponent<PlayerGazeNetwork>();
-
-        if (gaze != null)
-        {
-            gaze.SetInPlay(false);
-        }
 
         TakeBodyOutOfPlay();
 

@@ -217,7 +217,7 @@ public sealed class PlayerSpectatorView : MonoBehaviour
             int index = ((currentIndex + direction * step) % count + count) % count;
             PlayerEnemyAttackReceiver candidate = players[index];
 
-            if (candidate != null && candidate != self && !candidate.IsEliminated)
+            if (candidate != null && candidate != self && candidate.IsInPlay)
             {
                 return candidate;
             }
@@ -260,7 +260,7 @@ public sealed class PlayerSpectatorView : MonoBehaviour
 
     private bool IsWatchable(PlayerEnemyAttackReceiver player)
     {
-        return player != null && player != self && !player.IsEliminated;
+        return player != null && player != self && player.IsInPlay;
     }
 
     private void Watch(PlayerEnemyAttackReceiver player)

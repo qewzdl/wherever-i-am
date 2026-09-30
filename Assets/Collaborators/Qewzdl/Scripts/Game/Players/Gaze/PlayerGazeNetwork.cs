@@ -321,16 +321,26 @@ public sealed class PlayerGazeNetwork : NetworkBehaviour
     public bool IsWatching =>
         isInPlay && (HidingState == null || !HidingState.IsHidden);
 
-    private bool isInPlay = true;
-
     // A player who is out of the match watches through somebody else's eyes,
     // and their own body is left standing where it fell. It neither watches
     // the enemy any more - counting it makes the enemy back away from a room
     // nobody is really in - nor has a view of its own worth sending.
-    public void SetInPlay(bool value)
+    private bool isInPlay
     {
-        isInPlay = value;
+        get
+        {
+            if (!inPlayResolved)
+            {
+                inPlay = GetComponentInParent<IPlayerInPlay>();
+                inPlayResolved = true;
+            }
+
+            return inPlay == null || inPlay.IsInPlay;
+        }
     }
+
+    private IPlayerInPlay inPlay;
+    private bool inPlayResolved;
 
     private IReplicatedPlayerHidingStateService HidingState
     {

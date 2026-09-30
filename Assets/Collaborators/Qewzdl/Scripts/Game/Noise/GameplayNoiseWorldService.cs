@@ -160,7 +160,7 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
             return false;
         }
 
-        if (!noiseEvent.IsValid || IsFromCaughtPlayer(noiseEvent))
+        if (!noiseEvent.IsValid || IsFromPlayerOutOfPlay(noiseEvent))
         {
             return false;
         }
@@ -181,17 +181,11 @@ public sealed class GameplayNoiseWorldService : MonoBehaviour, IGameplayNoiseSer
     // body kept going for the rest of it, and the enemy went back to the spot
     // where she caught them as though somebody were still there. Refused here,
     // where every noise arrives, rather than in each thing that makes one.
-    private static bool IsFromCaughtPlayer(GameplayNoiseEvent noiseEvent)
+    private static bool IsFromPlayerOutOfPlay(GameplayNoiseEvent noiseEvent)
     {
-        if (noiseEvent.SourceObject is not Component source || source == null)
-        {
-            return false;
-        }
-
-        PlayerEnemyAttackReceiver player =
-            source.GetComponentInParent<PlayerEnemyAttackReceiver>();
-
-        return player != null && player.IsEliminated;
+        return noiseEvent.SourceObject is Component source &&
+               source != null &&
+               !PlayerInPlay.Of(source);
     }
 
     public bool TryFindBestNoise(

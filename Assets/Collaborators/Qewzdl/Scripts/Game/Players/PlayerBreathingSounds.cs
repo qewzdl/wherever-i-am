@@ -128,7 +128,7 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float doubleCoughChance = 0.65f;
 
     private NetworkObject networkObject;
-    private PlayerEnemyAttackReceiver receiver;
+    private IPlayerInPlay inPlay;
     private IGameplaySoundService gameplaySound;
 
     private readonly BreathRhythm rhythm = new();
@@ -140,7 +140,7 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
             controller = GetComponentInParent<PlayerController>();
 
         networkObject = GetComponentInParent<NetworkObject>();
-        receiver = GetComponentInParent<PlayerEnemyAttackReceiver>();
+        inPlay = GetComponentInParent<IPlayerInPlay>();
     }
 
     private void Update()
@@ -152,7 +152,7 @@ public sealed class PlayerBreathingSounds : MonoBehaviour
         // with their controls switched off, so somebody caught winded went on
         // panting - out loud, and as a noise the enemy could hear - for the
         // rest of the match, from a body that was no longer in it.
-        if (receiver != null && receiver.IsEliminated)
+        if (inPlay != null && !inPlay.IsInPlay)
             return;
 
         // The lockout counts as well as the threshold. They almost always

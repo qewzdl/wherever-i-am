@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 public sealed class PlayerEnemyAttackReceiverTests
 {
@@ -348,5 +350,37 @@ public sealed class PlayerEnemyAttackReceiverTests
                 "enemy hit"),
             Is.True);
         Assert.That(service.CompletionCount, Is.EqualTo(2));
+    }
+
+    // Out of play is one answer that everything asks for, whatever gave it.
+    // Nothing here is caught: a stand-in simply says the player is out, and
+    // the enemy stops seeing them and their gaze stops counting - the way
+    // any future way out of the match will be picked up without being wired
+    // to either.
+    [Test]
+    public void OutOfPlay_IsHonouredWhateverTookThePlayerOut()
+    {
+        GameObject player = new("Player out of play");
+        createdPlayers.Add(player);
+
+        OutOfPlayStandIn standIn = player.AddComponent<OutOfPlayStandIn>();
+        LogAssert.Expect(LogType.Error, new Regex("EnemyTarget has invalid visibility configuration"));
+        EnemyTarget target = player.AddComponent<EnemyTarget>();
+        PlayerGazeNetwork gaze = player.AddComponent<PlayerGazeNetwork>();
+
+        Assert.That(PlayerInPlay.Of(target), Is.True);
+        Assert.That(target.CanBeDetected, Is.True);
+        Assert.That(gaze.IsWatching, Is.True);
+
+        standIn.IsInPlay = false;
+
+        Assert.That(PlayerInPlay.Of(target), Is.False);
+        Assert.That(target.CanBeDetected, Is.False, "The enemy can still see a player out of play.");
+        Assert.That(gaze.IsWatching, Is.False, "A player out of play still counts as watching.");
+    }
+
+    private sealed class OutOfPlayStandIn : MonoBehaviour, IPlayerInPlay
+    {
+        public bool IsInPlay { get; set; } = true;
     }
 }

@@ -20,18 +20,31 @@ public class EnemyTarget : MonoBehaviour
 
     private NetworkObject cachedNetworkObject;
     private IReplicatedPlayerHidingStateService hidingState;
+    private IPlayerInPlay inPlay;
+    private bool inPlayResolved;
     private bool invalidVisibilityConfigurationLogged;
 
     public Transform AimPoint => aimPoint != null ? aimPoint : transform;
     public Vector3 AimPosition => AimPoint.position;
-    public bool CanBeDetected =>
-        canBeDetected && (hidingState == null || !hidingState.IsHidden);
-
     // A player who is out of the match is not prey any more: without this the
     // enemy keeps hunting a body nobody is playing.
-    public void SetDetectable(bool value)
+    public bool CanBeDetected =>
+        canBeDetected &&
+        InPlay &&
+        (hidingState == null || !hidingState.IsHidden);
+
+    private bool InPlay
     {
-        canBeDetected = value;
+        get
+        {
+            if (!inPlayResolved)
+            {
+                inPlay = GetComponentInParent<IPlayerInPlay>();
+                inPlayResolved = true;
+            }
+
+            return inPlay == null || inPlay.IsInPlay;
+        }
     }
 
     public NetworkObject NetworkObject
