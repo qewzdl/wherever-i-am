@@ -325,9 +325,17 @@ public sealed class TwoClientHidingPlacePlayModeTests
 
         clientA.Manager.Shutdown(discardMessageQueue: false);
 
+        // Gone from client B as well, not only from the server. Every endpoint
+        // here shares one physics scene, so client B's copy of player A, still
+        // standing until the despawn reaches it, was in the way of the
+        // server's look from B to the hiding place: the entry was refused now
+        // and then in a full run, when that message came a frame late.
         yield return WaitForCondition(
             () => !clientA.Manager.IsListening &&
                   !server.Manager.SpawnManager.SpawnedObjects.ContainsKey(
+                      playerAId
+                  ) &&
+                  !clientB.Manager.SpawnManager.SpawnedObjects.ContainsKey(
                       playerAId
                   ) &&
                   !serverPlace.IsOccupied &&
