@@ -25,14 +25,14 @@ public sealed class ObjectiveRuntimePlayModeTests
 
     // A won match opens the next map in this machine's own progress - the
     // player's, not the test's - so it is put back the way it was found.
-    private bool hadMapProgress;
     private string savedMapProgress;
 
     [UnitySetUp]
     public IEnumerator SetUp()
     {
-        hadMapProgress = PlayerPrefs.HasKey(MapProgress.Key);
-        savedMapProgress = PlayerPrefs.GetString(MapProgress.Key, string.Empty);
+        savedMapProgress = System.IO.File.Exists(MapProgress.FilePath)
+            ? System.IO.File.ReadAllText(MapProgress.FilePath)
+            : null;
 
         persistentSceneProbe = new GameObject("Objective runtime PlayMode test probe");
         UnityEngine.Object.DontDestroyOnLoad(persistentSceneProbe);
@@ -49,12 +49,10 @@ public sealed class ObjectiveRuntimePlayModeTests
     [UnityTearDown]
     public IEnumerator TearDown()
     {
-        if (hadMapProgress)
-            PlayerPrefs.SetString(MapProgress.Key, savedMapProgress);
+        if (savedMapProgress != null)
+            System.IO.File.WriteAllText(MapProgress.FilePath, savedMapProgress);
         else
-            PlayerPrefs.DeleteKey(MapProgress.Key);
-
-        PlayerPrefs.Save();
+            System.IO.File.Delete(MapProgress.FilePath);
 
         for (int i = cleanup.Count - 1; i >= 0; i--)
         {

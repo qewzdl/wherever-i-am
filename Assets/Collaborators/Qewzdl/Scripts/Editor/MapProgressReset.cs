@@ -1,14 +1,17 @@
 using System.Diagnostics;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 
 // Locks every map past the first again, by forgetting which maps have been
-// won - on this machine, in both places that remember it: the editor's own
-// saves, and the saves of a build of this project, which are somewhere else.
+// won - on this machine, for the editor and for builds of this project. Both
+// keep a file in the same folder, under different names.
 //
-// The build's are deleted with reg.exe rather than through PlayerPrefs, which
-// in the editor only ever reaches the editor's. Windows only: that is where
-// the registry is, and where this project is built.
+// Progress used to live in PlayerPrefs, and a build that has not run since
+// still has it there, ready to be carried into its file on the next start.
+// That is deleted too, with reg.exe rather than through PlayerPrefs, which in
+// the editor only ever reaches the editor's. Windows only: that is where the
+// registry is, and where this project is built.
 public static class MapProgressReset
 {
     // Beside the map manager, a step apart from the windows above it.
@@ -25,8 +28,15 @@ public static class MapProgressReset
             return;
         }
 
-        PlayerPrefs.DeleteKey(MapProgress.Key);
+        PlayerPrefs.DeleteKey(MapProgress.LegacyPrefsKey);
         PlayerPrefs.Save();
+
+        // The .bak too, or the next start would read the progress back from it.
+        foreach (string file in new[] { "progress-editor.json", "progress.json" })
+        {
+            foreach (string suffix in new[] { "", ".bak", ".tmp" })
+                File.Delete(Path.Combine(Application.persistentDataPath, file + suffix));
+        }
 
         string build = ResetBuild();
 
@@ -43,7 +53,7 @@ public static class MapProgressReset
     {
 #if UNITY_EDITOR_WIN
         string key = $@"HKCU\Software\{PlayerSettings.companyName}\{PlayerSettings.productName}";
-        string value = RegistryName(MapProgress.Key);
+        string value = RegistryName(MapProgress.LegacyPrefsKey);
 
         ProcessStartInfo start = new("reg.exe", $"delete \"{key}\" /v \"{value}\" /f")
         {
@@ -59,9 +69,7 @@ public static class MapProgressReset
             return "Builds: could not reach the registry.";
 
         // reg.exe answers 1 when there was nothing there to delete.
-        return reg.ExitCode == 0
-            ? "It is reset for builds too."
-            : "Builds had no progress to reset.";
+        return "It is reset for builds too.";
 #else
         return "Builds keep theirs outside the registry on this system; reset them from the build.";
 #endif
