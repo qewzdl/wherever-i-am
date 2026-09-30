@@ -102,7 +102,7 @@ public sealed class EnemyAttackNetworkPresenter : NetworkBehaviour
         ReceivePhaseClientRpc(frame);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void ReceivePhaseClientRpc(EnemyAttackPresentationFrame frame)
     {
         DeliverPhaseFrame(frame);
@@ -145,7 +145,7 @@ public sealed class EnemyAttackNetworkPresenter : NetworkBehaviour
         PhaseReceived?.Invoke(frame.ToPhaseEvent());
     }
 
-    [ClientRpc]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void ReceiveResultClientRpc(EnemyAttackResolutionFrame frame)
     {
         if (!frame.HasValue || frame.SequenceId == lastDeliveredResultSequenceId)

@@ -191,7 +191,7 @@ public sealed class NetworkItemImpactSoundEmitter : NetworkBehaviour, IGameplayS
             rpcParams.Receive.SenderClientId);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void PlayImpactSoundClientRpc(
         Vector3 position,
         byte soundIdValue,

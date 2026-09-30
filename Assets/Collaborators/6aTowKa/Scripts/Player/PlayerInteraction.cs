@@ -366,13 +366,13 @@ public class PlayerInteraction : PlayerNetworkComponent, IPlayerSignalListener
         return false;
     }
 
-    [Rpc(SendTo.Owner)]
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
     private void DenyDraggingOwnerRpc()
     {
         DenyDragging();
     }
 
-    [Rpc(SendTo.Owner)]
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
     private void DenyPickupOwnerRpc()
     {
         DenyPickup();

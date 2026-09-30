@@ -319,7 +319,7 @@ public class NetworkChatSession : NetworkBehaviour,
         );
     }
 
-    [Rpc(SendTo.SpecifiedInParams)]
+    [Rpc(SendTo.SpecifiedInParams, InvokePermission = RpcInvokePermission.Server)]
     private void RejectMessageRpc(
         FixedString512Bytes rawText,
         FixedString128Bytes reason,

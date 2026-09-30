@@ -317,13 +317,13 @@ public abstract class PickupItem : DraggableObject
 
     // Client RPCs
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void HidePickupClientRpc()
     {
         SetCarried(true);
     }
 
-    [Rpc(SendTo.Owner)]
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
     private void ConfirmPickupOwnerRpc()
     {
         playerInteraction = context.PlayerInteraction;
@@ -334,7 +334,7 @@ public abstract class PickupItem : DraggableObject
         context = null;
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void DropClientRpc()
     {
         if (IsOwner) return;

@@ -767,7 +767,7 @@ public abstract class DraggableObject : InteractableObject
         return true;
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void ResetNetIsDraggingServerRpc(RpcParams rpcParams = default)
     {
         var networkObject = GetComponent<NetworkObject>();
@@ -783,7 +783,7 @@ public abstract class DraggableObject : InteractableObject
             this);
     }
 
-    [Rpc(SendTo.Owner)]
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
     private void StartDraggingOwnerRpc()
     {
         Interact(draggableContext);
