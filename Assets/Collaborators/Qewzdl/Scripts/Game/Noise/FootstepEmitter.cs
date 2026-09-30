@@ -9,9 +9,8 @@ using UnityEngine;
 // the alternative is the owner telling us which kind of step it is taking,
 // which hands the quietest option to anybody willing to edit their client.
 // GameplayNoiseEmitter's allowlist would not catch it: it checks that a preset
-// is one this object may request, and the movement validator beside it checks
-// only that the player really travelled, never which preset was asked for. A
-// client that always claimed to be creeping while sprinting would pass both.
+// is one this object may request, never which one fits. A client that always
+// claimed to be creeping while sprinting would pass it.
 //
 // So nothing is claimed. Being quiet means actually moving slowly, and slowly
 // is a thing anybody watching can see.
@@ -29,10 +28,6 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 public sealed class FootstepEmitter : NetworkBehaviour, IFootfallSource
 {
-    [Header("Observation")]
-    [Tooltip("Left empty, this object's own transform is watched.")]
-    [SerializeField] private Transform observedTransform;
-
     // The same asset the legs are driven from, so the speed that counts as
     // running here is the speed running actually is.
     [SerializeField] private PlayerMovementProfile movement;
@@ -61,18 +56,8 @@ public sealed class FootstepEmitter : NetworkBehaviour, IFootfallSource
         "step instead.")]
     [SerializeField, Min(0.05f)] private float strideLength = 0.9f;
 
-    [Tooltip(
-        "Seconds of movement the gait is judged over. Somebody else's " +
-        "player moves in network ticks, so a single frame of them often " +
-        "shows no movement at all; this has to cover a few ticks.")]
-    [SerializeField, Min(0.02f)] private float gaitSampleWindow = 0.15f;
-
-    private Vector3 previousPosition;
-    private float previousSampleTime;
-    private bool hasPreviousSample;
     private readonly StrideCounter stride = new();
-    private readonly WindowedSpeed speed = new();
-    private PlayerGait gait = PlayerGait.Silent;
+    private PlayerObservedMotion motion;
 
     private IGameplaySoundService gameplaySound;
 
@@ -111,35 +96,18 @@ public sealed class FootstepEmitter : NetworkBehaviour, IFootfallSource
 
     private void Step()
     {
-        Transform observed = observedTransform != null ? observedTransform : transform;
-        Vector3 position = observed.position;
-        float now = Time.time;
+        if (motion == null)
+            motion = PlayerObservedMotion.On(gameObject);
 
-        if (!hasPreviousSample)
-        {
-            previousPosition = position;
-            previousSampleTime = now;
-            hasPreviousSample = true;
-            return;
-        }
+        ObservedMotion seen = motion.Now;
 
-        float deltaTime = now - previousSampleTime;
-
-        previousSampleTime = now;
-        Vector3 displacement = position - previousPosition;
-        previousPosition = position;
-        displacement.y = 0f;
-
-        if (deltaTime <= Mathf.Epsilon)
+        if (seen.DeltaTime <= Mathf.Epsilon)
             return;
 
-        float travelled = displacement.magnitude;
-
-        // The gait is held between windows, the distance is counted every
+        // The pace is held between windows, the distance is counted every
         // frame - so a step still lands where the stride ends, not where a
         // window happens to.
-        if (speed.TryAdd(travelled, deltaTime, gaitSampleWindow, out float observedSpeed))
-            gait = movement.GaitFromObservedSpeed(observedSpeed);
+        PlayerGait gait = movement.GaitFromObservedSpeed(seen.Speed);
 
         // Silence is the absence of an event, not an event with nothing in it -
         // so there is no silent preset, no silent clip, and nothing to play
@@ -147,7 +115,7 @@ public sealed class FootstepEmitter : NetworkBehaviour, IFootfallSource
         // the reason the first footfall does not wait for a stride.
         if (!stride.Advance(
                 gait != PlayerGait.Silent,
-                travelled,
+                seen.Travelled,
                 strideLength))
         {
             return;
@@ -160,7 +128,7 @@ public sealed class FootstepEmitter : NetworkBehaviour, IFootfallSource
         if (IsServer)
             EmitNoise(isRunning);
 
-        PlaySound(isRunning, position);
+        PlaySound(isRunning, transform.position);
     }
 
     private void EmitNoise(bool isRunning)
@@ -186,11 +154,6 @@ public sealed class FootstepEmitter : NetworkBehaviour, IFootfallSource
 
     private void ResetObservation()
     {
-        hasPreviousSample = false;
         stride.Reset();
-        speed.Reset();
-        gait = PlayerGait.Silent;
-        previousPosition = Vector3.zero;
-        previousSampleTime = 0f;
     }
 }

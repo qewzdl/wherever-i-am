@@ -28,10 +28,6 @@ public sealed class ServerObservedExertionNoiseValidator :
     NetworkBehaviour,
     IGameplayNoiseRequestValidator
 {
-    [Header("Observation")]
-    [Tooltip("Left empty, this object's own transform is watched.")]
-    [SerializeField] private Transform observedTransform;
-
     // The same asset the legs are driven from. Running here is the speed
     // running actually is, and the tank empties at the rate it actually
     // empties - a second copy of those numbers would agree until the first
@@ -49,6 +45,7 @@ public sealed class ServerObservedExertionNoiseValidator :
     // to match the client's tank exactly and is not meant to - see
     // ObservedExertion, which is where the arithmetic and the reasoning live.
     private readonly ObservedExertion exertion = new();
+    private PlayerObservedMotion motion;
 
     public override void OnNetworkSpawn()
     {
@@ -65,8 +62,10 @@ public sealed class ServerObservedExertionNoiseValidator :
         if (!IsServer || !IsSpawned || movement == null)
             return;
 
-        Transform observed = observedTransform != null ? observedTransform : transform;
-        exertion.Sample(observed.position, Time.time, movement);
+        if (motion == null)
+            motion = PlayerObservedMotion.On(gameObject);
+
+        exertion.Advance(motion.Now, movement);
     }
 
     public bool CanEmitNoiseServer(

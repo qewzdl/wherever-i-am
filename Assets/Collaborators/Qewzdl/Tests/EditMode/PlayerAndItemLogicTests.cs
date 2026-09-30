@@ -590,6 +590,34 @@ public sealed class PlayerAndItemLogicTests
         Assert.That(steps, Is.InRange(expected - 1, expected));
     }
 
+    // Everything that reads a player's motion reads the same look at it. The
+    // footsteps and the server's tiredness each used to keep their own; one
+    // look shared has to give the second reader in a frame what the first
+    // saw, not a second look that finds the body has not moved since.
+    [Test]
+    public void ObservedMotion_ReadTwiceInAFrame_ReadsTheSame()
+    {
+        ObservedMotion motion = new();
+
+        motion.Sample(1, Vector3.zero, 0f);
+        motion.Sample(2, new Vector3(0.1f, 5f, 0f), 0.05f);
+
+        Assert.That(motion.Travelled, Is.EqualTo(0.1f).Within(0.0001f),
+            "The distance was not measured across the ground.");
+
+        motion.Sample(2, new Vector3(0.1f, 5f, 0f), 0.05f);
+
+        Assert.That(motion.Travelled, Is.EqualTo(0.1f).Within(0.0001f),
+            "A second reader in the same frame saw the body standing still.");
+        Assert.That(motion.DeltaTime, Is.EqualTo(0.05f).Within(0.0001f));
+
+        for (int frame = 3; frame < 10; frame++)
+            motion.Sample(frame, new Vector3(0.1f * (frame - 1), 0f, 0f), 0.05f * (frame - 1));
+
+        Assert.That(motion.Speed, Is.EqualTo(2f).Within(0.01f),
+            "The pace over a whole window was not the pace walked.");
+    }
+
     // A player who walked cannot claim to be out of breath.
     //
     // Breathing is the one noise the client asks for rather than the server
@@ -667,6 +695,7 @@ public sealed class PlayerAndItemLogicTests
         float framesPerSecond = 60f,
         float ticksPerSecond = 0f)
     {
+        ObservedMotion motion = new();
         ObservedExertion exertion = new();
 
         float step = 1f / framesPerSecond;
@@ -681,7 +710,8 @@ public sealed class PlayerAndItemLogicTests
                 ? Mathf.Floor(time * ticksPerSecond) / ticksPerSecond
                 : time;
 
-            exertion.Sample(new Vector3(speed * seen, 0f, 0f), time, profile);
+            motion.Sample(i, new Vector3(speed * seen, 0f, 0f), time);
+            exertion.Advance(motion, profile);
         }
 
         return exertion.Stamina;

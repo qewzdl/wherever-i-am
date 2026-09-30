@@ -16,66 +16,31 @@ using UnityEngine;
 // could honestly make.
 public sealed class ObservedExertion
 {
-    // How long the pace is judged over. A guest's body reaches the server in
-    // network ticks, so frame by frame it alternates between standing still
-    // and jumping ahead: every still frame counted as rest, and at any frame
-    // rate above a few frames a tick a running guest never tired at all. The
-    // server refused every breath they asked for, and the enemy heard only
-    // the host - whose own breaths it never checks - out of breath.
-    public const float SampleWindow = 0.25f;
-
-    private readonly WindowedSpeed speed = new();
-    private PlayerGait gait = PlayerGait.Silent;
-    private Vector3 previousPosition;
-    private float previousSampleTime;
-    private bool hasPreviousSample;
-
     public float Stamina { get; private set; } = 1f;
 
     public void Reset()
     {
         Stamina = 1f;
-        speed.Reset();
-        gait = PlayerGait.Silent;
-        hasPreviousSample = false;
-        previousPosition = Vector3.zero;
-        previousSampleTime = 0f;
     }
 
-    // The first sample of a life only establishes where the body is; there is
-    // no interval behind it to measure anything over.
-    public void Sample(Vector3 position, float time, PlayerMovementProfile movement)
+    // The pace comes judged over a window (ObservedMotion). A guest's body
+    // reaches the server in network ticks, so frame by frame it alternates
+    // between standing still and jumping ahead: judged a frame at a time,
+    // every still frame counted as rest, and at any frame rate above a few
+    // frames a tick a running guest never tired at all.
+    public void Advance(ObservedMotion motion, PlayerMovementProfile movement)
     {
-        if (movement == null)
+        if (motion == null || movement == null || motion.DeltaTime <= Mathf.Epsilon)
             return;
 
-        if (!hasPreviousSample)
-        {
-            previousPosition = position;
-            previousSampleTime = time;
-            hasPreviousSample = true;
-            return;
-        }
-
-        float deltaTime = time - previousSampleTime;
-
-        previousSampleTime = time;
-        Vector3 displacement = position - previousPosition;
-        previousPosition = position;
-        displacement.y = 0f;
-
-        if (deltaTime <= Mathf.Epsilon)
-            return;
-
-        if (speed.TryAdd(displacement.magnitude, deltaTime, SampleWindow, out float observedSpeed))
-            gait = movement.GaitFromObservedSpeed(observedSpeed);
+        PlayerGait gait = movement.GaitFromObservedSpeed(motion.Speed);
 
         // Only running costs anything. Walking is below the running band by
         // construction, so somebody who has been walking can never arrive at a
         // tank empty enough to be short of breath - which is the whole claim
         // this exists to be able to refuse.
         Stamina = gait == PlayerGait.Running
-            ? Mathf.Max(0f, Stamina - deltaTime / movement.RunSeconds)
-            : Mathf.Min(1f, Stamina + deltaTime / movement.RecoverySeconds);
+            ? Mathf.Max(0f, Stamina - motion.DeltaTime / movement.RunSeconds)
+            : Mathf.Min(1f, Stamina + motion.DeltaTime / movement.RecoverySeconds);
     }
 }
