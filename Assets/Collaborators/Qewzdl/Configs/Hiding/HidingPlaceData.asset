@@ -35,8 +35,6 @@ MonoBehaviour:
   hidingVignetteOpacity: 0.65
   hidingVignetteInnerRadius: 0.4
   hidingVignetteFadeDuration: 0.2
-  enterSound: {fileID: 0}
-  exitSound: {fileID: 0}
   enterNoiseRadius: 6
   enterNoiseLoudness: 0.7
   exitNoiseRadius: 5

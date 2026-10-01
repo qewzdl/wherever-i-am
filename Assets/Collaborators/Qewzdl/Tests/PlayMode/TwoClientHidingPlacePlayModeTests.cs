@@ -32,8 +32,8 @@ public sealed class TwoClientHidingPlacePlayModeTests : MultiEndpointPlayModeTes
     private Endpoint clientB;
     private GameObject playerPrefab;
     private GameObject hidingPlacePrefab;
-    private AudioClip enterSound;
-    private AudioClip exitSound;
+    private SoundEffect enterSound;
+    private SoundEffect exitSound;
 
 
     [UnityTearDown]
@@ -1158,24 +1158,49 @@ public sealed class TwoClientHidingPlacePlayModeTests : MultiEndpointPlayModeTes
         HidingPlacePresentation watcherSees =
             GetComponent<HidingPlacePresentation>(clientB, hidingPlaceId);
 
-        Assert.That(
-            GetComponent<HidingPlaceInteractable>(clientA, hidingPlaceId)
-                .TryRequestEnter(player),
-            Is.True);
+        HidingPlaceInteractable hiderPlace =
+            GetComponent<HidingPlaceInteractable>(clientA, hidingPlaceId);
+
+        Assert.That(hiderPlace.TryRequestEnter(player), Is.True);
+
+        // At once, for the one climbing in - not a round trip later, with the
+        // camera already inside.
+        Assert.That(hiderSees.LastPlayedSound, Is.SameAs(enterSound),
+            "The climber heard nothing until the server answered.");
 
         yield return WaitForCondition(
-            () => hiderSees.LastPlayedClip == enterSound &&
-                  watcherSees.LastPlayedClip == enterSound,
+            () => watcherSees.LastPlayedSound == enterSound &&
+                  hiderPlace.IsOccupied,
             "Somebody climbed in and not everybody heard it."
         );
+        Assert.That(hiderSees.PlayCount, Is.EqualTo(1),
+            "The climber heard climbing in twice: on asking, and again on the answer.");
+        Assert.That(watcherSees.LastPlayedClip, Is.SameAs(hiderSees.LastPlayedClip),
+            "Climbing in sounded a different take to each of them.");
 
         player.RequestExitHiding();
 
         yield return WaitForCondition(
-            () => hiderSees.LastPlayedClip == exitSound &&
-                  watcherSees.LastPlayedClip == exitSound,
+            () => hiderSees.LastPlayedSound == exitSound &&
+                  watcherSees.LastPlayedSound == exitSound,
             "Somebody climbed out and not everybody heard it."
         );
+        Assert.That(watcherSees.LastPlayedClip, Is.SameAs(hiderSees.LastPlayedClip),
+            "Climbing out sounded a different take to each of them.");
+    }
+
+    // Several takes, so two machines choosing for themselves would not often
+    // agree by luck.
+    private SoundEffect CreateTakes(string name)
+    {
+        SoundEffect sound = Track(ScriptableObject.CreateInstance<SoundEffect>());
+        AudioClip[] clips = new AudioClip[6];
+
+        for (int i = 0; i < clips.Length; i++)
+            clips[i] = Track(AudioClip.Create($"{name} {i}", 441, 1, 44100, false));
+
+        PlayModeTestReflection.SetField(sound, "clips", clips);
+        return sound;
     }
 
     // A free exit on the far side of a wall is still on the far side of a
@@ -1464,10 +1489,8 @@ public sealed class TwoClientHidingPlacePlayModeTests : MultiEndpointPlayModeTes
             Track(ScriptableObject.CreateInstance<HidingPlaceData>());
         PlayModeTestReflection.SetField(hidingData, "enterDuration", 0.2f);
         PlayModeTestReflection.SetField(hidingData, "exitDuration", 0.2f);
-        enterSound = Track(AudioClip.Create("Climb in", 441, 1, 44100, false));
-        exitSound = Track(AudioClip.Create("Climb out", 441, 1, 44100, false));
-        PlayModeTestReflection.SetField(hidingData, "enterSound", enterSound);
-        PlayModeTestReflection.SetField(hidingData, "exitSound", exitSound);
+        enterSound = CreateTakes("Climb in");
+        exitSound = CreateTakes("Climb out");
 
         // Three NetworkManagers share one physics scene, so every player
         // exists three times. The test base stops the copies shoving each
@@ -1562,8 +1585,10 @@ public sealed class TwoClientHidingPlacePlayModeTests : MultiEndpointPlayModeTes
             "fallbackExitPoints",
             new[] { fallbackExitPoint }
         );
-        hidingPlacePrefab.AddComponent<AudioSource>();
-        hidingPlacePrefab.AddComponent<HidingPlacePresentation>();
+        HidingPlacePresentation presentation =
+            hidingPlacePrefab.AddComponent<HidingPlacePresentation>();
+        PlayModeTestReflection.SetField(presentation, "enterSound", enterSound);
+        PlayModeTestReflection.SetField(presentation, "exitSound", exitSound);
 
         hidingPlacePrefab.SetActive(true);
     }

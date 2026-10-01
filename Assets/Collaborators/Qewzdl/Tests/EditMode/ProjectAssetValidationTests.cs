@@ -1169,6 +1169,36 @@ public sealed class ProjectAssetValidationTests
             "start warning about something else.");
     }
 
+    // A hiding place with nothing to sound climbing in or out is a silence
+    // nobody notices until they play - which is how the one there was went
+    // unheard: no sound set, and nothing on the prefab to play one through.
+    [Test]
+    public void HidingPlaces_AreHeardClimbingInAndOut()
+    {
+        int found = 0;
+
+        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Collaborators" }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            HidingPlacePresentation presentation =
+                prefab != null ? prefab.GetComponent<HidingPlacePresentation>() : null;
+
+            if (presentation == null || path.Contains("/Tests/"))
+                continue;
+
+            found++;
+            SerializedObject serialized = new(presentation);
+
+            Assert.That(serialized.FindProperty("enterSound").objectReferenceValue, Is.Not.Null,
+                $"{path} makes no sound when somebody climbs in.");
+            Assert.That(serialized.FindProperty("exitSound").objectReferenceValue, Is.Not.Null,
+                $"{path} makes no sound when somebody climbs out.");
+        }
+
+        Assert.That(found, Is.GreaterThan(0), "Found no hiding place prefabs to check.");
+    }
+
     // The enemy's manners live in these four assets, not only in her code.
     //
     // Whether she exclaims at a noise is decided by its kind: footsteps and

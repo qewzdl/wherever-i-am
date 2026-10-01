@@ -38,8 +38,6 @@ public sealed class HidingPlaceData : InteractableObjectData
     [SerializeField, Min(0f)] private float hidingVignetteFadeDuration = 0.2f;
 
     [Header("Presentation Audio")]
-    [SerializeField] private AudioClip enterSound;
-    [SerializeField] private AudioClip exitSound;
 
     [Header("Gameplay Noise")]
     [SerializeField, Min(0f)] private float enterNoiseRadius = 6f;
@@ -82,8 +80,6 @@ public sealed class HidingPlaceData : InteractableObjectData
         Mathf.Clamp(hidingVignetteInnerRadius, 0f, 0.95f);
     public float HidingVignetteFadeDuration =>
         Mathf.Max(0f, hidingVignetteFadeDuration);
-    public AudioClip EnterSound => enterSound;
-    public AudioClip ExitSound => exitSound;
     public float EnterNoiseRadius => Mathf.Max(0f, enterNoiseRadius);
     public float EnterNoiseLoudness => Mathf.Max(0f, enterNoiseLoudness);
     public float ExitNoiseRadius => Mathf.Max(0f, exitNoiseRadius);

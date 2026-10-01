@@ -224,7 +224,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hidingPlace: {fileID: 5873634962155947332}
   animator: {fileID: 0}
-  audioSource: {fileID: 0}
+  enterSound: {fileID: 11400000, guid: 9d641cc06f9d446ca1ee2ec97aa92018, type: 2}
+  exitSound: {fileID: 11400000, guid: 3cdae516689541d6b33613c9535eabf4, type: 2}
   occupiedParameter: IsOccupied
   stateParameter: HidingState
 --- !u!208 &864100000000000005

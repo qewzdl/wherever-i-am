@@ -6,7 +6,14 @@ public sealed class HidingPlacePresentation : MonoBehaviour
 {
     [SerializeField] private HidingPlaceInteractable hidingPlace;
     [SerializeField] private Animator animator;
-    [SerializeField] private AudioSource audioSource;
+
+    // Heard by everybody, from the place itself. Played through the gameplay
+    // sounds like every other sound in the world, so the effects volume, the
+    // mixer and the distance a sound carries apply to it; a source of its own
+    // on the prefab had none of that, and on the one prefab there was, no
+    // source at all - so nothing was ever heard.
+    [SerializeField] private SoundEffect enterSound;
+    [SerializeField] private SoundEffect exitSound;
     [SerializeField] private string occupiedParameter = "IsOccupied";
     [SerializeField] private string stateParameter = "HidingState";
 
@@ -15,9 +22,21 @@ public sealed class HidingPlacePresentation : MonoBehaviour
     private bool? occupied;
     private bool exitPlayed;
 
-    // What this copy last played. There is nothing else to ask an
-    // AudioSource about a one-shot once it has been fired.
+    private const uint EnterSlot = 0u;
+    private const uint ExitSlot = 1u;
+
+    private IGameplaySoundService gameplaySound;
+
+    // The entry this machine has already sounded, ahead of the server, for
+    // its own player climbing in.
+    private ulong soundedEarlyFor = HidingPlaceInteractable.NoOccupantNetworkObjectId;
+    private uint soundedEarlyEntry;
+
+    // What this copy last played, and which take of it. There is nothing to
+    // ask a fired one-shot afterwards.
+    internal SoundEffect LastPlayedSound { get; private set; }
     internal AudioClip LastPlayedClip { get; private set; }
+    internal int PlayCount { get; private set; }
 
     private void Awake()
     {
@@ -37,6 +56,7 @@ public sealed class HidingPlacePresentation : MonoBehaviour
 
         hidingPlace.OccupancyChanged += ApplyOccupancy;
         hidingPlace.StateChanged += ApplyState;
+        hidingPlace.EntryRequestedLocally += SoundEntryEarly;
         ApplyOccupancy(hidingPlace.IsOccupied);
         ApplyState(hidingPlace.State, hidingPlace.State);
     }
@@ -47,6 +67,7 @@ public sealed class HidingPlacePresentation : MonoBehaviour
         {
             hidingPlace.OccupancyChanged -= ApplyOccupancy;
             hidingPlace.StateChanged -= ApplyState;
+            hidingPlace.EntryRequestedLocally -= SoundEntryEarly;
         }
     }
 
@@ -70,8 +91,25 @@ public sealed class HidingPlacePresentation : MonoBehaviour
             !exitPlayed)
         {
             exitPlayed = true;
-            Play(Settings?.ExitSound);
+            Play(exitSound, ExitSlot, hidingPlace.Entries);
         }
+    }
+
+    // Climbing in is instant, so on the climber's own machine the sound used
+    // to wait for the server's answer and arrive with the camera already
+    // inside - a beat late, and to a guest the whole round trip late. The
+    // climber hears it on asking instead, as the next entry the server will
+    // count, which is the take everybody else is about to hear.
+    //
+    // Only climbing in. A request to climb out is refused while every exit is
+    // blocked, and sounding it early would be a sound for nothing on every
+    // press.
+    private void SoundEntryEarly(ulong playerNetworkObjectId)
+    {
+        exitPlayed = false;
+        soundedEarlyFor = playerNetworkObjectId;
+        soundedEarlyEntry = hidingPlace.Entries + 1u;
+        Play(enterSound, EnterSlot, soundedEarlyEntry);
     }
 
     // The sounds hang off who is inside rather than off the climbing.
@@ -92,32 +130,46 @@ public sealed class HidingPlacePresentation : MonoBehaviour
             return;
         }
 
+        bool soundedEarly =
+            isOccupied &&
+            hidingPlace.OccupantNetworkObjectId == soundedEarlyFor &&
+            hidingPlace.Entries == soundedEarlyEntry;
+        soundedEarlyFor = HidingPlaceInteractable.NoOccupantNetworkObjectId;
+
         if (isOccupied)
         {
             exitPlayed = false;
-            Play(Settings?.EnterSound);
+
+            if (!soundedEarly)
+                Play(enterSound, EnterSlot, hidingPlace.Entries);
+
             return;
         }
 
         if (!exitPlayed)
         {
             exitPlayed = true;
-            Play(Settings?.ExitSound);
+            Play(exitSound, ExitSlot, hidingPlace.Entries);
         }
     }
 
-    private HidingPlaceData Settings =>
-        hidingPlace != null ? hidingPlace.Configuration : null;
-
-    private void Play(AudioClip clip)
+    // The same take on every machine: rolled from this place and which entry
+    // into it this is (SoundRoll).
+    private void Play(SoundEffect sound, uint slot, uint entry)
     {
-        if (clip == null || audioSource == null)
+        if (sound == null || hidingPlace == null)
         {
             return;
         }
 
-        LastPlayedClip = clip;
-        audioSource.PlayOneShot(clip);
+        SoundRoll roll = SoundRoll.For(hidingPlace.NetworkObjectId, entry, slot);
+
+        LastPlayedSound = sound;
+        LastPlayedClip = sound.GetClip(roll);
+        PlayCount++;
+
+        gameplaySound ??= AudioServices.Gameplay();
+        gameplaySound?.PlayAtPosition(sound, transform.position, roll);
     }
 
     private void ApplyOccupancy(bool isOccupied)
@@ -142,11 +194,6 @@ public sealed class HidingPlacePresentation : MonoBehaviour
         if (animator == null)
         {
             animator = GetComponentInChildren<Animator>(true);
-        }
-
-        if (audioSource == null)
-        {
-            audioSource = GetComponentInChildren<AudioSource>(true);
         }
     }
 

@@ -16,6 +16,15 @@ public sealed class HidingPlaceInteractable : InteractableObject
     [SerializeField] private Transform exitPoint;
     [SerializeField] private Transform[] fallbackExitPoints;
 
+    // How many times somebody has climbed in, counted on the server. What
+    // every machine rolls this place's sounds from, so climbing in sounds the
+    // same take everywhere. Declared before the occupant, so a client already
+    // has the new count when it hears that somebody is inside.
+    private readonly NetworkVariable<uint> entries = new(
+        0u,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
     private readonly NetworkVariable<ulong> occupantNetworkObjectId = new(
         NoOccupantNetworkObjectId,
         NetworkVariableReadPermission.Everyone,
@@ -45,6 +54,12 @@ public sealed class HidingPlaceInteractable : InteractableObject
         NoOccupantNetworkObjectId;
 
     public event Action<bool> OccupancyChanged;
+
+    // A player on this machine asked the server to let them in, and the
+    // answer is a round trip away. Raised so whoever presents the place can
+    // act on the asking - see HidingPlacePresentation. The host is answered
+    // at once and never raises it.
+    public event Action<ulong> EntryRequestedLocally;
     public event Action<
         HidingTransitionState,
         HidingTransitionState> StateChanged;
@@ -61,6 +76,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
     public bool IsOccupied =>
         occupantNetworkObjectId.Value != NoOccupantNetworkObjectId;
     public ulong OccupantNetworkObjectId => occupantNetworkObjectId.Value;
+    public uint Entries => entries.Value;
     public Vector3 EnemyInvestigationPosition =>
         interactionAnchor != null
             ? interactionAnchor.position
@@ -201,6 +217,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
         }
 
         RequestEnterHidingServerRpc(hidingCommands.NetworkObjectId);
+        EntryRequestedLocally?.Invoke(hidingCommands.NetworkObjectId);
         return true;
     }
 
@@ -472,6 +489,7 @@ public sealed class HidingPlaceInteractable : InteractableObject
             return false;
         }
 
+        entries.Value++;
         occupantNetworkObjectId.Value = playerObject.NetworkObjectId;
 
         if (!playerHiding.BeginEnteringHidingServer(this, settings))
