@@ -463,6 +463,84 @@ public sealed class EnemyBakedNavMeshPlayModeTests
             "assigned to it, because the sound had a delay.");
     }
 
+    // Granny's scream on hearing something, with what she ships with: her own
+    // presentation profile, the Normal hearing, the scream two seconds after.
+    // The test above swaps in a sound of its own and a threshold of zero, so it
+    // says the reaction can play, not that this one does, or when.
+    //
+    // A loud enough noise near enough, and she screams - two seconds on, not at
+    // once. Running past her and a light knock are noises she acts on, and say
+    // nothing: footsteps are a rhythm, not an event, and a light knock never
+    // reaches the loudness the scream asks for.
+    [UnityTest]
+    public IEnumerator ShippedGranny_ScreamsTwoSecondsAfterALoudNoise_NotAtFootstepsOrAKnock()
+    {
+#if UNITY_EDITOR
+        EnemyPresentationProfile granny =
+            UnityEditor.AssetDatabase.LoadAssetAtPath<EnemyPresentationProfile>(
+                "Assets/Collaborators/Qewzdl/Configs/Enemies/Granny/GrannyPresentation.asset");
+        Assert.That(granny, Is.Not.Null, "Granny's presentation profile was not found.");
+
+        yield return StartHost();
+
+        GetProductionAgentTypes(
+            enemyPrefab,
+            out int standingAgentTypeId,
+            out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 0f, -5f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        EnemyPresentationController presentation =
+            enemy.GetComponent<EnemyPresentationController>();
+        PlayModeTestReflection.SetField(presentation, "profile", granny);
+
+        SoundEffect scream = granny.HeardLoudNoiseSound.Sound;
+        Assert.That(scream, Is.Not.Null, "Granny has no scream to react with.");
+
+        BakedNavMeshGameplaySoundProbe soundProbe = new();
+        presentation.Construct(soundProbe);
+
+        // Each noise is five metres from her - well inside her hearing - and
+        // left to fade from her memory before the next.
+        Vector3 nearHer = new(3f, 0f, -1f);
+
+        // Running past: Noise_FootstepRunning.
+        Assert.That(noiseWorld.TryRaiseNoiseServer(nearHer, 12f, 0.7f, GameplayNoiseSourceType.Footstep), Is.True);
+        yield return new WaitForSeconds(3.5f);
+        Assert.That(soundProbe.Played, Has.No.Member(scream), "She screamed at footsteps.");
+
+        // A light knock: ItemNoise_Box_LightImpact.
+        Assert.That(noiseWorld.TryRaiseNoiseServer(nearHer, 16f, 0.35f, GameplayNoiseSourceType.Item), Is.True);
+        yield return new WaitForSeconds(3.5f);
+        Assert.That(soundProbe.Played, Has.No.Member(scream), "She screamed at a light knock.");
+
+        // A heavy impact: ItemNoise_Box_HeavyImpact.
+        float raisedAt = Time.time;
+        Assert.That(noiseWorld.TryRaiseNoiseServer(nearHer, 32f, 1f, GameplayNoiseSourceType.Item), Is.True);
+
+        yield return WaitForCondition(
+            () => soundProbe.Played.Contains(scream),
+            "She heard a heavy impact five metres away and never screamed.");
+
+        Assert.That(Time.time - raisedAt, Is.GreaterThanOrEqualTo(1.8f),
+            "She screamed at once rather than two seconds after the noise.");
+#else
+        Assert.Ignore("Loads Granny's profile from the project, which only the editor can.");
+        yield break;
+#endif
+    }
+
     [UnityTest]
     public IEnumerator Navigator_OnPrebuiltNavMesh_OpensBlockingDoorBeforeContinuing()
     {
