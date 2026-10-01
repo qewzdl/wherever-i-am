@@ -42,7 +42,12 @@ public sealed class ObservedMotion
     // Once a frame, by whoever asks first. Asking again in the same frame
     // changes nothing, so the second reader sees what the first did rather
     // than a look that found the body had not moved since.
-    public void Sample(int frame, Vector3 position, float time)
+    //
+    // standingStill: the body is being put somewhere rather than walked
+    // there, and is taken to be standing where it now is. Time still passes -
+    // a player in a hiding place gets their breath back - but the jump is not
+    // a distance anybody travelled.
+    public void Sample(int frame, Vector3 position, float time, bool standingStill = false)
     {
         if (frame == sampledFrame)
             return;
@@ -50,6 +55,17 @@ public sealed class ObservedMotion
         sampledFrame = frame;
         Travelled = 0f;
         DeltaTime = 0f;
+
+        if (standingStill)
+        {
+            DeltaTime = hasPrevious ? time - previousTime : 0f;
+            previousPosition = position;
+            previousTime = time;
+            hasPrevious = true;
+            windowed.Reset();
+            Speed = 0f;
+            return;
+        }
 
         // The first look only finds where the body is; there is no interval
         // behind it to measure anything over.

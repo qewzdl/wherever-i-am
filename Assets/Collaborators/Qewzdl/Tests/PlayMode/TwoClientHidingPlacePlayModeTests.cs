@@ -914,6 +914,79 @@ public sealed class TwoClientHidingPlacePlayModeTests : MultiEndpointPlayModeTes
         }
     }
 
+    // Put into a hiding place and back out, a player is moved a metre or two
+    // in one frame. That read as a sprint, and the first stride of a sprint
+    // lands at once: a running footstep on every machine, and on the server a
+    // running noise the enemy heard - from the cupboard the player had just
+    // hidden in.
+    [UnityTest]
+    public IEnumerator ClimbingInAndOut_MakesNoFootstep()
+    {
+        yield return StartNetwork();
+
+        // Clear of the hiding place: spawned inside it, the player is pushed
+        // out at a walk, and those steps are real.
+        ulong playerId = SpawnPlayer(
+            clientA.Manager.LocalClientId,
+            new Vector3(0f, 0f, -1f));
+        ulong hidingPlaceId = SpawnHidingPlace();
+
+        yield return WaitForSpawnOnEveryEndpoint(playerId, hidingPlaceId);
+
+        int footfalls = 0;
+        System.Text.StringBuilder heard = new();
+
+        foreach (Endpoint endpoint in endpoints)
+        {
+            FootstepEmitter emitter = GetComponent<FootstepEmitter>(endpoint, playerId);
+            PlayerHidingController copy = emitter.GetComponent<PlayerHidingController>();
+            emitter.Footfall += () =>
+            {
+                footfalls++;
+                heard.AppendLine(
+                    $"{Time.time:F3} {endpoint.Manager.name} at {emitter.transform.position} " +
+                    $"state={copy.HidingState}");
+            };
+        }
+
+        PlayerHidingController clientPlayer =
+            GetComponent<PlayerHidingController>(clientA, playerId);
+        HidingPlaceInteractable clientPlace =
+            GetComponent<HidingPlaceInteractable>(clientA, hidingPlaceId);
+
+        yield return new WaitForSecondsRealtime(0.5f);
+        footfalls = 0;
+        heard.Clear();
+        Assert.That(clientPlace.TryRequestEnter(clientPlayer), Is.True);
+
+        yield return WaitForCondition(
+            () => endpoints.TrueForAll(e => GetComponent<PlayerHidingController>(e, playerId).IsHidden),
+            "The player did not end up hidden on every machine.");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        clientPlayer.RequestExitHiding();
+
+        yield return WaitForCondition(
+            () => endpoints.TrueForAll(e => !GetComponent<PlayerHidingController>(e, playerId).IsInHidingSequence),
+            "The player did not get out on every machine.");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        Assert.That(footfalls, Is.Zero,
+            "Being put into and out of a hiding place was heard as footsteps:\n" + heard);
+
+        // And walking still is, or the silence above proves nothing.
+        Rigidbody ownBody = clientPlayer.GetComponent<Rigidbody>();
+
+        for (float walked = 0f; walked < 0.8f; walked += Time.deltaTime)
+        {
+            ownBody.linearVelocity = new Vector3(2.5f, 0f, 0f);
+            yield return null;
+        }
+
+        ownBody.linearVelocity = Vector3.zero;
+        Assert.That(footfalls, Is.GreaterThan(0), "Walking made no footstep either.");
+    }
+
     [UnityTest]
     public IEnumerator DespawnDuringExiting_RecoversPlayerAndUnlocksMovement()
     {
@@ -1328,6 +1401,17 @@ public sealed class TwoClientHidingPlacePlayModeTests : MultiEndpointPlayModeTes
         playerPrefab.AddComponent<MeshRenderer>();
         playerPrefab.AddComponent<HidingEntryEligibilityProbe>();
         playerPrefab.AddComponent<InPlayProbe>();
+
+        // Walks at 2.5, heard as walking from 1.875 and as running from 3.125.
+        PlayerMovementProfile gaits =
+            Track(ScriptableObject.CreateInstance<PlayerMovementProfile>());
+        PlayModeTestReflection.SetField(gaits, "walkSpeed", 2.5f);
+        PlayModeTestReflection.SetField(gaits, "runSpeedMultiplier", 1.5f);
+        PlayModeTestReflection.SetField(gaits, "crouchSpeedMultiplier", 0.5f);
+        PlayModeTestReflection.SetField(
+            playerPrefab.AddComponent<FootstepEmitter>(),
+            "movement",
+            gaits);
 
         PlayerController movement =
             playerPrefab.AddComponent<PlayerController>();
