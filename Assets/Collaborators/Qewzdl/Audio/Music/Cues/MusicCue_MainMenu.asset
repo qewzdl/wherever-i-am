@@ -16,6 +16,7 @@ MonoBehaviour:
   tracks:
   - {fileID: 11400000, guid: 1bfd31d0bdfecf743bd55ca19e966867, type: 2}
   - {fileID: 11400000, guid: b9420ea5fa7f4674a955fe4e43167d98, type: 2}
+  - {fileID: 11400000, guid: 02e41c038c19deb4193d2fe7882b4c43, type: 2}
   selector: {fileID: 11400000, guid: 3343c09ae2be8be4491740f1e6cfbb48, type: 2}
   continueAfterTrackEnds: 0
   loopCue: 1
