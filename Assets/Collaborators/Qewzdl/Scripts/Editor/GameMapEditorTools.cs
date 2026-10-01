@@ -44,13 +44,38 @@ public sealed class GameMapManagerWindow : EditorWindow
         if (catalog == null)
             catalog = AssetDatabase.LoadAssetAtPath<GameMapCatalog>(DefaultCatalogPath);
 
-        RefreshValidation();
+        QueueRefresh();
     }
 
     private void OnFocus()
     {
-        RefreshValidation();
-        Repaint();
+        QueueRefresh();
+    }
+
+    // Not here and now. A window left open is reopened with the editor's
+    // layout - opened and then focused - before the editor has finished
+    // starting, and checking the maps opens every one of their scenes. An
+    // editor that did that while it was starting hung on its splash screen
+    // and never got its main window. So once it is up, and once however many
+    // times it was asked.
+    private bool refreshQueued;
+
+    private void QueueRefresh()
+    {
+        if (refreshQueued)
+            return;
+
+        refreshQueued = true;
+        EditorApplication.delayCall += () =>
+        {
+            refreshQueued = false;
+
+            if (this == null)
+                return;
+
+            RefreshValidation();
+            Repaint();
+        };
     }
 
     private void OnGUI()
@@ -164,6 +189,12 @@ public sealed class GameMapManagerWindow : EditorWindow
                     CreateMap(nextMapId, newMapName);
             }
         }
+
+        EditorGUILayout.HelpBox(
+            "Ready to play as soon as it is made: a floor, a spawn point for every player, " +
+            "an entrance door for each objective with a handle to open it, Granny, and her " +
+            "navigation. Build the map around them and move them where they belong.",
+            MessageType.None);
     }
 
     private void DrawUnregisteredSection()
@@ -360,6 +391,12 @@ public sealed class GameMapManagerWindow : EditorWindow
                 EditorGUILayout.HelpBox(entry.Errors[i], MessageType.Error);
         }
 
+        if (entry.SceneExists && entry.Errors.Count > 0)
+        {
+            if (GUILayout.Button("Complete Map (add what is missing)"))
+                CompleteMap(map);
+        }
+
         if (entry.SceneExists && !entry.SceneEnabledInBuildSettings)
         {
             if (GUILayout.Button("Add And Enable Scene In Build Settings"))
@@ -453,6 +490,10 @@ public sealed class GameMapManagerWindow : EditorWindow
         try
         {
             GameMapEditorUtility.CreateEmptyMapScene(scenePath, sanitizedName);
+            GameMapStarterKit.Complete(
+                scenePath,
+                GameMapEditorUtility.LoadDefaultObjectiveSequence(),
+                addFloor: true);
 
             GameMapDefinition definition = CreateInstance<GameMapDefinition>();
             definition.ConfigureEditor(
@@ -495,6 +536,45 @@ public sealed class GameMapManagerWindow : EditorWindow
 
             Debug.LogException(exception);
             EditorUtility.DisplayDialog("Create Game Map", exception.Message, "OK");
+        }
+    }
+
+    // A map that will not start, given what it is missing: the objectives'
+    // doors, Granny, her navigation, spawn points. What it already has stays.
+    private void CompleteMap(GameMapDefinition map)
+    {
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            return;
+
+        try
+        {
+            ObjectiveSequenceDefinition sequence =
+                map.ObjectiveSequenceOverride != null
+                    ? map.ObjectiveSequenceOverride
+                    : GameMapEditorUtility.LoadDefaultObjectiveSequence();
+
+            List<string> added = GameMapStarterKit.Complete(map.ScenePath, sequence, addFloor: false);
+
+            if (!GameMapEditorUtility.IsSceneEnabledInBuildSettings(map.ScenePath))
+            {
+                GameMapEditorUtility.EnsureSceneInBuildSettings(map.ScenePath);
+                added.Add("the scene in Build Settings");
+            }
+
+            AssetDatabase.SaveAssets();
+            RefreshValidation();
+
+            EditorUtility.DisplayDialog(
+                "Complete Map",
+                added.Count == 0
+                    ? "Nothing was missing that this can add. See the errors under the map."
+                    : $"Added to '{map.DisplayName}':\n\n- " + string.Join("\n- ", added),
+                "OK");
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+            EditorUtility.DisplayDialog("Complete Map", exception.Message, "OK");
         }
     }
 
@@ -788,7 +868,7 @@ public sealed class GameMapManagerWindow : EditorWindow
     }
 }
 
-internal sealed class MapValidationEntry
+public sealed class MapValidationEntry
 {
     public MapValidationEntry(GameMapDefinition map)
     {
@@ -801,7 +881,7 @@ internal sealed class MapValidationEntry
     public bool SceneEnabledInBuildSettings { get; set; }
 }
 
-internal static class GameMapEditorUtility
+public static class GameMapEditorUtility
 {
     public const string MapsFolder =
         "Assets/Collaborators/Qewzdl/Scenes/Maps";
@@ -839,8 +919,27 @@ internal static class GameMapEditorUtility
         SceneManager.SetActiveScene(mapScene);
     }
 
+    // The scenes that were open, put back as they were. Unless none of them is
+    // a saved scene that was active: an untitled scene is never written into
+    // a setup, so the setup would hold no active scene, and Unity refuses to
+    // restore that ("One active scene is required"). There is then nothing to
+    // put back - the untitled scene never left - and the map scene this
+    // opened is closed already.
+    public static void RestoreScenes(SceneSetup[] setup)
+    {
+        if (setup != null && Array.Exists(setup, scene => scene.isActive && scene.isLoaded))
+            EditorSceneManager.RestoreSceneManagerSetup(setup);
+    }
+
+    // Unity will not make a new scene beside an untitled one ("Cannot create
+    // a new scene additively with an untitled scene unsaved") - the state of a
+    // freshly opened editor. Then the map replaces it and stays open, which is
+    // where somebody making a map wants to be anyway; whatever needed saving
+    // was offered for saving before this. Otherwise the map is made beside the
+    // open scenes and closed, and they are left as they were.
     public static void CreateEmptyMapScene(string scenePath, string sanitizedName)
     {
+        bool replaceUntitled = HasUntitledScene();
         SceneSetup[] previousSetup = EditorSceneManager.GetSceneManagerSetup();
         Scene mapScene = default;
 
@@ -848,7 +947,7 @@ internal static class GameMapEditorUtility
         {
             mapScene = EditorSceneManager.NewScene(
                 NewSceneSetup.EmptyScene,
-                NewSceneMode.Additive);
+                replaceUntitled ? NewSceneMode.Single : NewSceneMode.Additive);
 
             GameObject mapRootObject = new GameObject($"Map_{sanitizedName}");
             GameMapRoot mapRoot = mapRootObject.AddComponent<GameMapRoot>();
@@ -877,11 +976,27 @@ internal static class GameMapEditorUtility
         }
         finally
         {
-            if (mapScene.IsValid() && mapScene.isLoaded)
-                EditorSceneManager.CloseScene(mapScene, true);
+            if (!replaceUntitled)
+            {
+                if (mapScene.IsValid() && mapScene.isLoaded)
+                    EditorSceneManager.CloseScene(mapScene, true);
 
-            EditorSceneManager.RestoreSceneManagerSetup(previousSetup);
+                RestoreScenes(previousSetup);
+            }
         }
+    }
+
+    private static bool HasUntitledScene()
+    {
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene scene = SceneManager.GetSceneAt(i);
+
+            if (scene.isLoaded && string.IsNullOrEmpty(scene.path))
+                return true;
+        }
+
+        return false;
     }
 
     public static void ReserializeCopiedMapScene(string scenePath)
@@ -904,7 +1019,7 @@ internal static class GameMapEditorUtility
             if (mapScene.IsValid() && mapScene.isLoaded)
                 EditorSceneManager.CloseScene(mapScene, true);
 
-            EditorSceneManager.RestoreSceneManagerSetup(previousSetup);
+            RestoreScenes(previousSetup);
         }
     }
 
@@ -1104,7 +1219,7 @@ internal static class GameMapEditorUtility
         return false;
     }
 
-    private static bool IsSceneEnabledInBuildSettings(string scenePath)
+    public static bool IsSceneEnabledInBuildSettings(string scenePath)
     {
         EditorBuildSettingsScene[] scenes = EditorBuildSettings.scenes;
 

@@ -299,7 +299,7 @@ public sealed class NetworkSceneObjectBuildIdentityGuard : IPreprocessBuildWithR
         return networkObjects.ToArray();
     }
 
-    private static void RefreshNetworkObjectIdentity(NetworkObject networkObject)
+    internal static void RefreshNetworkObjectIdentity(NetworkObject networkObject)
     {
         if (NetworkObjectOnValidate == null)
         {
