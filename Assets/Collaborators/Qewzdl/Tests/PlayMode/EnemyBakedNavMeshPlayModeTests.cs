@@ -41,6 +41,16 @@ internal sealed class BakedNavMeshGameplaySoundProbe : IGameplaySoundService
         Played.Add(sound);
     }
 
+    public void Play2D(SoundEffect sound, SoundRoll roll)
+    {
+        Played.Add(sound);
+    }
+
+    public void PlayAtPosition(SoundEffect sound, Vector3 position, SoundRoll roll)
+    {
+        Played.Add(sound);
+    }
+
     public void SetMasterVolume(float volume)
     {
     }

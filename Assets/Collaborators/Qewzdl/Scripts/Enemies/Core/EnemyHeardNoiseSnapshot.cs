@@ -16,13 +16,18 @@ public struct EnemyHeardNoiseSnapshot :
     IEquatable<EnemyHeardNoiseSnapshot>
 {
     public static readonly EnemyHeardNoiseSnapshot None =
-        new(0u, 0f, GameplayNoiseSourceType.Unknown);
+        new(0u, 0f, GameplayNoiseSourceType.Unknown, 0d);
 
     private uint id;
     private float score;
     private GameplayNoiseSourceType source;
+    private double heardAt;
 
     public uint Id => id;
+
+    // In server time, so every machine measures the gap between two of them
+    // alike - see the reaction's cooldown.
+    public double HeardAt => heardAt;
 
     // Loudness after distance and age, so it is how loud the noise was to her
     // rather than how loud it was where it happened.
@@ -37,11 +42,13 @@ public struct EnemyHeardNoiseSnapshot :
     public EnemyHeardNoiseSnapshot(
         uint id,
         float score,
-        GameplayNoiseSourceType source)
+        GameplayNoiseSourceType source,
+        double heardAt)
     {
         this.id = id;
         this.score = Mathf.Max(0f, score);
         this.source = source;
+        this.heardAt = heardAt;
     }
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer)
@@ -50,13 +57,15 @@ public struct EnemyHeardNoiseSnapshot :
         serializer.SerializeValue(ref id);
         serializer.SerializeValue(ref score);
         serializer.SerializeValue(ref source);
+        serializer.SerializeValue(ref heardAt);
     }
 
     public bool Equals(EnemyHeardNoiseSnapshot other)
     {
         return id == other.id &&
                source == other.source &&
-               Mathf.Approximately(score, other.score);
+               Mathf.Approximately(score, other.score) &&
+               heardAt.Equals(other.heardAt);
     }
 
     public override bool Equals(object obj)
@@ -66,7 +75,7 @@ public struct EnemyHeardNoiseSnapshot :
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(id, score, source);
+        return HashCode.Combine(id, score, source, heardAt);
     }
 
     public static bool operator ==(

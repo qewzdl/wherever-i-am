@@ -19,22 +19,22 @@ public sealed class EnemyLoopingPresentationSound
     public bool PlayImmediatelyOnEnter => playImmediatelyOnEnter;
     public bool IsValid => sound != null && chance > 0f;
 
-    public bool ShouldPlay()
+    public bool ShouldPlay(SoundRoll roll)
     {
         if (!IsValid)
         {
             return false;
         }
 
-        return chance >= 1f || Random.value <= chance;
+        return chance >= 1f || roll[SoundDraw.Chance] < chance;
     }
 
-    public float GetNextDelay()
+    public float GetDelay(SoundRoll roll)
     {
         float safeMinDelay = Mathf.Max(0.05f, minDelay);
         float safeMaxDelay = Mathf.Max(safeMinDelay, maxDelay);
 
-        return Random.Range(safeMinDelay, safeMaxDelay);
+        return Mathf.Lerp(safeMinDelay, safeMaxDelay, roll[SoundDraw.Delay]);
     }
 
     public void Normalize()

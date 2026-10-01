@@ -26,40 +26,45 @@ public class SoundEffect : ScriptableObject
     public float MinDistance => minDistance;
     public float MaxDistance => maxDistance;
 
-    public AudioClip GetClip()
+    public AudioClip GetClip() => GetClip(Random.value);
+    public float GetVolume() => GetVolume(Random.value);
+    public float GetPitch() => GetPitch(Random.value);
+
+    // The same choices, from a roll somebody else made - see SoundRoll, for
+    // a sound every machine has to hear alike.
+    public AudioClip GetClip(SoundRoll roll) => GetClip(roll[SoundDraw.Clip]);
+    public float GetVolume(SoundRoll roll) => GetVolume(roll[SoundDraw.Volume]);
+    public float GetPitch(SoundRoll roll) => GetPitch(roll[SoundDraw.Pitch]);
+
+    private AudioClip GetClip(float roll)
     {
         if (clips == null || clips.Length == 0)
         {
             return null;
         }
 
-        if (clips.Length == 1)
-        {
-            return clips[0];
-        }
-
-        int randomIndex = Random.Range(0, clips.Length);
-        return clips[randomIndex];
+        int index = Mathf.Min(clips.Length - 1, (int)(roll * clips.Length));
+        return clips[index];
     }
 
-    public float GetVolume()
+    private float GetVolume(float roll)
     {
         if (!randomizeVolume)
         {
             return volume;
         }
 
-        return volume * Random.Range(minVolume, maxVolume);
+        return volume * Mathf.Lerp(minVolume, maxVolume, roll);
     }
 
-    public float GetPitch()
+    private float GetPitch(float roll)
     {
         if (!randomizePitch)
         {
             return 1f;
         }
 
-        return Random.Range(minPitch, maxPitch);
+        return Mathf.Lerp(minPitch, maxPitch, roll);
     }
 
     private void OnValidate()

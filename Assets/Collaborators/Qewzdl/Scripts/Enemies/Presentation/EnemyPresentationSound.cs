@@ -17,13 +17,13 @@ public sealed class EnemyPresentationSound
     public bool HasDelay => delay > 0f;
     public bool IsValid => sound != null && chance > 0f;
 
-    public bool ShouldPlay()
+    public bool ShouldPlay(SoundRoll roll)
     {
         if (!IsValid)
         {
             return false;
         }
 
-        return chance >= 1f || Random.value <= chance;
+        return chance >= 1f || roll[SoundDraw.Chance] < chance;
     }
 }

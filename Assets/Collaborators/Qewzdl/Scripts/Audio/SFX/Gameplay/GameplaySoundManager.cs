@@ -26,17 +26,27 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService, ISetti
 
     public void Play2D(SoundEffect sound)
     {
-        Play(sound, transform.position, 0f);
+        Play2D(sound, SoundRoll.Unshared());
     }
 
     public void PlayAtPosition(SoundEffect sound, Vector3 position)
+    {
+        PlayAtPosition(sound, position, SoundRoll.Unshared());
+    }
+
+    public void Play2D(SoundEffect sound, SoundRoll roll)
+    {
+        Play(sound, transform.position, 0f, roll);
+    }
+
+    public void PlayAtPosition(SoundEffect sound, Vector3 position, SoundRoll roll)
     {
         if (sound == null)
         {
             return;
         }
 
-        Play(sound, position, sound.SpatialBlend);
+        Play(sound, position, sound.SpatialBlend, roll);
     }
 
     public void SetMasterVolume(float volume)
@@ -54,14 +64,14 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService, ISetti
         settingsService = null;
     }
 
-    private void Play(SoundEffect sound, Vector3 position, float spatialBlend)
+    private void Play(SoundEffect sound, Vector3 position, float spatialBlend, SoundRoll roll)
     {
         if (sound == null)
         {
             return;
         }
 
-        AudioClip clip = sound.GetClip();
+        AudioClip clip = sound.GetClip(roll);
 
         if (clip == null)
         {
@@ -83,8 +93,8 @@ public class GameplaySoundManager : MonoBehaviour, IGameplaySoundService, ISetti
         source.transform.position = position;
 
         source.clip = clip;
-        source.volume = sound.GetVolume() * GetEffectiveVolume();
-        source.pitch = sound.GetPitch();
+        source.volume = sound.GetVolume(roll) * GetEffectiveVolume();
+        source.pitch = sound.GetPitch(roll);
         source.spatialBlend = spatialBlend;
         source.minDistance = sound.MinDistance;
         source.maxDistance = sound.MaxDistance;

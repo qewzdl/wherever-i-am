@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -8,15 +7,39 @@ using UnityEngine;
 [RequireComponent(typeof(EnemyNetworkState))]
 public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServiceConsumer
 {
+    // Every sound of hers is heard alike on every machine: the same take, at
+    // the same pitch, or not at all, and at the same moment. What is rolled
+    // comes from SoundRoll, seeded with things every machine already knows -
+    // her network id and the numbered occasion. When comes from server time:
+    // a sound with a delay, and each repeat of a looping one, is scheduled
+    // against the moment the server says its occasion began, rather than
+    // against whenever this machine happened to hear about it.
+    //
+    // The occasions are told apart by slot, so a state entry and a heard
+    // noise that share a number do not share a roll.
+    private const uint EnterSlot = 0u;
+    private const uint LoopingSlot = 100u;
+    private const uint HeardNoiseSlot = 200u;
+    private const uint AnimationSlot = 300u;
+
+    // A scheduled sound that comes due later than this, because this machine
+    // learned of its occasion late, is skipped rather than played out of time.
+    private const double StaleAfterSeconds = 1d;
+
     private sealed class LoopingSoundRuntime
     {
         public EnemyLoopingPresentationSound Sound;
-        public float NextPlayTime;
+        public uint Slot;
+        public uint Occurrence;
+        public double NextPlayAt;
+    }
 
-        public LoopingSoundRuntime(EnemyLoopingPresentationSound sound)
-        {
-            Sound = sound;
-        }
+    private sealed class ScheduledSound
+    {
+        public SoundEffect Sound;
+        public bool AtEnemyPosition;
+        public double PlayAt;
+        public SoundRoll Roll;
     }
 
     private static readonly List<EnemyPresentationController> activeControllers = new();
@@ -34,17 +57,20 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
     [Header("Profile")]
     [SerializeField] private EnemyPresentationProfile profile;
 
-    private readonly List<Coroutine> delayedSoundRoutines = new();
+    private readonly List<ScheduledSound> scheduledSounds = new();
     private readonly List<LoopingSoundRuntime> activeLoopingSounds = new();
+    private readonly Dictionary<string, uint> animationEventCounts = new();
 
     private EnemyState currentPresentedState = EnemyState.Idle;
     private EnemyAttackPhase currentPresentedAttackPhase = EnemyAttackPhase.Idle;
     private EnemyStatePresentation currentPresentation;
+    private uint currentEntryNumber;
+    private double currentEnteredAt;
 
     private readonly HashSet<EnemyState> warnedMissingPresentations = new();
 
-    private Coroutine heardNoiseRoutine;
-    private float nextHeardNoiseSoundTime = float.NegativeInfinity;
+    private ScheduledSound heardNoiseSound;
+    private double nextHeardNoiseSoundAt = double.NegativeInfinity;
 
     private bool isRegistered;
     private bool subscribedToNetworkState;
@@ -113,32 +139,52 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
     private void Update()
     {
-        if (!IsClient || activeLoopingSounds.Count == 0)
+        if (!IsClient)
         {
             return;
         }
 
+        double now = Now;
+
+        for (int i = scheduledSounds.Count - 1; i >= 0; i--)
+        {
+            if (TryPlayWhenDue(scheduledSounds[i], now))
+            {
+                scheduledSounds.RemoveAt(i);
+            }
+        }
+
+        if (heardNoiseSound != null && TryPlayWhenDue(heardNoiseSound, now))
+        {
+            heardNoiseSound = null;
+        }
+
         for (int i = 0; i < activeLoopingSounds.Count; i++)
         {
-            LoopingSoundRuntime runtime = activeLoopingSounds[i];
-
-            if (runtime == null || runtime.Sound == null || !runtime.Sound.IsValid)
-            {
-                continue;
-            }
-
-            if (Time.time < runtime.NextPlayTime)
-            {
-                continue;
-            }
-
-            if (runtime.Sound.ShouldPlay())
-            {
-                PlaySound(runtime.Sound.Sound, runtime.Sound.PlayAtEnemyPosition);
-            }
-
-            ScheduleNextLoopingSound(runtime);
+            AdvanceLoopingSound(activeLoopingSounds[i], now);
         }
+    }
+
+    // The server's clock as this machine knows it, which is what every
+    // schedule here is written in.
+    private double Now =>
+        NetworkManager != null && NetworkManager.IsListening
+            ? NetworkManager.ServerTime.Time
+            : Time.timeAsDouble;
+
+    private bool TryPlayWhenDue(ScheduledSound scheduled, double now)
+    {
+        if (now < scheduled.PlayAt)
+        {
+            return false;
+        }
+
+        if (now - scheduled.PlayAt <= StaleAfterSeconds)
+        {
+            PlaySound(scheduled.Sound, scheduled.AtEnemyPosition, scheduled.Roll);
+        }
+
+        return true;
     }
 
     public void PlayAnimationSound(string eventId)
@@ -156,7 +202,34 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
             return;
         }
 
-        PlaySound(animationSound.Sound, animationSound.PlayAtEnemyPosition);
+        // The n-th time this event fires in this entry into the state: the
+        // animation runs on every machine from the same state, so the n-th is
+        // the same footfall everywhere.
+        animationEventCounts.TryGetValue(eventId, out uint count);
+        animationEventCounts[eventId] = count + 1u;
+
+        PlaySound(
+            animationSound.Sound,
+            animationSound.PlayAtEnemyPosition,
+            RollFor(currentEntryNumber, AnimationSlot + StableHash(eventId) % 1000u, count));
+    }
+
+    private SoundRoll RollFor(uint occasion, uint slot, uint occurrence = 0u)
+    {
+        return SoundRoll.For(NetworkObjectId, occasion, slot, occurrence);
+    }
+
+    // string.GetHashCode is not promised to agree between two machines.
+    private static uint StableHash(string text)
+    {
+        uint hash = 2166136261u;
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            hash = (hash ^ text[i]) * 16777619u;
+        }
+
+        return hash;
     }
 
     private void HandleStateChanged(EnemyState previousState, EnemyState nextState)
@@ -186,6 +259,13 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
         currentPresentedState = nextState;
         currentPresentation = null;
+        animationEventCounts.Clear();
+
+        // The state she was spawned in was entered at no time anybody wrote
+        // down, so it starts when this machine first sees it.
+        EnemyStateEntry entry = networkState.CurrentStateEntry;
+        currentEntryNumber = entry.Number;
+        currentEnteredAt = entry.IsNumbered ? entry.EnteredAt : Now;
 
         ResetPreviousTrigger(previousPresentation);
 
@@ -294,10 +374,12 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         if (profile == null || !profile.ShouldReactAloudTo(source))
             return;
 
+        EnemyHeardNoiseSnapshot report = networkState.LastHeardNoise;
+
         if (profile == null ||
             profile.HeardLoudNoiseSound == null ||
             score < profile.HeardLoudNoiseScore ||
-            Time.time < nextHeardNoiseSoundTime)
+            report.HeardAt < nextHeardNoiseSoundAt)
         {
             return;
         }
@@ -306,23 +388,19 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         // she reacts" rather than "keep rolling until she does". Perception
         // re-reads the same noise several times a second, and a chance that
         // only consumed the cooldown on success would come up eventually every
-        // single time.
-        nextHeardNoiseSoundTime = Time.time + profile.HeardLoudNoiseCooldown;
+        // single time. Measured between the server's times for the reports, so
+        // every machine lets the same reports through.
+        nextHeardNoiseSoundAt = report.HeardAt + profile.HeardLoudNoiseCooldown;
 
         EnemyPresentationSound reaction = profile.HeardLoudNoiseSound;
+        SoundRoll roll = RollFor(report.Id, HeardNoiseSlot);
 
-        if (!reaction.ShouldPlay())
+        if (!reaction.ShouldPlay(roll))
         {
             return;
         }
 
-        if (!reaction.HasDelay)
-        {
-            PlaySound(reaction.Sound, reaction.PlayAtEnemyPosition);
-            return;
-        }
-
-        // Its own coroutine, and deliberately not one of the state sounds.
+        // Its own schedule, and deliberately not one of the state sounds.
         //
         // Delayed state sounds are cancelled by the next state change, which is
         // right for them: they belong to the state that scheduled them, and a
@@ -333,31 +411,18 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         // cooldown had already been spent scheduling it, and the noise faded
         // from her hearing memory long before the cooldown was up, so she
         // reacted to it exactly never.
-        StopHeardNoiseSound();
-        heardNoiseRoutine = StartCoroutine(PlayHeardNoiseSoundDelayed(reaction));
-    }
-
-    private IEnumerator PlayHeardNoiseSoundDelayed(EnemyPresentationSound reaction)
-    {
-        yield return new WaitForSeconds(reaction.Delay);
-
-        heardNoiseRoutine = null;
-
-        if (reaction.IsValid)
+        heardNoiseSound = new ScheduledSound
         {
-            PlaySound(reaction.Sound, reaction.PlayAtEnemyPosition);
-        }
+            Sound = reaction.Sound,
+            AtEnemyPosition = reaction.PlayAtEnemyPosition,
+            PlayAt = report.HeardAt + reaction.Delay,
+            Roll = roll
+        };
     }
 
     private void StopHeardNoiseSound()
     {
-        if (heardNoiseRoutine == null)
-        {
-            return;
-        }
-
-        StopCoroutine(heardNoiseRoutine);
-        heardNoiseRoutine = null;
+        heardNoiseSound = null;
     }
 
     private void PlayEnterSounds(EnemyStatePresentation presentation)
@@ -371,52 +436,30 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
 
         for (int i = 0; i < enterSounds.Length; i++)
         {
-            PlayPresentationSound(enterSounds[i]);
-        }
-    }
+            EnemyPresentationSound enterSound = enterSounds[i];
+            SoundRoll roll = RollFor(currentEntryNumber, EnterSlot + (uint)i);
 
-    private void PlayPresentationSound(EnemyPresentationSound presentationSound)
-    {
-        if (presentationSound == null || !presentationSound.ShouldPlay())
-        {
-            return;
-        }
+            if (enterSound == null || !enterSound.ShouldPlay(roll))
+            {
+                continue;
+            }
 
-        if (presentationSound.HasDelay)
-        {
-            Coroutine routine = StartCoroutine(PlayPresentationSoundDelayed(presentationSound));
-            delayedSoundRoutines.Add(routine);
-            return;
-        }
-
-        PlaySound(presentationSound.Sound, presentationSound.PlayAtEnemyPosition);
-    }
-
-    private IEnumerator PlayPresentationSoundDelayed(EnemyPresentationSound presentationSound)
-    {
-        yield return new WaitForSeconds(presentationSound.Delay);
-
-        if (presentationSound == null || !presentationSound.IsValid)
-        {
-            yield break;
+            scheduledSounds.Add(new ScheduledSound
+            {
+                Sound = enterSound.Sound,
+                AtEnemyPosition = enterSound.PlayAtEnemyPosition,
+                PlayAt = currentEnteredAt + enterSound.Delay,
+                Roll = roll
+            });
         }
 
-        PlaySound(presentationSound.Sound, presentationSound.PlayAtEnemyPosition);
+        // Due at once unless delayed - played now rather than a frame late.
+        Update();
     }
 
     private void StopDelayedSounds()
     {
-        for (int i = 0; i < delayedSoundRoutines.Count; i++)
-        {
-            Coroutine routine = delayedSoundRoutines[i];
-
-            if (routine != null)
-            {
-                StopCoroutine(routine);
-            }
-        }
-
-        delayedSoundRoutines.Clear();
+        scheduledSounds.Clear();
     }
 
     private void ApplyLoopingSounds(EnemyStatePresentation presentation)
@@ -439,26 +482,49 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
                 continue;
             }
 
-            LoopingSoundRuntime runtime = new LoopingSoundRuntime(loopingSound);
-            activeLoopingSounds.Add(runtime);
+            uint slot = LoopingSlot + (uint)i;
 
-            if (loopingSound.PlayImmediatelyOnEnter && loopingSound.ShouldPlay())
+            // The first repeat waits a rolled delay like every other, unless
+            // the state says it starts with one.
+            activeLoopingSounds.Add(new LoopingSoundRuntime
             {
-                PlaySound(loopingSound.Sound, loopingSound.PlayAtEnemyPosition);
-            }
-
-            ScheduleNextLoopingSound(runtime);
+                Sound = loopingSound,
+                Slot = slot,
+                Occurrence = 0u,
+                NextPlayAt = currentEnteredAt +
+                             (loopingSound.PlayImmediatelyOnEnter
+                                 ? 0d
+                                 : loopingSound.GetDelay(RollFor(currentEntryNumber, slot, 0u)))
+            });
         }
+
+        Update();
     }
 
-    private void ScheduleNextLoopingSound(LoopingSoundRuntime runtime)
+    // Every repeat that has come due, in order: played if it is recent, and
+    // passed over if this machine only now caught up with it. Each repeat
+    // rolls its own take and the delay to the next, so the sequence is the
+    // same everywhere however late anybody joined it.
+    private void AdvanceLoopingSound(LoopingSoundRuntime runtime, double now)
     {
-        if (runtime == null || runtime.Sound == null)
+        if (runtime?.Sound == null || !runtime.Sound.IsValid)
         {
             return;
         }
 
-        runtime.NextPlayTime = Time.time + runtime.Sound.GetNextDelay();
+        while (now >= runtime.NextPlayAt)
+        {
+            SoundRoll roll = RollFor(currentEntryNumber, runtime.Slot, runtime.Occurrence);
+
+            if (now - runtime.NextPlayAt <= StaleAfterSeconds && runtime.Sound.ShouldPlay(roll))
+            {
+                PlaySound(runtime.Sound.Sound, runtime.Sound.PlayAtEnemyPosition, roll);
+            }
+
+            runtime.Occurrence++;
+            runtime.NextPlayAt += runtime.Sound.GetDelay(
+                RollFor(currentEntryNumber, runtime.Slot, runtime.Occurrence));
+        }
     }
 
     private void StopLoopingSounds()
@@ -466,7 +532,7 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         activeLoopingSounds.Clear();
     }
 
-    private void PlaySound(SoundEffect sound, bool playAtEnemyPosition)
+    private void PlaySound(SoundEffect sound, bool playAtEnemyPosition, SoundRoll roll)
     {
         if (sound == null)
         {
@@ -481,11 +547,11 @@ public class EnemyPresentationController : NetworkBehaviour, IGameplaySoundServi
         if (playAtEnemyPosition)
         {
             Transform origin = soundOrigin != null ? soundOrigin : transform;
-            ResolvedGameplaySoundService.PlayAtPosition(sound, origin.position);
+            ResolvedGameplaySoundService.PlayAtPosition(sound, origin.position, roll);
             return;
         }
 
-        ResolvedGameplaySoundService.Play2D(sound);
+        ResolvedGameplaySoundService.Play2D(sound, roll);
     }
 
     // A state with no entry used to pass in silence, leaving the animator in

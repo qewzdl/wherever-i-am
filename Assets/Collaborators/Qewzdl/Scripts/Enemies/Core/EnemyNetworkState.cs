@@ -5,8 +5,8 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class EnemyNetworkState : NetworkBehaviour
 {
-    private readonly NetworkVariable<EnemyState> currentState = new(
-        EnemyState.Idle,
+    private readonly NetworkVariable<EnemyStateEntry> currentState = new(
+        EnemyStateEntry.Spawned,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
@@ -36,6 +36,7 @@ public class EnemyNetworkState : NetworkBehaviour
     );
 
     private uint heardNoiseCount;
+    private uint stateEntryCount;
 
     public event Action<EnemyState, EnemyState> StateChanged;
     public event Action<EnemyTargetIdentity, EnemyTargetIdentity> TargetChanged;
@@ -47,7 +48,9 @@ public class EnemyNetworkState : NetworkBehaviour
     // where the sound lives.
     public event Action<float, GameplayNoiseSourceType> HeardNoise;
 
-    public EnemyState CurrentState => currentState.Value;
+    public EnemyState CurrentState => currentState.Value.State;
+    public EnemyStateEntry CurrentStateEntry => currentState.Value;
+    public EnemyHeardNoiseSnapshot LastHeardNoise => heardNoise.Value;
     public EnemyTargetIdentity CurrentTargetIdentity => currentTargetIdentity.Value;
     public EnemyPosture CurrentPosture => currentPosture.Value;
     public EnemyAttackPhaseSnapshot CurrentAttackPhase => currentAttackPhase.Value;
@@ -86,9 +89,12 @@ public class EnemyNetworkState : NetworkBehaviour
             return;
         }
 
-        if (currentState.Value != nextState)
+        if (currentState.Value.State != nextState)
         {
-            currentState.Value = nextState;
+            currentState.Value = new EnemyStateEntry(
+                nextState,
+                ++stateEntryCount,
+                NetworkManager.ServerTime.Time);
         }
 
     }
@@ -151,7 +157,8 @@ public class EnemyNetworkState : NetworkBehaviour
         heardNoise.Value = new EnemyHeardNoiseSnapshot(
             heardNoiseCount,
             score,
-            source);
+            source,
+            NetworkManager.ServerTime.Time);
     }
 
     public void ClearTargetServer()
@@ -204,9 +211,10 @@ public class EnemyNetworkState : NetworkBehaviour
         return true;
     }
 
-    private void HandleStateChanged(EnemyState previousState, EnemyState nextState)
+    private void HandleStateChanged(EnemyStateEntry previousEntry, EnemyStateEntry nextEntry)
     {
-        StateChanged?.Invoke(previousState, nextState);
+        if (previousEntry.State != nextEntry.State)
+            StateChanged?.Invoke(previousEntry.State, nextEntry.State);
     }
 
     private void HandleTargetChanged(
