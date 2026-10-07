@@ -594,6 +594,68 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Assert.That(Mathf.Abs(highest), Is.LessThan(0.03f), "She walked off the floor. " + seen);
     }
 
+    // Up a flight of stairs after a noise at the top, and down one after a
+    // noise at the foot - low stairs, and stairs nearly as tall as she
+    // climbs. The navmesh follows the floor stair by stair. Going up, she
+    // rose to a stair only when her middle was over it, and the box of her
+    // feet met its face before then; going down, she was pulled down to the
+    // next stair while the back of the box was still on the one above, and
+    // was held on its edge. Either way she got no further.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_WalksUpAndDownAFlightOfStairs(
+        [Values(0.18f, 0.38f)] float rise,
+        [Values(false, true)] bool down)
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(enemyPrefab, out int standingAgentTypeId, out int crawlingAgentTypeId);
+
+        const int steps = 6;
+        float tread = rise < 0.3f ? 0.28f : 0.45f;
+        float landing = steps * rise;
+        GameObject root = Track(new GameObject("Stairs arena"));
+        CreateGeometry("Arena floor", new Vector3(0f, -0.1f, 0f), new Vector3(16f, 0.2f, 24f), root.transform);
+
+        // Each step a block on to the landing at the top, the last of them the
+        // landing itself.
+        for (int i = 0; i < steps; i++)
+        {
+            float near = i * tread;
+            const float far = 9f;
+            float height = (i + 1) * rise;
+            CreateGeometry($"Step {i + 1}", new Vector3(0f, height * 0.5f, (near + far) * 0.5f), new Vector3(6f, height, far - near), root.transform);
+        }
+
+        BakeSurfaces(root, standingAgentTypeId, crawlingAgentTypeId);
+
+        Vector3 foot = new(0f, 0f, -5f);
+        Vector3 top = new(0f, landing, 6.5f);
+        Vector3 from = down ? top : foot, to = down ? foot : top;
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(enemyPrefab, noiseWorld, from);
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+        Rigidbody body = enemy.GetComponent<Rigidbody>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        Assert.That(noiseWorld.TryRaiseNoiseServer(to, 30f, 1f, GameplayNoiseSourceType.Item), Is.True);
+
+        int frames = 0;
+
+        while (Mathf.Abs(body.position.z - to.z) > 1.5f && frames < 500)
+        {
+            yield return new WaitForFixedUpdate();
+            frames++;
+        }
+
+        string seen = $"ended at {body.position} after {frames} physics steps, heading for {agent.destination}";
+        Assert.That(Mathf.Abs(body.position.z - to.z), Is.LessThanOrEqualTo(1.5f), $"She did not get {(down ? "down" : "up")} the stairs. " + seen);
+        Assert.That(body.position.y, Is.EqualTo(to.y).Within(0.05f), "She is not standing on the floor she went to. " + seen);
+    }
+
     // A spawn point set well above the floor - further than she looks for a
     // navmesh to stand on - still puts her on the floor below it, rather than
     // leaving her hanging where it was.

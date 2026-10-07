@@ -20,6 +20,8 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
     [SerializeField, Min(0f)] private float verticalCorrectionSpeed = 6f;
     [SerializeField, Min(0f)] private float maximumDepenetrationSpeed = 4f;
 
+    private readonly RaycastHit[] footingHits = new RaycastHit[8];
+    private Collider[] bodyColliders;
     private bool controlsAgentMotion;
     private bool previousUpdatePosition;
     private bool previousUpdateRotation;
@@ -137,8 +139,13 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             agent.enabled &&
             agent.isOnNavMesh)
         {
+            float targetHeight = agent.nextPosition.y;
+
+            if (TryFindFooting(horizontalVelocity, out float footing))
+                targetHeight = Mathf.Max(targetHeight, footing);
+
             verticalVelocity = Mathf.Clamp(
-                (agent.nextPosition.y - body.position.y) /
+                (targetHeight - body.position.y) /
                 Mathf.Max(Time.fixedDeltaTime, 0.0001f),
                 -verticalCorrectionSpeed,
                 verticalCorrectionSpeed
@@ -174,6 +181,105 @@ public sealed class EnemyPhysicsMotor : MonoBehaviour
             angularSpeed * Time.fixedDeltaTime
         );
         body.MoveRotation(nextRotation);
+    }
+
+    // The ground she stands on, as the box of her feet does rather than as
+    // the navmesh says - flat ground under the box, or just past its front
+    // the way she is going, no higher than her agent climbs.
+    //
+    // Ahead: the navmesh follows the floor stair by stair and gives the
+    // height of a stair only once her middle is over it, and the box of her
+    // feet met the face of the first one before then - she never got up a
+    // flight. Under her: going down, the navmesh dropped to the next stair
+    // while the back of the box was still on the one above, she was pulled
+    // down onto its edge, held there by it, and never got down one - nor off
+    // the top of a flight.
+    //
+    // Only ahead and under: what she passes beside is not under her.
+    // (Whether the navmesh is on it could not be asked: over stairs it lies
+    // as a slope through their edges, a good way off most treads.)
+    private bool TryFindFooting(Vector3 horizontalVelocity, out float footing)
+    {
+        footing = float.NegativeInfinity;
+        float climb = NavMesh.GetSettingsByID(agent.agentTypeID).agentClimb;
+        float feet = body.position.y;
+        float footReach = FootReach();
+
+        FootingAt(body.position, feet, climb, ref footing);
+
+        for (int i = 0; i < 8; i++)
+        {
+            Vector3 under = Quaternion.AngleAxis(i * 45f, Vector3.up) * Vector3.forward * (footReach * 0.7f);
+            FootingAt(body.position + under, feet, climb, ref footing);
+        }
+
+        float speed = horizontalVelocity.magnitude;
+
+        if (speed >= 0.01f)
+        {
+            Vector3 heading = horizontalVelocity / speed;
+            float reach = footReach + 0.03f + speed * Time.fixedDeltaTime * 2f;
+
+            for (int i = 0; i < 5; i++)
+                FootingAt(body.position + Quaternion.AngleAxis(-45f + i * 22.5f, Vector3.up) * heading * reach, feet, climb, ref footing);
+        }
+
+        return !float.IsNegativeInfinity(footing);
+    }
+
+    private void FootingAt(Vector3 at, float feet, float climb, ref float footing)
+    {
+        at.y = feet + climb + 0.05f;
+
+        if (TryFindStaticGround(at, climb + 0.1f, out RaycastHit ground) &&
+            ground.normal.y > 0.95f &&
+            ground.point.y > footing)
+        {
+            footing = ground.point.y;
+        }
+    }
+
+    private bool TryFindStaticGround(Vector3 origin, float distance, out RaycastHit nearest)
+    {
+        nearest = default;
+        int count = Physics.RaycastNonAlloc(origin, Vector3.down, footingHits, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        bool found = false;
+
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = footingHits[i];
+
+            if (hit.collider == null || hit.collider.attachedRigidbody != null)
+                continue;
+
+            if (!found || hit.distance < nearest.distance)
+            {
+                nearest = hit;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    // How far out from her middle her feet reach, at most.
+    private float FootReach()
+    {
+        bodyColliders ??= body.GetComponentsInChildren<Collider>();
+        float reach = 0f;
+
+        foreach (Collider part in bodyColliders)
+        {
+            if (part == null || part.isTrigger || !part.enabled)
+                continue;
+
+            Bounds bounds = part.bounds;
+            Vector3 offset = bounds.center - body.position;
+            offset.y = 0f;
+            reach = Mathf.Max(reach, offset.magnitude + new Vector2(bounds.extents.x, bounds.extents.z).magnitude);
+        }
+
+        return reach;
     }
 
     private bool TryGetDesiredHorizontalVelocity(out Vector3 desiredVelocity)
