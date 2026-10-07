@@ -3154,6 +3154,47 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         Assert.That(agent.isOnNavMesh, Is.True);
     }
 
+    // Crawling is slower than standing, and it stays slower. The path that is
+    // kept while she goes on was set at the crawling pace, but a path that is
+    // kept or deferred went back to the full chase speed on every frame
+    // after the first - she crawled at a run through a vent.
+    [UnityTest]
+    public IEnumerator Navigator_WhileCrawling_KeepsTheCrawlingPace()
+    {
+        EnemyNavigator navigator = BuildPostureEnemyOnLowCeilingCorridor(
+            new Vector3(0f, 0f, -6f),
+            out EnemyConfig config,
+            out EnemyPostureController postureController,
+            out NavMeshAgent agent);
+
+        Vector3 destination = new Vector3(0f, 0f, 6f);
+        float crawlingPace = config.chaseSpeed * config.crawlingSpeedMultiplier;
+        int crawledFrames = 0;
+        float fastest = 0f;
+
+        yield return WaitForCondition(
+            () =>
+            {
+                navigator.TryMoveTo(destination, config.chaseSpeed);
+
+                if (postureController.CurrentPosture == EnemyPosture.Crawling &&
+                    agent.isOnNavMesh)
+                {
+                    crawledFrames++;
+                    fastest = Mathf.Max(fastest, agent.speed);
+                }
+
+                return agent.transform.position.z > 4.5f;
+            },
+            "Enemy did not traverse the low passage on the crawling NavMesh.");
+
+        Assert.That(crawledFrames, Is.GreaterThan(10), "Enemy did not crawl long enough to be measured.");
+        Assert.That(
+            fastest,
+            Is.LessThanOrEqualTo(crawlingPace + 0.01f),
+            $"Crawling at {fastest:F2} m/s, faster than the {crawlingPace:F2} m/s crawl pace.");
+    }
+
     // Two things the flank and the retreat depend on for a destination that
     // only exists under a low ceiling.
     //

@@ -366,7 +366,7 @@ public class EnemyNavigator : MonoBehaviour
         {
             if (agent != null && agent.enabled && agent.isOnNavMesh)
             {
-                agent.speed = Mathf.Max(0f, speed);
+                agent.speed = PaceForPath(speed);
 
                 // Every halt above (door interaction, posture transition,
                 // barricade shove) latches agent.isStopped, and only a
@@ -461,7 +461,7 @@ public class EnemyNavigator : MonoBehaviour
             return;
         }
 
-        agent.speed = Mathf.Max(0f, speed);
+        agent.speed = PaceForPath(speed);
         agent.isStopped = false;
         queryTelemetry.RecordReusedPath();
     }
@@ -919,6 +919,21 @@ public class EnemyNavigator : MonoBehaviour
         return postureTraversal.TryBuildPlan(destination, out EnemyPostureTraversalPlan retryPlan) &&
                retryPlan.IsComplete &&
                ApplyPosturePlan(retryPlan, speed);
+    }
+
+    // The pace along a path already set: the posture it was planned for sets
+    // it, as when the path was set. Keeping or deferring a path must not
+    // bring the chase pace back for a crawl.
+    private float PaceForPath(float speed)
+    {
+        if (postureController == null)
+        {
+            return Mathf.Max(0f, speed);
+        }
+
+        return Mathf.Max(
+            0f,
+            postureController.GetSpeedForPosture(speed, postureController.TargetPosture));
     }
 
     private bool ApplyPosturePlan(EnemyPostureTraversalPlan plan, float speed)

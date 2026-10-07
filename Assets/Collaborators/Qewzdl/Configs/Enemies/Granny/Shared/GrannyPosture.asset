@@ -20,7 +20,7 @@ MonoBehaviour:
   crawlingAgentHeight: 0.75
   crawlingAgentRadius: 0.35
   crawlingAgentBaseOffset: 0
-  crawlingSpeedMultiplier: 0.55
+  crawlingSpeedMultiplier: 0.35
   postureNavMeshSampleRadius: 1.25
   postureSwitchSampleRadius: 0.25
   minPostureDuration: 0.75
