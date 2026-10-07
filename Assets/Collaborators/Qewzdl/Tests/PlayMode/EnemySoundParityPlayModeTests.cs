@@ -127,7 +127,6 @@ public sealed class EnemySoundParityPlayModeTests : MultiEndpointPlayModeTest
         string both = Describe("host", onHost) + Describe("guest", onGuest);
 
         Assert.That(onHost.Count, Is.GreaterThan(5), "Too little was heard to compare.\n" + both);
-        Assert.That(onGuest.Count, Is.EqualTo(onHost.Count), "They heard different numbers of sounds.\n" + both);
 
         // Agreeing is no use if every roll is the same roll.
         Assert.That(onHost.FindAll(s => s.Clip != onHost[0].Clip), Is.Not.Empty,
@@ -135,22 +134,34 @@ public sealed class EnemySoundParityPlayModeTests : MultiEndpointPlayModeTest
         Assert.That(onHost.FindAll(s => Mathf.Abs(s.Pitch - onHost[0].Pitch) > 0.01f), Is.Not.Empty,
             "Every sound was at the same pitch.\n" + both);
 
-        // Each sound the host heard, heard by the guest as well: the same
-        // take at the same pitch, at much the same moment. Not in the same
-        // order - two sounds a few hundredths of a second apart on the host
-        // can arrive the other way round.
-        List<RecordedEnemySounds.Heard> unmatched = new(onGuest);
+        // Each sound either heard, heard by the other as well: the same take at
+        // the same pitch, at much the same moment. Not in the same order - two
+        // sounds a few hundredths of a second apart on the host can arrive the
+        // other way round - and not counted up to the moment the comparison
+        // stops: a sound right on it was in on one side and just out on the
+        // other. Each is looked for among everything the other heard.
+        AssertEachHeardBy(onHost, guestHeard.Sounds, "the guest", both);
+        AssertEachHeardBy(onGuest, hostHeard.Sounds, "the host", both);
+    }
 
-        for (int i = 0; i < onHost.Count; i++)
+    private static void AssertEachHeardBy(
+        List<RecordedEnemySounds.Heard> sounds,
+        List<RecordedEnemySounds.Heard> other,
+        string otherName,
+        string both)
+    {
+        List<RecordedEnemySounds.Heard> unmatched = new(other);
+
+        for (int i = 0; i < sounds.Count; i++)
         {
-            RecordedEnemySounds.Heard sound = onHost[i];
+            RecordedEnemySounds.Heard sound = sounds[i];
             int match = unmatched.FindIndex(g =>
                 g.Clip == sound.Clip &&
                 Mathf.Abs(g.Pitch - sound.Pitch) < 0.0001f &&
                 System.Math.Abs(g.At - sound.At) < 0.15d);
 
             Assert.That(match, Is.Not.EqualTo(-1),
-                $"Sound {i} ({sound.Clip} x{sound.Pitch:F3} at {sound.At:F3}) was not heard alike by the guest.\n" + both);
+                $"{sound.Clip} x{sound.Pitch:F3} at {sound.At:F3} was not heard alike by {otherName}.\n" + both);
             unmatched.RemoveAt(match);
         }
     }
