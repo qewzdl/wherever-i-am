@@ -309,6 +309,21 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         // enemy - held to it, with no gravity of her own - stood that far
         // above every floor, and further over anything uneven.
         navMeshSurface.buildHeightMesh = true;
+
+        // Finer, and in small tiles. The navmesh is a few large flat polygons
+        // otherwise, each laid from one edge of a floor to another: over a
+        // flight of stairs one ran from the foot of it out across the landing
+        // and lay a quarter of a metre under the landing's floor, and the
+        // treads stood half a metre off it. Half the cells and tiles a metre
+        // and a third across, and the floors are flat to two centimetres, the
+        // stairs to an eighth of a metre - a flat polygon over steps can do no
+        // better; the height mesh has the steps themselves. A map builds in
+        // about a sixth of a second rather than a twentieth.
+        float agentRadius = NavMesh.GetSettingsByID(navMeshSurface.agentTypeID).agentRadius;
+        navMeshSurface.overrideVoxelSize = true;
+        navMeshSurface.voxelSize = agentRadius > 0f ? agentRadius / 6f : 0.083f;
+        navMeshSurface.overrideTileSize = true;
+        navMeshSurface.tileSize = 16;
     }
 
     private bool TryGetSurfaces(out NavMeshSurface[] navMeshSurfaces)
@@ -388,12 +403,45 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
     private void Reset()
     {
         CacheSurface();
+        MatchSurfacesToTheGame();
     }
 
     private void OnValidate()
     {
         serverWaitTimeout = Mathf.Max(0f, serverWaitTimeout);
         CacheSurface();
+        MatchSurfacesToTheGame();
+    }
+
+    // The surfaces as the game builds them, so that a navmesh baked in the
+    // editor is the one the enemy walks on. Left as they were added, they
+    // were built from what is drawn rather than what is solid, on every
+    // layer, with no height mesh - over every flight of stairs the navmesh
+    // shown floated as a slope above the treads, through things the enemy
+    // never meets, and the game built something else.
+    private void MatchSurfacesToTheGame()
+    {
+        if (surfaces == null)
+            return;
+
+        foreach (NavMeshSurface navMeshSurface in surfaces)
+        {
+            if (navMeshSurface == null)
+                continue;
+
+            string was = SurfaceSettings(navMeshSurface);
+            ConfigureSurface(navMeshSurface);
+
+            if (SurfaceSettings(navMeshSurface) != was)
+                UnityEditor.EditorUtility.SetDirty(navMeshSurface);
+        }
+    }
+
+    private static string SurfaceSettings(NavMeshSurface navMeshSurface)
+    {
+        return $"{navMeshSurface.collectObjects}/{navMeshSurface.layerMask.value}/{navMeshSurface.useGeometry}/" +
+               $"{navMeshSurface.ignoreNavMeshAgent}/{navMeshSurface.ignoreNavMeshObstacle}/{navMeshSurface.buildHeightMesh}/" +
+               $"{navMeshSurface.overrideVoxelSize}/{navMeshSurface.voxelSize}/{navMeshSurface.overrideTileSize}/{navMeshSurface.tileSize}";
     }
 
     [ContextMenu("Build NavMesh Now")]
