@@ -391,6 +391,9 @@ public sealed class GameMapManagerWindow : EditorWindow
                 EditorGUILayout.HelpBox(entry.Errors[i], MessageType.Error);
         }
 
+        foreach (string warning in entry.Warnings)
+            EditorGUILayout.HelpBox(warning, MessageType.Warning);
+
         if (entry.SceneExists && entry.Errors.Count > 0)
         {
             if (GUILayout.Button("Complete Map (add what is missing)"))
@@ -877,6 +880,7 @@ public sealed class MapValidationEntry
 
     public GameMapDefinition Map { get; }
     public List<string> Errors { get; } = new List<string>();
+    public List<string> Warnings { get; } = new List<string>();
     public bool SceneExists { get; set; }
     public bool SceneEnabledInBuildSettings { get; set; }
 }
@@ -1073,7 +1077,7 @@ public static class GameMapEditorUtility
         if (activeSequence == null)
             entry.Errors.Add("No objective sequence is configured for this map.");
 
-        ValidateSceneContents(map.ScenePath, activeSequence, entry.Errors);
+        ValidateSceneContents(map.ScenePath, activeSequence, entry.Errors, entry.Warnings);
         return entry;
     }
 
@@ -1235,7 +1239,8 @@ public static class GameMapEditorUtility
     private static void ValidateSceneContents(
         string scenePath,
         ObjectiveSequenceDefinition activeSequence,
-        List<string> errors)
+        List<string> errors,
+        List<string> warnings)
     {
         Scene scene = SceneManager.GetSceneByPath(scenePath);
         bool closePreviewScene = false;
@@ -1270,6 +1275,16 @@ public static class GameMapEditorUtility
                     $"Scene '{scenePath}' has {mapRoots.Count} {nameof(GameMapRoot)} components. " +
                     "Exactly one is required.");
                 return;
+            }
+
+            RuntimeNavMeshBuilder navigationBuilder =
+                mapRoots[0].GetComponentInChildren<RuntimeNavMeshBuilder>(true);
+
+            if (navigationBuilder != null)
+            {
+                SerializedObject builder = new SerializedObject(navigationBuilder);
+                LayerMask navigationLayers = builder.FindProperty("includedLayers").intValue;
+                NavigationStepCheck.Find(mapRoots[0].gameObject.scene, navigationLayers, warnings);
             }
 
             if (mapRoots[0].PlayerSpawnPointCount == 0)
