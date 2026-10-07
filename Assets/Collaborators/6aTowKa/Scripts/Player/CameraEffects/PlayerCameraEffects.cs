@@ -38,6 +38,10 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
     [SerializeField] private BreathingSettings breathing = new();
     [SerializeField] private ShakeSettings shake = new();
 
+    [Header("Steps")]
+    [Tooltip("Roughly how long, in seconds, the view takes to catch up with the body after it steps up onto something. Higher is softer; it settles in about two and a half times this.")]
+    [SerializeField, Min(0.01f)] private float stepSmoothTime = 0.12f;
+
     private readonly CameraEffectStack effectStack = new();
     private RollEffect rollEffect;
     private HeadBobFigureEightEffect headBobFigureEightEffect;
@@ -68,6 +72,8 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
     private float lastPitchRate;
 
     public CameraEffectOutput LastOutput => lastOutput;
+
+    private StepSmoothing stepSmoothing = new();
 
     // Head turn speed this frame, degrees per second. Yaw feeds the roll effect; pitch is
     // not used by any effect here and exists for readers like ViewmodelSway, so the turn
@@ -111,10 +117,18 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
 
         shakeEffect = shake.CreateEffect();
         effectStack.Add(shakeEffect);
+
+        stepSmoothing = new StepSmoothing(stepSmoothTime);
+        playerController.SteppedUp += stepSmoothing.SteppedUp;
     }
 
     public void Cleanup()
     {
+        if (playerController != null)
+            playerController.SteppedUp -= stepSmoothing.SteppedUp;
+
+        stepSmoothing.Reset();
+
         if (footfalls != null && headBobFigureEightEffect != null)
             footfalls.Footfall -= headBobFigureEightEffect.MarkFootfall;
 
@@ -240,7 +254,16 @@ public class PlayerCameraEffects : PlayerComponent, IPlayerSignalListener, ISett
 
         lastOutput = effectStack.Evaluate(in context);
 
-        effectsTarget.localPosition = lastOutput.PositionOffset;
+        // The view a step behind the body when it has just been put up one,
+        // closing on it.
+        if (playerRigidbody != null)
+            stepSmoothing.Follow(playerRigidbody.transform.position.y, deltaTime);
+        Vector3 stepOffset = Vector3.up * stepSmoothing.Offset;
+
+        if (effectsTarget.parent != null)
+            stepOffset = effectsTarget.parent.InverseTransformVector(stepOffset);
+
+        effectsTarget.localPosition = lastOutput.PositionOffset + stepOffset;
         effectsTarget.localRotation = Quaternion.Euler(lastOutput.RotationOffset);
         targetCamera.fieldOfView = baseFieldOfView + lastOutput.FovOffset;
     }

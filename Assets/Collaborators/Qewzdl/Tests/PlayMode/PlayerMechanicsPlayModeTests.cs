@@ -496,6 +496,252 @@ public sealed class PlayerMechanicsPlayModeTests
         }
     }
 
+    // Up onto something low on the floor, and not up a wall. A body pushed by
+    // its velocity used to stop dead at the first vertical face it met,
+    // however low - the edge of a plank on the floor stopped a player.
+    [UnityTest]
+    public IEnumerator Player_StepsUpOntoSomethingLow_NotOntoAWall([Values(0.1f, 0.2f, 0.3f, 0.6f)] float height)
+    {
+        Solid("Floor", new Vector3(0f, -0.5f, 0f), new Vector3(10f, 1f, 10f));
+        Solid("Obstacle", new Vector3(0f, height * 0.5f, 2f), new Vector3(3f, height, 1f));
+
+        PlayerController controller = WalkingPlayer(2f, out Rigidbody body);
+
+        for (int step = 0; step < 120 && body.position.z < 2.1f; step++)
+        {
+            controller.SetDirection(Vector2.up);
+            yield return new WaitForFixedUpdate();
+        }
+
+        string seen = $"ended at {body.position}";
+
+        if (height <= 0.35f)
+        {
+            Assert.That(body.position.y, Is.EqualTo(height).Within(0.06f), "The player did not step up. " + seen);
+            Assert.That(body.position.z, Is.GreaterThan(2f), "The player did not walk on over it. " + seen);
+        }
+        else
+        {
+            Assert.That(body.position.y, Is.LessThan(0.1f), "The player climbed a wall. " + seen);
+            Assert.That(body.position.z, Is.LessThan(1.2f), "The player went through a wall. " + seen);
+        }
+    }
+
+    // Already up against something low, standing, and then walking on: up
+    // onto it, and never down on the way. The round bottom of the body only
+    // grazes the edge of anything low, and the step used to look for it a
+    // hair higher than the body stood - it passed over the edge without
+    // touching it, and the player stayed where they were.
+    [UnityTest]
+    public IEnumerator Player_StandingAtTheEdgeOfSomethingLow_StepsUpWhenWalkingOn([Values(0.05f, 0.1f, 0.2f, 0.3f)] float height)
+    {
+        Solid("Floor", new Vector3(0f, -0.5f, 0f), new Vector3(10f, 1f, 10f));
+        Solid("Obstacle", new Vector3(0f, height * 0.5f, 2f), new Vector3(3f, height, 1f));
+
+        // Where the round bottom of the body touches the edge.
+        float reach = Mathf.Sqrt(0.25f - (0.5f - height) * (0.5f - height));
+        PlayerController controller = WalkingPlayer(2f, out Rigidbody body, 1.5f - reach - 0.005f);
+
+        for (int step = 0; step < 25; step++)
+        {
+            controller.SetDirection(Vector2.zero);
+            yield return new WaitForFixedUpdate();
+        }
+
+        float fallen = 0f;
+        float previous = body.position.y;
+
+        for (int step = 0; step < 60 && body.position.z < 2.1f; step++)
+        {
+            controller.SetDirection(Vector2.up);
+            yield return new WaitForFixedUpdate();
+
+            if (body.position.y < previous)
+                fallen += previous - body.position.y;
+
+            previous = body.position.y;
+        }
+
+        string seen = $"ended at {body.position}, fell {fallen:F3} in all";
+        Assert.That(body.position.y, Is.EqualTo(height).Within(0.03f), "The player did not step up. " + seen);
+        Assert.That(body.position.z, Is.GreaterThan(2f), "The player did not walk on over it. " + seen);
+        Assert.That(fallen, Is.LessThan(0.03f), "The player went up and came down again. " + seen);
+    }
+
+    // Up a flight of stairs, straight and at an angle, stopping halfway and
+    // going on, without getting stuck, without dropping back, and at very
+    // nearly the pace of walking on the flat: the round bottom of the body
+    // used to meet every stair short of it and slide up its face. The round bottom of the body rests on two edges
+    // at once on stairs and on no tread; the step used to be measured from
+    // below the tread the body was on, came out too high and was refused, and
+    // the player stopped until they turned.
+    [UnityTest]
+    public IEnumerator Player_WalksUpAFlightOfStairs([Values(0.18f, 0.3f, 0.34f)] float rise, [Values(0f, 35f, 60f)] float angle)
+    {
+        return WalkUpStairs(rise, angle, maxStepHeight: 0.35f);
+    }
+
+    // Stairs as tall as steps are allowed to be, come at a slant. The footing
+    // was looked for every half right angle and just inside the edge of the
+    // body: a tall stair met at a slant fell between two looks, the body ran
+    // into it first and was turned along it - up only walking straight at it.
+    [UnityTest]
+    public IEnumerator Player_WalksUpTallStairsAtASlant([Values(0.6f, 0.9f)] float rise, [Values(35f, 60f)] float angle)
+    {
+        return WalkUpStairs(rise, angle, maxStepHeight: 1f);
+    }
+
+    private IEnumerator WalkUpStairs(float rise, float angle, float maxStepHeight)
+    {
+        const int steps = 6;
+        const float tread = 0.28f;
+
+        Solid("Floor", new Vector3(0f, -0.5f, 4f), new Vector3(40f, 1f, 16f));
+
+        // Each step a block on to the landing at the top, the last of them the
+        // landing itself.
+        for (int i = 0; i < steps; i++)
+        {
+            float from = 1.5f + i * tread;
+            const float to = 9f;
+            float height = (i + 1) * rise;
+            Solid($"Step {i + 1}", new Vector3(0f, height * 0.5f, (from + to) * 0.5f), new Vector3(40f, height, to - from));
+        }
+
+        PlayerController controller = WalkingPlayer(2f, out Rigidbody body);
+        PlayModeTestReflection.SetField(controller, "maxStepHeight", maxStepHeight);
+        Vector2 heading = new(Mathf.Sin(angle * Mathf.Deg2Rad), Mathf.Cos(angle * Mathf.Deg2Rad));
+        float fallen = 0f;
+        float previous = body.position.y;
+        int frames = 0;
+        bool paused = false;
+        float fastestUp = 0f;
+
+        while (body.position.z < 1.5f + steps * tread + 0.6f && frames < 250)
+        {
+            // Standing on the stairs, the body rests on the edges of two
+            // treads and on neither of them.
+            if (!paused && body.position.z > 1.5f + 3.5f * tread)
+            {
+                paused = true;
+
+                for (int still = 0; still < 25; still++)
+                {
+                    controller.SetDirection(Vector2.zero);
+                    yield return new WaitForFixedUpdate();
+                }
+
+                previous = body.position.y;
+            }
+
+            controller.SetDirection(heading);
+            yield return new WaitForFixedUpdate();
+            frames++;
+            fastestUp = Mathf.Max(fastestUp, body.linearVelocity.y);
+
+            if (body.position.y < previous)
+                fallen += previous - body.position.y;
+
+            previous = body.position.y;
+        }
+
+        string seen = $"ended at {body.position} after {frames} physics steps, fell {fallen:F3} in all";
+        Assert.That(body.position.y, Is.EqualTo(steps * rise).Within(0.03f), "The player did not get up the stairs. " + seen);
+        Assert.That(frames, Is.LessThan(150), "The player got stuck on the way up. " + seen);
+
+        // Speeding up from standing twice - at the start and after the stop -
+        // costs nine physics steps or so; the stairs themselves nothing. Going
+        // up by the round of its bottom, the body lost one to six more.
+        float flatFrames = body.position.z / (5f * heading.y * Time.fixedDeltaTime);
+        Assert.That(frames, Is.LessThan(flatFrames + 10f), "The player slowed on the stairs. " + seen);
+
+        // Put up each stair, not pushed up it.
+        Assert.That(fastestUp, Is.LessThan(0.5f), "The player was shoved up the stairs. " + seen);
+        Assert.That(fallen, Is.LessThan(0.05f), "The player dropped back on the way up. " + seen);
+    }
+
+    // Into a vent: a sill a step high, and a ceiling too low to stand under.
+    // Upright the body does not fit and stays where it is, still; crouched it
+    // goes up over the sill and in. The step used to put the body up from
+    // before it reached the sill, so it fell back and was put up again -
+    // and under a low ceiling the body never fitted where a thinner check
+    // said it would. Either way the camera shook at the way in.
+    [UnityTest]
+    //
+    // However high a step may be: with steps allowed a metre high, the body
+    // was put up a metre before it looked ahead, met the top of the vent
+    // and never went in. The vent is barely taller than the crouched body.
+    public IEnumerator Player_IntoAVent_GoesInCrouched_AndStaysStillUpright(
+        [Values(1f, 2f)] float bodyHeight,
+        [Values(0.35f, 1f)] float maxStepHeight)
+    {
+        Solid("Floor", new Vector3(0f, -0.5f, 0f), new Vector3(10f, 1f, 12f));
+        Solid("Vent floor", new Vector3(0f, 0.1f, 3f), new Vector3(3f, 0.2f, 3f));
+        Solid("Vent top", new Vector3(0f, 1.5f, 3f), new Vector3(3f, 0.5f, 3f));
+
+        PlayerController controller = WalkingPlayer(bodyHeight, out Rigidbody body);
+        PlayModeTestReflection.SetField(controller, "maxStepHeight", maxStepHeight);
+        float highest = float.MinValue;
+        float fallen = 0f;
+        float previous = body.position.y;
+
+        for (int step = 0; step < 120 && body.position.z < 3f; step++)
+        {
+            controller.SetDirection(Vector2.up);
+            yield return new WaitForFixedUpdate();
+
+            highest = Mathf.Max(highest, body.position.y);
+
+            if (body.position.y < previous)
+                fallen += previous - body.position.y;
+
+            previous = body.position.y;
+        }
+
+        string seen = $"ended at {body.position}, highest {highest:F3}, fell {fallen:F3} in all";
+
+        if (bodyHeight < 1.2f)
+        {
+            Assert.That(body.position.y, Is.EqualTo(0.2f).Within(0.05f), "Crouched, the body did not get up into the vent. " + seen);
+            Assert.That(body.position.z, Is.GreaterThan(2f), "Crouched, the body did not go in. " + seen);
+        }
+        else
+        {
+            Assert.That(highest, Is.LessThan(0.05f), "Upright, the body was put up where it does not fit. " + seen);
+        }
+
+        Assert.That(fallen, Is.LessThan(0.05f), "The body went up and fell back: the camera shakes. " + seen);
+    }
+
+    private PlayerController WalkingPlayer(float height, out Rigidbody body, float z = 0f)
+    {
+        GameObject player = new("Walking player");
+        cleanup.Add(player);
+        player.SetActive(false);
+        player.transform.position = new Vector3(0f, 0f, z);
+        body = player.AddComponent<Rigidbody>();
+        CapsuleCollider capsule = player.AddComponent<CapsuleCollider>();
+        capsule.radius = 0.5f;
+        capsule.height = height;
+        capsule.center = Vector3.up * (height * 0.5f);
+        PlayerController controller = player.AddComponent<PlayerController>();
+        controller.SetBodyCollider(capsule);
+        player.AddComponent<PlayerOrchestrator>();
+        player.SetActive(true);
+        player.GetComponent<PlayerOrchestrator>().Setup(isMultiplayer: false, isOwner: true);
+        controller.SetDirection(Vector2.up);
+        return controller;
+    }
+
+    private void Solid(string name, Vector3 position, Vector3 size)
+    {
+        GameObject solid = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cleanup.Add(solid);
+        solid.name = name;
+        solid.transform.position = position;
+        solid.transform.localScale = size;
+    }
+
     // The enemy walks into a player and stops; the player is not moved. It
     // used to walk the host out of its way - the one player whose body is
     // simulated on the server - while stopping against every guest.

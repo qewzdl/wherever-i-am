@@ -37,6 +37,12 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
     [SerializeField] private LayerMask groundLayer = ~0;
     [SerializeField, Min(0f)] private float groundCheckDistance = 0.1f;
 
+    // A body pushed by its velocity stops at the first vertical face it meets,
+    // however low: the edge of a rug, a plank on the floor, the bottom stair.
+    // Anything up to this high is stepped up onto instead.
+    [Header("Steps")]
+    [SerializeField, Min(0f)] private float maxStepHeight = 0.35f;
+
     private Vector2 direction;
     private bool isCrouching;
     private bool isRunning;
@@ -61,6 +67,9 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
     private readonly List<Vector3> blockingContactNormals = new(8);
     private readonly List<(Vector3 normal, float allowedIntoSpeed)> itemVelocityConstraints = new(8);
     private readonly RaycastHit[] groundHits = new RaycastHit[8];
+    private readonly RaycastHit[] stepHits = new RaycastHit[8];
+    private bool onFooting;
+    private Vector3 footingDirection = Vector3.forward;
 
     protected override void OnPostInit(PlayerOrchestrator orch, bool isMultiplayer, bool isOwner)
     {
@@ -118,18 +127,36 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
     private void FixedUpdate()
     {
         bool isGrounded = CheckGrounded();
-        IsGrounded = isGrounded;
+
+        // Held up on the edge of a step is standing, as far as walking, the
+        // head bob and everything else is concerned.
+        IsGrounded = isGrounded || onFooting;
 
         TickStamina(Time.fixedDeltaTime);
         UpdatePendingStand();
         CacheDraggedItemConstraints();
-        Move(isGrounded);
-        ApplyExtraGravity(isGrounded);
+
+        Vector3 horizontalVelocity = NextHorizontalVelocity(IsGrounded);
+        float toFooting = 0f;
+        bool steppedUp = false;
+        onFooting = IsGrounded && TryFindFooting(isGrounded, ref horizontalVelocity, out toFooting, out steppedUp);
+
+        // The edge just stepped up is not a wall to stop against.
+        if (steppedUp)
+            blockingContactNormals.Clear();
+
+        Move(horizontalVelocity);
+
+        if (onFooting)
+            MoveUpBy(toFooting, steppedUp);
+        else
+            ApplyExtraGravity(isGrounded);
+
         blockingContactNormals.Clear();
         itemVelocityConstraints.Clear();
     }
 
-    private void Move(bool isGrounded)
+    private Vector3 NextHorizontalVelocity(bool isGrounded)
     {
         if (movementBlockers.Count > 0)
         {
@@ -146,12 +173,15 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
         if (!isGrounded)
             moveRate *= airControlMultiplier;
 
-        Vector3 horizontalVelocity = Vector3.MoveTowards(
+        return Vector3.MoveTowards(
             currentHorizontalVelocity,
             targetHorizontalVelocity,
             moveRate * Time.fixedDeltaTime
         );
+    }
 
+    private void Move(Vector3 horizontalVelocity)
+    {
         horizontalVelocity = ClipVelocityAgainstBlockingContacts(horizontalVelocity);
         horizontalVelocity = ApplyItemVelocityConstraints(horizontalVelocity);
 
@@ -160,6 +190,261 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
             rb.linearVelocity.y,
             horizontalVelocity.z
         );
+    }
+
+    // What the body stands on and steps up onto: whatever it collides with,
+    // as far as groundLayer allows. groundLayer alone was the Default layer,
+    // and a map's floors and furniture are on Walls, Interactable and the
+    // rest - a player on any of them counted as in the air, and nothing on
+    // them was ever a step.
+    private int SolidLayers
+    {
+        get
+        {
+            int layers = 0;
+
+            for (int layer = 0; layer < 32; layer++)
+            {
+                if (!Physics.GetIgnoreLayerCollision(gameObject.layer, layer))
+                    layers |= 1 << layer;
+            }
+
+            return groundLayer & layers;
+        }
+    }
+
+    // How far the body was just put up, onto a step. Heard by the camera,
+    // which follows it smoothly rather than in the one move the body makes.
+    public event System.Action<float> SteppedUp;
+
+    // The body stands on its footing: the highest flat ground under the
+    // middle of it and under the half of it it is moving into - the way a
+    // foot would, not the round bottom of the capsule.
+    //
+    // Ground there higher than it stands, by no more than a step, and with
+    // room for the whole body that much higher - nothing above to rise into,
+    // nothing in front at that height, into a vent upright it does not go -
+    // and the body is put up onto it where it is, the camera following
+    // smoothly (StepSmoothing). Moved, not pushed: it was sent up at the
+    // speed that got it there in one physics step, and that was a shove. Over the edge, until the round
+    // bottom of it rests on the step, it is held up there rather than
+    // falling back off.
+    //
+    // It used to go up by the round of its bottom instead: let down onto
+    // the edge where it was about to move, every physics step. Half a metre
+    // across, the round met every stair a good way short of it and rose
+    // steeply along it, pressed against it and slowed by it - the player
+    // slid up the face of every stair.
+    //
+    // Only flat ground: a slope is walked up, not stepped. Only the world's
+    // own: an item or somebody else is not a step.
+    private bool TryFindFooting(bool isGrounded, ref Vector3 horizontalVelocity, out float toFooting, out bool steppedUp)
+    {
+        toFooting = 0f;
+        steppedUp = false;
+
+        if (bodyCollider == null ||
+            maxStepHeight <= 0f ||
+            movementBlockers.Count > 0)
+        {
+            return false;
+        }
+
+        Vector3 move = horizontalVelocity * Time.fixedDeltaTime;
+        bool moving = move.sqrMagnitude > 0.000001f;
+
+        if (moving)
+            footingDirection = move.normalized;
+
+        Vector3 axis = bodyCollider.transform.TransformDirection(GetCapsuleAxis(bodyCollider)).normalized;
+        Vector3 center = bodyCollider.transform.TransformPoint(bodyCollider.center);
+        float radius = GetScaledCapsuleRadius(bodyCollider);
+        float halfHeight = Mathf.Max(radius, GetScaledCapsuleHeight(bodyCollider) * 0.5f);
+        float feet = (center - axis * halfHeight).y;
+
+        if (!TryFootingHeight(center + move, radius + 0.03f, feet, out float footing))
+            return false;
+
+        // A hair above it, off the edge.
+        const float skin = 0.005f;
+        float rise = footing - feet;
+
+        if (rise > 0.002f)
+        {
+            if (!moving || rise > maxStepHeight)
+                return false;
+
+            Vector3 bottom = center - axis * (halfHeight - radius);
+            Vector3 top = center + axis * (halfHeight - radius);
+            float castRadius = Mathf.Max(0.01f, radius - skin);
+
+            if (TryCapsuleCastAny(bottom, top, castRadius, Vector3.up, rise + skin, out _) ||
+                !TryMoveAt(bottom, top, castRadius, rise + skin, ref move))
+            {
+                return false;
+            }
+
+            horizontalVelocity = move / Time.fixedDeltaTime;
+            toFooting = rise + skin;
+            steppedUp = true;
+            return true;
+        }
+
+        // Standing on the ground under the round bottom is the physics' own
+        // business; held up over an edge it has nothing under it.
+        if (isGrounded || rise < -0.02f)
+            return false;
+
+        toFooting = rise + skin;
+        return true;
+    }
+
+    // The highest flat ground the middle of the body and the front half of
+    // it stand over, between a step below the feet and a step above them.
+    //
+    // Looked for a little past the edge of the body, and every eighth of a
+    // right angle round its front: a step is found before the body meets
+    // it, whichever way the body comes at it. Every half right angle and
+    // just inside the edge, a step met at a slant fell between two looks -
+    // the body ran into it first, was turned along it, and got up only
+    // walking straight at it.
+    private bool TryFootingHeight(Vector3 center, float reach, float feet, out float footing)
+    {
+        footing = float.NegativeInfinity;
+        float from = feet + maxStepHeight + 0.05f;
+
+        for (int i = 0; i < 10; i++)
+        {
+            Vector3 at = center;
+
+            if (i > 0)
+                at += Quaternion.AngleAxis(-90f + (i - 1) * 22.5f, Vector3.up) * footingDirection * reach;
+
+            at.y = from;
+
+            if (TryRaycastStatic(at, maxStepHeight + 0.1f, out RaycastHit ground) &&
+                ground.normal.y > 0.95f &&
+                ground.point.y > footing)
+            {
+                footing = ground.point.y;
+            }
+        }
+
+        return !float.IsNegativeInfinity(footing);
+    }
+
+    // Whether the body, this high up, can make the move - straight, or
+    // sliding along whatever stands in the way, as walking does.
+    private bool TryMoveAt(Vector3 bottom, Vector3 top, float castRadius, float raise, ref Vector3 move)
+    {
+        Vector3 raised = Vector3.up * raise;
+
+        if (!TryCapsuleCastAny(bottom + raised, top + raised, castRadius, move.normalized, move.magnitude, out RaycastHit wall))
+            return true;
+
+        Vector3 normal = wall.normal;
+        normal.y = 0f;
+
+        if (wall.distance <= 0f || normal.sqrMagnitude < 0.0001f)
+            return false;
+
+        normal.Normalize();
+        Vector3 along = move - normal * Mathf.Min(0f, Vector3.Dot(move, normal));
+
+        if (along.sqrMagnitude < 0.000001f ||
+            TryCapsuleCastAny(bottom + raised, top + raised, castRadius, along.normalized, along.magnitude, out _))
+        {
+            return false;
+        }
+
+        move = along;
+        return true;
+    }
+
+    // Put up onto the footing where it is, not pushed there: the body is
+    // moved, and nothing carries it on up afterwards. Its fall is taken off
+    // so that it stays at that height until it stands there - whatever
+    // gravity would add this physics step, and no more.
+    private void MoveUpBy(float distance, bool steppedUp)
+    {
+        BodyPlacement.Place(transform, rb, rb.position + Vector3.up * distance, rb.rotation, stop: false);
+
+        Vector3 velocity = rb.linearVelocity;
+        velocity.y = rb.useGravity ? -Physics.gravity.y * Time.fixedDeltaTime : 0f;
+        rb.linearVelocity = velocity;
+
+        if (steppedUp)
+            SteppedUp?.Invoke(distance);
+    }
+
+    private bool TryCapsuleCastAny(
+        Vector3 pointA,
+        Vector3 pointB,
+        float radius,
+        Vector3 castDirection,
+        float distance,
+        out RaycastHit nearest)
+    {
+        nearest = default;
+        int hitCount = Physics.CapsuleCastNonAlloc(
+            pointA,
+            pointB,
+            radius,
+            castDirection,
+            stepHits,
+            distance,
+            SolidLayers,
+            QueryTriggerInteraction.Ignore);
+        bool found = false;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = stepHits[i];
+
+            if (hit.collider == null || hit.collider.transform.IsChildOf(transform))
+                continue;
+
+            if (!found || hit.distance < nearest.distance)
+            {
+                nearest = hit;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private bool TryRaycastStatic(Vector3 origin, float distance, out RaycastHit nearest)
+    {
+        nearest = default;
+        int hitCount = Physics.RaycastNonAlloc(
+            origin,
+            Vector3.down,
+            stepHits,
+            distance,
+            SolidLayers,
+            QueryTriggerInteraction.Ignore);
+        bool found = false;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = stepHits[i];
+
+            if (hit.collider == null ||
+                hit.collider.transform.IsChildOf(transform) ||
+                hit.collider.attachedRigidbody != null)
+            {
+                continue;
+            }
+
+            if (!found || hit.distance < nearest.distance)
+            {
+                nearest = hit;
+                found = true;
+            }
+        }
+
+        return found;
     }
 
     private Vector3 ClipVelocityAgainstBlockingContacts(Vector3 velocity)
@@ -351,7 +636,7 @@ public class PlayerController : PlayerComponent, IPlayerSignalListener, ISetting
             directionToGround,
             groundHits,
             distance,
-            groundLayer,
+            SolidLayers,
             QueryTriggerInteraction.Ignore
         );
 

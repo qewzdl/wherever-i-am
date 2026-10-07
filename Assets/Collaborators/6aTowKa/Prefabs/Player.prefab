@@ -1092,8 +1092,10 @@ MonoBehaviour:
   gravityMultiplier: 1
   groundLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 4294967295
   groundCheckDistance: 0.1
+  maxStepHeight: 1
+  stepProbeDistance: 0.05
 --- !u!114 &8546633882858530306
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1444,7 +1446,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  observedTransform: {fileID: 0}
   movement: {fileID: 11400000, guid: 566f34fde8634827b253b3ab644002a0, type: 2}
   noiseEmitter: {fileID: 867530900123456790}
   runningPreset: {fileID: 11400000, guid: eeeccd6ace294695af6c852bd68718ae, type: 2}
@@ -1494,7 +1495,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 817603aac00441959777a296a02ce6f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  observedTransform: {fileID: 0}
+  ShowTopMostFoldoutHeaderGroup: 1
   movement: {fileID: 11400000, guid: 566f34fde8634827b253b3ab644002a0, type: 2}
   windedBelow: 0.5
 --- !u!114 &867530900123456789
@@ -1628,6 +1629,7 @@ MonoBehaviour:
     frequency: 18
     defaultDuration: 0.4
     falloffExponent: 2
+  stepSmoothTime: 0.12
 --- !u!114 &1774658826461861830
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1650,6 +1652,19 @@ MonoBehaviour:
   swayPerDegreePerSecond: 0.01
   maxSwayDegrees: 4
   swaySmoothTime: 0.12
+--- !u!114 &4821736590147362819
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7794562563572243936}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51486047dad24399b2890e9991789f9c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &8004139109675559352
 GameObject:
   m_ObjectHideFlags: 0
@@ -1861,16 +1876,3 @@ MonoBehaviour:
   m_LightCookieSize: {x: 1, y: 1}
   m_LightCookieOffset: {x: 0, y: 0}
   m_SoftShadowQuality: 0
---- !u!114 &4821736590147362819
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7794562563572243936}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 51486047dad24399b2890e9991789f9c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  ShowTopMostFoldoutHeaderGroup: 1
