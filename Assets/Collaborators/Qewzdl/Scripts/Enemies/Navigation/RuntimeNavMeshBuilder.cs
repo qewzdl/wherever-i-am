@@ -303,6 +303,12 @@ public class RuntimeNavMeshBuilder : MonoBehaviour
         navMeshSurface.useGeometry = geometry;
         navMeshSurface.ignoreNavMeshAgent = true;
         navMeshSurface.ignoreNavMeshObstacle = true;
+
+        // The floor's own height, not the navmesh's guess at it. Without it a
+        // navmesh lies a few centimetres above what it was built from, the
+        // enemy - held to it, with no gravity of her own - stood that far
+        // above every floor, and further over anything uneven.
+        navMeshSurface.buildHeightMesh = true;
     }
 
     private bool TryGetSurfaces(out NavMeshSurface[] navMeshSurfaces)

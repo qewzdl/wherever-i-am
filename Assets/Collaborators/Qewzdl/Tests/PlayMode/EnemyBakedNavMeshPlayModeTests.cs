@@ -541,6 +541,90 @@ public sealed class EnemyBakedNavMeshPlayModeTests
 #endif
     }
 
+    // She stands on the floor, not above it: spawned in the air over it, and
+    // walking across it. Her height used to be wherever the navmesh was, with
+    // no gravity of her own, and a navmesh lies a little above what it was
+    // built from.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_StandsOnTheFloor_NotAboveIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(enemyPrefab, out int standingAgentTypeId, out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 1.5f, -5f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+        Rigidbody body = enemy.GetComponent<Rigidbody>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "Production enemy did not start on the baked NavMesh.");
+
+        for (int i = 0; i < 30; i++)
+            yield return new WaitForFixedUpdate();
+
+        float standing = body.position.y;
+
+        Assert.That(noiseWorld.TryRaiseNoiseServer(new Vector3(3f, 0f, 4f), 20f, 1f, GameplayNoiseSourceType.Item), Is.True);
+
+        float lowest = float.MaxValue;
+        float highest = float.MinValue;
+        Vector3 start = body.position;
+
+        for (int i = 0; i < 150; i++)
+        {
+            yield return new WaitForFixedUpdate();
+            lowest = Mathf.Min(lowest, body.position.y);
+            highest = Mathf.Max(highest, body.position.y);
+        }
+
+        string seen =
+            $"standing at {standing:F3}, walking between {lowest:F3} and {highest:F3}, " +
+            $"walked {Vector3.Distance(start, body.position):F2} m; the floor is at 0.";
+
+        Assert.That(Vector3.Distance(start, body.position), Is.GreaterThan(0.5f), "She never walked. " + seen);
+        Assert.That(Mathf.Abs(standing), Is.LessThan(0.03f), "She stood off the floor. " + seen);
+        Assert.That(Mathf.Abs(lowest), Is.LessThan(0.03f), "She walked off the floor. " + seen);
+        Assert.That(Mathf.Abs(highest), Is.LessThan(0.03f), "She walked off the floor. " + seen);
+    }
+
+    // A spawn point set well above the floor - further than she looks for a
+    // navmesh to stand on - still puts her on the floor below it, rather than
+    // leaving her hanging where it was.
+    [UnityTest]
+    public IEnumerator ProductionEnemy_SpawnedHighAboveTheFloor_StandsOnIt()
+    {
+        yield return StartHost();
+
+        GetProductionAgentTypes(enemyPrefab, out int standingAgentTypeId, out int crawlingAgentTypeId);
+        BakeOpenArena(standingAgentTypeId, crawlingAgentTypeId);
+
+        GameplayNoiseWorldService noiseWorld = CreateNoiseWorld();
+        NetworkEnemyController enemy = CreateSpawnedProductionEnemy(
+            enemyPrefab,
+            noiseWorld,
+            new Vector3(0f, 4f, -5f));
+        EnemyServerRuntime runtime = enemy.GetComponent<EnemyServerRuntime>();
+        NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+        Rigidbody body = enemy.GetComponent<Rigidbody>();
+
+        yield return WaitForCondition(
+            () => runtime.IsRunning && agent.enabled && agent.isOnNavMesh,
+            "An enemy spawned four metres up never found the floor below.");
+
+        for (int i = 0; i < 30; i++)
+            yield return new WaitForFixedUpdate();
+
+        Assert.That(Mathf.Abs(body.position.y), Is.LessThan(0.03f),
+            $"She stood at {body.position.y:F3}; the floor is at 0.");
+    }
+
     [UnityTest]
     public IEnumerator Navigator_OnPrebuiltNavMesh_OpensBlockingDoorBeforeContinuing()
     {
@@ -5645,6 +5729,8 @@ public sealed class EnemyBakedNavMeshPlayModeTests
         surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
         surface.ignoreNavMeshAgent = true;
         surface.ignoreNavMeshObstacle = true;
+        // As RuntimeNavMeshBuilder builds every map's.
+        surface.buildHeightMesh = true;
         surface.BuildNavMesh();
         surfaces.Add(surface);
     }

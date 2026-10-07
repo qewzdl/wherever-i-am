@@ -142,7 +142,8 @@ public class EnemyNavMeshStartupGate : MonoBehaviour
                 transform.position,
                 out NavMeshHit hit,
                 Mathf.Max(0.05f, placementSampleRadius),
-                filter))
+                filter) &&
+            !TrySampleBelow(filter, out hit))
         {
             return false;
         }
@@ -152,6 +153,27 @@ public class EnemyNavMeshStartupGate : MonoBehaviour
         agent.enabled = true;
 
         return agent.isOnNavMesh;
+    }
+
+    // A spawn point set higher above the floor than the sample reaches left
+    // her hanging where it was, no navmesh near enough to put her on. The
+    // floor straight below is where she was meant to stand.
+    private bool TrySampleBelow(NavMeshQueryFilter filter, out NavMeshHit hit)
+    {
+        hit = default;
+
+        return Physics.Raycast(
+                   transform.position,
+                   Vector3.down,
+                   out RaycastHit ground,
+                   100f,
+                   Physics.DefaultRaycastLayers,
+                   QueryTriggerInteraction.Ignore) &&
+               NavMesh.SamplePosition(
+                   ground.point,
+                   out hit,
+                   Mathf.Max(0.05f, placementSampleRadius),
+                   filter);
     }
 
     private void CacheComponents()
