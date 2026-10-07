@@ -135,13 +135,23 @@ public sealed class EnemySoundParityPlayModeTests : MultiEndpointPlayModeTest
         Assert.That(onHost.FindAll(s => Mathf.Abs(s.Pitch - onHost[0].Pitch) > 0.01f), Is.Not.Empty,
             "Every sound was at the same pitch.\n" + both);
 
+        // Each sound the host heard, heard by the guest as well: the same
+        // take at the same pitch, at much the same moment. Not in the same
+        // order - two sounds a few hundredths of a second apart on the host
+        // can arrive the other way round.
+        List<RecordedEnemySounds.Heard> unmatched = new(onGuest);
+
         for (int i = 0; i < onHost.Count; i++)
         {
-            Assert.That(onGuest[i].Clip, Is.EqualTo(onHost[i].Clip), $"Sound {i} was a different take.\n" + both);
-            Assert.That(onGuest[i].Pitch, Is.EqualTo(onHost[i].Pitch).Within(0.0001f),
-                $"Sound {i} was at a different pitch.\n" + both);
-            Assert.That(onGuest[i].At, Is.EqualTo(onHost[i].At).Within(0.15d),
-                $"Sound {i} came at a different moment.\n" + both);
+            RecordedEnemySounds.Heard sound = onHost[i];
+            int match = unmatched.FindIndex(g =>
+                g.Clip == sound.Clip &&
+                Mathf.Abs(g.Pitch - sound.Pitch) < 0.0001f &&
+                System.Math.Abs(g.At - sound.At) < 0.15d);
+
+            Assert.That(match, Is.Not.EqualTo(-1),
+                $"Sound {i} ({sound.Clip} x{sound.Pitch:F3} at {sound.At:F3}) was not heard alike by the guest.\n" + both);
+            unmatched.RemoveAt(match);
         }
     }
 
