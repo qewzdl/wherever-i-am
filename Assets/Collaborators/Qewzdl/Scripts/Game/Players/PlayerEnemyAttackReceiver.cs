@@ -12,7 +12,8 @@ public sealed class PlayerEnemyAttackReceiver :
     NetworkBehaviour,
     IEnemyAttackReceiver,
     IHidingEntryEligibility,
-    IPlayerInPlay
+    IPlayerInPlay,
+    IDeveloperPlayerActions
 {
     private static readonly List<PlayerEnemyAttackReceiver> RegisteredPlayers = new();
 
@@ -153,6 +154,27 @@ public sealed class PlayerEnemyAttackReceiver :
             return false;
         }
 
+        if (!TryCaughtOnServer(out _))
+        {
+            return false;
+        }
+
+        if (logReceivedAttack)
+        {
+            Debug.Log(
+                $"Player received enemy attack: {context.TargetDebugName}.",
+                this
+            );
+        }
+
+        return true;
+    }
+
+    // Caught, as far as the server and the match are concerned. The enemy
+    // attack and the developer window both come through here, so a player
+    // out of the developer window is out of the match the same way.
+    private bool TryCaughtOnServer(out string reason)
+    {
         if (networkObject == null)
         {
             networkObject = GetComponent<NetworkObject>();
@@ -163,6 +185,7 @@ public sealed class PlayerEnemyAttackReceiver :
             NetworkManager == null ||
             !NetworkManager.IsServer)
         {
+            reason = "Нужен host";
             return false;
         }
 
@@ -172,6 +195,7 @@ public sealed class PlayerEnemyAttackReceiver :
             matchCompletionService == null ||
             !matchCompletionService.IsMatchRunning)
         {
+            reason = "Матч не идёт";
             return false;
         }
 
@@ -187,14 +211,43 @@ public sealed class PlayerEnemyAttackReceiver :
             );
         }
 
-        if (logReceivedAttack)
+        reason = "Игрок выбыл";
+        return true;
+    }
+
+    // The developer window's death: the same as being caught, on the host.
+    public bool TryDie(out string reason)
+    {
+        return TryCaughtOnServer(out reason);
+    }
+
+    // The developer window's respawn: this player's spawn point on the map.
+    public bool TryReturnToSpawn(out string reason)
+    {
+        if (isEliminated)
         {
-            Debug.Log(
-                $"Player received enemy attack: {context.TargetDebugName}.",
-                this
-            );
+            reason = "Игрок выбыл";
+            return false;
         }
 
+        if (NetworkManager == null || !NetworkManager.IsListening)
+        {
+            reason = "Сеть не запущена";
+            return false;
+        }
+
+        if (!NetworkObjectServiceContext.TryResolveSessionService(
+                NetworkManager,
+                out IGameMapSessionService gameMap) ||
+            gameMap == null ||
+            !gameMap.TryGetPlayerSpawn(OwnerClientId, out Vector3 position, out Quaternion rotation))
+        {
+            reason = "На карте нет точки спавна";
+            return false;
+        }
+
+        BodyPlacement.Place(transform, GetComponent<Rigidbody>(), position, rotation);
+        reason = "На спавне";
         return true;
     }
 

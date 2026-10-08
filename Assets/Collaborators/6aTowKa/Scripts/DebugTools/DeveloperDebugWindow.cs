@@ -27,6 +27,7 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
     private TextMeshProUGUI noClipText;
     private TextMeshProUGUI speedText;
     private TextMeshProUGUI removeEnemiesText;
+    private TextMeshProUGUI playerActionText;
     private TMP_InputField shakeAmountField;
     private TMP_InputField shakeDurationField;
     private TextMeshProUGUI shakeText;
@@ -214,6 +215,38 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         return removed;
     }
 
+    // The player's own death and respawn go through the player's own rules, so the
+    // window only asks: see IDeveloperPlayerActions.
+    private void HandleKillLocalPlayer()
+    {
+        PlayerController player = TryGetLocalPlayer();
+        IDeveloperPlayerActions actions = player != null ? player.GetComponent<IDeveloperPlayerActions>() : null;
+        if (actions == null)
+        {
+            playerActionText.text = "Смерть: локальный игрок не найден";
+            return;
+        }
+
+        playerActionText.text = actions.TryDie(out string reason)
+            ? reason
+            : $"Смерть: {reason}";
+    }
+
+    private void HandleReturnLocalPlayerToSpawn()
+    {
+        PlayerController player = TryGetLocalPlayer();
+        IDeveloperPlayerActions actions = player != null ? player.GetComponent<IDeveloperPlayerActions>() : null;
+        if (actions == null)
+        {
+            playerActionText.text = "Спавн: локальный игрок не найден";
+            return;
+        }
+
+        playerActionText.text = actions.TryReturnToSpawn(out string reason)
+            ? reason
+            : $"Спавн: {reason}";
+    }
+
     private void CancelEnemyRemoval()
     {
         enemyRemovalArmed = false;
@@ -348,6 +381,10 @@ public sealed class DeveloperDebugWindow : MonoBehaviour, ISettingsServiceConsum
         shakeText = CreateButton("Трахнуть камеру", shake.transform, TriggerShake);
         removeEnemiesText = CreateButton("Убрать врага навсегда*", panel.transform, HandleRemoveEnemies);
         CreateText("*Костыль: до перезагрузки сцены или нового спавна.", panel.transform, 13, FontStyles.Italic);
+        HorizontalLayoutGroup playerActions = CreateRow(panel.transform, 34f);
+        CreateButton("Смерть", playerActions.transform, HandleKillLocalPlayer);
+        CreateButton("На спавн", playerActions.transform, HandleReturnLocalPlayerToSpawn);
+        playerActionText = CreateText("", panel.transform, 13, FontStyles.Italic);
 
         CreateMetric("performance", panel.transform);
         CreateMetric("player", panel.transform);

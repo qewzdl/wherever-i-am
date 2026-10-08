@@ -483,6 +483,40 @@ public sealed class HostGuestParityPlayModeTests : MultiEndpointPlayModeTest
             $"The caught guest looks from {view.position}, not the survivor's eyes at {survivorEyes}.");
     }
 
+    // The developer window's death is the catch, so it is refused where a
+    // catch is refused: outside a running match nobody is taken out of play.
+    [UnityTest]
+    public IEnumerator DeveloperDeath_OutsideAMatch_DoesNotTakeThePlayerOutOfPlay()
+    {
+        yield return StartNetwork();
+
+        ulong hostPlayer = PlayerObjectId(NetworkManager.ServerClientId);
+        PlayerEnemyAttackReceiver receiver = GetSpawned<PlayerEnemyAttackReceiver>(host, hostPlayer);
+
+        bool died = receiver.TryDie(out string reason);
+
+        Assert.That(died, Is.False, "Dying outside a match took the player out of play.");
+        Assert.That(reason, Is.EqualTo("Матч не идёт"));
+        Assert.That(receiver.IsEliminated, Is.False);
+    }
+
+    // With no map to spawn on, the window's respawn says so and moves nobody.
+    [UnityTest]
+    public IEnumerator DeveloperRespawn_WithoutAMap_MovesNobody()
+    {
+        yield return StartNetwork();
+
+        ulong guestPlayer = PlayerObjectId(guest.Manager.LocalClientId);
+        PlayerEnemyAttackReceiver receiver = GetSpawned<PlayerEnemyAttackReceiver>(guest, guestPlayer);
+        Vector3 before = receiver.transform.position;
+
+        bool moved = receiver.TryReturnToSpawn(out string reason);
+
+        Assert.That(moved, Is.False, "Returned to a spawn point on a map that has none.");
+        Assert.That(reason, Is.EqualTo("На карте нет точки спавна"));
+        Assert.That(receiver.transform.position, Is.EqualTo(before));
+    }
+
     // The end of a match is worded for how many played it, not for how many
     // are left: a survivor who has gone does not make it a solo match for
     // the one caught player still there.
